@@ -1,4 +1,4 @@
-# ApexSenseBridge 0.2
+# ApexSenseBridge 0.2.2
 
 A small Windows proof-of-concept for talking directly to the Flydigi APEX 5 FORCEADAPT vendor HID interface.
 
@@ -38,6 +38,16 @@ The first hardware test uses a deliberately gentle `Race` resistance on **RT onl
 - resistance: 30 / 255
 - duration: ~1.5 s
 - then LT and RT are both reset to Normal
+
+## Hardware validation
+
+Validated on 31 August 2026 with an APEX 5 through its 2.4 GHz dongle:
+
+- Windows exposes the command collection as `VID 37D7`, `PID 2501`,
+  `MI_02/COL01`, UsagePage `FFA0`, with 32-byte input/output reports;
+- command `0x01` identifies the controller as `k5`, DeviceType `128`, dongle;
+- a gentle command `81` Race effect was physically felt on RT;
+- LT and RT were restored to Normal successfully.
 
 ## Build on Windows
 
@@ -87,10 +97,25 @@ The test intentionally does **not** edit firmware or stored controller profiles.
 
 ```text
 list             list matching vendor HID interfaces
+diagnose         show relevant HID interfaces without writing to hardware
+diagnose --all-hid
+                 show every HID interface without writing to hardware
+diagnose --json  emit the diagnostic as machine-readable JSON
+identify [index] read command `0x01` and verify an Apex 5 before writes
 test-rt [index]  apply a gentle RT resistance for ~1.5 s and reset
 clear [index]    reset LT + RT to Normal
 dry-run          print the test packet without touching hardware
 ```
+
+`diagnose` reports the complete device path, VID/PID, HID strings, usage,
+input/output/feature report lengths, SetupAPI IDs, parent instance, class and
+composite USB interface number when available. `--all-hid` can expose sensitive
+device names or serial numbers; review the output before sharing it publicly.
+
+`identify` sends only Flydigi's checksummed Get Info request and waits up to
+600 ms for its reply. Trigger commands remain locked until the reply identifies
+an Apex 5 DeviceType (`128`, `129`, or `133` through `136`). Unknown models,
+silent devices, Vader controllers and Apex 6 are refused.
 
 ## Architecture
 
@@ -101,7 +126,8 @@ src/platform/windows/     Windows SetupAPI/HID transport
 src/main.cpp              thin CLI only
 ```
 
-The next milestone, **0.3**, is conditional on this test succeeding. It will add a virtual DualSense output-capture backend while leaving the physical APEX 5 input path native whenever the game allows it.
+The next milestone, **0.3**, is the virtual DualSense output-capture backend,
+while leaving the physical APEX 5 input path native whenever the game allows it.
 
 ## Upstream technical references
 

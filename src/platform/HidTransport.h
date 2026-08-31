@@ -4,11 +4,18 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <span>
 #include <string>
 #include <vector>
 
 namespace asb::platform {
+
+enum class HidReadStatus {
+    Data,
+    Timeout,
+    Error,
+};
 
 class HidTransport {
 public:
@@ -17,6 +24,11 @@ public:
     [[nodiscard]] virtual bool isOpen() const noexcept = 0;
     [[nodiscard]] virtual const HidDeviceInfo& info() const noexcept = 0;
     virtual bool writeOutputReport(std::span<const std::uint8_t> report, std::string& error) = 0;
+    virtual HidReadStatus readInputReport(
+        std::span<std::uint8_t> report,
+        std::chrono::milliseconds timeout,
+        std::size_t& bytesRead,
+        std::string& error) = 0;
 };
 
 [[nodiscard]] std::vector<HidDeviceInfo> enumerateHidDevices(std::string& error);

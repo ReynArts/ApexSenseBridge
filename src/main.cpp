@@ -1,6 +1,8 @@
 #include "core/TriggerResetGuard.h"
+#include "diagnostics/HidDiagnostics.h"
 #include "flydigi/Apex5Device.h"
 #include "flydigi/Apex5Protocol.h"
+#include "platform/HidTransport.h"
 
 #include <algorithm>
 #include <atomic>
@@ -8,6 +10,7 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -62,14 +65,51 @@ void printDevice(const asb::HidDeviceInfo& info, std::size_t index) {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 0.2\n\n"
+        << "ApexSenseBridge 0.2.2\n\n"
         << "Commands:\n"
         << "  list                         List APEX 5 vendor HID candidates\n"
+        << "  diagnose [--all-hid] [--json]\n"
+        << "                               Read-only HID interface diagnostic\n"
+        << "  identify [index]             Read and verify Flydigi command 0x01 identity\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
         << "  clear [index]                Clear LT + RT effects\n"
         << "  dry-run                      Print the test packet without HID I/O\n\n"
         << "The hardware-writing commands only target Flydigi VID 37D7, controller PID family 2xxx,\n"
         << "and vendor usage page FFA0. If more than one candidate is found, pass its list index.\n";
+}
+
+int commandDiagnose(int argc, char** argv) {
+    bool includeAllHid = false;
+    bool json = false;
+    for (int index = 2; index < argc; ++index) {
+        const std::string_view option = argv[index];
+        if (option == "--all-hid") {
+            includeAllHid = true;
+        } else if (option == "--json") {
+            json = true;
+        } else {
+            std::cerr << "Unknown diagnose option: " << option << "\n"
+                      << "Usage: ApexSenseBridge diagnose [--all-hid] [--json]\n";
+            return 1;
+        }
+    }
+
+    std::string error;
+    const auto allDevices = asb::platform::enumerateHidDevices(error);
+    const auto selected = asb::diagnostics::selectHidDevices(allDevices, includeAllHid);
+
+    if (!error.empty()) {
+        std::cerr << "HID enumeration warning: " << error << '\n';
+    }
+
+    if (json) {
+        std::cout << asb::diagnostics::formatHidDevicesJson(selected);
+    } else {
+        std::cout << (includeAllHid ? "Mode: all HID interfaces\n" : "Mode: relevant HID interfaces\n")
+                  << asb::diagnostics::formatHidDevicesText(selected);
+    }
+
+    return !error.empty() && allDevices.empty() ? 2 : 0;
 }
 
 std::optional<std::size_t> parseIndex(int argc, char** argv) {
@@ -106,7 +146,11 @@ std::optional<asb::flydigi::Apex5Device> openSelected(int argc, char** argv, std
         return std::nullopt;
     }
 
-    return asb::flydigi::Apex5Device::open(candidates[index], error);
+    auto device = asb::flydigi::Apex5Device::open(candidates[index], error);
+    if (!device || !device->verifyIdentity(error)) {
+        return std::nullopt;
+    }
+    return device;
 }
 
 int commandList() {
@@ -143,6 +187,24 @@ int commandDryRun() {
                   << static_cast<int>(report[i]) << ' ';
     }
     std::cout << std::dec << "\n";
+    return 0;
+}
+
+int commandIdentify(int argc, char** argv) {
+    std::string error;
+    auto device = openSelected(argc, argv, error);
+    if (!device) {
+        std::cerr << "Identity check failed: " << error << '\n';
+        return 3;
+    }
+
+    const auto& identity = device->identity();
+    std::cout << "Verified: " << identity->describe() << '\n'
+              << "Connection: " << (identity->isWired() ? "wired" : "dongle")
+              << " (raw " << static_cast<unsigned int>(identity->connectionTypeRaw()) << ")\n"
+              << "Battery level: " << static_cast<unsigned int>(identity->batteryLevel())
+              << (identity->isCharging() ? " (charging)" : "") << '\n'
+              << "Adaptive triggers: yes\n";
     return 0;
 }
 
@@ -222,6 +284,12 @@ int main(int argc, char** argv) {
     const std::string_view command = argv[1];
     if (command == "list") {
         return commandList();
+    }
+    if (command == "diagnose") {
+        return commandDiagnose(argc, argv);
+    }
+    if (command == "identify") {
+        return commandIdentify(argc, argv);
     }
     if (command == "test-rt") {
         return commandTestRt(argc, argv);

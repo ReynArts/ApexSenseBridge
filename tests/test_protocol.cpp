@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "flydigi/Apex5Protocol.h"
 
 #include <cassert>

@@ -43,11 +43,16 @@ VS Build Tools 2026 and 2022 are both supported by this script.
 "@
 }
 
-# A CMake build directory is tied to one generator. Delete stale cache when
-# switching generator versions so CMake never mixes VS/NMake/older installs.
+# A CMake build directory is tied to one generator and one source directory.
+# Delete stale cache after switching Visual Studio versions or moving the repo.
 if (Test-Path (Join-Path $build "CMakeCache.txt")) {
     $cache = Get-Content (Join-Path $build "CMakeCache.txt") -Raw
-    if ($cache -notmatch [regex]::Escape("CMAKE_GENERATOR:INTERNAL=$generator")) {
+    $normalizedRoot = $root -replace '\\', '/'
+    $expectedGenerator = "CMAKE_GENERATOR:INTERNAL=$generator"
+    $expectedSource = "CMAKE_HOME_DIRECTORY:INTERNAL=$normalizedRoot"
+    $cacheLines = $cache -split "`r?`n"
+    if ($cacheLines -notcontains $expectedGenerator -or
+        $cacheLines -notcontains $expectedSource) {
         Write-Host "Removing stale CMake cache..."
         Remove-Item -Recurse -Force $build
     }

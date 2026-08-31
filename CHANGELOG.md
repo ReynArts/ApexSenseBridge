@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Added strictly read-only `diagnose`, `diagnose --all-hid`, and `diagnose --json` commands.
+- Added extended SetupAPI diagnostics: serial, feature-report length, hardware and compatible IDs, instance and parent IDs, class, friendly name, and USB `MI_xx` interface number.
+- Added unit tests for HID relevance filtering and text/JSON formatting.
+- Build script now clears CMake caches that still reference a previous source directory.
+- Added Flydigi command `0x01` identity verification and an `identify` command.
+- FORCEADAPT writes are now refused until the open device reports an Apex 5 `k5` DeviceType.
+- Added bounded overlapped HID reads for reply handling without busy polling.
+- Hardware-validated the Windows dongle path on an Apex 5 DeviceType `128`.
+- Hardware-validated a gentle RT command `81` effect and automatic LT/RT reset.
+
 ## 0.2.2
 - Fix MSVC build failure by including `<iterator>` for `std::back_inserter`.
 - Build script now auto-detects Visual Studio Build Tools 2026 or 2022.

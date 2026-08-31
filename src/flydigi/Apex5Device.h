@@ -2,6 +2,7 @@
 
 #include "core/DeviceInfo.h"
 #include "core/TriggerEffect.h"
+#include "flydigi/Apex5Identity.h"
 #include "platform/HidTransport.h"
 
 #include <memory>
@@ -31,13 +32,19 @@ public:
 
     [[nodiscard]] bool isOpen() const noexcept;
     [[nodiscard]] const HidDeviceInfo& info() const;
+    [[nodiscard]] const std::optional<Apex5Identity>& identity() const noexcept;
+
+    bool verifyIdentity(std::string& error);
 
     bool setTrigger(const TriggerEffect& effect, std::string& error);
     bool clearTrigger(TriggerSide side, std::string& error);
     bool clearAll(std::string& error);
 
 private:
+    [[nodiscard]] bool mayWriteAdaptiveTrigger(std::string& error) const;
+
     TransportPtr transport_{};
+    std::optional<Apex5Identity> identity_{};
 };
 
 } // namespace asb::flydigi

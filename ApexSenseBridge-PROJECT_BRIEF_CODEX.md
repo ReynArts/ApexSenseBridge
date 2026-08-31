@@ -761,43 +761,41 @@ Le premier script avait forcé Visual Studio 2022 alors que la machine utilisait
 
 ---
 
-# 10. Bloquant actuel
+# 10. Validation matérielle Windows — RÉSOLUE
 
-Après compilation réussie de la v0.2.2 :
-
-```powershell
-.\build-win\Release\ApexSenseBridge.exe list
-```
-
-retourne :
+Mise à jour du 31 août 2026 : l'ancienne absence d'interface était causée par
+une manette endormie ou par un diagnostic insuffisant. La collection Windows
+du dongle a maintenant été identifiée avec certitude :
 
 ```text
-No APEX 5 vendor HID interface found.
+VID:PID       37D7:2501
+Produit       Flydigi APEX5 Wireless
+Collection    MI_02 / COL01
+UsagePage     FFA0
+Usage         0001
+Input report  32 octets
+Output report 32 octets
 ```
 
-La manette est pourtant connectée et utilisable via son dongle 2,4 GHz.
-
-**Conclusion actuelle :** ne pas supposer que le protocole est faux.
-
-Le problème le plus probable est la **détection de la collection vendor sous Windows**.
-
-OpenFlydigi a mesuré sous Linux l'interface vendor :
+La commande read-only `0x01` a répondu :
 
 ```text
-VID 0x37D7
-APEX 5 connu PID 0x2501
-famille PID 2xxx
-descriptor prefix 06 A0 FF
-usage page 0xFFA0
+Apex 5 / k5 / DeviceType 128 / dongle raw 2
+adaptive triggers: yes
 ```
 
-et indique qu'elle existe en filaire comme via dongle.
-
-Sous Windows, il faut maintenant découvrir exactement comment cette interface est exposée.
+Le test doux `test-rt` a ensuite appliqué un effet Race physiquement ressenti
+sur RT pendant environ 1,5 seconde, puis LT et RT ont été remis à Normal avec
+succès. Le chemin `Windows -> HID vendor -> FORCEADAPT APEX 5` est donc validé
+sur le dongle 2,4 GHz.
 
 ---
 
-# 11. PROCHAINE TÂCHE À FAIRE — priorité absolue
+# 11. Diagnostic HID Windows — TERMINÉ
+
+Les commandes `diagnose`, `diagnose --all-hid` et `diagnose --json` sont
+implémentées. Elles ont permis l'identification ci-dessus et restent
+strictement sans commande d'effet matériel.
 
 ## 11.1. Créer un diagnostic HID Windows READ-ONLY
 
@@ -1535,9 +1533,9 @@ OpenFlydigi `relay.py::PadLink` est une excellente référence pour ce comportem
 
 ### Risque A — interface vendor Windows
 
-Bloquant actuel.
-
-Il faut identifier la bonne top-level HID collection.
+**Résolu sur dongle 2,4 GHz.** La collection validée est `MI_02/COL01`,
+UsagePage `0xFFA0`, rapports entrée/sortie de 32 octets. Le chemin USB direct
+reste à documenter mais ne bloque plus le mode principal.
 
 ### Risque B — feedback sur DualSense virtuelle sans input
 
@@ -1575,10 +1573,10 @@ Peut écraser les effets si elle tourne.
 
 Le MVP est atteint si :
 
-1. l'APEX 5 est détectée en 2,4 GHz ;
-2. l'identité APEX 5 est validée ;
-3. le bridge applique un effet FORCEADAPT réel sur RT ;
-4. le bridge remet automatiquement LT/RT à Normal ;
+1. ✅ l'APEX 5 est détectée en 2,4 GHz ;
+2. ✅ l'identité APEX 5 est validée (`k5`, DeviceType 128) ;
+3. ✅ le bridge applique un effet FORCEADAPT réel sur RT ;
+4. ✅ le bridge remet automatiquement LT/RT à Normal ;
 5. une DualSense virtuelle est visible dans Windows ;
 6. un jeu natif DualSense lui envoie des output reports ;
 7. les effets adaptatifs du jeu sont traduits en FORCEADAPT ;
@@ -1627,7 +1625,11 @@ Si un jeu supporte nativement DualSense, le bridge devrait fonctionner **sans pr
 
 ---
 
-# 33. Premier ticket Codex recommandé
+# 33. Premier ticket Codex — TERMINÉ SUR DONGLE
+
+Le diagnostic, l'identité `0x01`, la garde d'écriture et le test FORCEADAPT
+physique ont été réalisés. La variante USB directe reste à documenter mais ne
+bloque plus le chemin produit prioritaire en 2,4 GHz.
 
 ## Titre
 
@@ -1669,7 +1671,12 @@ en dongle **et** en USB.
 
 ---
 
-# 34. Prompt prêt à coller dans Codex
+# 34. Ancien prompt de diagnostic — ARCHIVE
+
+> **Ne plus utiliser ce prompt comme état courant.** Il est conservé pour
+> retracer le ticket qui a mené à la validation du 31 août 2026. Les mentions
+> d'interface introuvable et d'absence de test physique ci-dessous sont
+> désormais obsolètes.
 
 ```text
 Tu reprends un projet Windows C++20 appelé ApexSenseBridge.
@@ -1794,4 +1801,6 @@ Pas :
 réinventer toutes les couches à partir de zéro
 ```
 
-La prochaine étape immédiate reste **l'identification sûre de l'interface vendor APEX 5 sous Windows**.
+La prochaine étape immédiate est le **Milestone DualSense virtuelle Windows** :
+évaluer et intégrer un backend capable de créer la DualSense virtuelle et de
+compter ses output reports, sans encore router ces rapports vers l'APEX.
