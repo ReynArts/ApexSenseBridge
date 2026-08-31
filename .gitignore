@@ -1,0 +1,30 @@
+# Compilation / Build outputs
+build/
+build-win/
+build-linux/
+bin/
+obj/
+out/
+x64/
+ARM64/
+
+# IDE files and workspace settings
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# CMake generated files (if you want to keep CMakeLists.txt but ignore build directory)
+CMakeSettings.json
+CompilerIdCXX/
+CompilerIdC/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# OS files
+Thumbs.db
+.DS_Store
