@@ -84,6 +84,7 @@
     <Compile Include="Services\CloudGameListService.cs" />
     <Compile Include="Services\ProcessMonitorService.cs" />
     <Compile Include="Services\EngineSessionManager.cs" />
+    <Compile Include="Services\UpdateCheckerService.cs" />
     <Compile Include="Common\NativeMethods.cs" />
     <Compile Include="Common\BridgeSession.cs" />
     <Compile Include="Common\InstallLocator.cs" />

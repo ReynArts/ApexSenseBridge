@@ -22,18 +22,25 @@ if (-not (Test-Path $gamesJson)) {
     & (Join-Path $PSScriptRoot "update-pcgw-list.ps1")
 }
 
+$msbuild = ""
 $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-if (-not (Test-Path -LiteralPath $vswhere)) {
-    Fail "vswhere.exe was not found. Install Visual Studio Build Tools."
+if (Test-Path -LiteralPath $vswhere) {
+    $visualStudio = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+    if ($LASTEXITCODE -eq 0 -and $visualStudio) {
+        $candidate = Join-Path $visualStudio "MSBuild\Current\Bin\MSBuild.exe"
+        if (Test-Path -LiteralPath $candidate) {
+            $msbuild = $candidate
+        }
+    }
 }
 
-$visualStudio = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-if ($LASTEXITCODE -ne 0 -or -not $visualStudio) {
-    Fail "No Visual Studio installation containing MSBuild was found."
-}
-$msbuild = Join-Path $visualStudio "MSBuild\Current\Bin\MSBuild.exe"
-if (-not (Test-Path -LiteralPath $msbuild)) {
-    Fail "MSBuild.exe was not found in $visualStudio"
+if (-not $msbuild) {
+    $frameworkMsbuild = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe"
+    if (Test-Path -LiteralPath $frameworkMsbuild) {
+        $msbuild = $frameworkMsbuild
+    } else {
+        Fail "No suitable MSBuild.exe was found."
+    }
 }
 
 Write-Host "Building ApexSenseBridgeTray application..."
@@ -46,6 +53,9 @@ $trayExe = Join-Path $outputDir "ApexSenseBridgeTray.exe"
 if (-not (Test-Path $trayExe)) {
     Fail "ApexSenseBridgeTray.exe was not created."
 }
+
+Stop-Process -Name "ApexSenseBridgeTray" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 200
 
 # Copy to build-win\Release for Inno Setup packaging
 if (-not (Test-Path $buildWinRelease)) {

@@ -378,7 +378,38 @@
                                                FontSize="11" Foreground="{DynamicResource TextMuted}"/>
                                 </StackPanel>
                             </DockPanel>
+                            <!-- Separator -->
+                            <Border Height="1" Background="{DynamicResource CardBorder}" Margin="0,0,0,14"/>
+
+                            <!-- Software Update Row -->
+                            <DockPanel>
+                                <Button Content="Vérifier" Style="{StaticResource BtnSmall}" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center" Click="OnCheckUpdatesClick"/>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Mise à jour du logiciel" FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v0.3.0"
+                                               FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                                </StackPanel>
+                            </DockPanel>
                         </StackPanel>
+                    </Border>
+
+                    <!-- ══════════ OPTIONAL UPDATE BANNER ══════════ -->
+                    <Border x:Name="BannerUpdate" CornerRadius="8" Background="{DynamicResource PlayStationBlue}"
+                            Padding="16,12" Margin="0,0,0,10" Visibility="Collapsed">
+                        <DockPanel>
+                            <Button Content="Télécharger" Style="{StaticResource BtnSecondary}"
+                                    Background="White" Foreground="{DynamicResource PlayStationBlue}"
+                                    BorderThickness="0" DockPanel.Dock="Right" Padding="12,5" FontSize="11.5" FontWeight="SemiBold"
+                                    Click="OnDownloadUpdateClick"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtUpdateTitle" Text="Mise à jour disponible !" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <TextBlock x:Name="TxtUpdateSubtitle" Text="Une nouvelle version est prête au téléchargement"
+                                           FontSize="11" Foreground="#E0F2FE" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
                     </Border>
 
                     <!-- ══════════ CARD 4 — DATABASE & GAMES ══════════ -->

@@ -17,18 +17,22 @@ namespace ApexSenseBridgeTray
         private readonly CloudGameListService gameListService;
         private readonly EngineSessionManager sessionManager;
         private readonly ProcessMonitorService monitorService;
+        private readonly UpdateCheckerService updateChecker;
         private readonly TraySettings settings;
         private bool isInitialized;
+        private UpdateInfo latestUpdateInfo;
 
         public MainWindow(
             CloudGameListService gameListService,
             EngineSessionManager sessionManager,
             ProcessMonitorService monitorService,
+            UpdateCheckerService updateChecker,
             TraySettings settings)
         {
             this.gameListService = gameListService;
             this.sessionManager = sessionManager;
             this.monitorService = monitorService;
+            this.updateChecker = updateChecker;
             this.settings = settings;
 
             InitializeComponent();
@@ -40,6 +44,12 @@ namespace ApexSenseBridgeTray
             PnlTriggerCriteria.Opacity = settings.AutoDetectGames ? 1.0 : 0.4;
             ChkNotifications.IsChecked = settings.EnableNotifications;
             ChkManualBridge.IsChecked = settings.ForcedProfile == "standard";
+
+            if (updateChecker != null)
+            {
+                TxtVersionInfo.Text = string.Format("ApexSenseBridge v{0}", updateChecker.GetCurrentVersion());
+                updateChecker.UpdateAvailable += (info) => Dispatcher.Invoke(new Action(() => ShowUpdateBanner(info)));
+            }
 
             UpdateDatabaseCount();
             UpdateSessionStatus();
@@ -197,6 +207,36 @@ namespace ApexSenseBridgeTray
                 UpdateDatabaseCount();
                 MessageBox.Show(this, "Impossible de télécharger la dernière liste.\nVérifiez votre connexion Internet.",
                                 "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private async void OnCheckUpdatesClick(object sender, RoutedEventArgs e)
+        {
+            if (updateChecker == null) return;
+            UpdateInfo info = await updateChecker.CheckForUpdatesAsync(false);
+            ShowUpdateBanner(info);
+        }
+
+        private void ShowUpdateBanner(UpdateInfo info)
+        {
+            latestUpdateInfo = info;
+            if (info != null && info.HasUpdate)
+            {
+                TxtUpdateTitle.Text = string.Format("Mise à jour v{0} disponible !", info.LatestVersion);
+                TxtUpdateSubtitle.Text = "Cliquez sur Télécharger pour obtenir la dernière version";
+                BannerUpdate.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                BannerUpdate.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void OnDownloadUpdateClick(object sender, RoutedEventArgs e)
+        {
+            if (updateChecker != null && latestUpdateInfo != null)
+            {
+                updateChecker.DownloadOrOpenRelease(latestUpdateInfo);
             }
         }
 

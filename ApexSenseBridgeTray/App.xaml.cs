@@ -26,6 +26,7 @@ namespace ApexSenseBridgeTray
         private CloudGameListService gameListService;
         private EngineSessionManager sessionManager;
         private ProcessMonitorService monitorService;
+        private UpdateCheckerService updateChecker;
         private MainWindow mainWindow;
 
         protected override void OnStartup(StartupEventArgs e)
@@ -52,8 +53,9 @@ namespace ApexSenseBridgeTray
 
                 sessionManager = new EngineSessionManager();
                 monitorService = new ProcessMonitorService(gameListService, sessionManager, settings);
+                updateChecker = new UpdateCheckerService();
 
-                mainWindow = new MainWindow(gameListService, sessionManager, monitorService, settings);
+                mainWindow = new MainWindow(gameListService, sessionManager, monitorService, updateChecker, settings);
 
                 InitializeNotifyIcon();
 
@@ -78,9 +80,26 @@ namespace ApexSenseBridgeTray
                 sessionManager.SessionStarted += (game, profile) => UpdateTrayStatus();
                 sessionManager.SessionStopped += (reason) => UpdateTrayStatus();
 
+                updateChecker.UpdateAvailable += (info) =>
+                {
+                    if (settings.EnableNotifications && info != null && info.HasUpdate)
+                    {
+                        notifyIcon.ShowBalloonTip(
+                            5000,
+                            "Mise à jour disponible",
+                            string.Format("ApexSenseBridge v{0} est disponible.", info.LatestVersion),
+                            ToolTipIcon.Info);
+                    }
+                };
+
                 ThreadPool.QueueUserWorkItem(async _ =>
                 {
                     await gameListService.FetchLatestFromCloudAsync();
+                });
+
+                ThreadPool.QueueUserWorkItem(async _ =>
+                {
+                    await updateChecker.CheckForUpdatesAsync(true);
                 });
             }
             catch (Exception ex)
@@ -126,6 +145,14 @@ namespace ApexSenseBridgeTray
             });
             autoDetectMenuItem.Checked = settings.AutoDetectGames;
             contextMenu.Items.Add(autoDetectMenuItem);
+
+            contextMenu.Items.Add(new ToolStripMenuItem("Rechercher les mises à jour...", null, async (s, e) =>
+            {
+                if (updateChecker != null)
+                {
+                    await updateChecker.CheckForUpdatesAsync(false);
+                }
+            }));
 
             contextMenu.Items.Add(new ToolStripMenuItem("Panneau de Contrôle...", null, (s, e) =>
             {
