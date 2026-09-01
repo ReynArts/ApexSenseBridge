@@ -5,6 +5,7 @@
 #include <cctype>
 #include <limits>
 #include <sstream>
+#include <string_view>
 
 namespace asb::dualsense::viiper {
 namespace {
@@ -97,16 +98,17 @@ bool parseVersion(const std::string& version, std::array<int, 3>& parts) {
     return true;
 }
 
-int steamlessPatchNumber(const std::string& version) {
+int namedPatchNumber(const std::string& version, std::string_view marker) {
     std::string lowered = version;
     std::transform(lowered.begin(), lowered.end(), lowered.begin(),
                    [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
-    constexpr auto marker = "steamless";
     auto position = lowered.find(marker);
-    if (position == std::string::npos) {
-        return -1;
+    while (position != std::string::npos && position > 0 &&
+           std::isalnum(static_cast<unsigned char>(lowered[position - 1]))) {
+        position = lowered.find(marker, position + marker.size());
     }
-    position += std::char_traits<char>::length(marker);
+    if (position == std::string::npos) return -1;
+    position += marker.size();
     if (position >= lowered.size() || !std::isdigit(static_cast<unsigned char>(lowered[position]))) {
         return -1;
     }
@@ -165,13 +167,15 @@ bool isDualSenseCompatibleVersion(const std::string& version) {
         return false;
     }
 
-    if (parts[0] > 0 || parts[1] > 6 || (parts[1] == 6 && parts[2] > 1)) {
-        return true;
-    }
-    if (parts[0] != 0 || parts[1] != 6 || parts[2] != 1) {
-        return false;
-    }
-    return steamlessPatchNumber(version) >= 5;
+    // Upstream VIIPER 0.7 added a DualSense device, but its public feedback
+    // stream only carries conventional rumble and LEDs. ApexSenseBridge also
+    // requires the complete adaptive-trigger report plus its audio-haptics
+    // extension, so a bare upstream semantic version is not sufficient proof
+    // of compatibility.
+    const bool legacySteamless = parts == std::array<int, 3>{0, 6, 1} &&
+                                 namedPatchNumber(version, "steamless") >= 5;
+    const bool apexSenseExtension = namedPatchNumber(version, "asb") >= 1;
+    return legacySteamless || apexSenseExtension;
 }
 
 } // namespace asb::dualsense::viiper

@@ -1,0 +1,42 @@
+name: Update Supported Games List
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # Runs daily at 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-list:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch and Parse PCGamingWiki DualSense Data
+        run: |
+          python scripts/update_pcgw_list.py
+
+      - name: Validate Generated JSON Schema
+        run: |
+          python -c "import json; data=json.load(open('data/supported_games.json')); assert data['totalGames'] > 50; print(f'Validated {data[\"totalGames\"]} games.')"
+
+      - name: Commit and Push if Changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain data/supported_games.json)" ]; then
+            git add data/supported_games.json
+            git commit -m "chore(data): auto-update supported DualSense games list from PCGamingWiki"
+            git push
+            echo "Successfully updated supported_games.json and pushed to main."
+          else
+            echo "No changes detected in supported_games.json."
+          fi

@@ -86,3 +86,8 @@ Makefile
 # OS files
 Thumbs.db
 .DS_Store
+
+# Design specifications
+DESIGN.md
+DESIGN*.md
+

@@ -60,14 +60,18 @@ else()
     )
 endif()
 
-add_executable(ApexSenseBridge src/main.cpp)
+if(WIN32)
+    set(ASB_RC_FILE src/platform/windows/ApexSenseBridge.rc)
+endif()
+
+add_executable(ApexSenseBridge src/main.cpp ${ASB_RC_FILE})
 target_link_libraries(ApexSenseBridge PRIVATE asb_core)
 if(WIN32)
     target_link_libraries(ApexSenseBridge PRIVATE psapi)
 endif()
 
 if(WIN32)
-    add_executable(ApexSenseBridgeControl WIN32 src/control/ControlPanel.cpp)
+    add_executable(ApexSenseBridgeControl WIN32 src/control/ControlPanel.cpp ${ASB_RC_FILE})
     target_link_libraries(ApexSenseBridgeControl PRIVATE user32 shell32 advapi32)
 endif()
 

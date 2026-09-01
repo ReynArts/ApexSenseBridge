@@ -135,6 +135,13 @@ int main() {
     assert(residualRumble.hasRumble());
     assert(!residualRumble.requestsRumbleUpdate());
 
+    DualSenseFeedback hapticsSelectOnly{};
+    hapticsSelectOnly.enableBits1 = 0x02;
+    hapticsSelectOnly.rumbleLeft = 99;
+    hapticsSelectOnly.rumbleRight = 88;
+    assert(hapticsSelectOnly.hasRumble());
+    assert(!hapticsSelectOnly.requestsRumbleUpdate());
+
     DualSenseFeedback compatibleVibrationV2{};
     compatibleVibrationV2.enableBits3 = 0x04;
     compatibleVibrationV2.rumbleLeft = 91;
@@ -159,7 +166,12 @@ int main() {
     assert(viiper::isDualSenseCompatibleVersion("v0.6.1-steamless9"));
     assert(!viiper::isDualSenseCompatibleVersion("v0.6.1"));
     assert(!viiper::isDualSenseCompatibleVersion("v0.6.1-steamless4"));
-    assert(viiper::isDualSenseCompatibleVersion("v0.6.2"));
+    assert(!viiper::isDualSenseCompatibleVersion("v0.6.2"));
+    assert(!viiper::isDualSenseCompatibleVersion("v0.7.0"));
+    assert(!viiper::isDualSenseCompatibleVersion("v0.7.0-asb0"));
+    assert(!viiper::isDualSenseCompatibleVersion("v0.7.0-notasb1"));
+    assert(viiper::isDualSenseCompatibleVersion("v0.7.0-asb1"));
+    assert(viiper::isDualSenseCompatibleVersion("v0.8.0-asb2"));
 
     std::uint32_t busId = 0;
     std::string deviceId;

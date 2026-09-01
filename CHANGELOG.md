@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Began the post-0.3.0 VIIPER v0.7 migration without replacing the released
+  `v0.6.1-steamless9` payload. Added a reproducible `v0.7.0-asb2` patch/build,
+  kept the upstream libVIIPER output API intact, and isolated the complete
+  adaptive-trigger/audio-haptics stream behind an ASB extension. The port adds
+  composite USB audio, USB/IP isochronous transfers, old-wire input adaptation,
+  firmware `0x0630`, usbip-win2 ABI fallback and regression tests. Bare upstream
+  VIIPER builds are now rejected because they omit the required feedback fields.
+  The second prototype restores the exact 273-byte standard DualSense HID
+  descriptor instead of v0.7's shared 427-byte descriptor containing Edge-only
+  reports, after Call of Duty rejected the inconsistent standard-controller
+  identity.
+- Fixed near-continuous false grip rumble in Call of Duty by no longer treating
+  DualSense `HAPTICS_SELECT` alone as validation of the compatibility-motor
+  bytes. Only `COMPATIBLE_VIBRATION` or `COMPATIBLE_VIBRATION2` now updates the
+  APEX motors, matching Sony's Linux driver semantics.
 - Added automatic Playnite profile selection from normalized game titles and
   installation-folder names. Only the four verified games are recognized;
   unknown titles remain native XInput. Manual profiles take priority, explicit

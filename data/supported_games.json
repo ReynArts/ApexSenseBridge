@@ -1,0 +1,1449 @@
+﻿{
+    "updatedAt":  "2026-09-01T15:43:14.9891018Z",
+    "games":  [
+                  {
+                      "normalized":  "007firstlight",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "007 First Light",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "aplaguetalerequiem",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "A Plague Tale: Requiem",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "alanwakeii",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Alan Wake II",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Animal Well",
+                      "normalized":  "animalwell",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "apexlegends",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Apex Legends",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "arknightsendfield",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Arknights: Endfield",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "assassinscreedmirage",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Assassin\u0027s Creed Mirage",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "assassinscreedshadows",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Assassin\u0027s Creed Shadows",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "assassinscreedvalhalla",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Assassin\u0027s Creed Valhalla",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "assassinscreedblackflagresynced",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Assassin\u0027s Creed: Black Flag Resynced",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "assettocorsa",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Assetto Corsa",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "avatarfrontiersofpandora",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Avatar: Frontiers of Pandora",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Banishers: Ghosts of New Eden",
+                      "normalized":  "banishersghostsofneweden",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "battlefield6",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Battlefield 6",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "beamngdrive",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "BeamNG.drive",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "beastofreincarnation",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Beast of Reincarnation",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Black Myth: Wukong",
+                      "normalized":  "blackmythwukong",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Borderlands 4",
+                      "normalized":  "borderlands4",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "bramblethemountainking",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Bramble: The Mountain King",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Bugsnax",
+                      "normalized":  "bugsnax",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "cairn",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Cairn",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "callofdutyblackops6",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Black Ops 6",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "callofdutyblackops7",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Black Ops 7",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Black Ops Cold War",
+                      "normalized":  "callofdutyblackopscoldwar",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "callofdutymodernwarfare4",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Modern Warfare 4",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Modern Warfare 4 Beta",
+                      "normalized":  "callofduty",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "callofdutymodernwarfareii",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Modern Warfare II",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "callofdutymodernwarfareiii",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Modern Warfare III",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "callofdutywarzone20",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Call of Duty: Warzone 2.0",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "callofthewildtheangler",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Call of the Wild: The Angler",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Cloudheim",
+                      "normalized":  "cloudheim",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "control",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Control",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "crimebossrockaycity",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Crime Boss: Rockay City",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Crimson Desert",
+                      "normalized":  "crimsondesert",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "cronosthenewdawn",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Cronos: The New Dawn",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Cthulhu: The Cosmic Abyss",
+                      "normalized":  "cthulhuthecosmicabyss",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "cyberpunk2077",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Cyberpunk 2077",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "davethediver",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Dave the Diver",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "daysgone",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Days Gone",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "deathstranding",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Death Stranding",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "deathstranding2onthebeach",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Death Stranding 2: On the Beach",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "deathstrandingdirectorscut",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Death Stranding Director\u0027s Cut",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "deathloop",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Deathloop",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Depersonalization",
+                      "normalized":  "depersonalization",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "dirt4",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "DiRT 4",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "dirtrally",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "DiRT Rally",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "dirtrally20",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "DiRT Rally 2.0",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "dolmen",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Dolmen",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "dragonagetheveilguard",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Dragon Age: The Veilguard",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "duckgame",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Duck Game",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "dyinglight",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Dying Light",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "dyinglight2stayhuman",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Dying Light 2 Stay Human",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "dyinglightthebeast",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Dying Light: The Beast",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "easportswrc",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "EA Sports WRC",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "eriksholmthestolendream",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Eriksholm: The Stolen Dream",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "eurotrucksimulator2",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Euro Truck Simulator 2",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Everspace 2",
+                      "normalized":  "everspace2",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "F1 2021",
+                      "normalized":  "f12021",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "f122",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "F1 22",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "f123",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "F1 23",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "f124",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "F1 24",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "f125",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "F1 25",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "fallout4",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Fallout 4",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Fantasian Neo Dimension",
+                      "normalized":  "fantasianneodimension",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "farcry6",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Far Cry 6",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "fbcfirebreak",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "FBC: Firebreak",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "finalfantasyviirebirth",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Final Fantasy VII Rebirth",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "finalfantasyviiremakeintergrade",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Final Fantasy VII Remake Intergrade",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "finalfantasyxivarealmreborn",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Final Fantasy XIV: A Realm Reborn",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "finalfantasyxvi",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Final Fantasy XVI",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Fobia - St. Dinfna Hotel",
+                      "normalized":  "fobiastdinfnahotel",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "forspoken",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Forspoken",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "forzahorizon5",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Forza Horizon 5",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "forzahorizon6",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Forza Horizon 6",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "forzamotorsport7",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Forza Motorsport 7",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Gears of War: E-Day",
+                      "normalized":  "gearsofwareday",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "genshinimpact",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Genshin Impact",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "ghostoftsushimadirectorscut",
+                      "adaptiveTriggers":  true,
+                      "profile":  "ghost-of-tsushima",
+                      "title":  "Ghost of Tsushima Director\u0027s Cut",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "ghostwiretokyo",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Ghostwire: Tokyo",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "godofwar",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "God of War",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "godofwarragnarök",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "God of War Ragnarök",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "granbluefantasyrelink",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Granblue Fantasy: Relink",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "grandtheftautov",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Grand Theft Auto V",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "grandtheftautovenhanced",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Grand Theft Auto V Enhanced",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "grandtheftautosanandreas",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Grand Theft Auto: San Andreas",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Gravity Circuit",
+                      "normalized":  "gravitycircuit",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "halflifealyx",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Half-Life: Alyx",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Halo: Campaign Evolved",
+                      "normalized":  "halocampaignevolved",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Haste",
+                      "normalized":  "haste",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "hellisus",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Hell is Us",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "hellbladeiisenuassaga",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Hellblade II: Senua\u0027s Saga",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "helldivers2",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Helldivers 2",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "hifirush",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Hi-Fi Rush",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "hogwartslegacy",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Hogwarts Legacy",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "horizonforbiddenwest",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Horizon Forbidden West",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "horizonzerodawnremastered",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Horizon Zero Dawn Remastered",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "indianajonesandthegreatcircle",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Indiana Jones and the Great Circle",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "infinitynikki",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Infinity Nikki",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "jakiiopengoal",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Jak II (OpenGOAL)",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "John Carpenter\u0027s Toxic Commando",
+                      "normalized":  "johncarpenterstoxiccommando",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Kingdom Come: Deliverance II",
+                      "normalized":  "kingdomcomedeliveranceii",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "legobatmanlegacyofthedarkknight",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Lego Batman: Legacy of the Dark Knight",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Lego Horizon Adventures",
+                      "normalized":  "legohorizonadventures",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "lordsofthefallen2023",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Lords of the Fallen (2023)",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "lostsoulaside",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Lost Soul Aside",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Luto",
+                      "normalized":  "luto",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Marathon (2026)",
+                      "normalized":  "marathon2026",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "marvelrivals",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Marvel Rivals",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "marveltōkonfightingsouls",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Marvel Tōkon: Fighting Souls",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "marvelsspiderman2",
+                      "adaptiveTriggers":  true,
+                      "profile":  "spider-man-2",
+                      "title":  "Marvel\u0027s Spider-Man 2",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "marvelsspidermanremastered",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Marvel\u0027s Spider-Man Remastered",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "marvelsspidermanmilesmorales",
+                      "adaptiveTriggers":  true,
+                      "profile":  "miles-morales",
+                      "title":  "Marvel\u0027s Spider-Man: Miles Morales",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "mechabreak",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Mecha Break",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "metalgearsolidvgroundzeroes",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Metal Gear Solid V: Ground Zeroes",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "metalgearsolidvthephantompain",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Metal Gear Solid V: The Phantom Pain",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "metalgearsolidδsnakeeater",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Metal Gear Solid Δ: Snake Eater",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Metro Exodus",
+                      "normalized":  "metroexodus",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "metroexodusenhancededition",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Metro Exodus Enhanced Edition",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "mindseye",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "MindsEye",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Mixtape",
+                      "normalized":  "mixtape",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "monsterhunterwilds",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Monster Hunter Wilds",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "mortalshellii",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Mortal Shell II",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Neva",
+                      "normalized":  "neva",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "nevernesstoeverness",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Neverness to Everness",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "ninjagaiden4",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Ninja Gaiden 4",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "nioh3",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Nioh 3",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "nomanssky",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "No Man\u0027s Sky",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Off The Grid",
+                      "normalized":  "offthegrid",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "overwatch2",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Overwatch 2",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "pacificdrive",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Pacific Drive",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "painkiller2025",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Painkiller (2025)",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "pragmata",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Pragmata",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "princeofpersiathelostcrown",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Prince of Persia: The Lost Crown",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Project Colored Mountains",
+                      "normalized":  "projectcoloredmountains",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "ratchetclankriftapart",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Ratchet \u0026 Clank: Rift Apart",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Ready or Not",
+                      "normalized":  "readyornot",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "reddeadredemption2",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Red Dead Redemption 2",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "residentevil5",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Resident Evil 5",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "residentevilrequiem",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Resident Evil Requiem",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Resonance: A Plague Tale Legacy",
+                      "normalized":  "resonanceaplaguetalelegacy",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "returnal",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Returnal",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "riseoftheronin",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Rise of the Ronin",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Riven (2024)",
+                      "normalized":  "riven2024",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "roadcraft",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "RoadCraft",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "rocketleague",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Rocket League",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "stalker2heartofchornobyl",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "S.T.A.L.K.E.R. 2: Heart of Chornobyl",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "S.T.A.L.K.E.R.: Call of Prypiat Enhanced Edition",
+                      "normalized":  "stalkercallofprypiatenhancededition",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "S.T.A.L.K.E.R.: Clear Sky Enhanced Edition",
+                      "normalized":  "stalkerclearskyenhancededition",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "S.T.A.L.K.E.R.: Shadow of Chornobyl Enhanced Edition",
+                      "normalized":  "stalkershadowofchornobylenhancededition",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "sackboyabigadventure",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Sackboy: A Big Adventure",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Satisfactory",
+                      "normalized":  "satisfactory",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "scarsabove",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Scars Above",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "screamer2026",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Screamer (2026)",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "seaofthieves",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Sea of Thieves",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "seasonalettertothefuture",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "SEASON: A letter to the future",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Signalis",
+                      "normalized":  "signalis",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "silenthill2",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Silent Hill 2",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "skate",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Skate",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "skullandbones",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Skull and Bones",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Sleep Awake",
+                      "normalized":  "sleepawake",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "sonicracingcrossworlds",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "Sonic Racing: CrossWorlds",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Sonic Superstars",
+                      "normalized":  "sonicsuperstars",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "starwarsjedisurvivor",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Star Wars Jedi: Survivor",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "starwarsoutlaws",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Star Wars Outlaws",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "stellarblade",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Stellar Blade",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Still Wakes the Deep",
+                      "normalized":  "stillwakesthedeep",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Stray",
+                      "normalized":  "stray",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "styxbladesofgreed",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Styx: Blades of Greed",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Suicide Squad: Kill the Justice League",
+                      "normalized":  "suicidesquadkillthejusticeleague",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Sword of the Sea",
+                      "normalized":  "swordofthesea",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "systemshock225thanniversaryremaster",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "System Shock 2: 25th Anniversary Remaster",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "taintedgrailthefallofavalon",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Tainted Grail: The Fall of Avalon",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Tekken 8",
+                      "normalized":  "tekken8",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Test Drive Unlimited Solar Crown",
+                      "normalized":  "testdriveunlimitedsolarcrown",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "The Chant",
+                      "normalized":  "thechant",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "thecrewmotorfest",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The Crew Motorfest",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "theelderscrollsivoblivionremastered",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The Elder Scrolls IV: Oblivion Remastered",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "theelderscrollsvskyrimspecialedition",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The Elder Scrolls V: Skyrim Special Edition",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "thefirstberserkerkhazan",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The First Berserker: Khazan",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "thefirstdescendant",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The First Descendant",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "thelastofusparti",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The Last of Us Part I",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "thelastofuspartiiremastered",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The Last of Us Part II Remastered",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "The Riftbreaker",
+                      "normalized":  "theriftbreaker",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "thesinkingcity2",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "The Sinking City 2",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "thesmurfs2theprisonerofthegreenstone",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "title":  "The Smurfs 2: The Prisoner of the Green Stone",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "The Witcher 3: Wild Hunt",
+                      "normalized":  "thewitcher3wildhunt",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Tom Clancy\u0027s Rainbow Six Extraction",
+                      "normalized":  "tomclancysrainbowsixextraction",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "tomclancysrainbowsixsiege",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Tom Clancy\u0027s Rainbow Six Siege",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "tombraider2013",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Tomb Raider (2013)",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Tony Hawk\u0027s Pro Skater 3 + 4",
+                      "normalized":  "tonyhawksproskater34",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Tormented Souls 2",
+                      "normalized":  "tormentedsouls2",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Tour de France 2026",
+                      "normalized":  "tourdefrance2026",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "unchartedlegacyofthievescollection",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Uncharted: Legacy of Thieves Collection",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "untildawn",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Until Dawn",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "vrising",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "V Rising",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "War Robots: Frontiers",
+                      "normalized":  "warrobotsfrontiers",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "warframe",
+                      "adaptiveTriggers":  true,
+                      "profile":  "warframe",
+                      "title":  "Warframe",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "Warhammer 40,000: Space Marine II",
+                      "normalized":  "warhammer40000spacemarineii",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "wherewindsmeet",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Where Winds Meet",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "worldwarz",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "World War Z",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "WRC 10: FIA World Rally Championship",
+                      "normalized":  "wrc10fiaworldrallychampionship",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "WRC Generations",
+                      "normalized":  "wrcgenerations",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "wutheringwaves",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Wuthering Waves",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "profile":  "standard",
+                      "title":  "XDefiant",
+                      "normalized":  "xdefiant",
+                      "adaptiveTriggers":  false,
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "yakuzakiwami3darkties",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Yakuza Kiwami 3 \u0026 Dark Ties",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "zenlesszonezero",
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "title":  "Zenless Zone Zero",
+                      "hapticFeedback":  true
+                  }
+              ],
+    "totalGames":  206,
+    "version":  1
+}

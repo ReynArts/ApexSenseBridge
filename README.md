@@ -33,6 +33,7 @@ The bridge, triggers, and DSP haptics have been 100% verified in-game on:
 Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator elevation and does not show PowerShell or console windows. It installs:
 
 - the statically linked engine and Win32 control panel under `%ProgramFiles%\ApexSenseBridge`;
+- the standalone background Tray application (`ApexSenseBridgeTray.exe`);
 - the pinned patched VIIPER sidecar and its source/license notices;
 - usbip-win2 `0.9.7.7` and HidHide `1.5.230` when their exact versions are absent;
 - the Playnite extension under the current user's Playnite extension directory;
@@ -41,6 +42,16 @@ Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator el
 usbip-win2 `0.9.7.8` is explicitly refused because its official release warns about memory corruption and BSOD risk. The native binaries use the static MSVC runtime, so the Visual C++ Redistributable is not a prerequisite. A Windows restart can be required after first driver installation.
 
 The lightweight `ApexSenseBridgeControl.exe` panel can test APEX detection, restore HidHide/WGI state, open logs and start an explicit full dependency removal. It is not resident in memory.
+
+## Standalone Tray App (Usage hors Playnite)
+
+Pour les joueurs n'utilisant pas Playnite (Steam, Epic Games Store, GOG, EA, etc.) :
+
+1. Lancez **`ApexSenseBridgeTray.exe`** (ou cochez « Démarrer au démarrage de Windows » lors de l'installation).
+2. L'application reste discrète dans la zone de notification (System Tray).
+3. **Détection automatique Day One** : Dès qu'un jeu supportant les **Gâchettes Adaptatives** ou le **Retour Haptique** démarre (basé sur la base de données PCGamingWiki automatiquement synchronisée), ApexSenseBridge active le pont DualSense virtuel et affiche une notification discrète.
+4. Lorsque vous quittez le jeu, le pont se ferme proprement et restaure le contrôleur XInput natif.
+5. Cliquez sur l'icône dans la barre des tâches pour ouvrir l'interface minimaliste, forcer manuellement un profil (ex: *Spider-Man 2*, *Ghost of Tsushima*), ou forcer la mise à jour de la base de données.
 
 ## Playnite usage
 
@@ -133,6 +144,18 @@ Rebuild the pinned VIIPER payload and create the single offline installer:
 .\scripts\build-viiper-windows.ps1
 .\scripts\build-installer.ps1
 ```
+
+The post-0.3.0 VIIPER v0.7 migration is intentionally separate from the
+released sidecar. Build it into `dist\experimental` with:
+
+```powershell
+.\scripts\build-viiper-070-windows.ps1
+```
+
+This experimental `v0.7.0-asb2` build preserves the upstream libVIIPER API but
+adds the complete adaptive-trigger and audio-haptics protocol required by the
+bridge. It must pass in-game validation before it can replace
+`v0.6.1-steamless9` in the installer.
 
 The Playnite build script uses an installed Playnite SDK when available. On a clean CI worker it downloads the official pinned `PlayniteSDK 6.16.0` NuGet package, verifies its SHA-256 and creates the standard ZIP-based `.pext` format without requiring a full Playnite installation.
 

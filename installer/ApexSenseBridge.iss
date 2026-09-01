@@ -27,7 +27,8 @@ SetupLogging=yes
 CloseApplications=yes
 RestartApplications=no
 RestartIfNeededByRun=yes
-UninstallDisplayIcon={app}\ApexSenseBridgeControl.exe
+UninstallDisplayIcon={app}\Resources\app.ico
+SetupIconFile=..\assets\app.ico
 LicenseFile=..\LICENSE
 WizardStyle=modern
 
@@ -35,9 +36,17 @@ WizardStyle=modern
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Tasks]
+Name: "startwithwindows"; Description: "Démarrer ApexSenseBridge Tray au démarrage de Windows (Recommandé si vous n'utilisez pas Playnite)"; GroupDescription: "Options de démarrage :"
+Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau pour ApexSenseBridge Tray"; GroupDescription: "Raccourcis :"; Flags: unchecked
+
 [Files]
 Source: "..\build-win\Release\ApexSenseBridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeControl.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build-win\Release\ApexSenseBridgeTray.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build-win\Release\ApexSenseBridgeTray.exe.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\ApexSenseBridgeTray\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\data\supported_games.json"; DestDir: "{app}\Data"; Flags: ignoreversion
 Source: "..\build-win\Release\viiper.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-LICENSE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-SOURCE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
@@ -62,11 +71,13 @@ Source: "..\playnite\ApexSenseBridge\bin\Release\Localization\*"; DestDir: "{use
 [Run]
 Filename: "{tmp}\ApexSenseBridge\USBip-0.9.7.7-x64.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-"; StatusMsg: "Installation de usbip-win2 0.9.7.7…"; Flags: runhidden waituntilterminated; Check: NeedUsbip
 Filename: "{tmp}\ApexSenseBridge\HidHide_1.5.230_x64.exe"; Parameters: "/quiet /norestart"; StatusMsg: "Installation de HidHide 1.5.230…"; Flags: runhidden waituntilterminated; Check: NeedHidHide
+Filename: "{app}\ApexSenseBridgeTray.exe"; Description: "Lancer ApexSenseBridge Tray (Barre des tâches)"; Flags: nowait postinstall skipifsilent
 
 [Registry]
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "ExecutablePath"; ValueData: "{app}\ApexSenseBridge.exe"; Flags: uninsdeletevalue
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "ControlPanelPath"; ValueData: "{app}\ApexSenseBridgeControl.exe"; Flags: uninsdeletevalue
+Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "TrayExecutablePath"; ValueData: "{app}\ApexSenseBridgeTray.exe"; Flags: uninsdeletevalue
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "UninstallExecutable"; ValueData: "{uninstallexe}"; Flags: uninsdeletevalue
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "Version"; ValueData: "{#AppVersion}"; Flags: uninsdeletevalue
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "UsbipVersion"; ValueData: "0.9.7.7"; Flags: uninsdeletevalue
@@ -78,15 +89,19 @@ Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: 
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "HidHideOriginalInf"; ValueData: "HidHide.inf"; Flags: uninsdeletevalue
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: dword; ValueName: "OwnsHidHide"; ValueData: "{code:HidHideOwnership}"; Flags: uninsdeletevalue
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "CertificatesInstalled"; ValueData: "none (upstream packages use signed drivers)"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "ApexSenseBridgeTray"; ValueType: string; ValueData: """{app}\ApexSenseBridgeTray.exe"""; Flags: uninsdeletevalue; Tasks: startwithwindows
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\RunOnce"; ValueName: "!ApexSenseBridgeRestoreControllerVisibility"; Flags: uninsdeletevalue
 
 [Icons]
+Name: "{group}\ApexSenseBridge Tray (Barre des tâches)"; Filename: "{app}\ApexSenseBridgeTray.exe"; WorkingDir: "{app}"
 Name: "{group}\ApexSenseBridge — Contrôle et diagnostic"; Filename: "{app}\ApexSenseBridgeControl.exe"; WorkingDir: "{app}"
 Name: "{group}\Désinstaller ApexSenseBridge"; Filename: "{uninstallexe}"
+Name: "{commondesktop}\ApexSenseBridge Tray"; Filename: "{app}\ApexSenseBridgeTray.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [UninstallRun]
 ; Request the normal neutralize/detach/restore path first. taskkill is retained
 ; only as a bounded fallback for a hung or damaged engine.
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM ApexSenseBridgeTray.exe"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "StopTray"
 Filename: "{app}\ApexSenseBridge.exe"; Parameters: "stop-active-sessions"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "GracefulStopBridge"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM ApexSenseBridge.exe"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "StopBridge"
 Filename: "{app}\ApexSenseBridge.exe"; Parameters: "restore-controller-visibility"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "RestoreVisibility"

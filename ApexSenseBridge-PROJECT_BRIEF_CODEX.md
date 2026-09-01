@@ -2,7 +2,7 @@
 
 **État : 1er septembre 2026**
 
-**Version : 0.3.0**
+**Version : 0.3.0 déployée ; développement post-0.3.0 en cours**
 
 **Cible : Windows 10/11 x64, APEX 5 via dongle 2,4 GHz**
 
@@ -43,7 +43,11 @@ La boucle fixe à 4 ms a été supprimée. Les rapports HID, l'arrêt IPC, la d�
 
 Le bridge crée une DualSense USB virtuelle via VIIPER patché et usbip-win2 signé. Il vérifie le firmware émulé, traduit immédiatement chaque rapport physique complet et utilise seulement un keepalive en absence de rapport.
 
-Le lecteur TCP VIIPER est tamponné. L'audio haptique est agrégé par fenêtres de 5 ms en conservant énergie, pic et transitoire. Les effets de gâchettes contournent l'agrégation. Les commandes FORCEADAPT et vibrations sont dédupliquées, limitées et restaurées à zéro/Normal à l'arrêt.
+Le lecteur TCP VIIPER est tamponné. L'audio haptique est agrégé par fenêtres de 5 ms en conservant énergie, pic et transitoire. Les effets de gâchettes contournent l'agrégation. Les commandes FORCEADAPT et vibrations sont dédupliquées, limitées et restaurées à zéro/Normal à l'arrêt. Pour les rapports HID, `HAPTICS_SELECT` choisit seulement le mode haptique et ne valide pas les octets moteurs : une mise à jour grip exige `COMPATIBLE_VIBRATION` ou `COMPATIBLE_VIBRATION2`. Ce correctif évite les vibrations quasi permanentes observées dans Call of Duty.
+
+La release 0.3.0 conserve `VIIPER v0.6.1-steamless9` comme backend validé. La branche de développement contient désormais un prototype reproductible `v0.7.0-asb2`, basé exactement sur le commit upstream `6b71b148a2243fab77ee1a46f4e22e00bd7d5a04`. Il garde l'API publique libVIIPER v0.7, adapte séparément le protocole 0.3.x et réintroduit le rapport complet des gâchettes, le descripteur audio composite et les transferts USB/IP isochrones. Un VIIPER upstream non patché est explicitement refusé afin d'éviter une régression silencieuse du feedback. `asb2` restaure aussi le descripteur HID standard exact de 273 octets ; le descripteur partagé de 427 octets de v0.7 contient des rapports Edge incompatibles avec l'identité PID `0x0CE6` et n'était pas reconnu par Call of Duty.
+
+Le prototype v0.7.0-asb2 passe toute la suite Go upstream, les 13 tests natifs et un cycle matériel réel de trois secondes : firmware virtuel `0x0630` vérifié, rapports HID reçus, état neutralisé, APEX restaurée et aucune perte. Il reste expérimental jusqu'à validation en jeu des gâchettes et vibrations/audio dans Spider-Man 2 et Call of Duty ; il ne remplace donc pas encore le payload de l'installateur.
 
 ### Séquence `Ready`
 
@@ -132,4 +136,6 @@ playnite/ApexSenseBridge/InstallLocator.cs
 installer/ApexSenseBridge.iss
 installer/driver-manifest.json
 scripts/build-installer.ps1
+scripts/build-viiper-070-windows.ps1
+third_party/viiper-patches/viiper-v0.7.0-asb.patch
 ```

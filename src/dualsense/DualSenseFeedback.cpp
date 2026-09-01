@@ -25,10 +25,9 @@ bool DualSenseFeedback::hasRumble() const {
 
 bool DualSenseFeedback::requestsRumbleUpdate() const {
     constexpr std::uint8_t kCompatibleVibration = 0x01;
-    constexpr std::uint8_t kHapticsSelect = 0x02;
     constexpr std::uint8_t kCompatibleVibration2 = 0x04;
     return kind == FeedbackKind::HidOutput &&
-           (((enableBits1 & (kCompatibleVibration | kHapticsSelect)) != 0) ||
+           (((enableBits1 & kCompatibleVibration) != 0) ||
             ((enableBits3 & kCompatibleVibration2) != 0));
 }
 

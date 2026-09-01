@@ -10,13 +10,12 @@ AdaptiveTriggerBridge::AdaptiveTriggerBridge(flydigi::Apex5Device& device)
 void AdaptiveTriggerBridge::handle(const DualSenseFeedback& feedback) {
     if (failed_.load(std::memory_order_relaxed) || feedback.kind != FeedbackKind::HidOutput) return;
 
-    constexpr std::uint8_t kMotor = 0x01;
-    constexpr std::uint8_t kLegacyRumble = 0x02;
-    constexpr std::uint8_t kCompatibleVibration = 0x04;
+    constexpr std::uint8_t kCompatibleVibration = 0x01;
+    constexpr std::uint8_t kCompatibleVibration2 = 0x04;
     constexpr std::uint8_t kRightTrigger = 0x04;
     constexpr std::uint8_t kLeftTrigger = 0x08;
-    if ((feedback.enableBits1 & (kMotor | kLegacyRumble)) != 0 ||
-        (feedback.enableBits3 & kCompatibleVibration) != 0) {
+    if ((feedback.enableBits1 & kCompatibleVibration) != 0 ||
+        (feedback.enableBits3 & kCompatibleVibration2) != 0) {
         leftMotor_ = feedback.rumbleLeft;
     }
     if ((feedback.enableBits1 & kRightTrigger) != 0) {

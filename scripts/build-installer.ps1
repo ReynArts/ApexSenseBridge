@@ -56,6 +56,10 @@ Write-Host "Building the Playnite extension payload..."
     -ToolboxPath $ToolboxPath
 if ($LASTEXITCODE -ne 0) { Fail "Playnite extension build failed" }
 
+Write-Host "Building the Standalone Tray application..."
+& (Join-Path $PSScriptRoot "build-tray-app.ps1")
+if ($LASTEXITCODE -ne 0) { Fail "Tray app build failed" }
+
 if ([string]::IsNullOrWhiteSpace($IsccPath)) {
     $isccCandidates = @(
         (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"),

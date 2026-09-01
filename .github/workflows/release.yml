@@ -49,6 +49,7 @@ jobs:
         with:
           files: |
             dist/ApexSenseBridge-Setup.exe
+            dist/ApexSenseBridgeTray.exe
             dist/*.pext
           generate_release_notes: true
           draft: false

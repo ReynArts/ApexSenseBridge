@@ -106,6 +106,12 @@ int main() {
     bridge.handle(feedback);
     assert(transport->writes.size() == 2);
 
+    feedback.enableBits1 = 0x02;
+    feedback.rumbleLeft = 120;
+    feedback.rumbleRight = 80;
+    bridge.handle(feedback);
+    assert(transport->writes.size() == 2);
+
     feedback.enableBits1 = 0x01;
     feedback.rumbleLeft = 0;
     feedback.rumbleRight = 0;

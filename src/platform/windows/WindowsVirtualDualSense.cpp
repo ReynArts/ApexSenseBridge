@@ -465,7 +465,8 @@ private:
         }
         if (initialStatus == PingStatus::Incompatible) {
             error = "A server is listening on the configured local VIIPER API port but "
-                    "it is not a compatible patched DualSense backend.";
+                    "it does not advertise the adaptive-trigger and audio-haptics "
+                    "extensions required by ApexSenseBridge.";
             return false;
         }
 
