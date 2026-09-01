@@ -51,15 +51,15 @@ The application payload is portable, but the USBip and HidHide kernel drivers ne
 
 The lightweight `ApexSenseBridgeControl.exe` panel can test APEX detection, restore HidHide/WGI state, open logs and start an explicit full dependency removal. It is not resident in memory.
 
-## Standalone Tray App (Usage hors Playnite)
+## Standalone Tray App (Outside Playnite)
 
-Pour les joueurs n'utilisant pas Playnite (Steam, Epic Games Store, GOG, EA, etc.) :
+For players using other game launchers (Steam, Epic Games Store, GOG, EA App, Xbox Game Pass, etc.):
 
-1. Lancez **`ApexSenseBridgeTray.exe`** (ou cochez « Démarrer au démarrage de Windows » lors de l'installation).
-2. L'application reste discrète dans la zone de notification (System Tray).
-3. **Détection automatique Day One** : Dès qu'un jeu supportant les **Gâchettes Adaptatives** ou le **Retour Haptique** démarre (basé sur la base de données PCGamingWiki automatiquement synchronisée), ApexSenseBridge active le pont DualSense virtuel et affiche une notification discrète.
-4. Lorsque vous quittez le jeu, le pont se ferme proprement et restaure le contrôleur XInput natif.
-5. Cliquez sur l'icône dans la barre des tâches pour ouvrir l'interface minimaliste, forcer manuellement un profil (ex: *Spider-Man 2*, *Ghost of Tsushima*), ou forcer la mise à jour de la base de données.
+1. Launch **`ApexSenseBridgeTray.exe`** (or check "Launch at Windows startup" during installation).
+2. The application sits quietly in the notification area (System Tray).
+3. **Day-One Automatic Detection**: As soon as a game supporting **Adaptive Triggers** or **Haptic Feedback** launches (based on the continuously synchronized PCGamingWiki database), ApexSenseBridge automatically starts the virtual DualSense bridge and shows a brief notification.
+4. When you exit the game, the bridge cleanly closes and restores the native physical XInput controller.
+5. Click the taskbar tray icon to open the clean dashboard, manually force a profile (e.g. *Spider-Man 2*, *Ghost of Tsushima*), or trigger a manual database sync.
 
 ## Playnite usage
 
@@ -85,8 +85,8 @@ When the game stops, the engine submits a neutral virtual report, waits briefly 
 The Spider-Man 2 profile additionally applies the temporary WGI compatibility setting, enables its two documented touchpad gestures and checks that Steam is not retaining a physical controller handle before isolation.
 
 Automatic detection is enabled by default and can be disabled globally in the
-extension settings. `Utiliser la détection automatique` removes a per-game
-override, while `Désactiver pour ce jeu` stores a persistent opt-out. Detection
+extension settings. `Use automatic detection` removes a per-game
+override, while `Disable for this game` stores a persistent opt-out. Detection
 never guesses a profile for an unknown title.
 
 ### Per-game touchpad gesture profiles
