@@ -219,4 +219,8 @@ installer/                offline Inno Setup definition and driver manifest
 tests/                    mapping, protocol, lifecycle and Windows integration tests
 ```
 
+## Acknowledgments & AI-Assisted Development
+
+This project was built with the assistance of agentic AI coding tools within an IDE environment, combining rapid reverse-engineering prototyping, hardware protocol analysis, and modern C++20 / C# WPF development.
+
 See `THIRD_PARTY_NOTICES.md` and the licenses installed with the application for upstream attribution and redistribution terms.
