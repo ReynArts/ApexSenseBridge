@@ -91,3 +91,21 @@ Thumbs.db
 DESIGN.md
 DESIGN*.md
 
+# Internal project briefs, AI prompts & private documentation
+ApexSenseBridge-PROJECT_BRIEF_CODEX.md
+*PROJECT_BRIEF*
+*BRIEF*
+*CODEX*
+*PROMPT*
+*.draft.md
+*.notes
+notes/
+scratch/
+TODO.local*
+*.local.json
+*.local.ps1
+*.local.config
+.agent/
+.agents/
+.gemini/
+
