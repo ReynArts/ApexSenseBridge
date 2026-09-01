@@ -109,3 +109,11 @@ TODO.local*
 .agents/
 .gemini/
 
+# Tray application (private / in development)
+ApexSenseBridgeTray/
+ApexSenseBridgeTray.exe
+scripts/build-tray-app.ps1
+scripts/update-app.ps1
+tray_*.log
+
+
