@@ -16,7 +16,9 @@ are preserved. If an unsupported USBip version or a damaged installation is
 found, it stops with a clear message instead of entering USBip's known nested-
 uninstaller hang. Details are written to driver-install.log.
 
-Keep every EXE and the Resources, Data, Drivers, and Licenses folders together.
+Keep every EXE and DLL, plus the Resources, Data, Drivers, and Licenses folders
+together. libVIIPER.dll is the default backend; viiper.exe is its automatic
+compatibility fallback.
 The portable build is intended for the standalone tray application. Use the
 regular ApexSenseBridge-Setup.exe when you want automatic Playnite integration,
 Start-menu shortcuts, startup registration, or normal Windows uninstallation.

@@ -1,7 +1,43 @@
 # Changelog
 
+## 0.5.0
+
+- Promoted the in-process `libVIIPER v0.7.0-asb5` backend to the official
+  default after complete Call of Duty and Spider-Man 2 hardware validation.
+  The release payload still contains the validated `asb3` sidecar and falls
+  back to it automatically when the DLL or its ASB exports are unavailable.
+- Added an advanced `--virtual-backend auto|integrated|sidecar` selector for
+  controlled A/B validation. `auto` prefers the integrated DLL and retains the
+  sidecar as its compatibility fallback.
+- Hardware-validated asb5 in Call of Duty with full-range sticks and triggers,
+  active adaptive-trigger and grip-rumble feedback, no lost input or write
+  failures, and 0.671-1.545 ms p99 forwarding latency. Spider-Man 2 additionally
+  validated touchpad taps plus up/down/left swipes and active audio haptics.
+- Added the integrated DLL to the installer, portable ZIP and release CI while
+  keeping `viiper.exe` beside it for automatic recovery.
+- Removed the integrated backend's roughly two-second USB/IP attach penalty.
+  Its private server now binds an ephemeral TCP port in the form expected by
+  usbip-win2, while an ASB-only accept guard rejects every non-loopback client
+  before any USB/IP payload is read. On the APEX 5 test system, a stabilized
+  hardware launch fell from about 2.33 s to 0.28 s total initialization, with
+  device attachment near 1 ms, roughly 800 Hz virtual HID input and no lost
+  physical reports.
+- Added per-stage virtual-backend initialization telemetry. Bootstrap, server,
+  bus, device, feedback and initial-input timings are now present in both the
+  console summary and telemetry JSON, making integrated/sidecar startup costs
+  directly comparable.
+- Fixed final telemetry for the automatic integrated/sidecar backend selector.
+  Closing a session no longer discards the backend name, input/output counters
+  or audio-haptics counters before the summary and JSON report are generated.
+  With virtual-input verification enabled, the virtual report rate now uses
+  the actual observed HID stream instead of only changed-state submissions.
+
 ## 0.4.0
 
+- Removed the obsolete Spider-Man 2 WGI compatibility override completely:
+  the CLI switch, registry mutation, recovery marker and Steam-closed launch
+  requirement are gone. The profile keeps its verified touchpad gestures and
+  works through the same path in Playnite and automatic standalone detection.
 - Made Spider-Man 2's camera remapping behave like the original Xbox control:
   successive long D-pad Up presses now alternate touchpad swipe up (open) and
   swipe down (close), while short presses remain unchanged. The behavior is
@@ -70,7 +106,8 @@
   Fresh installs are bounded, logged and verified, and releases also include a
   standalone portable ZIP with a one-time guarded driver helper.
 - Added an acknowledged global maintenance-stop event. Uninstall now waits for
-  virtual-input neutralization, VIIPER detach and HidHide/WGI restoration before
+  virtual-input neutralization, VIIPER detach and controller-visibility/HidHide
+  restoration before
   using `taskkill` only as a bounded fallback for a hung engine.
 - Kept HidHide fail-closed after an unexpected engine exit: the recovery
   watchdog now waits for Playnite's game-stop signal before exposing the APEX
@@ -109,8 +146,6 @@
   adaptive-trigger output with the same virtual DualSense.
 - Hardware-validated that proxy mode makes Spider-Man 2 emit active type-33
   trigger effects, translated to APEX command 81 with no write failures.
-- Added an explicit temporary Spider-Man 2 WGI compatibility override with
-  original-value restoration and a stale-run recovery marker.
 - Initially used a 4 ms submission cadence to keep the emulated DualSense
   counter and sensor timestamp advancing; the current implementation is
   event-driven with keepalive only when physical reports stop.
@@ -121,17 +156,12 @@
 - Added exact HidHide configuration snapshot/restore, an independent crash
   watchdog, an HKCU RunOnce power-loss fallback, and the manual
   `restore-controller-visibility` recovery command.
-- Extended the same crash and login recovery path to Spider-Man 2's temporary
-  WGI override; both the registry value and controller visibility now leave no
-  recovery marker after a clean stop.
 - Installed signed HidHide 1.5.230 after validating the Nefarius installer,
   MSI, Microsoft-signed driver and catalog. Its broken optional updater action
   was skipped with an external MSI transform; Windows uninstall registration
   remains present.
-- Hardware-validated the complete Spider-Man 2 profile after the required
-  Windows restart: all controls and adaptive triggers work when Steam is
-  restarted after HidHide activation. Steam otherwise retains its pre-existing
-  APEX handle and exposes both the physical APEX and virtual DualSense.
+- Hardware-validated the complete Spider-Man 2 profile: all controls, adaptive
+  triggers and touchpad gestures work when Steam is already running.
 - Added optional standard DualSense rumble routing to the APEX grip motors via
   Flydigi command `0x12`, preserving low/high-frequency motor ordering. The
   route coalesces unchanged levels, reports detailed telemetry and always
@@ -155,11 +185,9 @@
   `OnApplicationStopped` to handle bridge launch, readiness verification, and clean
   shutdown without killing processes.
 - Added per-game profile selection via Playnite context menu (DualSense standard,
-  Spider-Man 2 WGI Fix, and Disabled), showing the active mode with selection
+  Spider-Man 2, and Disabled), showing the active mode with selection
   checkmarks and persistent configuration
   storage in Playnite's user data directory.
-- Added pre-launch Steam running-state validation to prevent handle collisions
-  before HidHide isolation takes effect.
 - Added a full WPF settings interface (`ApexSenseBridgeSettingsView.xaml`) with
   automatic installation status, rumble toggle, haptic threshold slider,
   timeout, and configured game profile overview.

@@ -42,11 +42,11 @@ Write-Host "Building the statically linked native engine and control panel..."
 & (Join-Path $PSScriptRoot "build-windows.ps1")
 if ($LASTEXITCODE -ne 0) { Fail "native build failed" }
 
-foreach ($name in @("ApexSenseBridge.exe", "ApexSenseBridgeControl.exe", "viiper.exe",
+foreach ($name in @("ApexSenseBridge.exe", "ApexSenseBridgeControl.exe", "libVIIPER.dll", "viiper.exe",
                     "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
                     "VIIPER-v0.7.0-asb.patch")) {
     if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $name))) {
-        Fail "$name is missing from $releaseDir. Build the pinned patched VIIPER payload first."
+        Fail "$name is missing from $releaseDir. Build the pinned patched VIIPER payloads first."
     }
 }
 

@@ -1,3 +1,4 @@
+using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using ApexSenseBridgeTray.Services;
 using System;
@@ -23,6 +24,14 @@ namespace ApexSenseBridgeTray
 
             InitializeComponent();
             LoadGames();
+
+            LocalizationManager.LanguageChanged += () =>
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { ApplyFilter(); } catch { }
+                }));
+            };
         }
 
         private void LoadGames()
@@ -79,15 +88,13 @@ namespace ApexSenseBridgeTray
             }
 
             int total = filtered.Count;
-            string displayedStr = total > 1
-                ? string.Format("{0} jeux affichés", total)
-                : string.Format("{0} jeu affiché", total);
+            string countKey = total > 1 ? "Loc_GamesDisplayedPlural" : "Loc_GamesDisplayedSingular";
+            string displayedStr = LocalizationManager.Format(countKey, total);
 
             if (excludedCount > 0)
             {
-                string excludedStr = excludedCount > 1
-                    ? string.Format("{0} exclus", excludedCount)
-                    : string.Format("{0} exclu", excludedCount);
+                string excludedKey = excludedCount > 1 ? "Loc_GamesExcludedPlural" : "Loc_GamesExcludedSingular";
+                string excludedStr = LocalizationManager.Format(excludedKey, excludedCount);
                 TxtStats.Text = string.Format("{0} • {1}", displayedStr, excludedStr);
             }
             else

@@ -23,7 +23,6 @@ namespace ApexSenseBridge
         private Guid gameId;
         private string gameName = string.Empty;
         private BridgeProfileType profileType;
-        private bool requireSteamStopped;
 
         public Guid GameId { get => gameId; set => SetValue(ref gameId, value); }
         public string GameName { get => gameName; set => SetValue(ref gameName, value); }
@@ -36,7 +35,6 @@ namespace ApexSenseBridge
                 OnPropertyChanged(nameof(ProfileTypeDisplayName));
             }
         }
-        public bool RequireSteamStopped { get => requireSteamStopped; set => SetValue(ref requireSteamStopped, value); }
 
         [DontSerialize]
         public string ProfileTypeDisplayName => GetProfileDisplayName(ProfileType);
@@ -48,7 +46,7 @@ namespace ApexSenseBridge
                 case BridgeProfileType.StandardDualSense:
                     return "DualSense standard";
                 case BridgeProfileType.SpiderMan2:
-                    return "Spider-Man 2 (WGI Fix)";
+                    return "Spider-Man 2";
                 case BridgeProfileType.MilesMorales:
                     return "Spider-Man: Miles Morales";
                 case BridgeProfileType.GhostOfTsushima:
@@ -116,8 +114,7 @@ namespace ApexSenseBridge
             {
                 GameId = game.Id,
                 GameName = game.Name,
-                ProfileType = detectedType,
-                RequireSteamStopped = detectedType == BridgeProfileType.SpiderMan2
+                ProfileType = detectedType
             };
         }
 
@@ -131,7 +128,6 @@ namespace ApexSenseBridge
             }
             profile.GameName = game.Name;
             profile.ProfileType = profileType;
-            profile.RequireSteamStopped = profileType == BridgeProfileType.SpiderMan2;
             OnPropertyChanged(nameof(Profiles));
         }
 

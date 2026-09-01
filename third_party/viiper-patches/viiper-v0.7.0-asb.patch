@@ -153,10 +153,10 @@ index 0000000..09018dd
 +}
 diff --git a/device/dualsense/asb_extensions.go b/device/dualsense/asb_extensions.go
 new file mode 100644
-index 0000000..dd84495
+index 0000000..11e75ac
 --- /dev/null
 +++ b/device/dualsense/asb_extensions.go
-@@ -0,0 +1,331 @@
+@@ -0,0 +1,343 @@
 +package dualsense
 +
 +import (
@@ -301,6 +301,18 @@ index 0000000..dd84495
 +	}, nil
 +}
 +
++// UpdateASBInputState applies ApexSenseBridge's compact 33-byte input state.
++// It is exported for the optional in-process libVIIPER adapter while keeping
++// the stable upstream InputState wire format unchanged.
++func (d *DualSense) UpdateASBInputState(data []byte) error {
++	state, err := unmarshalASBInputState(data)
++	if err != nil {
++		return err
++	}
++	d.UpdateInputState(&state)
++	return nil
++}
++
 +func (d *DualSense) HandleIsoTransfer(ep uint32, dir uint32, out []byte, packets []usb.IsoPacket) ([]byte, []usb.IsoPacket) {
 +	if dir == usbip.DirOut && ep == 1 {
 +		d.consumeAudioHaptics(out)
@@ -388,7 +400,7 @@ index 0000000..dd84495
 +}
 +
 +func (d *DualSense) flushAudioHapticsLocked() {
-+	if d.audioFrames == 0 || d.rawOutputFunc == nil {
++	if d.audioFrames == 0 {
 +		d.resetAudioAccumulatorLocked()
 +		return
 +	}
@@ -417,7 +429,7 @@ index 0000000..dd84495
 +	}}
 +	d.audioLastLeft, d.audioLastRight = left, right
 +	d.resetAudioAccumulatorLocked()
-+	d.rawOutputFunc(frame)
++	d.emitRawOutput(frame)
 +}
 +
 +func (d *DualSense) resetAudioAccumulatorLocked() {
@@ -687,10 +699,10 @@ index 530b457..4f60e07 100644
  
  const (
 diff --git a/device/dualsense/device.go b/device/dualsense/device.go
-index 5dd1d2c..66f8003 100644
+index 5dd1d2c..905a515 100644
 --- a/device/dualsense/device.go
 +++ b/device/dualsense/device.go
-@@ -19,8 +19,9 @@ type DualSense struct {
+@@ -19,15 +19,30 @@ type DualSense struct {
  	inputState *InputState
  	metaState  *MetaState
  
@@ -702,10 +714,12 @@ index 5dd1d2c..66f8003 100644
  
  	subcommand [2]byte
  
-@@ -28,6 +29,19 @@ type DualSense struct {
+ 	seqCounter         uint8
  	usbReportTimestamp uint32
  
- 	mtx sync.Mutex
+-	mtx sync.Mutex
++	mtx        sync.Mutex
++	callbackMu sync.RWMutex
 +
 +	interfaceAlt   [4]uint8
 +	audioMu        sync.Mutex
@@ -722,7 +736,7 @@ index 5dd1d2c..66f8003 100644
  }
  
  func New(o *device.CreateOptions) (*DualSense, error) {
-@@ -84,13 +98,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
+@@ -84,13 +99,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
  	}
  
  	d := &DualSense{
@@ -739,36 +753,64 @@ index 5dd1d2c..66f8003 100644
  	}
  
  	if o != nil {
-@@ -127,6 +143,12 @@ func (d *DualSense) SetOutputCallback(f func(OutputState)) {
+@@ -124,9 +141,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
+ }
+ 
+ func (d *DualSense) SetOutputCallback(f func(OutputState)) {
++	d.callbackMu.Lock()
++	defer d.callbackMu.Unlock()
  	d.outputFunc = f
  }
  
 +// SetRawOutputCallback enables ApexSenseBridge's framed extension without
 +// changing the stable libVIIPER OutputState callback API.
 +func (d *DualSense) SetRawOutputCallback(f func(FeedbackFrame)) {
++	d.callbackMu.Lock()
++	defer d.callbackMu.Unlock()
 +	d.rawOutputFunc = f
++}
++
++func (d *DualSense) emitOutput(state OutputState) {
++	d.callbackMu.RLock()
++	defer d.callbackMu.RUnlock()
++	if d.outputFunc != nil {
++		d.outputFunc(state)
++	}
++}
++
++func (d *DualSense) emitRawOutput(frame FeedbackFrame) {
++	d.callbackMu.RLock()
++	defer d.callbackMu.RUnlock()
++	if d.rawOutputFunc != nil {
++		d.rawOutputFunc(frame)
++	}
 +}
 +
  func (d *DualSense) UpdateInputState(state *InputState) {
  	d.mtx.Lock()
  	defer d.mtx.Unlock()
-@@ -172,6 +194,9 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
- 			if d.outputFunc != nil {
- 				d.outputFunc(parseOutputReport(out))
+@@ -169,8 +212,9 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
+ 
+ 	if dir == usbip.DirOut && ep == 3 {
+ 		if len(out) >= 48 && out[0] == ReportIDOutput {
+-			if d.outputFunc != nil {
+-				d.outputFunc(parseOutputReport(out))
++			d.emitOutput(parseOutputReport(out))
++			if feedback, ok := parseASBOutputReport(out); ok {
++				d.emitRawOutput(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
  			}
-+			if feedback, ok := parseASBOutputReport(out); ok && d.rawOutputFunc != nil {
-+				d.rawOutputFunc(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
-+			}
  		}
  	}
- 
-@@ -224,11 +249,20 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
- 				if d.outputFunc != nil {
- 					d.outputFunc(parseOutputReport(data))
+@@ -221,14 +265,21 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
+ 			case reportType == reportTypeFeature:
+ 				return nil, true
+ 			case reportType == reportTypeOutput && reportID == ReportIDOutput && len(data) >= 48:
+-				if d.outputFunc != nil {
+-					d.outputFunc(parseOutputReport(data))
++				d.emitOutput(parseOutputReport(data))
++				if feedback, ok := parseASBOutputReport(data); ok {
++					d.emitRawOutput(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
  				}
-+				if feedback, ok := parseASBOutputReport(data); ok && d.rawOutputFunc != nil {
-+					d.rawOutputFunc(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
-+				}
  				return nil, true
  			}
  		}
@@ -831,7 +873,7 @@ index 3a02c10..d21ba1f 100644
  			}
  			dse.UpdateInputState(&state)
 diff --git a/internal/server/api/autoattach_windows.go b/internal/server/api/autoattach_windows.go
-index 47a805a..31ee486 100644
+index 47a805a..89e8efd 100644
 --- a/internal/server/api/autoattach_windows.go
 +++ b/internal/server/api/autoattach_windows.go
 @@ -53,8 +53,8 @@ const (
@@ -880,7 +922,7 @@ index 47a805a..31ee486 100644
  
  	devicePathUTF16, err := windows.UTF16PtrFromString(devicePath)
  	if err != nil {
-@@ -136,35 +129,72 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
+@@ -136,35 +129,74 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
  
  	logger.Debug("Opened device handle")
  
@@ -933,9 +975,9 @@ index 47a805a..31ee486 100644
  		"deviceID", deviceExportMeta.DevID,
 -		"usbPort", ioctlData.PortOutput)
 +		"usbPort", portOutput)
- 
- 	return nil
- }
++
++	return nil
++}
  
 +func prepareAttachIOCTL(ioctlData *attachIOCTLLegacy, structSize uint32, busID string, service string) error {
 +	ioctlData.Size = structSize
@@ -947,10 +989,12 @@ index 47a805a..31ee486 100644
 +		return fmt.Errorf("argumentValidation: service string too long: %s", service)
 +	}
 +	copy(ioctlData.Service[:], service)
-+	copy(ioctlData.Host[:], "localhost")
-+	return nil
-+}
-+
++	// The ASB listener rejects non-loopback peers. Passing a numeric loopback
++	// address also prevents usbip-win2 from trying IPv6 localhost before IPv4.
++	copy(ioctlData.Host[:], "127.0.0.1")
+ 	return nil
+ }
+ 
 +func callAttachIOCTL(handle windows.Handle, ioctlData unsafe.Pointer, ioctlSize uint32) (uint32, error) {
 +	var bytesReturned uint32
 +	err := windows.DeviceIoControl(
@@ -969,8 +1013,18 @@ index 47a805a..31ee486 100644
  func attachViaCommand(ctx context.Context, deviceExportMeta *usbip.ExportMeta, usbipServerPort uint16, logger *slog.Logger) error {
  	logger.Info("Auto-attaching localhost client", "busID", deviceExportMeta.BusID, "deviceID", deviceExportMeta.DevID)
  
+diff --git a/internal/server/usb/config.go b/internal/server/usb/config.go
+index 5c0cc81..2271313 100644
+--- a/internal/server/usb/config.go
++++ b/internal/server/usb/config.go
+@@ -8,4 +8,5 @@ type ServerConfig struct {
+ 	ConnectionTimeout       time.Duration `kong:"-"`
+ 	BusCleanupTimeout       time.Duration `help:"-"`
+ 	WriteBatchFlushInterval time.Duration `help:"Interval to flush write batches to clients; 0 to disable" default:"1ms" env:"VIIPER_USB_WRITE_BATCH_FLUSH_INTERVAL"`
++	LoopbackOnly            bool          `kong:"-"`
+ }
 diff --git a/internal/server/usb/server.go b/internal/server/usb/server.go
-index fe0802b..cc8a954 100644
+index fe0802b..5f87f72 100644
 --- a/internal/server/usb/server.go
 +++ b/internal/server/usb/server.go
 @@ -33,6 +33,8 @@ type batchingWriter struct {
@@ -1039,7 +1093,33 @@ index fe0802b..cc8a954 100644
  
  	// Standard header peek size
  	headerPeekSize = 8
-@@ -572,6 +580,82 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -352,6 +360,13 @@ func (s *Server) ListenAndServe() error {
+ 			s.logger.Error("Accept error", "error", err)
+ 			continue
+ 		}
++		if s.config.LoopbackOnly {
++			if !isLoopbackClient(c.RemoteAddr()) {
++				s.logger.Warn("Rejected non-loopback USBIP client", "remote", c.RemoteAddr())
++				_ = c.Close()
++				continue
++			}
++		}
+ 		if tcpConn, ok := c.(*net.TCPConn); ok {
+ 			if err := tcpConn.SetNoDelay(true); err != nil {
+ 				s.logger.Warn("failed to set TCP_NODELAY", "error", err)
+@@ -370,6 +385,11 @@ func (s *Server) ListenAndServe() error {
+ 	}
+ }
+ 
++func isLoopbackClient(addr net.Addr) bool {
++	tcpAddr, ok := addr.(*net.TCPAddr)
++	return ok && tcpAddr.IP.IsLoopback()
++}
++
+ // Ready returns a channel that is closed once the server has successfully bound
+ // to its listen address and is ready to accept connections.
+ func (s *Server) Ready() <-chan struct{} { return s.ready }
+@@ -572,6 +592,82 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  	} else {
  		writer = conn
  	}
@@ -1122,7 +1202,7 @@ index fe0802b..cc8a954 100644
  
  	var owningBus *virtualbus.VirtualBus
  	for _, b := range s.busses {
-@@ -643,9 +727,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -643,9 +739,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  		if cmd == usbip.CmdUnlinkCode {
  			unlinkSeq := binary.BigEndian.Uint32(hdr[urbHdrOffsetUnlink : urbHdrOffsetUnlink+4])
  			s.logger.Debug("USBIP_CMD_UNLINK", "seq", seq, "unlink", unlinkSeq)
@@ -1142,7 +1222,7 @@ index fe0802b..cc8a954 100644
  			continue
  		}
  		if cmd != usbip.CmdSubmitCode {
-@@ -653,6 +746,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -653,6 +758,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  		}
  		xferFlags := binary.BigEndian.Uint32(hdr[urbHdrOffsetFlags : urbHdrOffsetFlags+4])
  		xferLen := binary.BigEndian.Uint32(hdr[urbHdrOffsetLength : urbHdrOffsetLength+4])
@@ -1152,7 +1232,7 @@ index fe0802b..cc8a954 100644
  		setup := hdr[urbHdrOffsetSetup:urbHdrSize]
  
  		var outPayload []byte
-@@ -663,7 +759,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -663,7 +771,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  			}
  		}
  
@@ -1173,7 +1253,7 @@ index fe0802b..cc8a954 100644
  
  		actualLen := uint32(len(respData))
  		if dir == usbip.DirOut {
-@@ -674,22 +782,14 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -674,22 +794,14 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  			Basic:           usbip.HeaderBasic{Command: usbip.RetSubmitCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0},
  			Status:          0,
  			ActualLength:    actualLen,
@@ -1202,7 +1282,7 @@ index fe0802b..cc8a954 100644
  		}
  		if bw != nil && ep == 0 {
  			if err := bw.Flush(); err != nil {
-@@ -728,13 +828,62 @@ func isClientDisconnect(err error) bool {
+@@ -728,13 +840,62 @@ func isClientDisconnect(err error) bool {
  	return false
  }
  
@@ -1268,7 +1348,7 @@ index fe0802b..cc8a954 100644
  	}
  	bm := setup[0]
  	breq := setup[1]
-@@ -743,16 +892,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -743,16 +904,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  	wLength := binary.LittleEndian.Uint16(setup[6:8])
  
  	if breq == usbReqGetStatus {
@@ -1292,7 +1372,7 @@ index fe0802b..cc8a954 100644
  	}
  
  	desc := dev.GetDescriptor()
-@@ -774,12 +926,12 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -774,12 +938,12 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			}
  		}
  		if len(data) == 0 {
@@ -1308,7 +1388,7 @@ index fe0802b..cc8a954 100644
  	}
  
  	if desc.MicrosoftOS10 != nil &&
-@@ -788,9 +940,9 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -788,9 +952,9 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			wIndex == 0x0004 || wIndex == 0x0005) {
  		if data, ok := desc.MicrosoftOS10.ControlResponse(wValue, wIndex); ok {
  			if int(wLength) < len(data) {
@@ -1320,7 +1400,7 @@ index fe0802b..cc8a954 100644
  		}
  	}
  
-@@ -798,21 +950,22 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -798,21 +962,22 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		dtype := uint8(wValue >> 8)
  		iface := uint8(wIndex & 0xff)
  		var data []byte
@@ -1346,7 +1426,7 @@ index fe0802b..cc8a954 100644
  					}
  					data = []byte(d)
  				}
-@@ -827,23 +980,31 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -827,23 +992,31 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			}
  		}
  		if len(data) == 0 {
@@ -1384,7 +1464,7 @@ index fe0802b..cc8a954 100644
  		}
  	}
  
-@@ -851,15 +1012,15 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -851,15 +1024,15 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		if desc.Interfaces[iface].Descriptor.BInterfaceClass == usbInterfaceClassHID {
  			switch {
  			case bm == hidReqTypeIn && breq == hidReqGetIdle:
@@ -1405,7 +1485,7 @@ index fe0802b..cc8a954 100644
  			}
  		}
  	}
-@@ -868,7 +1029,7 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -868,7 +1041,7 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		s.logger.Debug("EP0 control unhandled", "bmRequestType", bm, "bRequest", breq, "wValue", wValue, "wIndex", wIndex, "wLength", wLength)
  	}
  
@@ -1414,6 +1494,179 @@ index fe0802b..cc8a954 100644
  }
  
  func (s *Server) buildConfigDescriptor(desc *usb.Descriptor) []byte {
+diff --git a/internal/server/usb/server_loopback_test.go b/internal/server/usb/server_loopback_test.go
+new file mode 100644
+index 0000000..8987b7a
+--- /dev/null
++++ b/internal/server/usb/server_loopback_test.go
+@@ -0,0 +1,34 @@
++package usb
++
++import (
++	"net"
++	"testing"
++)
++
++type nonTCPAddr string
++
++func (a nonTCPAddr) Network() string { return "test" }
++func (a nonTCPAddr) String() string  { return string(a) }
++
++func TestIsLoopbackClient(t *testing.T) {
++	tests := []struct {
++		name string
++		addr net.Addr
++		want bool
++	}{
++		{name: "IPv4 loopback", addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}, want: true},
++		{name: "IPv6 loopback", addr: &net.TCPAddr{IP: net.ParseIP("::1")}, want: true},
++		{name: "LAN IPv4", addr: &net.TCPAddr{IP: net.ParseIP("192.168.1.50")}, want: false},
++		{name: "public IPv4", addr: &net.TCPAddr{IP: net.ParseIP("203.0.113.10")}, want: false},
++		{name: "non TCP", addr: nonTCPAddr("127.0.0.1"), want: false},
++		{name: "nil", addr: nil, want: false},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := isLoopbackClient(tt.addr); got != tt.want {
++				t.Fatalf("isLoopbackClient(%v) = %v, want %v", tt.addr, got, tt.want)
++			}
++		})
++	}
++}
+diff --git a/lib/viiper/dualsense.go b/lib/viiper/dualsense.go
+index 05a7849..e0305e0 100644
+--- a/lib/viiper/dualsense.go
++++ b/lib/viiper/dualsense.go
+@@ -93,10 +93,16 @@ typedef struct {
+ 
+ typedef void (*DSOutputCallback)(DSDeviceHandle handle, uint8_t rumbleSmall, uint8_t rumbleLarge, uint8_t ledRed, uint8_t ledGreen, uint8_t ledBlue, uint8_t playerLeds);
+ 
++typedef void (*DSASBRawOutputCallback)(uintptr_t context, const uint8_t* frame, uint32_t frameLength);
++
+ static void viiper_call_ds_output(DSOutputCallback fn, DSDeviceHandle handle, uint8_t rumbleSmall, uint8_t rumbleLarge, uint8_t ledRed, uint8_t ledGreen, uint8_t ledBlue, uint8_t playerLeds) {
+ 	fn(handle, rumbleSmall, rumbleLarge, ledRed, ledGreen, ledBlue, playerLeds);
+ }
+ 
++static void viiper_call_ds_asb_raw_output(DSASBRawOutputCallback fn, uintptr_t context, const uint8_t* frame, uint32_t frameLength) {
++	fn(context, frame, frameLength);
++}
++
+ */
+ import "C"
+ import (
+@@ -106,6 +112,7 @@ import (
+ 	"log/slog"
+ 	"runtime/cgo"
+ 	"slices"
++	"unsafe"
+ 
+ 	"github.com/Alia5/VIIPER/device"
+ 	"github.com/Alia5/VIIPER/device/dualsense"
+@@ -285,6 +292,28 @@ func SetDualSenseDeviceState(handle C.DSDeviceHandle, state C.DSDeviceState) boo
+ 	return true
+ }
+ 
++// SetDualSenseASBInputState updates a DualSense from ApexSenseBridge's compact
++// 33-byte input format. This extension preserves the exact behavior of the
++// patched sidecar when libVIIPER is hosted in-process.
++//
++//export SetDualSenseASBInputState
++func SetDualSenseASBInputState(handle C.DSDeviceHandle, data *C.uint8_t, size C.uint32_t) bool {
++	if data == nil || size != 33 {
++		return false
++	}
++	dh := cgo.Handle(handle)
++	dhw, ok := dh.Value().(*deviceHandleWrapper)
++	if !ok {
++		return false
++	}
++	dsDevice, ok := dhw.device.(*dualsense.DualSense)
++	if !ok {
++		return false
++	}
++	input := C.GoBytes(unsafe.Pointer(data), C.int(size))
++	return dsDevice.UpdateASBInputState(input) == nil
++}
++
+ // SetDualSenseOutputCallback sets a callback to be invoked when the host sends output (rumble/LED) commands to the device.
+ // @param handle Handle to the DualSense device.
+ // @param callback Callback receiving rumbleSmall, rumbleLarge, ledRed, ledGreen, ledBlue, playerLeds. Pass NULL to clear.
+@@ -317,6 +346,42 @@ func SetDualSenseOutputCallback(handle C.DSDeviceHandle, cb C.DSOutputCallback)
+ 	return true
+ }
+ 
++// SetDualSenseASBRawOutputCallback exposes the complete framed feedback used by
++// ApexSenseBridge: adaptive-trigger/rumble HID output and audio-haptics energy.
++// The frame pointer remains valid only for the duration of the callback.
++// Pass NULL to clear the callback before removing the device or unloading the
++// library.
++//
++//export SetDualSenseASBRawOutputCallback
++func SetDualSenseASBRawOutputCallback(handle C.DSDeviceHandle, cb C.DSASBRawOutputCallback, callbackContext C.uintptr_t) bool {
++	dh := cgo.Handle(handle)
++	dhw, ok := dh.Value().(*deviceHandleWrapper)
++	if !ok {
++		return false
++	}
++	dsDevice, ok := dhw.device.(*dualsense.DualSense)
++	if !ok {
++		return false
++	}
++	if cb == nil {
++		dsDevice.SetRawOutputCallback(nil)
++		return true
++	}
++	dsDevice.SetRawOutputCallback(func(frame dualsense.FeedbackFrame) {
++		encoded, err := frame.MarshalBinary()
++		if err != nil || len(encoded) == 0 {
++			return
++		}
++		C.viiper_call_ds_asb_raw_output(
++			cb,
++			callbackContext,
++			(*C.uint8_t)(unsafe.Pointer(&encoded[0])),
++			C.uint32_t(len(encoded)),
++		)
++	})
++	return true
++}
++
+ // RemoveDualSenseDevice removes the DualSense device associated with the given handle from the server.
+ // @param handle Handle to the DualSense device to remove.
+ //
+diff --git a/lib/viiper/server.go b/lib/viiper/server.go
+index 0924794..89c503d 100644
+--- a/lib/viiper/server.go
++++ b/lib/viiper/server.go
+@@ -45,6 +45,19 @@ import (
+ //
+ //export NewUSBServer
+ func NewUSBServer(config *C.USBServerConfig, outHandle *C.USBServerHandle, logCallback C.VIIPERLogCallback) bool {
++	return newUSBServer(config, outHandle, logCallback, false)
++}
++
++// NewUSBServerASBLoopback creates the in-process ApexSenseBridge server. It
++// accepts only loopback clients while binding in the form required by
++// usbip-win2 for immediate attachment.
++//
++//export NewUSBServerASBLoopback
++func NewUSBServerASBLoopback(config *C.USBServerConfig, outHandle *C.USBServerHandle, logCallback C.VIIPERLogCallback) bool {
++	return newUSBServer(config, outHandle, logCallback, true)
++}
++
++func newUSBServer(config *C.USBServerConfig, outHandle *C.USBServerHandle, logCallback C.VIIPERLogCallback, loopbackOnly bool) bool {
+ 	addr := C.GoString(config.addr)
+ 	connectionTimeout := time.Duration(config.connection_timeout_ms) * time.Millisecond
+ 	busCleanupTimeout := time.Duration(config.device_handler_connect_timeout_ms) * time.Millisecond
+@@ -85,6 +98,7 @@ func NewUSBServer(config *C.USBServerConfig, outHandle *C.USBServerHandle, logCa
+ 		ConnectionTimeout:       connectionTimeout,
+ 		BusCleanupTimeout:       busCleanupTimeout,
+ 		WriteBatchFlushInterval: writeBatchFlushInterval,
++		LoopbackOnly:            loopbackOnly,
+ 	}, logger, nil)
+ 
+ 	readyChan := s.Ready()
 diff --git a/usb/device.go b/usb/device.go
 index bfa4742..f217a41 100644
 --- a/usb/device.go

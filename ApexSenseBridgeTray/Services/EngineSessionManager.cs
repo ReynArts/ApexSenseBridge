@@ -211,7 +211,6 @@ namespace ApexSenseBridgeTray.Services
             var profile = profileName != null ? profileName.ToLowerInvariant() : "standard";
             if (profile == "spider-man-2")
             {
-                args.Add("--spiderman2-wgi-fix");
                 args.Add("--touchpad-profile spider-man-2");
             }
             else if (profile == "miles-morales")

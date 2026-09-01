@@ -1,4 +1,4 @@
-# ApexSenseBridge 0.4.0
+# ApexSenseBridge 0.5.0
 
 ApexSenseBridge gives a Flydigi APEX 5 a virtual DualSense path on Windows while translating native adaptive-trigger and haptic feedback back to the physical controller.
 
@@ -25,7 +25,7 @@ Recognized games receive their verified profile automatically. Unknown and expli
 The bridge, triggers, and DSP haptics have been 100% verified in-game on:
 
 - **Call of Duty: Modern Warfare 4 Beta:** dynamic adaptive triggers per weapon (semi-auto wall, full-auto recoil kick, bolt-action stop) and textured audio haptics (footsteps, slides, explosions).
-- **Marvel's Spider-Man 2:** adaptive web-line tension while swinging, web-shooter clicks, gadget resistances, and full touchpad swipe gestures (FNSM app & abilities via WGI Fix).
+- **Marvel's Spider-Man 2:** adaptive web-line tension while swinging, web-shooter clicks, gadget resistances, and full touchpad swipe gestures (FNSM app & abilities).
 - **Grand Theft Auto V Enhanced (GTA V Enhanced):** driving trigger resistance (throttle resistance, ABS braking, off-road vibration) and deep haptic feedback (engine revs, gear shifts, surface grit).
 
 ## End-user installation
@@ -34,7 +34,8 @@ Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator el
 
 - the statically linked engine and Win32 control panel under `%ProgramFiles%\ApexSenseBridge`;
 - the standalone background Tray application (`ApexSenseBridgeTray.exe`);
-- the pinned patched VIIPER sidecar and its source/license notices;
+- the official integrated `libVIIPER asb5` backend, the `asb3` sidecar fallback,
+  and their source/license notices;
 - usbip-win2 `0.9.7.7` when no healthy compatible `0.9.7.5`–`0.9.7.7` driver is present, and HidHide `1.5.230` when its exact version is absent;
 - the Playnite extension under the current user's Playnite extension directory;
 - the engine location and exact dependency ownership metadata under `HKLM\Software\ApexSenseBridge`.
@@ -45,11 +46,14 @@ Healthy WHLK-certified USBip `0.9.7.5`–`0.9.7.7` installations are preserved b
 
 ### Portable ZIP
 
-`ApexSenseBridge-Portable.zip` contains the standalone tray application, engine, control panel, pinned VIIPER sidecar, licenses, and offline driver prerequisites. Extract the entire folder, run `Install-Drivers.cmd` once as administrator, restart Windows, then launch `Start-ApexSenseBridge.cmd`.
+`ApexSenseBridge-Portable.zip` contains the standalone tray application, engine,
+control panel, integrated VIIPER backend, sidecar fallback, licenses, and offline
+driver prerequisites. Extract the entire folder, run `Install-Drivers.cmd` once
+as administrator, restart Windows, then launch `Start-ApexSenseBridge.cmd`.
 
 The application payload is portable, but the USBip and HidHide kernel drivers necessarily remain system-wide Windows components. The portable helper preserves a healthy compatible existing installation and refuses ambiguous USBip upgrades rather than entering the upstream uninstaller hang. Use the regular setup when automatic Playnite integration, shortcuts, startup registration, and Windows uninstall metadata are wanted.
 
-The lightweight `ApexSenseBridgeControl.exe` panel can test APEX detection, restore HidHide/WGI state, open logs and start an explicit full dependency removal. It is not resident in memory.
+The lightweight `ApexSenseBridgeControl.exe` panel can test APEX detection, restore HidHide/controller visibility, open logs and start an explicit full dependency removal. It is not resident in memory.
 
 ## Standalone Tray App (Outside Playnite)
 
@@ -80,9 +84,9 @@ Before Playnite is allowed to launch a recognized or manually configured game, t
 - every physical game-facing interface is hidden;
 - the crash watchdog and RunOnce recovery are armed.
 
-When the game stops, the engine submits a neutral virtual report, waits briefly for physical controls to be released, detaches the virtual controller, restores the exact HidHide/WGI snapshots and exits. The extension also rejects a duplicate same-game startup event for four seconds after stop; this prevents a residual controller `A/Cross` press from relaunching the game as focus returns to Playnite Fullscreen.
+When the game stops, the engine submits a neutral virtual report, waits briefly for physical controls to be released, detaches the virtual controller, restores the exact controller-visibility/HidHide snapshot and exits. The extension also rejects a duplicate same-game startup event for four seconds after stop; this prevents a residual controller `A/Cross` press from relaunching the game as focus returns to Playnite Fullscreen.
 
-The Spider-Man 2 profile additionally applies the temporary WGI compatibility setting, enables its two documented touchpad gestures and checks that Steam is not retaining a physical controller handle before isolation.
+The Spider-Man 2 profile only adds its verified touchpad gestures. It does not alter game settings and it works when Steam is already running.
 
 Automatic detection is enabled by default and can be disabled globally in the
 extension settings. `Use automatic detection` removes a per-game
@@ -117,17 +121,32 @@ That fallback is still private to ApexSenseBridge: the physical APEX remains hid
 
 Every physical report immediately produces a complete DualSense input report. Keepalive reports are emitted only when physical reports stop arriving. VIIPER feedback uses a buffered TCP reader; audio haptics are reduced in 5 ms windows while preserving peaks/transients, and adaptive-trigger effects bypass that aggregation.
 
-The optional `--telemetry-json PATH` output includes p50/p95/p99 input latency, physical and virtual rates, lost/coalesced reports, CPU, working set and initialization stages. A hardware validation session with active trigger movement measured 0.52% engine CPU, about 12.4 MiB engine working set, 0.635 ms p99 report latency, no lost report and 0.794 s initialization. A separate live process sample measured about 39.2 MiB total working set for the engine, recovery watchdog and VIIPER together.
+The optional `--telemetry-json PATH` output includes p50/p95/p99 input latency,
+physical and virtual rates, lost/coalesced reports, CPU, working set and both
+top-level and backend-specific initialization stages. A hardware validation
+session with active trigger movement measured 0.52% engine CPU, about 12.4 MiB
+engine working set, 0.635 ms p99 report latency, no lost report and 0.794 s
+initialization. A separate live process sample measured about 39.2 MiB total
+working set for the engine, recovery watchdog and VIIPER together.
+
+The official in-process `libVIIPER v0.7.0-asb5` backend removes process and
+TCP-control overhead while keeping USB/IP traffic loopback-only. On the APEX 5
+test system, a stabilized hardware launch completed in about 0.28 s versus
+about 0.58 s for the sidecar, attached the virtual device in about 1 ms and
+delivered roughly 800 Hz verified virtual HID input with no lost physical
+reports. A warm runtime sample used about 18.3 MiB total working set versus
+33.4 MiB for the engine plus sidecar. These figures are development benchmarks,
+not guarantees across Windows and usbip-win2 versions.
 
 ## Failure recovery and uninstall
 
-The bridge snapshots the complete existing HidHide and WGI configuration. After an engine crash during a Playnite session, the watchdog deliberately keeps the APEX hidden until Playnite signals that the game has stopped, then restores it. An HKCU RunOnce marker covers power loss or logout. Manual recovery is available from the control panel or:
+The bridge snapshots the complete existing HidHide configuration. After an engine crash during a Playnite session, the watchdog deliberately keeps the APEX hidden until Playnite signals that the game has stopped, then restores it. An HKCU RunOnce marker covers power loss or logout. Manual recovery is available from the control panel or:
 
 ```text
 ApexSenseBridge.exe restore-controller-visibility
 ```
 
-Normal uninstall sends an acknowledged maintenance-stop request and waits for input neutralization, virtual-device detach and APEX/WGI restoration; forced termination is only a fallback for a hung engine. It then removes the extension, profiles, logs, recovery entries, files and registry records, followed by only the dependencies installed by ApexSenseBridge. Drivers that predated ApexSenseBridge are preserved. The control panel offers an explicit full-removal action for users who also want those pre-existing dependencies removed.
+Normal uninstall sends an acknowledged maintenance-stop request and waits for input neutralization, virtual-device detach and APEX visibility restoration; forced termination is only a fallback for a hung engine. It then removes the extension, profiles, logs, recovery entries, files and registry records, followed by only the dependencies installed by ApexSenseBridge. Drivers that predated ApexSenseBridge are preserved. The control panel offers an explicit full-removal action for users who also want those pre-existing dependencies removed.
 
 ## Developer build
 
@@ -136,7 +155,8 @@ Requirements:
 - Windows 10/11 x64;
 - Visual Studio 2022 Build Tools with Desktop C++ and a Windows SDK;
 - CMake;
-- Go for rebuilding the pinned VIIPER sidecar;
+- Go for rebuilding the pinned VIIPER sidecar; the integrated builder downloads
+  its own pinned Go and LLVM-MinGW toolchains after verifying their hashes;
 - Inno Setup 6 for the final installer.
 
 Build the native targets and tests:
@@ -146,26 +166,34 @@ Build the native targets and tests:
 ctest --test-dir .\build-win -C Release --output-on-failure
 ```
 
-Rebuild the pinned VIIPER payload and create the offline installer plus portable ZIP:
+Rebuild both pinned VIIPER payloads and create the offline installer plus
+portable ZIP:
 
 ```powershell
 .\scripts\build-viiper-windows.ps1
+.\scripts\build-libviiper-windows.ps1
 .\scripts\build-installer.ps1
 ```
 
-The official post-0.3.0 backend is the pinned `v0.7.0-asb3` build. It preserves
-the upstream libVIIPER API and adds the complete adaptive-trigger and
-audio-haptics protocol required by the bridge. The same validated patch can be
-built into `dist\experimental` for comparison with:
+The official backend is the pinned in-process `libVIIPER v0.7.0-asb5` build.
+It loads inside the engine and falls back automatically to the validated
+`v0.7.0-asb3` sidecar when the DLL or its ASB exports are unavailable. Both
+artifacts use the same source patch containing the complete adaptive-trigger,
+grip-rumble and audio-haptics protocol required by the bridge.
+
+The ASB-only integrated server entry accepts only IPv4/IPv6 loopback clients;
+the upstream public `NewUSBServer` behavior is unchanged. The integrated build
+is reproducible from pinned Go and LLVM-MinGW archives with SHA-256 verification.
+The fallback sidecar can also be built into `dist\experimental` for comparison:
 
 ```powershell
 .\scripts\build-viiper-070-windows.ps1
 ```
 
-The release builder, installer, portable ZIP and GitHub workflow all package
-`v0.7.0-asb3`. Its promotion follows successful Call of Duty and Spider-Man 2
-regression passes, including full input, adaptive triggers, grip rumble and
-Spider-Man 2 audio haptics.
+The installer, portable ZIP and GitHub release workflow package both
+`libVIIPER.dll` and `viiper.exe`. Promotion follows complete Call of Duty and
+Spider-Man 2 regression passes, including full input, adaptive triggers, grip
+rumble, audio haptics and Spider-Man 2 touchpad gestures.
 
 The Playnite build script uses an installed Playnite SDK when available. On a clean CI worker it downloads the official pinned `PlayniteSDK 6.16.0` NuGet package, verifies its SHA-256 and creates the standard ZIP-based `.pext` format without requiring a full Playnite installation.
 
@@ -174,7 +202,7 @@ Release artifacts are written to `dist/`:
 ```text
 ApexSenseBridge-Setup.exe
 ApexSenseBridge-Portable.zip
-ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4_0_4_0.pext
+ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4_0_5_0.pext
 ```
 
 ## Useful diagnostic commands
@@ -185,19 +213,24 @@ diagnose [--all-hid] [--json]
 identify [index]
 input-status [index] [--seconds N] [--json]
 virtual-ds [--seconds N] [--json] [--viiper PATH]
+           [--virtual-backend auto|integrated|sidecar]
 bridge-triggers [index] [--seconds N] [--viiper PATH]
+                [--virtual-backend auto|integrated|sidecar]
                 [--telemetry-json PATH] [--xinput-index 0..3]
                 [--rumble] [--haptic-threshold 0..95]
                 [--verify-virtual-input] [--touchpad-profile NAME]
-                [--view-hold-swipe-up]
-                [--spiderman2-wgi-fix] [--session-token 32HEX]
+                [--view-hold-swipe-up] [--session-token 32HEX]
 test-rt [index]
 test-rumble [index]
 clear [index]
 restore-controller-visibility
 ```
 
-`bridge-triggers` always enforces full proxying and physical isolation in 0.4.0, including when legacy `--proxy-xinput` or `--isolate-apex` flags are omitted. A session failure is fail-closed: the game is never allowed to fall back to a visible physical APEX during a DualSense profile.
+`bridge-triggers` always enforces full proxying and physical isolation in 0.5.0, including when legacy `--proxy-xinput` or `--isolate-apex` flags are omitted. A session failure is fail-closed: the game is never allowed to fall back to a visible physical APEX during a DualSense profile.
+
+`--virtual-backend` is an advanced validation switch. Normal users should leave
+the default `auto`; `integrated` and `sidecar` force one implementation so the
+same session can be benchmarked without changing game or Playnite settings.
 
 `--touchpad-profile` accepts `none`, `spider-man-2`, `miles-morales`,
 `ghost-of-tsushima`, or `warframe`. The old `--view-hold-swipe-up` switch remains

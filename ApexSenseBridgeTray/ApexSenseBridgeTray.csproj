@@ -90,6 +90,7 @@
     <Compile Include="Common\BridgeSession.cs" />
     <Compile Include="Common\InstallLocator.cs" />
     <Compile Include="Common\ThemeManager.cs" />
+    <Compile Include="Common\LocalizationManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>

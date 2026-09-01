@@ -116,8 +116,6 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Jeu" Width="*" Binding="{Binding GameName}" />
                     <DataGridTextColumn Header="Profil" Width="200" Binding="{Binding ProfileTypeDisplayName}" />
-                    <DataGridCheckBoxColumn Header="Steam doit être fermé" Width="160"
-                                            Binding="{Binding RequireSteamStopped}" />
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

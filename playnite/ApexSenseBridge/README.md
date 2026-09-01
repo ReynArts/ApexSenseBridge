@@ -16,7 +16,7 @@ Pendant un profil DualSense, tous les sticks, boutons, gâchettes et directions 
 
 À la fermeture du jeu, l'extension neutralise d'abord la DualSense virtuelle et le moteur attend le relâchement des commandes avant de rendre l'APEX physique visible. Une fenêtre anti-rebond de quatre secondes bloque aussi un faux second lancement du même jeu provoqué par un appui `A/Cross` résiduel dans l'interface Plein écran.
 
-Le profil Spider-Man 2 applique en plus la correction WGI temporaire et refuse le lancement si Steam conserve déjà un handle vers l'APEX physique. Aucun fichier du jeu n'est modifié.
+Le profil Spider-Man 2 ajoute uniquement les gestes tactiles vérifiés. Il ne modifie aucun réglage du jeu et fonctionne lorsque Steam est déjà ouvert.
 
 Les profils tactiles disponibles sont Spider-Man 2, Miles Morales, Ghost of
 Tsushima et Warframe. Un jeu inconnu ne reçoit aucun swipe synthétique : `View`

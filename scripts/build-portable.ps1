@@ -52,6 +52,7 @@ foreach ($name in @(
     "ApexSenseBridgeControl.exe",
     "ApexSenseBridgeTray.exe",
     "ApexSenseBridgeTray.exe.config",
+    "libVIIPER.dll",
     "viiper.exe"
 )) {
     Copy-RequiredFile (Join-Path $releaseDir $name) (Join-Path $stagingFull $name)

@@ -4,7 +4,6 @@ using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -142,14 +141,6 @@ namespace ApexSenseBridge
                     return;
                 }
 
-                if (profile.RequireSteamStopped && IsSteamRunning())
-                {
-                    CancelStartup(args,
-                        "Steam est encore ouvert. Quittez-le complètement avec Steam > Quitter, puis relancez le jeu depuis Playnite. " +
-                        "Le bridge doit masquer l'APEX avant le démarrage de Steam.");
-                    return;
-                }
-
                 var arguments = BuildBridgeArguments(profile, args.Game);
                 string error;
                 var session = BridgeSession.TryStart(
@@ -206,7 +197,7 @@ namespace ApexSenseBridge
                 yield return new GameMenuItem
                 {
                     MenuSection = "ApexSenseBridge",
-                    Description = (isSpiderMan2 ? "✓ " : "   ") + "Spider-Man 2 (WGI Fix)",
+                    Description = (isSpiderMan2 ? "✓ " : "   ") + "Spider-Man 2",
                     Action = action => SetProfiles(action.Games, BridgeProfileType.SpiderMan2)
                 };
                 yield return new GameMenuItem
@@ -233,7 +224,7 @@ namespace ApexSenseBridge
                 yield return new GameMenuItem
                 {
                     MenuSection = "ApexSenseBridge",
-                    Description = "Activer le profil Spider-Man 2 (WGI Fix)",
+                    Description = "Activer le profil Spider-Man 2",
                     Action = action => SetProfiles(action.Games, BridgeProfileType.SpiderMan2)
                 };
                 yield return new GameMenuItem
@@ -283,11 +274,6 @@ namespace ApexSenseBridge
                 AutomaticProfileDetector.TryDetect(game, out var detectedProfile, out _))
             {
                 gestureProfile = detectedProfile;
-            }
-
-            if (profile.ProfileType == BridgeProfileType.SpiderMan2)
-            {
-                arguments.Add("--spiderman2-wgi-fix");
             }
 
             switch (gestureProfile)
@@ -402,16 +388,5 @@ namespace ApexSenseBridge
             PlayniteApi.Dialogs.ShowErrorMessage(message, "ApexSenseBridge");
         }
 
-        private static bool IsSteamRunning()
-        {
-            try
-            {
-                return Process.GetProcessesByName("steam").Any();
-            }
-            catch
-            {
-                return true;
-            }
-        }
     }
 }

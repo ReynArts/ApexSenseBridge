@@ -1,5 +1,5 @@
 #define AppName "ApexSenseBridge"
-#define AppVersion "0.4.0"
+#define AppVersion "0.5.0"
 #define AppPublisher "ApexSenseBridge contributors"
 #define AppId "{{5F8B1901-93E1-41E2-96B4-F1B278A5A630}"
 #define ExtensionId "ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4"
@@ -54,6 +54,7 @@ Source: "..\build-win\Release\ApexSenseBridgeTray.exe.config"; DestDir: "{app}";
 Source: "..\ApexSenseBridgeTray\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\data\supported_games.json"; DestDir: "{app}\Data"; Flags: ignoreversion
 Source: "..\build-win\Release\viiper.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build-win\Release\libVIIPER.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-LICENSE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-SOURCE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-v0.7.0-asb.patch"; DestDir: "{app}\Licenses"; Flags: ignoreversion

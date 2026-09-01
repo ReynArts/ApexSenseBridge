@@ -215,6 +215,9 @@ int main() {
     std::atomic_uint64_t callbacks{0};
     asb::dualsense::VirtualDualSenseOptions options{};
     options.apiPort = apiPort;
+    // Auto mode must retain the existing sidecar path when the optional
+    // in-process library is absent or intentionally unavailable.
+    options.viiperLibrary = L"definitely-missing-libVIIPER.dll";
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(options);
     std::string error;
     const bool opened = virtualDualSense->open(
@@ -261,6 +264,15 @@ int main() {
     assert(callbacks.load(std::memory_order_relaxed) == 2);
 
     virtualDualSense->close();
+    const auto closedStats = virtualDualSense->stats();
+    assert(!closedStats.connected);
+    assert(closedStats.backendVersion == "v0.6.1-steamless8");
+    assert(closedStats.inputUpdates == 1);
+    assert(closedStats.outputReports == 1);
+    assert(closedStats.triggerReports == 1);
+    assert(closedStats.rumbleReports == 1);
+    assert(closedStats.audioHapticsFrames == 1);
+    assert(closedStats.audioHapticsDelivered == 1);
     assert(finished.get());
     server.join();
 

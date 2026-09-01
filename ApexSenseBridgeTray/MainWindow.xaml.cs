@@ -37,6 +37,8 @@ namespace ApexSenseBridgeTray
 
             InitializeComponent();
 
+            UpdateLanguageRadios();
+
             ChkAutoDetect.IsChecked = settings.AutoDetectGames;
             ChkTriggerAdaptive.IsChecked = settings.TriggerOnAdaptiveTriggers;
             ChkTriggerHaptic.IsChecked = settings.TriggerOnHapticFeedback;
@@ -80,6 +82,39 @@ namespace ApexSenseBridgeTray
             {
                 try { UpdateSessionStatus(); } catch { }
             }));
+            LocalizationManager.LanguageChanged += () => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    UpdateLanguageRadios();
+                    UpdateSessionStatus();
+                    UpdateDatabaseCount();
+                    if (latestUpdateInfo != null)
+                    {
+                        ShowUpdateBanner(latestUpdateInfo);
+                    }
+                }
+                catch { }
+            }));
+        }
+
+        private void UpdateLanguageRadios()
+        {
+            bool isFr = LocalizationManager.CurrentLanguage == LocalizationManager.LangFrench;
+            RadLangFr.IsChecked = isFr;
+            RadLangEn.IsChecked = !isFr;
+        }
+
+        private void OnLanguageOptionChecked(object sender, RoutedEventArgs e)
+        {
+            if (!isInitialized) return;
+            string newLang = RadLangFr.IsChecked == true ? LocalizationManager.LangFrench : LocalizationManager.LangEnglish;
+            if (newLang != LocalizationManager.CurrentLanguage)
+            {
+                settings.Language = newLang;
+                settings.Save();
+                LocalizationManager.SetLanguage(newLang);
+            }
         }
 
         private void OnWindowDrag(object sender, MouseButtonEventArgs e)
@@ -102,7 +137,7 @@ namespace ApexSenseBridgeTray
             {
                 BadgeStatus.SetResourceReference(Border.BackgroundProperty, "BadgeActiveBg");
                 TxtStatusBadge.SetResourceReference(TextBlock.ForegroundProperty, "BadgeActiveFg");
-                TxtStatusBadge.Text = "● Pont actif";
+                TxtStatusBadge.Text = LocalizationManager.Get("Loc_StatusBadgeActive");
 
                 TxtActiveGame.Text = sessionManager.ActiveGameTitle;
                 TxtActiveGame.FontSize = 16;
@@ -112,11 +147,11 @@ namespace ApexSenseBridgeTray
                     string.Equals(prof, "none", StringComparison.OrdinalIgnoreCase) ||
                     string.IsNullOrWhiteSpace(prof))
                 {
-                    TxtActiveProfile.Text = "Standard";
+                    TxtActiveProfile.Text = LocalizationManager.Get("Loc_ProfileStandard");
                 }
                 else
                 {
-                    TxtActiveProfile.Text = "Remapping actif";
+                    TxtActiveProfile.Text = LocalizationManager.Get("Loc_ProfileRemapping");
                 }
 
                 TxtWaitHint.Visibility = Visibility.Collapsed;
@@ -124,18 +159,21 @@ namespace ApexSenseBridgeTray
                 PillTriggers.Opacity = 1.0;
                 PillHaptics.Opacity = 1.0;
 
-                bool isForced = sessionManager.ActiveGameTitle == "Pont manuel forcé";
+                string manualTitle = LocalizationManager.Get("Loc_ManualBridgeGameTitle");
+                bool isForced = sessionManager.ActiveGameTitle == "Pont manuel forcé" ||
+                                sessionManager.ActiveGameTitle == "Forced manual bridge" ||
+                                sessionManager.ActiveGameTitle == manualTitle;
                 BtnExcludeCurrentGame.Visibility = isForced ? Visibility.Collapsed : Visibility.Visible;
             }
             else
             {
                 BadgeStatus.SetResourceReference(Border.BackgroundProperty, "BadgeStandbyBg");
                 TxtStatusBadge.SetResourceReference(TextBlock.ForegroundProperty, "BadgeStandbyFg");
-                TxtStatusBadge.Text = "● En veille";
+                TxtStatusBadge.Text = LocalizationManager.Get("Loc_StatusBadgeStandby");
 
-                TxtActiveGame.Text = "Aucun jeu actif";
+                TxtActiveGame.Text = LocalizationManager.Get("Loc_NoActiveGame");
                 TxtActiveGame.FontSize = 15;
-                TxtActiveProfile.Text = "Standard";
+                TxtActiveProfile.Text = LocalizationManager.Get("Loc_ProfileStandard");
                 TxtWaitHint.Visibility = Visibility.Visible;
 
                 PillTriggers.Opacity = 0.4;
@@ -148,7 +186,8 @@ namespace ApexSenseBridgeTray
         private void OnExcludeCurrentGameClick(object sender, RoutedEventArgs e)
         {
             var gameTitle = sessionManager.ActiveGameTitle;
-            if (string.IsNullOrWhiteSpace(gameTitle) || gameTitle == "Aucun" || gameTitle == "Pont manuel forcé") return;
+            if (string.IsNullOrWhiteSpace(gameTitle) || gameTitle == "Aucun" || gameTitle == "None" ||
+                gameTitle == "Pont manuel forcé" || gameTitle == "Forced manual bridge") return;
 
             SupportedGame game;
             if (gameListService.TryFindGame(gameTitle, out game) && game != null)
@@ -165,14 +204,15 @@ namespace ApexSenseBridgeTray
             sessionManager.StopSession("Game excluded by user");
             UpdateSessionStatus();
 
-            MessageBox.Show(this, string.Format("« {0} » a été exclu de la détection automatique.", gameTitle),
-                            "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, LocalizationManager.Format("Loc_MsgExcluded", gameTitle),
+                            LocalizationManager.Get("Loc_AppName"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         public void UpdateDatabaseCount()
         {
             int count = gameListService.TotalGamesLoaded;
-            TxtDatabaseInfo.Text = string.Format("{0} {1} certifié{2}", count, count > 1 ? "jeux" : "jeu", count > 1 ? "s" : "");
+            string key = count > 1 ? "Loc_CertifiedGamesPlural" : "Loc_CertifiedGamesSingular";
+            TxtDatabaseInfo.Text = LocalizationManager.Format(key, count);
         }
 
         private void OnAutoDetectChanged(object sender, RoutedEventArgs e)
@@ -223,7 +263,7 @@ namespace ApexSenseBridgeTray
             {
                 sessionManager.StopSession("Switching to manual bridge mode");
                 string error;
-                sessionManager.StartSession("Pont manuel forcé", "standard", settings, out error);
+                sessionManager.StartSession(LocalizationManager.Get("Loc_ManualBridgeGameTitle"), "standard", settings, out error);
             }
             else
             {
@@ -237,20 +277,20 @@ namespace ApexSenseBridgeTray
 
         private async void OnUpdateDatabaseClick(object sender, RoutedEventArgs e)
         {
-            TxtDatabaseInfo.Text = "Synchronisation...";
+            TxtDatabaseInfo.Text = LocalizationManager.Get("Loc_Syncing");
             var success = await gameListService.FetchLatestFromCloudAsync();
             if (success)
             {
                 int count = gameListService.TotalGamesLoaded;
-                string gameWord = count > 1 ? "jeux compatibles chargés" : "jeu compatible chargé";
-                MessageBox.Show(this, string.Format("Mise à jour réussie !\n{0} {1}.", count, gameWord),
-                                "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Information);
+                string gameWord = count > 1 ? LocalizationManager.Get("Loc_SyncSuccessGamesPlural") : LocalizationManager.Get("Loc_SyncSuccessGamesSingular");
+                MessageBox.Show(this, LocalizationManager.Format("Loc_SyncSuccess", count, gameWord),
+                                LocalizationManager.Get("Loc_AppName"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
                 UpdateDatabaseCount();
-                MessageBox.Show(this, "Impossible de télécharger la dernière liste.\nVérifiez votre connexion Internet.",
-                                "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, LocalizationManager.Get("Loc_SyncFailed"),
+                                LocalizationManager.Get("Loc_AppName"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -266,8 +306,8 @@ namespace ApexSenseBridgeTray
             latestUpdateInfo = info;
             if (info != null && info.HasUpdate)
             {
-                TxtUpdateTitle.Text = string.Format("Mise à jour v{0} disponible !", info.LatestVersion);
-                TxtUpdateSubtitle.Text = "Cliquez sur Télécharger pour obtenir la dernière version";
+                TxtUpdateTitle.Text = LocalizationManager.Format("Loc_UpdateBannerTitle") + string.Format(" (v{0})", info.LatestVersion);
+                TxtUpdateSubtitle.Text = LocalizationManager.Get("Loc_UpdateBannerSubtitle");
                 BannerUpdate.Visibility = Visibility.Visible;
             }
             else

@@ -11,9 +11,17 @@
 
 namespace asb::dualsense {
 
+enum class VirtualDualSenseBackend {
+    Auto,
+    Integrated,
+    Sidecar,
+};
+
 struct VirtualDualSenseOptions {
     std::filesystem::path viiperExecutable;
+    std::filesystem::path viiperLibrary;
     std::uint16_t apiPort = 3242;
+    VirtualDualSenseBackend backend = VirtualDualSenseBackend::Auto;
 };
 
 struct VirtualDualSenseStats {
@@ -27,6 +35,12 @@ struct VirtualDualSenseStats {
     std::uint64_t audioHapticsCoalesced = 0;
     std::uint64_t malformedFrames = 0;
     std::uint64_t unknownFrames = 0;
+    std::uint64_t initializationBootstrapUs = 0;
+    std::uint64_t initializationServerUs = 0;
+    std::uint64_t initializationBusUs = 0;
+    std::uint64_t initializationDeviceUs = 0;
+    std::uint64_t initializationFeedbackUs = 0;
+    std::uint64_t initializationInputUs = 0;
     std::string backendVersion;
 };
 

@@ -34,7 +34,7 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
-$script:CollectorVersion = "1.0.0"
+$script:CollectorVersion = "1.3.0"
 $script:Warnings = New-Object System.Collections.Generic.List[string]
 $script:Steps = New-Object System.Collections.Generic.List[object]
 
@@ -153,11 +153,43 @@ function Get-PnpPropertyMap([string[]]$InstanceIds, [string[]]$KeyNames) {
         return $map
     }
 
-    $properties = if ($KeyNames.Count -eq 0) {
-        @(Get-PnpDeviceProperty -InstanceId $InstanceIds -ErrorAction Stop)
-    }
-    else {
-        @(Get-PnpDeviceProperty -InstanceId $InstanceIds -KeyName $KeyNames -ErrorAction Stop)
+    # Windows 10's PnP provider can reject one large multi-device request with
+    # WBEM_E_QUOTA_VIOLATION. Small batches avoid that provider-wide failure.
+    $properties = New-Object System.Collections.Generic.List[object]
+    $batchSize = 12
+    for ($offset = 0; $offset -lt $InstanceIds.Count; $offset += $batchSize) {
+        $last = [Math]::Min($offset + $batchSize - 1, $InstanceIds.Count - 1)
+        $batch = @($InstanceIds[$offset..$last])
+        try {
+            $batchProperties = if ($KeyNames.Count -eq 0) {
+                @(Get-PnpDeviceProperty -InstanceId $batch -ErrorAction Stop)
+            }
+            else {
+                @(Get-PnpDeviceProperty -InstanceId $batch -KeyName $KeyNames -ErrorAction Stop)
+            }
+            foreach ($property in $batchProperties) {
+                $properties.Add($property)
+            }
+        }
+        catch {
+            # A broken device must not discard the rest of the controller topology.
+            foreach ($instanceId in $batch) {
+                try {
+                    $singleProperties = if ($KeyNames.Count -eq 0) {
+                        @(Get-PnpDeviceProperty -InstanceId $instanceId -ErrorAction Stop)
+                    }
+                    else {
+                        @(Get-PnpDeviceProperty -InstanceId $instanceId -KeyName $KeyNames -ErrorAction Stop)
+                    }
+                    foreach ($property in $singleProperties) {
+                        $properties.Add($property)
+                    }
+                }
+                catch {
+                    # Preserve every other readable interface.
+                }
+            }
+        }
     }
 
     foreach ($property in $properties) {
@@ -179,6 +211,115 @@ function Get-PnpPropertyMap([string[]]$InstanceIds, [string[]]$KeyNames) {
         $map[$id][$key] = Convert-PropertyData $data
     }
     return $map
+}
+
+function Get-ConnectedModelAssessment([string]$HidJsonPath, $PnpResult) {
+    $result = [ordered]@{
+        status = "inconclusive"
+        expected_model = "Flydigi APEX 4"
+        reported_products = @()
+        evidence = @()
+        apex4_bluetooth_visible = $false
+        apex4_usb_or_hid_visible = $false
+        xinput_045e_028e_visible = $false
+        apex4_xinput_mode_likely = $false
+        other_flydigi_model_visible = $false
+    }
+    try {
+        $hid = Get-Content -LiteralPath $HidJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $flydigiDevices = @($hid.devices | Where-Object {
+            $_.manufacturer -match "(?i)(flydigi|apex|vader)" -or
+            $_.product -match "(?i)(flydigi|apex|vader)" -or
+            $_.device_path -match "(?i)vid_(045e&pid_028e|04b4&pid_2412)"
+        })
+        if (@($flydigiDevices | Where-Object {
+            $_.device_path -match "(?i)vid_045e&pid_028e"
+        }).Count -gt 0) {
+            $result.xinput_045e_028e_visible = $true
+        }
+        $products = @($flydigiDevices | ForEach-Object { [string]$_.product } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique)
+        $evidence = @($flydigiDevices | ForEach-Object {
+            "HID {0}:{1} {2}" -f $_.vendor_id_hex, $_.product_id_hex, $_.product
+        })
+
+        if ($null -ne $PnpResult -and $PnpResult.available) {
+            foreach ($device in @($PnpResult.devices)) {
+                $friendly = [string]$device.friendly_name
+                $instance = [string]$device.instance_id
+                $busDescription = ""
+                $busProperty = @($device.properties | Where-Object {
+                    $_.key -eq "DEVPKEY_Device_BusReportedDeviceDesc"
+                } | Select-Object -First 1)
+                if ($busProperty.Count -gt 0) {
+                    $busDescription = [string]$busProperty[0].value
+                }
+                $label = (($friendly, $busDescription | Where-Object {
+                    -not [string]::IsNullOrWhiteSpace($_)
+                }) -join " / ")
+                if ($label -match "(?i)(flydigi|apex|vader|direwolf)" -or
+                    $instance -match "(?i)(vid_045e&pid_028e|vid_04b4&pid_2412|vid&0304b4_pid&2412)") {
+                    if (-not [string]::IsNullOrWhiteSpace($label)) {
+                        $products += $label
+                    }
+                    $evidence += "PnP $instance [$label]"
+                }
+                if ($label -match "(?i)APEX[ _-]*4") {
+                    if ($instance -match "(?i)^BTH") {
+                        $result.apex4_bluetooth_visible = $true
+                    }
+                    elseif ($instance -match "(?i)^(USB|HID)\\") {
+                        $result.apex4_usb_or_hid_visible = $true
+                    }
+                }
+                if ($instance -match "(?i)^(USB|HID)\\VID_04B4&PID_2412") {
+                    $result.apex4_usb_or_hid_visible = $true
+                }
+                if ($instance -match "(?i)^(USB|HID)\\VID_045E&PID_028E") {
+                    $result.xinput_045e_028e_visible = $true
+                }
+            }
+        }
+
+        $products = @($products | Sort-Object -Unique)
+        $evidence = @($evidence | Sort-Object -Unique)
+        $joined = ($products -join " ")
+        $hasApex4 = $joined -match "(?i)APEX[ _-]*4"
+        $hasOther = $joined -match "(?i)(VADER|DIREWOLF|APEX[ _-]*(2|3|5|6))"
+        # APEX 4 firmware in PC/XInput mode can expose the generic Xbox 360
+        # identity 045E:028E and the legacy USB product string "Flydigi VADER3".
+        # When the APEX 4 is independently visible over BLE, treat that pairing
+        # as an XInput-mode candidate rather than claiming that a second pad is
+        # definitely present. DInput mode exposes the model-specific 04B4:2412
+        # interfaces needed for protocol work.
+        $apex4XInputCandidate = (
+            $hasApex4 -and
+            $result.xinput_045e_028e_visible -and
+            -not $result.apex4_usb_or_hid_visible -and
+            $joined -notmatch "(?i)(DIREWOLF|APEX[ _-]*(2|3|5|6)|VADER[ _-]*(2|4|5))"
+        )
+        $result.apex4_xinput_mode_likely = $apex4XInputCandidate
+        $result.other_flydigi_model_visible = ($hasOther -and -not $apex4XInputCandidate)
+        $result.reported_products = $products
+        $result.evidence = $evidence
+        if ($apex4XInputCandidate) {
+            $result.status = "expected_model_xinput_mode"
+        }
+        elseif ($hasApex4 -and $hasOther) {
+            $result.status = "expected_and_other_models_reported"
+        }
+        elseif ($hasApex4) {
+            $result.status = "expected_model_reported"
+        }
+        elseif ($hasOther) {
+            $result.status = "different_model_reported"
+        }
+    }
+    catch {
+        $result.evidence = @("Assessment error: " + $_.Exception.Message)
+    }
+    return [pscustomobject]$result
 }
 
 function Get-MapValue($Map, [string]$InstanceId, [string]$KeyName) {
@@ -226,7 +367,8 @@ function Get-PnpDiagnostics([string]$WorkingDirectory) {
             $id = [string]$seed.InstanceId
             $relatedIds[$id] = $true
             $container = [string](Get-MapValue $relations $id "DEVPKEY_Device_ContainerId")
-            $placeholderContainer = $container -match "(?i)^\{?0{8}-0{4}-0{4}-(0{4}|f{4})-(0{12}|f{12})\}?$"
+            $placeholderContainer = ($container -match "(?i)^\{?0{8}-0{4}-0{4}-(0{4}|f{4})-(0{12}|f{12})\}?$") -or
+                ($container -ieq "{9F4B56F0-1DF6-11E0-AC64-0800200C9A66}")
             if (-not [string]::IsNullOrWhiteSpace($container) -and -not $placeholderContainer) {
                 $seedContainers[$container] = $true
             }
@@ -821,6 +963,34 @@ try {
         Add-Step "pnp" $false "No matching PnP device was found."
     }
 
+    $modelAssessment = Get-ConnectedModelAssessment `
+        (Join-Path $workingDirectory "hid-relevant.json") $pnp
+    Write-JsonFile (Join-Path $workingDirectory "model-assessment.json") $modelAssessment
+    if ($modelAssessment.status -eq "expected_model_xinput_mode") {
+        Add-Warning "The APEX 4 is likely connected in XInput mode, where it can report the generic 045E:028E / Flydigi VADER3 identity. Switch the controller to DInput (hold FN + A for about 3 seconds, or use its LCD connection menu) and collect again."
+    }
+    elseif ($modelAssessment.status -eq "expected_and_other_models_reported") {
+        Add-Warning "An APEX 4 and another Flydigi model are both present. Disconnect every other Flydigi controller/receiver and collect again."
+    }
+    elseif ($modelAssessment.status -eq "different_model_reported") {
+        $reported = if ($modelAssessment.reported_products.Count -gt 0) {
+            $modelAssessment.reported_products -join ", "
+        }
+        else {
+            "another Flydigi model"
+        }
+        Add-Warning ("The connected controller reports itself as '" + $reported +
+            "', not as an APEX 4. Connect the intended APEX 4 and collect again.")
+    }
+    elseif ($modelAssessment.status -eq "inconclusive") {
+        Add-Warning "No connected interface explicitly reported the APEX 4 model name; verify the controller before sharing this report."
+    }
+    if ($modelAssessment.apex4_bluetooth_visible -and
+        -not $modelAssessment.apex4_usb_or_hid_visible -and
+        -not $modelAssessment.apex4_xinput_mode_likely) {
+        Add-Warning "The APEX 4 is visible only through Bluetooth. For protocol work, reconnect it by USB cable or its own 2.4 GHz receiver and collect again."
+    }
+
     Write-Host "[4/7] Enumerating and sampling XInput in read-only mode..."
     $xinput = Get-XInputDiagnostics $workingDirectory $InputSampleSeconds $SkipInputSample.IsPresent
     if ($xinput.available -and $xinput.devices.Count -gt 0) {
@@ -852,6 +1022,7 @@ try {
         collector_version = $script:CollectorVersion
         collected_at_utc = $system.collected_at_utc
         bridge = $bridgeInfo
+        model_assessment = $modelAssessment
         pnp_available = $pnp.available
         pnp_seed_count = $pnp.seed_count
         pnp_related_count = $pnp.related_count
@@ -888,6 +1059,7 @@ Contents
 - summary.json: collection status and warnings
 - system.json: Windows/PowerShell versions (no computer or user name)
 - hid-relevant.json: relevant HID paths, usage pages, report lengths, and topology
+- model-assessment.json: expected-model and connection-mode check based on HID/PnP interfaces
 - pnp-devices.json/txt: matching PnP devices, container relationships, and drivers
 - pnputil-relevant.txt: filtered Windows PnP fallback
 - registry-relevant.txt: filtered APEX 4/Flydigi enumeration fallback

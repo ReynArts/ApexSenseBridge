@@ -41,7 +41,7 @@ if ($installedVersion -eq "0.0.0") {
 }
 
 if ($installedVersion -eq "0.0.0") {
-    $installedVersion = "0.4.0"
+    $installedVersion = "0.5.0"
 }
 
 Write-Host "Installed Version : v$installedVersion"

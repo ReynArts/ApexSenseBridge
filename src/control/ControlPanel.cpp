@@ -19,6 +19,10 @@ constexpr int kLogsButton = 103;
 constexpr int kFullUninstallButton = 104;
 constexpr int kOutputEdit = 201;
 
+bool isFrenchLocale() {
+    return PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_FRENCH;
+}
+
 std::filesystem::path moduleDirectory() {
     std::array<wchar_t, 32768> buffer{};
     const DWORD length = GetModuleFileNameW(nullptr, buffer.data(),
@@ -31,7 +35,10 @@ std::wstring utf8ToWide(const std::string& value) {
     if (value.empty()) return {};
     const int required = MultiByteToWideChar(CP_UTF8, 0, value.data(),
                                              static_cast<int>(value.size()), nullptr, 0);
-    if (required <= 0) return L"La sortie du moteur ne peut pas être décodée.";
+    if (required <= 0) {
+        return isFrenchLocale() ? L"La sortie du moteur ne peut pas être décodée."
+                                : L"Engine output could not be decoded.";
+    }
     std::wstring result(static_cast<std::size_t>(required), L'\0');
     MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()),
                         result.data(), required);
@@ -45,7 +52,7 @@ std::wstring windowsError(DWORD code) {
             FORMAT_MESSAGE_IGNORE_INSERTS,
         nullptr, code, 0, reinterpret_cast<wchar_t*>(&buffer), 0, nullptr);
     std::wstring message = size && buffer ? std::wstring(buffer, size) :
-                                           L"Erreur Windows " + std::to_wstring(code);
+        (isFrenchLocale() ? L"Erreur Windows " : L"Windows error ") + std::to_wstring(code);
     if (buffer) LocalFree(buffer);
     return message;
 }
@@ -55,7 +62,9 @@ bool runEngineHidden(const std::wstring& arguments,
                      DWORD& exitCode) {
     const auto engine = moduleDirectory() / L"ApexSenseBridge.exe";
     if (!std::filesystem::exists(engine)) {
-        output = L"ApexSenseBridge.exe est introuvable dans le dossier d'installation.";
+        output = isFrenchLocale()
+            ? L"ApexSenseBridge.exe est introuvable dans le dossier d'installation."
+            : L"ApexSenseBridge.exe was not found in the installation directory.";
         return false;
     }
 
@@ -65,7 +74,8 @@ bool runEngineHidden(const std::wstring& arguments,
     HANDLE readPipe = nullptr;
     HANDLE writePipe = nullptr;
     if (!CreatePipe(&readPipe, &writePipe, &security, 0)) {
-        output = L"Création du canal de diagnostic impossible : " + windowsError(GetLastError());
+        output = (isFrenchLocale() ? L"Création du canal de diagnostic impossible : "
+                                   : L"Failed to create diagnostic pipe: ") + windowsError(GetLastError());
         return false;
     }
     SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
@@ -86,7 +96,8 @@ bool runEngineHidden(const std::wstring& arguments,
         CREATE_NO_WINDOW, nullptr, workingDirectory.c_str(), &startup, &process);
     CloseHandle(writePipe);
     if (!started) {
-        output = L"Démarrage du moteur impossible : " + windowsError(GetLastError());
+        output = (isFrenchLocale() ? L"Démarrage du moteur impossible : "
+                                   : L"Failed to start engine: ") + windowsError(GetLastError());
         CloseHandle(readPipe);
         return false;
     }
@@ -104,7 +115,10 @@ bool runEngineHidden(const std::wstring& arguments,
     CloseHandle(process.hProcess);
     CloseHandle(readPipe);
     output = utf8ToWide(raw);
-    if (output.empty()) output = L"Le moteur n'a produit aucune sortie.";
+    if (output.empty()) {
+        output = isFrenchLocale() ? L"Le moteur n'a produit aucune sortie."
+                                  : L"The engine produced no output.";
+    }
     return exitCode == 0;
 }
 
@@ -148,10 +162,11 @@ void createControls(HWND window) {
             GetModuleHandleW(nullptr), nullptr);
         useDefaultGuiFont(button);
     };
-    addButton(kDiagnosticButton, L"Tester l'APEX", 18, 130);
-    addButton(kRestoreButton, L"Restaurer HidHide / WGI", 158, 172);
-    addButton(kLogsButton, L"Ouvrir les journaux", 340, 145);
-    addButton(kFullUninstallButton, L"Désinstallation complète…", 495, 180);
+
+    addButton(kDiagnosticButton, isFrenchLocale() ? L"Tester l'APEX" : L"Test APEX", 18, 130);
+    addButton(kRestoreButton, isFrenchLocale() ? L"Restaurer HidHide" : L"Restore HidHide", 158, 172);
+    addButton(kLogsButton, isFrenchLocale() ? L"Ouvrir les journaux" : L"Open Logs", 340, 145);
+    addButton(kFullUninstallButton, isFrenchLocale() ? L"Désinstallation complète…" : L"Full Uninstall…", 495, 180);
 
     HWND edit = CreateWindowExW(
         WS_EX_CLIENTEDGE, L"EDIT", L"",
@@ -163,10 +178,12 @@ void createControls(HWND window) {
     useDefaultGuiFont(edit);
 
     std::wstring status = L"ApexSenseBridge " + readMachineString(L"Version") +
-                          L"\r\nMoteur : " + (moduleDirectory() / L"ApexSenseBridge.exe").wstring() +
+                          (isFrenchLocale() ? L"\r\nMoteur : " : L"\r\nEngine: ") + (moduleDirectory() / L"ApexSenseBridge.exe").wstring() +
                           L"\r\nusbip-win2 : " + readMachineString(L"UsbipVersion") +
                           L"\r\nHidHide : " + readMachineString(L"HidHideVersion") +
-                          L"\r\n\r\nAucun service ni agent permanent n'est actif hors session de jeu.";
+                          (isFrenchLocale()
+                              ? L"\r\n\r\nAucun service ni agent permanent n'est actif hors session de jeu."
+                              : L"\r\n\r\nNo permanent background service or agent is active outside game sessions.");
     setOutput(window, status);
 }
 
@@ -184,7 +201,8 @@ void openLogs(HWND window) {
     const DWORD length = GetEnvironmentVariableW(
         L"LOCALAPPDATA", localAppData.data(), static_cast<DWORD>(localAppData.size()));
     if (length == 0 || length >= localAppData.size()) {
-        MessageBoxW(window, L"LOCALAPPDATA est indisponible.", L"ApexSenseBridge", MB_ICONERROR);
+        MessageBoxW(window, isFrenchLocale() ? L"LOCALAPPDATA est indisponible." : L"LOCALAPPDATA is unavailable.",
+                    L"ApexSenseBridge", MB_ICONERROR);
         return;
     }
     const auto logs = std::filesystem::path(localAppData.data()) / L"ApexSenseBridge" / L"Logs";
@@ -192,7 +210,8 @@ void openLogs(HWND window) {
     std::filesystem::create_directories(logs, error);
     if (error || reinterpret_cast<INT_PTR>(ShellExecuteW(
             window, L"open", logs.c_str(), nullptr, nullptr, SW_SHOWNORMAL)) <= 32) {
-        MessageBoxW(window, L"Le dossier des journaux ne peut pas être ouvert.",
+        MessageBoxW(window, isFrenchLocale() ? L"Le dossier des journaux ne peut pas être ouvert."
+                                            : L"The logs directory could not be opened.",
                     L"ApexSenseBridge", MB_ICONERROR);
     }
 }
@@ -200,15 +219,20 @@ void openLogs(HWND window) {
 void startFullUninstall(HWND window) {
     const int confirmation = MessageBoxW(
         window,
-        L"Cette option désinstalle ApexSenseBridge puis demande aussi la suppression des "
-        L"pilotes usbip-win2 et HidHide, même s'ils étaient déjà présents. Continuer ?",
-        L"Désinstallation complète", MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+        isFrenchLocale()
+            ? L"Cette option désinstalle ApexSenseBridge puis demande aussi la suppression des "
+              L"pilotes usbip-win2 et HidHide, même s'ils étaient déjà présents. Continuer ?"
+            : L"This option uninstalls ApexSenseBridge and requests removal of "
+              L"usbip-win2 and HidHide drivers, even if they were already present. Continue?",
+        isFrenchLocale() ? L"Désinstallation complète" : L"Full Uninstall",
+        MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
     if (confirmation != IDYES) return;
     const auto uninstaller = readMachineString(L"UninstallExecutable");
     if (uninstaller.empty() || reinterpret_cast<INT_PTR>(ShellExecuteW(
             window, L"runas", uninstaller.c_str(), L"/REMOVEDEPENDENCIES",
             moduleDirectory().c_str(), SW_SHOWNORMAL)) <= 32) {
-        MessageBoxW(window, L"Le programme de désinstallation est introuvable ou n'a pas été autorisé.",
+        MessageBoxW(window, isFrenchLocale() ? L"Le programme de désinstallation est introuvable ou n'a pas été autorisé."
+                                            : L"The uninstaller was not found or was not granted permission.",
                     L"ApexSenseBridge", MB_ICONERROR);
     }
 }
@@ -225,9 +249,15 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
     case WM_COMMAND: {
         const int id = LOWORD(wParam);
         if (id == kDiagnosticButton || id == kRestoreButton) {
-            setOutput(window, id == kDiagnosticButton
-                ? L"Lecture de l'état complet de l'APEX pendant deux secondes…"
-                : L"Restauration de la visibilité du contrôleur et des réglages WGI…");
+            if (id == kDiagnosticButton) {
+                setOutput(window, isFrenchLocale()
+                    ? L"Lecture de l'état complet de l'APEX pendant deux secondes…"
+                    : L"Reading full APEX status for two seconds…");
+            } else {
+                setOutput(window, isFrenchLocale()
+                    ? L"Restauration de la visibilité du contrôleur…"
+                    : L"Restoring controller visibility…");
+            }
             UpdateWindow(window);
             std::wstring output;
             DWORD exitCode = 0;
@@ -236,7 +266,7 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
                                         : L"restore-controller-visibility",
                 output, exitCode);
             if (!success) {
-                output += L"\r\n\r\nCode de sortie : " + std::to_wstring(exitCode);
+                output += (isFrenchLocale() ? L"\r\n\r\nCode de sortie : " : L"\r\n\r\nExit code: ") + std::to_wstring(exitCode);
             }
             setOutput(window, output);
             return 0;
@@ -275,7 +305,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     if (!RegisterClassExW(&windowClass)) return 1;
 
     HWND window = CreateWindowExW(
-        0, kWindowClass, L"ApexSenseBridge — Contrôle et diagnostic",
+        0, kWindowClass,
+        isFrenchLocale() ? L"ApexSenseBridge — Contrôle et diagnostic" : L"ApexSenseBridge — Control & Diagnostics",
         WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 715, 470,
         nullptr, nullptr, instance, nullptr);
     if (!window) return 2;

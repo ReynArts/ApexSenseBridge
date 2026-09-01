@@ -15,6 +15,7 @@ namespace ApexSenseBridgeTray.Models
         public int HapticThresholdPercent { get; set; }
         public int InitializationTimeoutSeconds { get; set; }
         public string ForcedProfile { get; set; }
+        public string Language { get; set; }
         public List<string> ExcludedGames { get; set; }
 
         public TraySettings()
@@ -27,6 +28,7 @@ namespace ApexSenseBridgeTray.Models
             HapticThresholdPercent = 12;
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";
+            Language = "auto";
             ExcludedGames = new List<string>();
         }
 

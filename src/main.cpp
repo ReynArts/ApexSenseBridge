@@ -11,7 +11,6 @@
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
 #include "platform/AudioEndpointProtection.h"
-#include "platform/GameCompatibility.h"
 #include "platform/PhysicalControllerIsolation.h"
 #include "platform/PhysicalInputSource.h"
 #include "platform/SessionControl.h"
@@ -322,7 +321,7 @@ void printDevice(const asb::HidDeviceInfo& info, std::size_t index) {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 0.4.0\n\n"
+        << "ApexSenseBridge 0.5.0\n\n"
         << "Commands:\n"
         << "  list                         List APEX 5 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
@@ -331,7 +330,7 @@ void printUsage() {
         << "                               Validate the complete APEX input proxy source\n"
         << "  stop-active-sessions         Gracefully detach/restore an active bridge\n"
         << "  identify [index]             Read and verify Flydigi command 0x01 identity\n"
-        << "  virtual-ds [--seconds N] [--json] [--viiper PATH]\n"
+        << "  virtual-ds [--seconds N] [--json] [--viiper PATH] [--virtual-backend NAME]\n"
         << "                               Create a neutral virtual DualSense and count feedback\n"
         << "  bridge-triggers [index] [--seconds N] [--viiper PATH]\n"
         << "                  [--telemetry-json PATH]\n"
@@ -339,9 +338,10 @@ void printUsage() {
         << "                  [--rumble]\n"
         << "                  [--haptic-threshold 0..95]\n"
         << "                  [--verify-virtual-input]\n"
+        << "                  [--virtual-backend auto|integrated|sidecar]\n"
         << "                  [--touchpad-profile NAME]\n"
         << "                  [--view-hold-swipe-up]\n"
-        << "                  [--isolate-apex] [--spiderman2-wgi-fix]\n"
+        << "                  [--isolate-apex]\n"
         << "                  [--session-token 32HEX]\n"
         << "                               Route adaptive triggers and optional grip/audio haptics\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
@@ -359,7 +359,17 @@ struct VirtualDsCommandOptions {
     std::optional<std::chrono::seconds> duration;
     bool json = false;
     std::filesystem::path viiperExecutable;
+    asb::dualsense::VirtualDualSenseBackend backend =
+        asb::dualsense::VirtualDualSenseBackend::Auto;
 };
+
+std::optional<asb::dualsense::VirtualDualSenseBackend> parseVirtualDualSenseBackend(
+    std::string_view name) {
+    if (name == "auto") return asb::dualsense::VirtualDualSenseBackend::Auto;
+    if (name == "integrated") return asb::dualsense::VirtualDualSenseBackend::Integrated;
+    if (name == "sidecar") return asb::dualsense::VirtualDualSenseBackend::Sidecar;
+    return std::nullopt;
+}
 
 bool parseVirtualDsOptions(int argc,
                            char** argv,
@@ -390,6 +400,17 @@ bool parseVirtualDsOptions(int argc,
                 return false;
             }
             options.viiperExecutable = std::filesystem::path(argv[index]);
+        } else if (option == "--virtual-backend") {
+            if (++index >= argc) {
+                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                return false;
+            }
+            const auto backend = parseVirtualDualSenseBackend(argv[index]);
+            if (!backend) {
+                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                return false;
+            }
+            options.backend = *backend;
         } else {
             error = "Unknown virtual-ds option: " + std::string(option);
             return false;
@@ -452,7 +473,7 @@ int commandVirtualDs(int argc, char** argv) {
     VirtualDsCommandOptions commandOptions{};
     std::string error;
     if (!parseVirtualDsOptions(argc, argv, commandOptions, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge virtual-ds [--seconds N] [--json] [--viiper PATH]\n";
+        std::cerr << error << "\nUsage: ApexSenseBridge virtual-ds [--seconds N] [--json] [--viiper PATH] [--virtual-backend auto|integrated|sidecar]\n";
         return 1;
     }
 
@@ -466,6 +487,7 @@ int commandVirtualDs(int argc, char** argv) {
 
     asb::dualsense::VirtualDualSenseOptions backendOptions{};
     backendOptions.viiperExecutable = std::move(commandOptions.viiperExecutable);
+    backendOptions.backend = commandOptions.backend;
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(std::move(backendOptions));
     if (!virtualDualSense->open(error)) {
         if (commandOptions.json) {
@@ -759,11 +781,12 @@ struct BridgeCommandOptions {
     std::optional<std::size_t> deviceIndex;
     std::optional<std::chrono::seconds> duration;
     std::filesystem::path viiperExecutable;
+    asb::dualsense::VirtualDualSenseBackend virtualBackend =
+        asb::dualsense::VirtualDualSenseBackend::Auto;
     bool proxyXInput = true;
     bool routeRumble = false;
     bool verifyVirtualInput = false;
     bool isolateApex = true;
-    bool spiderMan2WgiFix = false;
     asb::dualsense::TouchpadGestureProfile touchpadProfile =
         asb::dualsense::TouchpadGestureProfile::None;
     bool touchpadProfileExplicit = false;
@@ -788,6 +811,17 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
         } else if (value == "--viiper") {
             if (++i >= argc) { error = "--viiper requires a path."; return false; }
             options.viiperExecutable = argv[i];
+        } else if (value == "--virtual-backend") {
+            if (++i >= argc) {
+                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                return false;
+            }
+            const auto backend = parseVirtualDualSenseBackend(argv[i]);
+            if (!backend) {
+                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                return false;
+            }
+            options.virtualBackend = *backend;
         } else if (value == "--telemetry-json") {
             if (++i >= argc) { error = "--telemetry-json requires a file path."; return false; }
             options.telemetryJson = argv[i];
@@ -833,14 +867,6 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 asb::dualsense::TouchpadGestureProfile::LegacyViewHoldSwipeUp;
             options.touchpadProfileExplicit = true;
             options.proxyXInput = true;
-        } else if (value == "--spiderman2-wgi-fix") {
-            options.spiderMan2WgiFix = true;
-            if (!options.touchpadProfileExplicit) {
-                options.touchpadProfile =
-                    asb::dualsense::TouchpadGestureProfile::SpiderMan2;
-            }
-            options.isolateApex = true;
-            options.proxyXInput = true;
         } else if (value == "--isolate-apex") {
             options.isolateApex = true;
             options.proxyXInput = true;
@@ -875,11 +901,6 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
         error = "--haptic-threshold requires --rumble.";
         return false;
     }
-    if (options.spiderMan2WgiFix && options.touchpadProfileExplicit &&
-        options.touchpadProfile != asb::dualsense::TouchpadGestureProfile::SpiderMan2) {
-        error = "--spiderman2-wgi-fix requires --touchpad-profile spider-man-2.";
-        return false;
-    }
     // A DualSense session is always a complete physical-input proxy. These
     // invariants are enforced by the engine, not merely by the Playnite UI.
     options.proxyXInput = true;
@@ -893,7 +914,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     BridgeCommandOptions options{};
     std::string error;
     if (!parseBridgeOptions(argc, argv, options, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--isolate-apex] [--spiderman2-wgi-fix] [--session-token 32HEX]\n";
+        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--isolate-apex] [--session-token 32HEX]\n";
         return 1;
     }
 
@@ -975,7 +996,6 @@ int commandBridgeTriggers(int argc, char** argv) {
     const auto physicalInputReadyAt = std::chrono::steady_clock::now();
 
     const auto preexistingDualSensePaths = snapshotDualSensePaths();
-    asb::platform::TemporarySpiderMan2WgiOverride wgiOverride;
     asb::platform::VirtualDualSenseAudioEndpointProtection audioProtection;
     std::string audioProtectionError;
     if (!audioProtection.capture(audioProtectionError)) {
@@ -992,6 +1012,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         : std::unique_ptr<asb::dualsense::RumbleBridge>{};
     asb::dualsense::VirtualDualSenseOptions backendOptions{};
     backendOptions.viiperExecutable = std::move(options.viiperExecutable);
+    backendOptions.backend = options.virtualBackend;
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(std::move(backendOptions));
     if (!virtualDualSense->open(
             error,
@@ -1067,13 +1088,6 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << "Temporary APEX isolation failed: " << error << '\n';
         return failSession(11, "Temporary APEX isolation failed: " + error);
     }
-    if (options.spiderMan2WgiFix && !wgiOverride.activate(error)) {
-        virtualDualSense->close();
-        std::string isolationError;
-        (void)physicalIsolation.restore(isolationError);
-        std::cerr << "Spider-Man 2 temporary WGI override failed: " << error << '\n';
-        return failSession(10, "Spider-Man 2 temporary WGI override failed: " + error);
-    }
     const auto isolationReadyAt = std::chrono::steady_clock::now();
 
     if (sessionControl) {
@@ -1082,7 +1096,6 @@ int commandBridgeTriggers(int argc, char** argv) {
             !sessionControl->signalReady(error)) {
             virtualDualSense->close();
             std::string ignored;
-            (void)wgiOverride.restore(ignored);
             (void)physicalIsolation.restore(ignored);
             std::cerr << "Playnite session ready signal failed: " << error << '\n';
             return failSession(13, "Playnite session ready signal failed: " + error);
@@ -1114,6 +1127,8 @@ int commandBridgeTriggers(int argc, char** argv) {
                       : "Grip-rumble and audio haptics routing remain disabled.\n")
               << "All APEX controls are proxied through " << inputBackend
               << " into the virtual DualSense.\n"
+              << "Virtual DualSense backend: "
+              << virtualDualSense->stats().backendVersion << ".\n"
               << (virtualFirmware
                       ? "Virtual DualSense firmware " +
                             hex16(virtualFirmware->updateVersion) +
@@ -1126,9 +1141,6 @@ int commandBridgeTriggers(int argc, char** argv) {
                       ? "Touchpad gesture profile: " +
                             std::string(asb::dualsense::touchpadGestureProfileName(
                                 options.touchpadProfile)) + ".\n"
-                      : "")
-              << (wgiOverride.active()
-                      ? "Spider-Man 2 Windows Gaming Input is temporarily disabled.\n"
                       : "")
               << (physicalIsolation.active()
                       ? "The original APEX game interface is hidden for this bridge session only.\n"
@@ -1372,8 +1384,6 @@ int commandBridgeTriggers(int argc, char** argv) {
         *inputSource, std::chrono::milliseconds(1500));
     std::string isolationRestoreError;
     const bool isolationRestored = physicalIsolation.restore(isolationRestoreError);
-    std::string wgiRestoreError;
-    const bool wgiRestored = wgiOverride.restore(wgiRestoreError);
     const auto inputSourceStats = inputSource->stats();
     const auto processUsageFinished = processUsageSnapshot();
     const double runtimeSeconds = runtimeMilliseconds > 0
@@ -1382,8 +1392,15 @@ int commandBridgeTriggers(int argc, char** argv) {
     const double physicalReportRateHz = runtimeSeconds > 0.0
         ? static_cast<double>(inputSourceStats.reports) / runtimeSeconds
         : 0.0;
+    // The backend setter only runs when the physical state changes, while the
+    // virtual USB controller keeps emitting complete HID reports. When the
+    // verification monitor is enabled, report the observed HID cadence rather
+    // than the (usually much lower) state-update cadence.
+    const std::uint64_t measuredVirtualReports = virtualInputMonitor
+        ? virtualInputReports
+        : virtualStats.inputUpdates;
     const double virtualReportRateHz = runtimeSeconds > 0.0
-        ? static_cast<double>(virtualStats.inputUpdates) / runtimeSeconds
+        ? static_cast<double>(measuredVirtualReports) / runtimeSeconds
         : 0.0;
     const auto cpuDelta100ns = processUsageFinished.cpu100ns >= processUsageStarted.cpu100ns
         ? processUsageFinished.cpu100ns - processUsageStarted.cpu100ns
@@ -1404,6 +1421,8 @@ int commandBridgeTriggers(int argc, char** argv) {
             telemetry << std::fixed << std::setprecision(3)
                       << "{\n"
                       << "  \"schema\": 1,\n"
+                      << "  \"virtual_backend\": \""
+                      << jsonEscape(virtualStats.backendVersion) << "\",\n"
                       << "  \"input_mode\": \"mandatory-full-proxy\",\n"
                       << "  \"input_backend\": \"" << jsonEscape(inputBackend) << "\",\n"
                       << "  \"initialization_ms\": " << initializationMilliseconds << ",\n"
@@ -1415,6 +1434,18 @@ int commandBridgeTriggers(int argc, char** argv) {
                       << firmwareInitializationMilliseconds << ",\n"
                       << "  \"initialization_isolation_ms\": "
                       << isolationInitializationMilliseconds << ",\n"
+                      << "  \"backend_initialization_bootstrap_us\": "
+                      << virtualStats.initializationBootstrapUs << ",\n"
+                      << "  \"backend_initialization_server_us\": "
+                      << virtualStats.initializationServerUs << ",\n"
+                      << "  \"backend_initialization_bus_us\": "
+                      << virtualStats.initializationBusUs << ",\n"
+                      << "  \"backend_initialization_device_us\": "
+                      << virtualStats.initializationDeviceUs << ",\n"
+                      << "  \"backend_initialization_feedback_us\": "
+                      << virtualStats.initializationFeedbackUs << ",\n"
+                      << "  \"backend_initialization_input_us\": "
+                      << virtualStats.initializationInputUs << ",\n"
                       << "  \"runtime_ms\": " << runtimeMilliseconds << ",\n"
                       << "  \"forward_latency_us_p50\": " << forwardingLatency.percentile(50) << ",\n"
                       << "  \"forward_latency_us_p95\": " << forwardingLatency.percentile(95) << ",\n"
@@ -1440,6 +1471,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
 
     std::cout << "apex_routing=adaptive-triggers\n"
+              << "virtual_backend=" << virtualStats.backendVersion << '\n'
               << "input_mode=mandatory-full-proxy\n"
               << "input_backend=" << inputBackend << '\n'
               << "input_event_driven=" << (inputSource->eventDriven() ? "yes" : "no") << '\n'
@@ -1453,6 +1485,18 @@ int commandBridgeTriggers(int argc, char** argv) {
               << firmwareInitializationMilliseconds << '\n'
               << "initialization_isolation_ms="
               << isolationInitializationMilliseconds << '\n'
+              << "backend_initialization_bootstrap_us="
+              << virtualStats.initializationBootstrapUs << '\n'
+              << "backend_initialization_server_us="
+              << virtualStats.initializationServerUs << '\n'
+              << "backend_initialization_bus_us="
+              << virtualStats.initializationBusUs << '\n'
+              << "backend_initialization_device_us="
+              << virtualStats.initializationDeviceUs << '\n'
+              << "backend_initialization_feedback_us="
+              << virtualStats.initializationFeedbackUs << '\n'
+              << "backend_initialization_input_us="
+              << virtualStats.initializationInputUs << '\n'
               << "forward_latency_us_p50=" << forwardingLatency.percentile(50) << '\n'
               << "forward_latency_us_p95=" << forwardingLatency.percentile(95) << '\n'
               << "forward_latency_us_p99=" << forwardingLatency.percentile(99) << '\n'
@@ -1587,9 +1631,6 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(rumbleStats.lastAudioHighFrequency) << '\n';
     std::cout << "apex_original_restored="
               << (isolationRestored ? "yes" : "no") << '\n';
-    if (options.spiderMan2WgiFix) {
-        std::cout << "spiderman2_wgi_restored=" << (wgiRestored ? "yes" : "no") << '\n';
-    }
     const auto printLast = [](std::string_view side, std::uint8_t dsType,
                               const std::optional<asb::ForceTriggerCommand>& command) {
         std::cout << "last_" << side << "_ds_type=" << static_cast<unsigned>(dsType) << '\n';
@@ -1613,12 +1654,6 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << "WARNING: grip-rumble automatic stop failed: "
                   << rumbleResetError << "\nPower-cycle the controller before continuing.\n";
         return failSession(12, "Grip-rumble automatic stop failed: " + rumbleResetError);
-    }
-    if (!wgiRestored) {
-        std::cerr << "WARNING: could not restore Spider-Man 2 Windows Gaming Input: "
-                  << wgiRestoreError << '\n';
-        return failSession(10, "Could not restore Spider-Man 2 Windows Gaming Input: " +
-                                   wgiRestoreError);
     }
     if (!isolationRestored) {
         std::cerr << "WARNING: could not restore the original APEX visibility: "
@@ -1942,24 +1977,18 @@ int main(int argc, char** argv) {
     }
     if (command == "restore-controller-visibility") {
         bool controllerRecovered = false;
-        bool wgiRecovered = false;
         std::string controllerError;
-        std::string wgiError;
         const bool controllerOk =
             asb::platform::TemporaryPhysicalControllerIsolation::recoverPending(
                 controllerRecovered, controllerError);
-        const bool wgiOk = asb::platform::TemporarySpiderMan2WgiOverride::recoverPending(
-            wgiRecovered, wgiError);
-        if (!controllerOk || !wgiOk) {
-            std::cerr << "Recovery failed:";
-            if (!controllerOk) std::cerr << " controller=" << controllerError;
-            if (!wgiOk) std::cerr << " WGI=" << wgiError;
-            std::cerr << '\n';
+        if (!controllerOk) {
+            std::cerr << "Controller visibility recovery failed: "
+                      << controllerError << '\n';
             return 11;
         }
-        std::cout << ((controllerRecovered || wgiRecovered)
-                          ? "The original controller visibility and game settings were restored.\n"
-                          : "No pending controller or game-setting recovery was found.\n");
+        std::cout << (controllerRecovered
+                          ? "The original controller visibility was restored.\n"
+                          : "No pending controller visibility recovery was found.\n");
         return 0;
     }
     if (command == "stop-active-sessions") {
@@ -1983,12 +2012,7 @@ int main(int argc, char** argv) {
                 asb::platform::TemporaryPhysicalControllerIsolation::watchAndRecover(
                     static_cast<std::uint32_t>(processId), sessionToken,
                     controllerError);
-            bool wgiRecovered = false;
-            std::string wgiError;
-            const bool wgiOk =
-                asb::platform::TemporarySpiderMan2WgiOverride::recoverPending(
-                    wgiRecovered, wgiError);
-            return controllerStatus == 0 && wgiOk ? 0 : 2;
+            return controllerStatus == 0 ? 0 : 2;
         } catch (...) {
             return 1;
         }

@@ -1,3 +1,4 @@
+using ApexSenseBridgeTray.Common;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -42,7 +43,7 @@ namespace ApexSenseBridgeTray.Services
             catch
             {
             }
-            return "0.4.0";
+            return "0.5.0";
         }
 
         public async Task<UpdateInfo> CheckForUpdatesAsync(bool silent)
@@ -65,8 +66,8 @@ namespace ApexSenseBridgeTray.Services
                         if (!silent)
                         {
                             MessageBox.Show(
-                                "Impossible de vérifier les mises à jour pour le moment.\nVérifiez votre connexion Internet.",
-                                "ApexSenseBridge — Mises à jour",
+                                LocalizationManager.Get("Loc_UpdateCheckUnavailable"),
+                                LocalizationManager.Get("Loc_UpdateDialogTitle"),
                                 MessageBoxButton.OK,
                                 MessageBoxImage.Warning);
                         }
@@ -131,8 +132,8 @@ namespace ApexSenseBridgeTray.Services
                 if (!silent)
                 {
                     MessageBox.Show(
-                        "Erreur lors de la vérification : " + ex.Message,
-                        "ApexSenseBridge — Mises à jour",
+                        LocalizationManager.Get("Loc_UpdateError") + ex.Message,
+                        LocalizationManager.Get("Loc_UpdateDialogTitle"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
                 }
@@ -149,17 +150,11 @@ namespace ApexSenseBridgeTray.Services
 
                 if (!silent)
                 {
-                    string msg = string.Format(
-                        "Une nouvelle version d'ApexSenseBridge est disponible !\n\n" +
-                        "Version actuelle : v{0}\n" +
-                        "Dernière version : v{1}\n\n" +
-                        "Souhaitez-vous la télécharger maintenant ?",
-                        info.CurrentVersion,
-                        info.LatestVersion);
+                    string msg = LocalizationManager.Format("Loc_UpdatePrompt", info.CurrentVersion, info.LatestVersion);
 
                     MessageBoxResult result = MessageBox.Show(
                         msg,
-                        "ApexSenseBridge — Mise à jour disponible",
+                        LocalizationManager.Get("Loc_UpdateDialogAvailableTitle"),
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Information);
 
@@ -172,8 +167,8 @@ namespace ApexSenseBridgeTray.Services
             else if (!silent)
             {
                 MessageBox.Show(
-                    string.Format("ApexSenseBridge est à jour (version v{0}).", info.CurrentVersion),
-                    "ApexSenseBridge — Mises à jour",
+                    LocalizationManager.Format("Loc_UpdateUpToDate", info.CurrentVersion),
+                    LocalizationManager.Get("Loc_UpdateDialogTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }

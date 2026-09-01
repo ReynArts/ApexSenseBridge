@@ -77,12 +77,12 @@ SOFTWARE.
 
 ## VIIPER and usbip-win2 runtime components
 
-The offline installer redistributes the pinned patched VIIPER sidecar
-(GPL-3.0) and the official usbip-win2 0.9.7.7 x64 installer (BSD-3-Clause).
-The corresponding VIIPER source reference/patch and complete license texts are
-installed under `Licenses`. The official usbip-win2 0.9.7.8 package is not
-redistributed or accepted because its release warns of memory corruption and
-BSOD risk.
+The offline installer redistributes the pinned patched VIIPER integrated
+library and sidecar fallback (GPL-3.0), plus the official usbip-win2 0.9.7.7
+x64 installer (BSD-3-Clause). The corresponding VIIPER source reference/patch
+and complete license texts are installed under `Licenses`. The official
+usbip-win2 0.9.7.8 package is not redistributed or accepted because its release
+warns of memory corruption and BSOD risk.
 
 ## HidHide
 

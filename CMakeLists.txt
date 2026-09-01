@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 0.4.0 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 0.5.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,9 +39,9 @@ if(WIN32)
     target_sources(asb_core PRIVATE
         src/platform/windows/WindowsHidTransport.cpp
         src/platform/windows/WindowsAudioEndpointProtection.cpp
+        src/platform/windows/WindowsLibViiperVirtualDualSense.cpp
         src/platform/windows/WindowsVirtualDualSense.cpp
         src/platform/windows/WindowsXInputGamepad.cpp
-        src/platform/windows/WindowsGameCompatibility.cpp
         src/platform/windows/WindowsPhysicalControllerIsolation.cpp
         src/platform/windows/WindowsPhysicalInputSource.cpp
         src/platform/windows/WindowsSessionControl.cpp
@@ -53,7 +53,6 @@ else()
         src/platform/UnsupportedAudioEndpointProtection.cpp
         src/platform/UnsupportedVirtualDualSense.cpp
         src/platform/UnsupportedXInputGamepad.cpp
-        src/platform/UnsupportedGameCompatibility.cpp
         src/platform/UnsupportedPhysicalControllerIsolation.cpp
         src/platform/UnsupportedPhysicalInputSource.cpp
         src/platform/UnsupportedSessionControl.cpp

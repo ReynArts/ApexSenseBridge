@@ -5,6 +5,7 @@
 
 #include "dualsense/VirtualDualSense.h"
 #include "dualsense/ViiperProtocol.h"
+#include "platform/windows/WindowsVirtualDualSenseBackends.h"
 
 #include <algorithm>
 #include <array>
@@ -342,15 +343,39 @@ public:
         close();
         resetStats();
         handler_ = std::move(handler);
+        const auto elapsedMicroseconds = [](const auto startedAt) {
+            return static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - startedAt).count());
+        };
 
+        const auto bootstrapStartedAt = std::chrono::steady_clock::now();
         if (!ensureServer(error)) {
             handler_ = {};
             return false;
         }
-        if (!createBus(error) || !addDevice(error) || !openStream(error)) {
+        initializationBootstrapUs_ = elapsedMicroseconds(bootstrapStartedAt);
+
+        const auto busStartedAt = std::chrono::steady_clock::now();
+        if (!createBus(error)) {
             close();
             return false;
         }
+        initializationBusUs_ = elapsedMicroseconds(busStartedAt);
+
+        const auto deviceStartedAt = std::chrono::steady_clock::now();
+        if (!addDevice(error)) {
+            close();
+            return false;
+        }
+        initializationDeviceUs_ = elapsedMicroseconds(deviceStartedAt);
+
+        const auto feedbackStartedAt = std::chrono::steady_clock::now();
+        if (!openStream(error)) {
+            close();
+            return false;
+        }
+        initializationFeedbackUs_ = elapsedMicroseconds(feedbackStartedAt);
         return true;
     }
 
@@ -390,6 +415,12 @@ public:
             audioHapticsCoalesced_.load(std::memory_order_relaxed);
         result.malformedFrames = malformedFrames_.load(std::memory_order_relaxed);
         result.unknownFrames = unknownFrames_.load(std::memory_order_relaxed);
+        result.initializationBootstrapUs = initializationBootstrapUs_;
+        result.initializationServerUs = initializationServerUs_;
+        result.initializationBusUs = initializationBusUs_;
+        result.initializationDeviceUs = initializationDeviceUs_;
+        result.initializationFeedbackUs = initializationFeedbackUs_;
+        result.initializationInputUs = initializationInputUs_;
         result.backendVersion = backendVersion_;
         return result;
     }
@@ -426,6 +457,12 @@ private:
         audioHapticsCoalesced_.store(0, std::memory_order_relaxed);
         malformedFrames_.store(0, std::memory_order_relaxed);
         unknownFrames_.store(0, std::memory_order_relaxed);
+        initializationBootstrapUs_ = 0;
+        initializationServerUs_ = 0;
+        initializationBusUs_ = 0;
+        initializationDeviceUs_ = 0;
+        initializationFeedbackUs_ = 0;
+        initializationInputUs_ = 0;
         backendVersion_.clear();
     }
 
@@ -778,12 +815,91 @@ private:
     std::atomic_uint64_t audioHapticsCoalesced_{0};
     std::atomic_uint64_t malformedFrames_{0};
     std::atomic_uint64_t unknownFrames_{0};
+    std::uint64_t initializationBootstrapUs_ = 0;
+    std::uint64_t initializationServerUs_ = 0;
+    std::uint64_t initializationBusUs_ = 0;
+    std::uint64_t initializationDeviceUs_ = 0;
+    std::uint64_t initializationFeedbackUs_ = 0;
+    std::uint64_t initializationInputUs_ = 0;
+};
+
+class AutoVirtualDualSense final : public VirtualDualSense {
+public:
+    explicit AutoVirtualDualSense(VirtualDualSenseOptions options)
+        : options_(std::move(options)) {}
+
+    ~AutoVirtualDualSense() override {
+        close();
+    }
+
+    bool open(std::string& error, FeedbackHandler handler) override {
+        close();
+        // A closed backend is intentionally retained so callers can read its
+        // final counters. Drop it only when starting a new session.
+        active_.reset();
+
+        std::string integratedError;
+        if (options_.backend != VirtualDualSenseBackend::Sidecar) {
+            auto integrated = createLibViiperVirtualDualSense(options_);
+            if (integrated->open(integratedError, handler)) {
+                active_ = std::move(integrated);
+                error.clear();
+                return true;
+            }
+            if (options_.backend == VirtualDualSenseBackend::Integrated) {
+                error = std::move(integratedError);
+                return false;
+            }
+        }
+
+        auto sidecar = std::make_unique<ViiperVirtualDualSense>(options_);
+        std::string sidecarError;
+        if (sidecar->open(sidecarError, std::move(handler))) {
+            active_ = std::move(sidecar);
+            error.clear();
+            return true;
+        }
+
+        if (!integratedError.empty()) {
+            error = "Integrated VIIPER was unavailable (" + integratedError +
+                    "). Sidecar fallback also failed: " + sidecarError;
+        } else {
+            error = std::move(sidecarError);
+        }
+        return false;
+    }
+
+    void close() noexcept override {
+        if (active_) {
+            active_->close();
+        }
+    }
+
+    bool updateInput(const DualSenseInputState& state, std::string& error) override {
+        if (!active_) {
+            error = "Virtual DualSense backend is not open.";
+            return false;
+        }
+        return active_->updateInput(state, error);
+    }
+
+    [[nodiscard]] bool connected() const noexcept override {
+        return active_ && active_->connected();
+    }
+
+    VirtualDualSenseStats stats() const override {
+        return active_ ? active_->stats() : VirtualDualSenseStats{};
+    }
+
+private:
+    VirtualDualSenseOptions options_;
+    std::unique_ptr<VirtualDualSense> active_;
 };
 
 } // namespace
 
 std::unique_ptr<VirtualDualSense> createVirtualDualSense(VirtualDualSenseOptions options) {
-    return std::make_unique<ViiperVirtualDualSense>(std::move(options));
+    return std::make_unique<AutoVirtualDualSense>(std::move(options));
 }
 
 } // namespace asb::dualsense
