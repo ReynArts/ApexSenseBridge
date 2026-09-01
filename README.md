@@ -57,9 +57,9 @@ For players using other game launchers (Steam, Epic Games Store, GOG, EA App, Xb
 
 1. Launch **`ApexSenseBridgeTray.exe`** (or check "Launch at Windows startup" during installation).
 2. The application sits quietly in the notification area (System Tray).
-3. **Day-One Automatic Detection**: As soon as a game supporting **Adaptive Triggers** or **Haptic Feedback** launches (based on the continuously synchronized PCGamingWiki database), ApexSenseBridge automatically starts the virtual DualSense bridge and shows a brief notification.
+3. **Day-One Automatic Detection**: Supports over **206 verified compatible games** out of the box. As soon as any supported game launches (continuously synchronized with PCGamingWiki for Adaptive Triggers & Haptics), ApexSenseBridge automatically starts the virtual DualSense bridge and shows a brief notification.
 4. When you exit the game, the bridge cleanly closes and restores the native physical XInput controller.
-5. Click the taskbar tray icon to open the clean dashboard, manually force a profile (e.g. *Spider-Man 2*, *Ghost of Tsushima*), or trigger a manual database sync.
+5. Click the taskbar tray icon to open the clean dashboard, view the list of all 206+ supported titles, manually force a profile (e.g. *Spider-Man 2*, *Ghost of Tsushima*), or trigger a manual database sync.
 
 ## Playnite usage
 
