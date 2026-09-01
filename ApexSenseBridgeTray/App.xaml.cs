@@ -33,6 +33,31 @@ namespace ApexSenseBridgeTray
         {
             base.OnStartup(e);
 
+            AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+            {
+                try
+                {
+                    var ex = args.ExceptionObject as Exception;
+                    var msg = ex != null ? ex.ToString() : (args.ExceptionObject != null ? args.ExceptionObject.ToString() : "Unknown error");
+                    File.AppendAllText(
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
+                        DateTime.Now.ToString("s") + " [UNHANDLED] " + msg + "\r\n\r\n");
+                }
+                catch { }
+            };
+
+            DispatcherUnhandledException += (s, args) =>
+            {
+                try
+                {
+                    File.AppendAllText(
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
+                        DateTime.Now.ToString("s") + " [DISPATCHER] " + args.Exception.ToString() + "\r\n\r\n");
+                }
+                catch { }
+                args.Handled = true; // Never crash the UI process
+            };
+
             try
             {
                 bool isNewInstance;
@@ -61,45 +86,106 @@ namespace ApexSenseBridgeTray
 
                 monitorService.GameDetected += (game, path) =>
                 {
-                    if (settings.EnableNotifications)
+                    Dispatcher.Invoke(new Action(() =>
                     {
-                        notifyIcon.ShowBalloonTip(
-                            3000,
-                            "ApexSenseBridge activé",
-                            string.Format("{0}\nProfil : {1}", game.Title, game.Profile),
-                            ToolTipIcon.Info);
-                    }
-                    UpdateTrayStatus();
+                        try
+                        {
+                            if (settings.EnableNotifications && notifyIcon != null)
+                            {
+                                notifyIcon.ShowBalloonTip(
+                                    3000,
+                                    "ApexSenseBridge activé",
+                                    string.Format("{0}\nProfil : {1}", game != null ? game.Title : "Jeu", game != null ? game.Profile : "Standard"),
+                                    ToolTipIcon.Info);
+                            }
+                            UpdateTrayStatus();
+                        }
+                        catch { }
+                    }));
                 };
 
                 monitorService.GameExited += (path) =>
                 {
-                    UpdateTrayStatus();
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        try { UpdateTrayStatus(); } catch { }
+                    }));
                 };
 
-                sessionManager.SessionStarted += (game, profile) => UpdateTrayStatus();
-                sessionManager.SessionStopped += (reason) => UpdateTrayStatus();
+                sessionManager.SessionStarted += (game, profile) =>
+                {
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        try { UpdateTrayStatus(); } catch { }
+                    }));
+                };
+
+                sessionManager.SessionStopped += (reason) =>
+                {
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        try { UpdateTrayStatus(); } catch { }
+                    }));
+                };
+
+                sessionManager.SessionError += (err) =>
+                {
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        try
+                        {
+                            UpdateTrayStatus();
+                            if (settings.EnableNotifications && notifyIcon != null && !string.IsNullOrWhiteSpace(err))
+                            {
+                                notifyIcon.ShowBalloonTip(
+                                    4000,
+                                    "ApexSenseBridge — Avertissement",
+                                    err,
+                                    ToolTipIcon.Warning);
+                            }
+                        }
+                        catch { }
+                    }));
+                };
+
+                sessionManager.LogMessage += (msg) =>
+                {
+                    try
+                    {
+                        File.AppendAllText(
+                            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_bridge.log"),
+                            DateTime.Now.ToString("s") + " " + msg + "\r\n");
+                    }
+                    catch { }
+                };
 
                 updateChecker.UpdateAvailable += (info) =>
                 {
-                    if (settings.EnableNotifications && info != null && info.HasUpdate)
+                    Dispatcher.Invoke(new Action(() =>
                     {
-                        notifyIcon.ShowBalloonTip(
-                            5000,
-                            "Mise à jour disponible",
-                            string.Format("ApexSenseBridge v{0} est disponible.", info.LatestVersion),
-                            ToolTipIcon.Info);
-                    }
+                        try
+                        {
+                            if (settings.EnableNotifications && notifyIcon != null && info != null && info.HasUpdate)
+                            {
+                                notifyIcon.ShowBalloonTip(
+                                    5000,
+                                    "Mise à jour disponible",
+                                    string.Format("ApexSenseBridge v{0} est disponible.", info.LatestVersion),
+                                    ToolTipIcon.Info);
+                            }
+                        }
+                        catch { }
+                    }));
                 };
 
                 ThreadPool.QueueUserWorkItem(async _ =>
                 {
-                    await gameListService.FetchLatestFromCloudAsync();
+                    try { await gameListService.FetchLatestFromCloudAsync(); } catch { }
                 });
 
                 ThreadPool.QueueUserWorkItem(async _ =>
                 {
-                    await updateChecker.CheckForUpdatesAsync(true);
+                    try { await updateChecker.CheckForUpdatesAsync(true); } catch { }
                 });
             }
             catch (Exception ex)
@@ -204,27 +290,32 @@ namespace ApexSenseBridgeTray
 
         private void UpdateTrayStatus()
         {
-            Dispatcher.Invoke(new Action(() =>
+            try
             {
                 if (sessionManager.IsSessionActive)
                 {
                     var text = string.Format("ApexSenseBridge : {0}", sessionManager.ActiveGameTitle);
-                    statusMenuItem.Text = text;
-                    notifyIcon.Text = text.Length > 63 ? text.Substring(0, 60) + "..." : text;
+                    if (statusMenuItem != null) statusMenuItem.Text = text;
+                    if (notifyIcon != null) notifyIcon.Text = text.Length > 63 ? text.Substring(0, 60) + "..." : text;
                 }
                 else
                 {
-                    statusMenuItem.Text = "ApexSenseBridge : En veille";
-                    notifyIcon.Text = "ApexSenseBridge - En veille";
+                    if (statusMenuItem != null) statusMenuItem.Text = "ApexSenseBridge : En veille";
+                    if (notifyIcon != null) notifyIcon.Text = "ApexSenseBridge - En veille";
                 }
-            }));
+            }
+            catch { }
         }
 
         private void ShowMainWindow()
         {
-            mainWindow.Show();
-            mainWindow.WindowState = WindowState.Normal;
-            mainWindow.Activate();
+            try
+            {
+                mainWindow.Show();
+                mainWindow.WindowState = WindowState.Normal;
+                mainWindow.Activate();
+            }
+            catch { }
         }
 
         private void ExitApplication()

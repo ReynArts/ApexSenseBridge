@@ -16,6 +16,7 @@ namespace ApexSenseBridgeTray.Services
         private uint activeMonitoredPid;
         private string activeMonitoredPath;
         private bool isDisposed;
+        private int isPolling;
 
         public event Action<SupportedGame, string> GameDetected; // game, exePath
         public event Action<string> GameExited; // exePath
@@ -34,12 +35,18 @@ namespace ApexSenseBridgeTray.Services
 
         public void ForceCheck()
         {
-            OnPollTick(null);
+            ThreadPool.QueueUserWorkItem(_ => OnPollTick(null));
         }
 
         private void OnPollTick(object state)
         {
             if (isDisposed) return;
+
+            // Prevent re-entrant polling if previous tick is still running
+            if (Interlocked.CompareExchange(ref isPolling, 1, 0) != 0)
+            {
+                return;
+            }
 
             try
             {
@@ -59,7 +66,14 @@ namespace ApexSenseBridgeTray.Services
                         HandleGameExited("Process exited");
                         return;
                     }
+                    catch (Exception)
+                    {
+                        HandleGameExited("Process inaccessible");
+                        return;
+                    }
                 }
+
+                if (settings == null) return;
 
                 if (settings.ForcedProfile != null && settings.ForcedProfile != "none")
                 {
@@ -89,64 +103,107 @@ namespace ApexSenseBridgeTray.Services
 
                 SupportedGame matchedGame = null;
 
-                if (gameListService.TryFindGame(folderName, out matchedGame) ||
-                    gameListService.TryFindGame(windowTitle, out matchedGame) ||
-                    gameListService.TryFindGame(exeTitle, out matchedGame))
+                if (gameListService != null &&
+                    (gameListService.TryFindGame(folderName, out matchedGame) ||
+                     gameListService.TryFindGame(windowTitle, out matchedGame) ||
+                     gameListService.TryFindGame(exeTitle, out matchedGame)))
                 {
-                    if (settings.IsGameExcluded(matchedGame.Normalized) || settings.IsGameExcluded(matchedGame.Title))
+                    if (matchedGame != null)
                     {
-                        return;
-                    }
+                        if (settings.IsGameExcluded(matchedGame.Normalized) || settings.IsGameExcluded(matchedGame.Title))
+                        {
+                            return;
+                        }
 
-                    bool matchesCriteria = (settings.TriggerOnAdaptiveTriggers && matchedGame.AdaptiveTriggers) ||
-                                           (settings.TriggerOnHapticFeedback && matchedGame.HapticFeedback);
+                        bool matchesCriteria = (settings.TriggerOnAdaptiveTriggers && matchedGame.AdaptiveTriggers) ||
+                                               (settings.TriggerOnHapticFeedback && matchedGame.HapticFeedback);
 
-                    if (matchesCriteria)
-                    {
-                        HandleGameDetected(matchedGame, pid, exePath);
+                        if (matchesCriteria)
+                        {
+                            HandleGameDetected(matchedGame, pid, exePath);
+                        }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                try
+                {
+                    File.AppendAllText(
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
+                        DateTime.Now.ToString("s") + " [OnPollTick] " + ex.ToString() + "\r\n");
+                }
+                catch { }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref isPolling, 0);
             }
         }
 
         private void HandleGameDetected(SupportedGame game, uint pid, string exePath)
         {
-            if (activeMonitoredPid != 0 && activeMonitoredPid != pid)
-            {
-                sessionManager.StopSession("Switching to new detected game: " + game.Title);
-            }
+            if (game == null) return;
 
-            activeMonitoredPid = pid;
-            activeMonitoredPath = exePath;
-
-            string error;
-            if (sessionManager.StartSession(game.Title, game.Profile, settings, out error))
+            try
             {
-                var handler = GameDetected;
-                if (handler != null)
+                if (activeMonitoredPid != 0 && activeMonitoredPid != pid)
                 {
-                    handler(game, exePath);
+                    sessionManager.StopSession("Switching to new detected game: " + game.Title);
                 }
+
+                activeMonitoredPid = pid;
+                activeMonitoredPath = exePath;
+
+                string error;
+                if (sessionManager.StartSession(game.Title, game.Profile, settings, out error))
+                {
+                    var handler = GameDetected;
+                    if (handler != null)
+                    {
+                        handler(game, exePath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    File.AppendAllText(
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
+                        DateTime.Now.ToString("s") + " [HandleGameDetected] " + ex.ToString() + "\r\n");
+                }
+                catch { }
             }
         }
 
         private void HandleGameExited(string reason)
         {
-            var oldPath = activeMonitoredPath;
-            activeMonitoredPid = 0;
-            activeMonitoredPath = null;
-
-            sessionManager.StopSession(reason);
-            if (!string.IsNullOrWhiteSpace(oldPath))
+            try
             {
-                var handler = GameExited;
-                if (handler != null)
+                var oldPath = activeMonitoredPath;
+                activeMonitoredPid = 0;
+                activeMonitoredPath = null;
+
+                sessionManager.StopSession(reason);
+                if (!string.IsNullOrWhiteSpace(oldPath))
                 {
-                    handler(oldPath);
+                    var handler = GameExited;
+                    if (handler != null)
+                    {
+                        handler(oldPath);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    File.AppendAllText(
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
+                        DateTime.Now.ToString("s") + " [HandleGameExited] " + ex.ToString() + "\r\n");
+                }
+                catch { }
             }
         }
 
@@ -160,6 +217,7 @@ namespace ApexSenseBridgeTray.Services
                    lower == "apexsensebridgetray.exe" ||
                    lower == "apexsensebridgecontrol.exe" ||
                    lower == "steam.exe" ||
+                   lower == "steamwebhelper.exe" ||
                    lower == "epicgameslauncher.exe" ||
                    lower == "playnite.desktopapp.exe" ||
                    lower == "playnite.fullscreenapp.exe" ||
@@ -200,7 +258,11 @@ namespace ApexSenseBridgeTray.Services
             }
             if (activeMonitoredPid != 0)
             {
-                sessionManager.StopSession("Tray app closing");
+                try
+                {
+                    sessionManager.StopSession("Tray app closing");
+                }
+                catch { }
             }
         }
     }

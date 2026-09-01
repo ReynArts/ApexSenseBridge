@@ -56,15 +56,34 @@ namespace ApexSenseBridgeTray
 
             isInitialized = true;
 
-            sessionManager.SessionStarted += (game, profile) => Dispatcher.Invoke(new Action(UpdateSessionStatus));
-            sessionManager.SessionStopped += (reason) => Dispatcher.Invoke(new Action(UpdateSessionStatus));
+            sessionManager.SessionStarted += (game, profile) => Dispatcher.Invoke(new Action(() =>
+            {
+                try { UpdateSessionStatus(); } catch { }
+            }));
+            sessionManager.SessionStopped += (reason) => Dispatcher.Invoke(new Action(() =>
+            {
+                try { UpdateSessionStatus(); } catch { }
+            }));
             sessionManager.SessionError += (err) => Dispatcher.Invoke(new Action(() =>
             {
-                UpdateSessionStatus();
-                MessageBox.Show(this, err, "ApexSenseBridge — Erreur", MessageBoxButton.OK, MessageBoxImage.Warning);
+                try
+                {
+                    UpdateSessionStatus();
+                    if (this.IsVisible && this.WindowState != WindowState.Minimized)
+                    {
+                        MessageBox.Show(this, err, "ApexSenseBridge — Erreur", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+                catch { }
             }));
-            gameListService.GamesUpdated += () => Dispatcher.Invoke(new Action(UpdateDatabaseCount));
-            ThemeManager.ThemeChanged += () => Dispatcher.Invoke(new Action(UpdateSessionStatus));
+            gameListService.GamesUpdated += () => Dispatcher.Invoke(new Action(() =>
+            {
+                try { UpdateDatabaseCount(); } catch { }
+            }));
+            ThemeManager.ThemeChanged += () => Dispatcher.Invoke(new Action(() =>
+            {
+                try { UpdateSessionStatus(); } catch { }
+            }));
         }
 
         private void OnWindowDrag(object sender, MouseButtonEventArgs e)
