@@ -322,7 +322,7 @@ void printDevice(const asb::HidDeviceInfo& info, std::size_t index) {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 0.3.0\n\n"
+        << "ApexSenseBridge 0.4.0\n\n"
         << "Commands:\n"
         << "  list                         List APEX 5 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
@@ -1151,6 +1151,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::uint8_t seenDpad = 0;
     std::uint8_t maximumL2 = 0;
     std::uint8_t maximumR2 = 0;
+    std::uint8_t minimumRightStickX = initialInput.rx;
+    std::uint8_t maximumRightStickX = initialInput.rx;
+    std::uint8_t minimumRightStickY = initialInput.ry;
+    std::uint8_t maximumRightStickY = initialInput.ry;
     std::uint64_t virtualInputReports = 0;
     std::uint8_t virtualSeenFace = 0;
     std::uint8_t virtualSeenShoulders = 0;
@@ -1158,6 +1162,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::uint16_t virtualSeenDpadHats = 0;
     std::uint8_t virtualMaximumL2 = 0;
     std::uint8_t virtualMaximumR2 = 0;
+    std::uint8_t virtualMinimumRightStickX = 0xFF;
+    std::uint8_t virtualMaximumRightStickX = 0;
+    std::uint8_t virtualMinimumRightStickY = 0xFF;
+    std::uint8_t virtualMaximumRightStickY = 0;
     std::uint64_t virtualTouchStarts = 0;
     std::uint64_t virtualTouchActiveReports = 0;
     std::uint64_t virtualTouchMovementReports = 0;
@@ -1197,6 +1205,10 @@ int commandBridgeTriggers(int argc, char** argv) {
             seenDpad = static_cast<std::uint8_t>(seenDpad | input.dpad);
             if (input.l2 > maximumL2) maximumL2 = input.l2;
             if (input.r2 > maximumR2) maximumR2 = input.r2;
+            minimumRightStickX = (std::min)(minimumRightStickX, input.rx);
+            maximumRightStickX = (std::max)(maximumRightStickX, input.rx);
+            minimumRightStickY = (std::min)(minimumRightStickY, input.ry);
+            maximumRightStickY = (std::max)(maximumRightStickY, input.ry);
             if (lastPhysicalInput && lastPhysicalInput->buttons != input.buttons) {
                 ++buttonTransitions;
             }
@@ -1299,6 +1311,14 @@ int commandBridgeTriggers(int argc, char** argv) {
                 }
                 if (virtualInputBuffer[5] > virtualMaximumL2) virtualMaximumL2 = virtualInputBuffer[5];
                 if (virtualInputBuffer[6] > virtualMaximumR2) virtualMaximumR2 = virtualInputBuffer[6];
+                virtualMinimumRightStickX =
+                    (std::min)(virtualMinimumRightStickX, virtualInputBuffer[3]);
+                virtualMaximumRightStickX =
+                    (std::max)(virtualMaximumRightStickX, virtualInputBuffer[3]);
+                virtualMinimumRightStickY =
+                    (std::min)(virtualMinimumRightStickY, virtualInputBuffer[4]);
+                virtualMaximumRightStickY =
+                    (std::max)(virtualMaximumRightStickY, virtualInputBuffer[4]);
             }
         }
         if (!virtualDualSense->connected()) { disconnected = true; break; }
@@ -1488,6 +1508,12 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(seenDpad) << std::dec << '\n'
               << "maximum_l2=" << static_cast<unsigned>(maximumL2) << '\n'
               << "maximum_r2=" << static_cast<unsigned>(maximumR2) << '\n'
+              << "right_stick_x_range="
+              << static_cast<unsigned>(minimumRightStickX)
+              << ',' << static_cast<unsigned>(maximumRightStickX) << '\n'
+              << "right_stick_y_range="
+              << static_cast<unsigned>(minimumRightStickY)
+              << ',' << static_cast<unsigned>(maximumRightStickY) << '\n'
               << "virtual_input_reports=" << virtualInputReports << '\n'
               << "virtual_seen_face=0x" << std::hex << std::uppercase
               << static_cast<unsigned>(virtualSeenFace) << std::dec << '\n'
@@ -1511,6 +1537,14 @@ int commandBridgeTriggers(int argc, char** argv) {
               << virtualSeenDpadHats << std::dec << '\n'
               << "virtual_maximum_l2=" << static_cast<unsigned>(virtualMaximumL2) << '\n'
               << "virtual_maximum_r2=" << static_cast<unsigned>(virtualMaximumR2) << '\n'
+              << "virtual_right_stick_x_range="
+              << (virtualInputReports == 0
+                      ? 0 : static_cast<unsigned>(virtualMinimumRightStickX))
+              << ',' << static_cast<unsigned>(virtualMaximumRightStickX) << '\n'
+              << "virtual_right_stick_y_range="
+              << (virtualInputReports == 0
+                      ? 0 : static_cast<unsigned>(virtualMinimumRightStickY))
+              << ',' << static_cast<unsigned>(virtualMaximumRightStickY) << '\n'
               << "translated_effects=" << bridgeStats.translated << '\n'
               << "active_effects=" << bridgeStats.active << '\n'
               << "normal_effects=" << bridgeStats.normal << '\n'

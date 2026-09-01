@@ -164,6 +164,7 @@ int main() {
     assert(viiper::isDualSenseCompatibleVersion(version));
     assert(viiper::isDualSenseCompatibleVersion("v0.6.1-steamless5"));
     assert(viiper::isDualSenseCompatibleVersion("v0.6.1-steamless9"));
+    assert(viiper::isDualSenseCompatibleVersion("v0.7.0-asb3"));
     assert(!viiper::isDualSenseCompatibleVersion("v0.6.1"));
     assert(!viiper::isDualSenseCompatibleVersion("v0.6.1-steamless4"));
     assert(!viiper::isDualSenseCompatibleVersion("v0.6.2"));

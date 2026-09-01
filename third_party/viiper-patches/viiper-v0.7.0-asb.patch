@@ -153,10 +153,10 @@ index 0000000..09018dd
 +}
 diff --git a/device/dualsense/asb_extensions.go b/device/dualsense/asb_extensions.go
 new file mode 100644
-index 0000000..863a092
+index 0000000..dd84495
 --- /dev/null
 +++ b/device/dualsense/asb_extensions.go
-@@ -0,0 +1,326 @@
+@@ -0,0 +1,331 @@
 +package dualsense
 +
 +import (
@@ -242,7 +242,12 @@ index 0000000..863a092
 +}
 +
 +func parseASBOutputReport(data []byte) (ASBOutputState, bool) {
-+	if len(data) >= OutputReportSize && data[0] == ReportIDOutput {
++	// A USB DualSense output report contains one report-ID byte followed by
++	// 47 bytes of common output data. Windows normally writes all 64 bytes to
++	// the interrupt endpoint, but some games (notably Call of Duty) submit only
++	// the descriptor-declared 48 bytes through HID SET_REPORT. In both cases the
++	// report ID is present and must be removed before reading the common fields.
++	if len(data) >= 48 && data[0] == ReportIDOutput {
 +		data = data[1:]
 +	} else if len(data) >= 78 && data[0] == 0x31 {
 +		data = data[3:]
@@ -485,10 +490,10 @@ index 0000000..863a092
 +}
 diff --git a/device/dualsense/asb_extensions_test.go b/device/dualsense/asb_extensions_test.go
 new file mode 100644
-index 0000000..c6df021
+index 0000000..2bfd9a1
 --- /dev/null
 +++ b/device/dualsense/asb_extensions_test.go
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,170 @@
 +package dualsense
 +
 +import (
@@ -567,6 +572,34 @@ index 0000000..c6df021
 +	}
 +	if len(encoded) != 30 || encoded[0] != FeedbackFrameHIDOutput || binary.LittleEndian.Uint16(encoded[1:3]) != 27 {
 +		t.Fatalf("unexpected framed output: %x", encoded)
++	}
++}
++
++func TestASBShortUSBOutputReportKeepsFieldAlignment(t *testing.T) {
++	// The HID descriptor declares 47 output bytes after report ID 0x02. COD
++	// uses this exact 48-byte transfer instead of padding it to 64 bytes.
++	report := make([]byte, 48)
++	report[0] = ReportIDOutput
++	report[1] = 0x0F
++	report[2] = 0xD7
++	report[3] = 68
++	report[4] = 215
++	report[11] = 0x21
++	report[21] = 0xAA
++	report[22] = 0x05
++	report[32] = 0xBB
++	report[39] = 0x04
++
++	feedback, ok := parseASBOutputReport(report)
++	if !ok {
++		t.Fatal("48-byte USB output report was not parsed")
++	}
++	if feedback.EnableBits1 != 0x0F || feedback.EnableBits2 != 0xD7 ||
++		feedback.RumbleRight != 68 || feedback.RumbleLeft != 215 ||
++		feedback.RightTriggerEffect[0] != 0x21 || feedback.RightTriggerEffect[10] != 0xAA ||
++		feedback.LeftTriggerEffect[0] != 0x05 || feedback.LeftTriggerEffect[10] != 0xBB ||
++		feedback.EnableBits3 != 0x04 {
++		t.Fatalf("48-byte USB output fields were shifted: %+v", feedback)
 +	}
 +}
 +

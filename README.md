@@ -1,4 +1,4 @@
-# ApexSenseBridge 0.3.0
+# ApexSenseBridge 0.4.0
 
 ApexSenseBridge gives a Flydigi APEX 5 a virtual DualSense path on Windows while translating native adaptive-trigger and haptic feedback back to the physical controller.
 
@@ -35,11 +35,19 @@ Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator el
 - the statically linked engine and Win32 control panel under `%ProgramFiles%\ApexSenseBridge`;
 - the standalone background Tray application (`ApexSenseBridgeTray.exe`);
 - the pinned patched VIIPER sidecar and its source/license notices;
-- usbip-win2 `0.9.7.7` and HidHide `1.5.230` when their exact versions are absent;
+- usbip-win2 `0.9.7.7` when no healthy compatible `0.9.7.5`–`0.9.7.7` driver is present, and HidHide `1.5.230` when its exact version is absent;
 - the Playnite extension under the current user's Playnite extension directory;
 - the engine location and exact dependency ownership metadata under `HKLM\Software\ApexSenseBridge`.
 
 usbip-win2 `0.9.7.8` is explicitly refused because its official release warns about memory corruption and BSOD risk. The native binaries use the static MSVC runtime, so the Visual C++ Redistributable is not a prerequisite. A Windows restart can be required after first driver installation.
+
+Healthy WHLK-certified USBip `0.9.7.5`–`0.9.7.7` installations are preserved because they use the compatible driver ABI. If an unsupported version or an incomplete USBip installation is detected, setup now stops with repair instructions instead of invoking USBip's nested upgrade/uninstall path, which can hang on `Uninstalling USBip…`. A fresh prerequisite install is limited to five minutes and writes its persistent diagnostic log to `%ProgramData%\ApexSenseBridge\usbip-install.log`.
+
+### Portable ZIP
+
+`ApexSenseBridge-Portable.zip` contains the standalone tray application, engine, control panel, pinned VIIPER sidecar, licenses, and offline driver prerequisites. Extract the entire folder, run `Install-Drivers.cmd` once as administrator, restart Windows, then launch `Start-ApexSenseBridge.cmd`.
+
+The application payload is portable, but the USBip and HidHide kernel drivers necessarily remain system-wide Windows components. The portable helper preserves a healthy compatible existing installation and refuses ambiguous USBip upgrades rather than entering the upstream uninstaller hang. Use the regular setup when automatic Playnite integration, shortcuts, startup registration, and Windows uninstall metadata are wanted.
 
 The lightweight `ApexSenseBridgeControl.exe` panel can test APEX detection, restore HidHide/WGI state, open logs and start an explicit full dependency removal. It is not resident in memory.
 
@@ -138,24 +146,26 @@ Build the native targets and tests:
 ctest --test-dir .\build-win -C Release --output-on-failure
 ```
 
-Rebuild the pinned VIIPER payload and create the single offline installer:
+Rebuild the pinned VIIPER payload and create the offline installer plus portable ZIP:
 
 ```powershell
 .\scripts\build-viiper-windows.ps1
 .\scripts\build-installer.ps1
 ```
 
-The post-0.3.0 VIIPER v0.7 migration is intentionally separate from the
-released sidecar. Build it into `dist\experimental` with:
+The official post-0.3.0 backend is the pinned `v0.7.0-asb3` build. It preserves
+the upstream libVIIPER API and adds the complete adaptive-trigger and
+audio-haptics protocol required by the bridge. The same validated patch can be
+built into `dist\experimental` for comparison with:
 
 ```powershell
 .\scripts\build-viiper-070-windows.ps1
 ```
 
-This experimental `v0.7.0-asb2` build preserves the upstream libVIIPER API but
-adds the complete adaptive-trigger and audio-haptics protocol required by the
-bridge. It must pass in-game validation before it can replace
-`v0.6.1-steamless9` in the installer.
+The release builder, installer, portable ZIP and GitHub workflow all package
+`v0.7.0-asb3`. Its promotion follows successful Call of Duty and Spider-Man 2
+regression passes, including full input, adaptive triggers, grip rumble and
+Spider-Man 2 audio haptics.
 
 The Playnite build script uses an installed Playnite SDK when available. On a clean CI worker it downloads the official pinned `PlayniteSDK 6.16.0` NuGet package, verifies its SHA-256 and creates the standard ZIP-based `.pext` format without requiring a full Playnite installation.
 
@@ -163,7 +173,8 @@ Release artifacts are written to `dist/`:
 
 ```text
 ApexSenseBridge-Setup.exe
-ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4_0_3_0.pext
+ApexSenseBridge-Portable.zip
+ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4_0_4_0.pext
 ```
 
 ## Useful diagnostic commands
@@ -186,12 +197,14 @@ clear [index]
 restore-controller-visibility
 ```
 
-`bridge-triggers` always enforces full proxying and physical isolation in 0.3.0, including when legacy `--proxy-xinput` or `--isolate-apex` flags are omitted. A session failure is fail-closed: the game is never allowed to fall back to a visible physical APEX during a DualSense profile.
+`bridge-triggers` always enforces full proxying and physical isolation in 0.4.0, including when legacy `--proxy-xinput` or `--isolate-apex` flags are omitted. A session failure is fail-closed: the game is never allowed to fall back to a visible physical APEX during a DualSense profile.
 
 `--touchpad-profile` accepts `none`, `spider-man-2`, `miles-morales`,
 `ghost-of-tsushima`, or `warframe`. The old `--view-hold-swipe-up` switch remains
 available only for command-line compatibility; new integrations should select
-an explicit game profile.
+an explicit game profile. In Spider-Man 2, successive long D-pad Up presses
+automatically alternate swipe up and swipe down so the camera opens and closes
+like the original single Xbox control; short D-pad presses are preserved.
 
 ## Source layout
 

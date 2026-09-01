@@ -43,7 +43,8 @@ Write-Host "Building the statically linked native engine and control panel..."
 if ($LASTEXITCODE -ne 0) { Fail "native build failed" }
 
 foreach ($name in @("ApexSenseBridge.exe", "ApexSenseBridgeControl.exe", "viiper.exe",
-                    "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt")) {
+                    "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
+                    "VIIPER-v0.7.0-asb.patch")) {
     if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $name))) {
         Fail "$name is missing from $releaseDir. Build the pinned patched VIIPER payload first."
     }
@@ -83,7 +84,18 @@ if (-not (Test-Path -LiteralPath $setup)) {
     Fail "Inno Setup succeeded but $setup was not created"
 }
 
+Write-Host "Building the portable ZIP from the verified release payload..."
+& (Join-Path $PSScriptRoot "build-portable.ps1") -SkipBuild
+if ($LASTEXITCODE -ne 0) { Fail "portable package build failed" }
+
+$portableZip = Join-Path $projectRoot "dist\ApexSenseBridge-Portable.zip"
+if (-not (Test-Path -LiteralPath $portableZip)) {
+    Fail "portable build succeeded but $portableZip was not created"
+}
+
 Write-Host ""
-Write-Host "Offline installer ready:" -ForegroundColor Green
+Write-Host "Release packages ready:" -ForegroundColor Green
 Write-Host "  $setup"
 Write-Host "  SHA-256 $((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash)"
+Write-Host "  $portableZip"
+Write-Host "  SHA-256 $((Get-FileHash -LiteralPath $portableZip -Algorithm SHA256).Hash)"

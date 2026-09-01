@@ -111,14 +111,15 @@ std::string_view touchpadGestureProfileName(TouchpadGestureProfile profile) noex
     return "none";
 }
 
-void TouchpadGestureMapper::startSwipe(TouchpadSwipeDirection direction,
+bool TouchpadGestureMapper::startSwipe(TouchpadSwipeDirection direction,
                                        Clock::time_point now) noexcept {
-    if (swipe_.active) return;
+    if (swipe_.active) return false;
     swipe_.active = true;
     swipe_.direction = direction;
     swipe_.started = now;
     ++stats_.swipes;
     ++stats_.swipesByDirection[static_cast<std::size_t>(direction)];
+    return true;
 }
 
 void TouchpadGestureMapper::emitSwipe(DualSenseInputState& state,
@@ -168,7 +169,7 @@ void TouchpadGestureMapper::emitSwipe(DualSenseInputState& state,
     state.touch1Active = true;
 }
 
-void TouchpadGestureMapper::transformHold(
+bool TouchpadGestureMapper::transformHold(
     HoldState& hold, HoldSource source, TouchpadSwipeDirection direction,
     DualSenseInputState& state, Clock::time_point now) noexcept {
     const bool pressed = sourcePressed(state, source);
@@ -180,24 +181,24 @@ void TouchpadGestureMapper::transformHold(
             hold.phase = HoldPhase::Pending;
             hold.started = now;
         }
-        return;
+        return false;
     case HoldPhase::Pending:
         if (!pressed) {
             hold.phase = HoldPhase::TapPulse;
             hold.started = now;
             ++stats_.replayedTaps;
             emitSourceTap(state, source);
-            return;
+            return false;
         }
         if (now - hold.started >= kHoldThreshold) {
             hold.phase = HoldPhase::WaitForRelease;
-            startSwipe(direction, now);
+            return startSwipe(direction, now);
         }
-        return;
+        return false;
     case HoldPhase::TapPulse:
         if (now - hold.started < kTapPulseDuration) {
             emitSourceTap(state, source);
-            return;
+            return false;
         }
         if (pressed) {
             hold.phase = HoldPhase::Pending;
@@ -205,11 +206,12 @@ void TouchpadGestureMapper::transformHold(
         } else {
             hold.phase = HoldPhase::Idle;
         }
-        return;
+        return false;
     case HoldPhase::WaitForRelease:
         if (!pressed) hold.phase = HoldPhase::Idle;
-        return;
+        return false;
     }
+    return false;
 }
 
 void TouchpadGestureMapper::transformGhost(DualSenseInputState& state,
@@ -327,8 +329,17 @@ void TouchpadGestureMapper::transform(DualSenseInputState& state,
     case TouchpadGestureProfile::SpiderMan2:
         transformHold(viewHold_, HoldSource::View, TouchpadSwipeDirection::Left,
                       state, now);
-        transformHold(dpadUpHold_, HoldSource::DpadUp, TouchpadSwipeDirection::Up,
-                      state, now);
+        // Xbox uses the same D-pad Up control to open and close the camera,
+        // while native DualSense mode expects opposite touchpad gestures.
+        // Alternate automatically so the physical control keeps its toggle
+        // semantics without exposing any setting or recovery command.
+        if (transformHold(
+                dpadUpHold_, HoldSource::DpadUp,
+                spiderManCameraOpen_ ? TouchpadSwipeDirection::Down
+                                     : TouchpadSwipeDirection::Up,
+                state, now)) {
+            spiderManCameraOpen_ = !spiderManCameraOpen_;
+        }
         break;
     case TouchpadGestureProfile::MilesMorales:
         transformHold(viewHold_, HoldSource::View, TouchpadSwipeDirection::Left,

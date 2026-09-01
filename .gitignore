@@ -29,6 +29,7 @@ MinSizeRel/
 # Local diagnostics, captures and runtime logs
 diagnose-*.json
 diagnostics-*.json
+Apex4-Diagnostics-Collector/
 .local-backups/
 *.log
 *.dmp
@@ -47,6 +48,7 @@ packages/
 *.temp
 *.zip
 *.7z
+*.rar
 *.tar
 *.tar.gz
 
@@ -109,11 +111,6 @@ TODO.local*
 .agents/
 .gemini/
 
-# Tray application (private / in development)
-ApexSenseBridgeTray/
-ApexSenseBridgeTray.exe
-scripts/build-tray-app.ps1
-scripts/update-app.ps1
+# Tray temporary logs
 tray_*.log
-
 

@@ -61,7 +61,9 @@ int main() {
                static_cast<std::size_t>(TouchpadSwipeDirection::Left)] == 1);
 
     // Spider-Man 2 has two distinct holds: View -> left/FNSM and D-pad Up ->
-    // upward/camera. A short D-pad press is replayed instead of being lost.
+    // camera toggle. Xbox uses the same D-pad button to open and close it, so
+    // successive holds must alternate DualSense up/down swipes. A short D-pad
+    // press is replayed instead of being lost.
     TouchpadGestureMapper spider(TouchpadGestureProfile::SpiderMan2);
     input = {};
     input.dpad = 0x01;
@@ -80,6 +82,23 @@ int main() {
     spider.transform(input, cameraHold + 400ms);
     assert((input.dpad & 0x01U) == 0);
     assert(input.touch1Active && input.touch1X == 960 && input.touch1Y == 850);
+    assert(spider.stats().swipesByDirection[
+               static_cast<std::size_t>(TouchpadSwipeDirection::Up)] == 1);
+
+    input = {};
+    spider.transform(input, cameraHold + 600ms);
+
+    const auto cameraCloseHold = cameraHold + 1s;
+    input = {};
+    input.dpad = 0x01;
+    spider.transform(input, cameraCloseHold);
+    input = {};
+    input.dpad = 0x01;
+    spider.transform(input, cameraCloseHold + 400ms);
+    assert((input.dpad & 0x01U) == 0);
+    assert(input.touch1Active && input.touch1X == 960 && input.touch1Y == 200);
+    assert(spider.stats().swipesByDirection[
+               static_cast<std::size_t>(TouchpadSwipeDirection::Down)] == 1);
 
     // Ghost recognizes only the official modifier layer. It consumes both the
     // modifier and gesture stick so the DualSense game receives one swipe.

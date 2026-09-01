@@ -228,7 +228,7 @@
                   },
                   {
                       "hapticFeedback":  true,
-                      "normalized":  "callofduty",
+                      "normalized":  "callofdutymodernwarfare4beta",
                       "profile":  "standard",
                       "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
                       "adaptiveTriggers":  true,

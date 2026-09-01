@@ -23,6 +23,10 @@ Tsushima et Warframe. Un jeu inconnu ne reçoit aucun swipe synthétique : `View
 reste simplement le clic du touchpad. Le profil Warframe suppose le layout Xbox
 par défaut et doit rester désactivé si les boutons du jeu ont été remappés.
 
+Dans Spider-Man 2, un appui long sur D-pad haut ouvre l'appareil photo par swipe
+up ; l'appui long suivant le range par swipe down. Cette alternance est
+automatique et l'appui court sur D-pad haut reste inchangé.
+
 La détection compare une version normalisée du titre Playnite, puis le nom du
 dossier d'installation. Un override manuel est toujours prioritaire. Le choix
 `Désactiver pour ce jeu` est persistant ; `Utiliser la détection automatique`

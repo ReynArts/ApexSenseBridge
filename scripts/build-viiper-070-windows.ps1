@@ -7,10 +7,10 @@ $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $sourceDirectory = Join-Path $projectRoot ".tmp-viiper-070-build-source"
 $patchPath = Join-Path $projectRoot "third_party\viiper-patches\viiper-v0.7.0-asb.patch"
 $expectedCommit = "6b71b148a2243fab77ee1a46f4e22e00bd7d5a04"
-$version = "v0.7.0-asb2"
+$version = "v0.7.0-asb3"
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $projectRoot "dist\experimental\viiper-v0.7.0-asb2.exe"
+    $OutputPath = Join-Path $projectRoot "dist\experimental\viiper-v0.7.0-asb3.exe"
 } else {
     $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
 }
@@ -50,7 +50,7 @@ try {
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
     $linkerFlags = "-s -w " +
         "-X main.Version=$version " +
-        "-X main.Commit=6b71b14+asb2 " +
+        "-X main.Commit=6b71b14+asb3 " +
         "-X main.Date=2026-09-01 " +
         "-X github.com/Alia5/VIIPER/internal/codegen/common.Version=$version"
     go build -trimpath -buildvcs=false -ldflags $linkerFlags -o $OutputPath ./cmd/viiper
@@ -60,21 +60,25 @@ try {
 }
 
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $OutputPath).Hash
+$patchHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $patchPath).Hash
 $outputDirectory = Split-Path -Parent $OutputPath
 Copy-Item -LiteralPath (Join-Path $sourceDirectory "LICENSE.txt") `
-    -Destination (Join-Path $outputDirectory "VIIPER-v0.7.0-asb2-LICENSE.txt") -Force
+    -Destination (Join-Path $outputDirectory "VIIPER-v0.7.0-asb3-LICENSE.txt") -Force
+Copy-Item -LiteralPath $patchPath `
+    -Destination (Join-Path $outputDirectory "VIIPER-v0.7.0-asb.patch") -Force
 @(
-    "This experimental viiper.exe was built reproducibly for ApexSenseBridge."
+    "This viiper.exe mirrors the official ApexSenseBridge v0.7 backend build."
     ""
     "Upstream: https://github.com/Alia5/VIIPER.git"
     "Base tag: v0.7.0"
     "Base commit: $expectedCommit"
     "Local version: $version"
     "Patch: third_party/viiper-patches/viiper-v0.7.0-asb.patch"
+    "Patch SHA-256: $patchHash"
     "Virtual DualSense firmware feature report: 0x0630"
-    "Status: experimental; does not replace the v0.6.1-steamless9 release payload"
-) | Set-Content -LiteralPath (Join-Path $outputDirectory "VIIPER-v0.7.0-asb2-SOURCE.txt") `
+    "Status: validated backend; the release payload is built by scripts/build-viiper-windows.ps1"
+) | Set-Content -LiteralPath (Join-Path $outputDirectory "VIIPER-v0.7.0-asb3-SOURCE.txt") `
     -Encoding UTF8
-Write-Host "Built experimental $version with virtual DualSense firmware 0x0630:"
+Write-Host "Built validation copy of $version with virtual DualSense firmware 0x0630:"
 Write-Host "  $OutputPath"
 Write-Host "  SHA256 $hash"

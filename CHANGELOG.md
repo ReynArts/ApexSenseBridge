@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
-- Began the post-0.3.0 VIIPER v0.7 migration without replacing the released
-  `v0.6.1-steamless9` payload. Added a reproducible `v0.7.0-asb2` patch/build,
+- Made Spider-Man 2's camera remapping behave like the original Xbox control:
+  successive long D-pad Up presses now alternate touchpad swipe up (open) and
+  swipe down (close), while short presses remain unchanged. The behavior is
+  automatic in both Playnite and the standalone detector.
+- Promoted the post-0.3.0 VIIPER `v0.7.0-asb3` backend to the official release
+  payload after Call of Duty and Spider-Man 2 validation. The reproducible build
   kept the upstream libVIIPER output API intact, and isolated the complete
   adaptive-trigger/audio-haptics stream behind an ASB extension. The port adds
   composite USB audio, USB/IP isochronous transfers, old-wire input adaptation,
@@ -13,6 +17,18 @@
   descriptor instead of v0.7's shared 427-byte descriptor containing Edge-only
   reports, after Call of Duty rejected the inconsistent standard-controller
   identity.
+- Fixed COD's 48-byte HID `SET_REPORT` path in `asb3`. The preceding prototype
+  removed report ID `0x02` only from padded 64-byte writes, shifting flags,
+  motor values and both adaptive-trigger payloads by one byte for short writes.
+  Added an exact 48-byte regression fixture covering every routed field. The
+  resulting prototype is validated in Call of Duty with full virtual input and
+  feedback; the apparent right-stick regression was COD's in-game Aiming Input
+  Device left on Mouse, not an input-proxy defect.
+- Completed the VIIPER `v0.7.0-asb3` in-game regression pass in Spider-Man 2:
+  lossless full input, 94 active adaptive-trigger effects, peak-preserving
+  audio-haptics routing, clean motor/trigger shutdown and exact touchpad-click
+  hold preservation. The release builder, installer, portable ZIP and GitHub
+  workflow now all consume the promoted v0.7 backend.
 - Fixed near-continuous false grip rumble in Call of Duty by no longer treating
   DualSense `HAPTICS_SELECT` alone as validation of the compatibility-motor
   bytes. Only `COMPATIBLE_VIBRATION` or `COMPATIBLE_VIBRATION2` now updates the
@@ -22,6 +38,10 @@
   unknown titles remain native XInput. Manual profiles take priority, explicit
   per-game disable is now persistent, and both a global toggle and a
   restore-automatic menu action are available.
+- Fixed the Playnite startup path so it actually resolves automatic profiles
+  instead of consulting only manually saved profiles. Playnite and the
+  standalone tray now pass the same explicit per-game touchpad profile into the
+  engine; this also removes the contradictory legacy Spider-Man arguments.
 - Replaced the global View-hold/up-swipe shortcut with conservative per-game
   touchpad profiles for Spider-Man 2, Miles Morales, Ghost of Tsushima and
   Warframe. The mapper now supports holds, modifier chords, four swipe
@@ -44,6 +64,11 @@
 - Added the single offline Inno Setup installer, pinned usbip-win2 0.9.7.7 and
   HidHide 1.5.230 payloads, exact dependency ownership metadata, static MSVC
   runtime, a non-resident Win32 control panel and full uninstall/recovery paths.
+- Prevented setup from entering usbip-win2's potentially hanging nested
+  uninstaller. Healthy ABI-compatible 0.9.7.5-0.9.7.7 drivers are preserved;
+  unsupported or damaged packages are rejected with repair instructions.
+  Fresh installs are bounded, logged and verified, and releases also include a
+  standalone portable ZIP with a one-time guarded driver helper.
 - Added an acknowledged global maintenance-stop event. Uninstall now waits for
   virtual-input neutralization, VIIPER detach and HidHide/WGI restoration before
   using `taskkill` only as a bounded fallback for a hung engine.

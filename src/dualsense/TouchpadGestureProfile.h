@@ -82,7 +82,7 @@ private:
         Clock::time_point started{};
     };
 
-    void transformHold(HoldState& hold, HoldSource source,
+    bool transformHold(HoldState& hold, HoldSource source,
                        TouchpadSwipeDirection direction,
                        DualSenseInputState& state,
                        Clock::time_point now) noexcept;
@@ -90,7 +90,7 @@ private:
                         Clock::time_point now) noexcept;
     void transformWarframe(DualSenseInputState& state,
                            Clock::time_point now) noexcept;
-    void startSwipe(TouchpadSwipeDirection direction,
+    bool startSwipe(TouchpadSwipeDirection direction,
                     Clock::time_point now) noexcept;
     void emitSwipe(DualSenseInputState& state,
                    Clock::time_point now) noexcept;
@@ -100,6 +100,7 @@ private:
     HoldState viewHold_{};
     HoldState dpadUpHold_{};
     SwipeState swipe_{};
+    bool spiderManCameraOpen_ = false;
 
     bool ghostModifierWasPressed_ = false;
     bool ghostArmed_ = false;

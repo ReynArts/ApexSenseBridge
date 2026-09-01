@@ -111,10 +111,19 @@ namespace ApexSenseBridge
 
         public override void OnGameStarting(OnGameStartingEventArgs args)
         {
-            var profile = settings.Settings.FindProfile(args.Game.Id);
+            bool automatic;
+            string detectionReason;
+            var profile = settings.Settings.ResolveProfile(
+                args.Game, out automatic, out detectionReason);
             if (profile == null)
             {
                 return;
+            }
+
+            if (automatic)
+            {
+                logger.Info($"ApexSenseBridge automatically selected {profile.ProfileType} for " +
+                            $"{args.Game.Name} from {detectionReason}.");
             }
 
             lock (sessionLock)
@@ -185,7 +194,8 @@ namespace ApexSenseBridge
                 var profile = settings.Settings.FindProfile(game.Id);
                 var isStandard = profile != null && profile.ProfileType == BridgeProfileType.StandardDualSense;
                 var isSpiderMan2 = profile != null && profile.ProfileType == BridgeProfileType.SpiderMan2;
-                var isDisabled = profile == null;
+                var isDisabled = profile != null && profile.ProfileType == BridgeProfileType.Disabled;
+                var isAutomatic = profile == null;
 
                 yield return new GameMenuItem
                 {
@@ -204,6 +214,12 @@ namespace ApexSenseBridge
                     MenuSection = "ApexSenseBridge",
                     Description = (isDisabled ? "✓ " : "   ") + "Désactiver pour ce jeu",
                     Action = action => DisableProfiles(action.Games)
+                };
+                yield return new GameMenuItem
+                {
+                    MenuSection = "ApexSenseBridge",
+                    Description = (isAutomatic ? "✓ " : "   ") + "Utiliser la détection automatique",
+                    Action = action => RestoreAutomaticProfiles(action.Games)
                 };
             }
             else
@@ -225,6 +241,12 @@ namespace ApexSenseBridge
                     MenuSection = "ApexSenseBridge",
                     Description = "Désactiver pour la sélection",
                     Action = action => DisableProfiles(action.Games)
+                };
+                yield return new GameMenuItem
+                {
+                    MenuSection = "ApexSenseBridge",
+                    Description = "Utiliser la détection automatique",
+                    Action = action => RestoreAutomaticProfiles(action.Games)
                 };
             }
         }
@@ -252,19 +274,44 @@ namespace ApexSenseBridge
         private string BuildBridgeArguments(GameBridgeProfile profile, Game game)
         {
             var arguments = new List<string> { "bridge-triggers" };
+
+            // A manually selected Standard profile keeps the standard launch
+            // compatibility path, but known games still receive their input
+            // gesture mapping. This mirrors the standalone tray detector.
+            var gestureProfile = profile.ProfileType;
+            if (gestureProfile == BridgeProfileType.StandardDualSense &&
+                AutomaticProfileDetector.TryDetect(game, out var detectedProfile, out _))
+            {
+                gestureProfile = detectedProfile;
+            }
+
             if (profile.ProfileType == BridgeProfileType.SpiderMan2)
             {
                 arguments.Add("--spiderman2-wgi-fix");
             }
 
-            // Spider-Man 2 exposes a touchpad swipe when it sees a native
-            // DualSense. The APEX/XInput View button has no touch coordinates,
-            // so ask the bridge to emulate that swipe even when the standard
-            // DualSense profile is selected.
-            if (profile.ProfileType == BridgeProfileType.SpiderMan2 ||
-                (game?.Name?.IndexOf("Spider-Man 2", StringComparison.OrdinalIgnoreCase) ?? -1) >= 0)
+            switch (gestureProfile)
             {
-                arguments.Add("--view-hold-swipe-up");
+                case BridgeProfileType.SpiderMan2:
+                    arguments.Add("--touchpad-profile");
+                    arguments.Add("spider-man-2");
+                    break;
+                case BridgeProfileType.MilesMorales:
+                    arguments.Add("--touchpad-profile");
+                    arguments.Add("miles-morales");
+                    break;
+                case BridgeProfileType.GhostOfTsushima:
+                    arguments.Add("--touchpad-profile");
+                    arguments.Add("ghost-of-tsushima");
+                    break;
+                case BridgeProfileType.Warframe:
+                    arguments.Add("--touchpad-profile");
+                    arguments.Add("warframe");
+                    break;
+                default:
+                    arguments.Add("--touchpad-profile");
+                    arguments.Add("none");
+                    break;
             }
 
             if (settings.Settings.EnableRumble)
@@ -299,13 +346,29 @@ namespace ApexSenseBridge
             var list = games?.ToList() ?? new List<Game>();
             foreach (var game in list)
             {
-                settings.Settings.RemoveProfile(game.Id);
+                settings.Settings.SetProfile(game, BridgeProfileType.Disabled);
             }
             settings.SaveNow();
             if (list.Count > 0)
             {
                 PlayniteApi.Dialogs.ShowMessage(
                     $"ApexSenseBridge désactivé pour {list.Count} jeu(x).",
+                    "ApexSenseBridge");
+            }
+        }
+
+        private void RestoreAutomaticProfiles(IEnumerable<Game> games)
+        {
+            var list = games?.ToList() ?? new List<Game>();
+            foreach (var game in list)
+            {
+                settings.Settings.RemoveProfile(game.Id);
+            }
+            settings.SaveNow();
+            if (list.Count > 0)
+            {
+                PlayniteApi.Dialogs.ShowMessage(
+                    $"Détection automatique restaurée pour {list.Count} jeu(x).",
                     "ApexSenseBridge");
             }
         }

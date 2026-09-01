@@ -47,7 +47,8 @@ adapted from and validated against the SteamlessController DualSense fork:
 - Reference commit: `e19e874e00938eff2ee28d1a928dc2ab58bf9b75`
 - Reference files: `src/app/ViiperClient.*`, `src/app/VirtualControllerTypes.*`,
   `src/steam/SteamController.cpp`, and
-  `third_party/viiper-patches/viiper-v0.6.1-dualsense.patch`
+  `third_party/viiper-patches/viiper-v0.6.1-dualsense.patch` and
+  `third_party/viiper-patches/viiper-v0.7.0-asb.patch`
 - Copyright: 2026 Dylan Deverill; 2026 david419kr
 - License for the referenced main application implementation: MIT
 

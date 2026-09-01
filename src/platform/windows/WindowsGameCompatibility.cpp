@@ -1,6 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <tlhelp32.h>
 
 #include "platform/GameCompatibility.h"
 
@@ -20,24 +19,6 @@ constexpr wchar_t kRunOnceValue[] = L"!ApexSenseBridgeRestoreSpiderMan2Wgi";
 
 std::string windowsError(DWORD code) {
     return "Windows error " + std::to_string(code);
-}
-
-bool spiderMan2Running() {
-    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return false;
-    PROCESSENTRY32W entry{};
-    entry.dwSize = sizeof(entry);
-    bool found = false;
-    if (Process32FirstW(snapshot, &entry)) {
-        do {
-            if (_wcsicmp(entry.szExeFile, L"Spider-Man2.exe") == 0) {
-                found = true;
-                break;
-            }
-        } while (Process32NextW(snapshot, &entry));
-    }
-    CloseHandle(snapshot);
-    return found;
 }
 
 std::filesystem::path markerPath() {
@@ -194,11 +175,6 @@ bool TemporarySpiderMan2WgiOverride::activate(std::string& error) {
         if (!recoverPending(recovered, error)) return false;
         impl_->recovered = recovered;
     }
-    if (spiderMan2Running()) {
-        error = "Spider-Man 2 is already running; close it before enabling the temporary WGI override.";
-        return false;
-    }
-
     HKEY key = nullptr;
     const auto openStatus = RegOpenKeyExW(
         HKEY_CURRENT_USER, kInputKey, 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &key);
