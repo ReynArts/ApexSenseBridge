@@ -243,14 +243,14 @@
                                               IsChecked="{Binding IsExcluded, Mode=TwoWay}"
                                               Click="OnGameExcludedToggled"/>
 
-                                    <!-- Left Cover / Thumbnail (Rounded 6px) -->
-                                    <Border Width="64" Height="36" CornerRadius="6" Background="{DynamicResource ControlBackground}"
+                                    <!-- Left Square Icon / Thumbnail (Rounded 8px) -->
+                                    <Border Width="40" Height="40" CornerRadius="8" Background="{DynamicResource ControlBackground}"
                                             BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                            ClipToBounds="True" Margin="0,0,12,0" VerticalAlignment="Center"
+                                            ClipToBounds="True" Margin="0,0,14,0" VerticalAlignment="Center"
                                             DockPanel.Dock="Left">
                                         <Grid>
                                             <!-- Default Placeholder Graphic -->
-                                            <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            <Viewbox Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                      Opacity="0.35" Visibility="{Binding PlaceholderVisibility}">
                                                 <Path Data="M 3,3 L 13,3 L 13,13 L 3,13 Z M 6,8 L 10,8 M 8,6 L 8,10"
                                                       Stroke="{DynamicResource TextMuted}" StrokeThickness="1.5"
