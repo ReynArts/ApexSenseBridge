@@ -367,7 +367,7 @@
                             <Border Height="1" Background="{DynamicResource CardBorder}" Margin="0,0,0,14"/>
 
                             <!-- Manual bridge override -->
-                            <DockPanel>
+                            <DockPanel Margin="0,0,0,14">
                                 <CheckBox x:Name="ChkManualBridge" Style="{StaticResource ToggleSwitch}"
                                           DockPanel.Dock="Right" VerticalAlignment="Center"
                                           Checked="OnManualBridgeChanged" Unchecked="OnManualBridgeChanged"/>
@@ -378,6 +378,7 @@
                                                FontSize="11" Foreground="{DynamicResource TextMuted}"/>
                                 </StackPanel>
                             </DockPanel>
+
                             <!-- Separator -->
                             <Border Height="1" Background="{DynamicResource CardBorder}" Margin="0,0,0,14"/>
 
