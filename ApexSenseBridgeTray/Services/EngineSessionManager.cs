@@ -2,6 +2,7 @@ using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace ApexSenseBridgeTray.Services
 {
@@ -79,6 +80,27 @@ namespace ApexSenseBridgeTray.Services
                 {
                     logHandler(string.Format("Starting bridge: {0} {1}", enginePath, args));
                 }
+
+                try
+                {
+                    int currentProcId = Process.GetCurrentProcess().Id;
+                    Process[] runningEngines = Process.GetProcessesByName("ApexSenseBridge");
+                    for (int i = 0; i < runningEngines.Length; i++)
+                    {
+                        Process p = runningEngines[i];
+                        if (p.Id != currentProcId)
+                        {
+                            try
+                            {
+                                p.Kill();
+                                p.WaitForExit(1000);
+                            }
+                            catch { }
+                            finally { p.Dispose(); }
+                        }
+                    }
+                }
+                catch { }
 
                 int timeoutSec = settings != null ? settings.InitializationTimeoutSeconds : 20;
                 var session = BridgeSession.TryStart(

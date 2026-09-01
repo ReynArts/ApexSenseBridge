@@ -42,7 +42,6 @@ namespace ApexSenseBridgeTray.Services
         {
             if (isDisposed) return;
 
-            // Prevent re-entrant polling if previous tick is still running
             if (Interlocked.CompareExchange(ref isPolling, 1, 0) != 0)
             {
                 return;
