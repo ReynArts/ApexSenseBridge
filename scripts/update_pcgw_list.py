@@ -49,7 +49,7 @@ BUILTIN_GAMES = [
         "hapticFeedback": True,
         "profile": "miles-morales",
         "steamAppId": 1817190,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/capsule_231x87.jpg",
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/library_600x900.jpg",
     },
     {
         "title": "Ghost of Tsushima DIRECTOR'S CUT",
@@ -58,7 +58,7 @@ BUILTIN_GAMES = [
         "hapticFeedback": True,
         "profile": "ghost-of-tsushima",
         "steamAppId": 2215430,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/capsule_231x87.jpg",
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/library_600x900.jpg",
     },
     {
         "title": "Warframe",
@@ -67,7 +67,7 @@ BUILTIN_GAMES = [
         "hapticFeedback": True,
         "profile": "warframe",
         "steamAppId": 230410,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/capsule_231x87.jpg",
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/library_600x900.jpg",
     },
     {
         "title": "Call of Duty: Modern Warfare 4 Beta",
@@ -76,7 +76,7 @@ BUILTIN_GAMES = [
         "hapticFeedback": True,
         "profile": "standard",
         "steamAppId": 1938090,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/capsule_231x87.jpg",
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
     },
     {
         "title": "Grand Theft Auto V",
@@ -85,7 +85,7 @@ BUILTIN_GAMES = [
         "hapticFeedback": True,
         "profile": "standard",
         "steamAppId": 271590,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/capsule_231x87.jpg",
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg",
     },
 ]
 
@@ -141,7 +141,7 @@ def fetch_pcgw_titles(page_title: str) -> list:
 
 
 def resolve_steam_cover(title: str) -> tuple:
-    """Queries Steam store search for a matching app ID and capsule image."""
+    """Queries Steam store search for a matching app ID and portrait cover image."""
     try:
         clean_title = re.sub(r"[\u2122\u00AE\u00A9]", "", title).strip()
         params = {"term": clean_title, "l": "english", "cc": "US"}
@@ -156,10 +156,7 @@ def resolve_steam_cover(title: str) -> tuple:
             first = items[0]
             app_id = int(first.get("id", 0))
             if app_id > 0:
-                tiny_img = first.get("tiny_image", "")
-                if tiny_img:
-                    return app_id, tiny_img
-                return app_id, f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{app_id}/capsule_231x87.jpg"
+                return app_id, f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{app_id}/library_600x900.jpg"
     except Exception:
         pass
     return 0, ""

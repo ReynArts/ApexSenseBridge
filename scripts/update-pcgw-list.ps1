@@ -90,10 +90,7 @@ function Get-SteamCover {
             $first = $res.items[0]
             $appId = [int]$first.id
             if ($appId -gt 0) {
-                $img = $first.tiny_image
-                if (-not $img) {
-                    $img = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/$appId/capsule_231x87.jpg"
-                }
+                $img = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/$appId/library_600x900.jpg"
                 return @{ SteamAppId = $appId; IconUrl = $img }
             }
         }
@@ -126,8 +123,8 @@ $gameDict = [System.Collections.Generic.Dictionary[string, hashtable]]::new([Sys
 foreach ($title in $adaptiveGames) {
     $norm = Normalize-Title $title
     $cached = $existingCache[$norm]
-    $icon = if ($cached -and $cached.iconUrl) { $cached.iconUrl } else { "" }
-    $appId = if ($cached -and $cached.steamAppId) { $cached.steamAppId } else { 0 }
+    $appId = if ($cached -and $cached.steamAppId) { [int]$cached.steamAppId } else { 0 }
+    $icon = if ($appId -gt 0) { "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/$appId/library_600x900.jpg" } else { "" }
 
     if (-not $gameDict.ContainsKey($norm)) {
         $gameDict[$norm] = @{
@@ -147,8 +144,8 @@ foreach ($title in $adaptiveGames) {
 foreach ($title in $hapticGames) {
     $norm = Normalize-Title $title
     $cached = $existingCache[$norm]
-    $icon = if ($cached -and $cached.iconUrl) { $cached.iconUrl } else { "" }
-    $appId = if ($cached -and $cached.steamAppId) { $cached.steamAppId } else { 0 }
+    $appId = if ($cached -and $cached.steamAppId) { [int]$cached.steamAppId } else { 0 }
+    $icon = if ($appId -gt 0) { "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/$appId/library_600x900.jpg" } else { "" }
 
     if (-not $gameDict.ContainsKey($norm)) {
         $gameDict[$norm] = @{
@@ -168,11 +165,11 @@ foreach ($title in $hapticGames) {
 # Ensure verified built-in titles are present even if not yet on PCGW
 $builtin = @(
     @{ title = "Marvel's Spider-Man 2"; normalized = "marvelsspiderman2"; profile = "spider-man-2"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 0; iconUrl = "" },
-    @{ title = "Marvel's Spider-Man: Miles Morales"; normalized = "marvelsspidermanmilesmorales"; profile = "miles-morales"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 1817190; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/capsule_231x87.jpg" },
-    @{ title = "Ghost of Tsushima DIRECTOR'S CUT"; normalized = "ghostoftsushimadirectorscut"; profile = "ghost-of-tsushima"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 2215430; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/capsule_231x87.jpg" },
-    @{ title = "Warframe"; normalized = "warframe"; profile = "warframe"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 230410; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/capsule_231x87.jpg" },
-    @{ title = "Call of Duty: Modern Warfare 4 Beta"; normalized = "callofduty"; profile = "standard"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 1938090; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/capsule_231x87.jpg" },
-    @{ title = "Grand Theft Auto V"; normalized = "grandtheftautov"; profile = "standard"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 271590; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/capsule_231x87.jpg" }
+    @{ title = "Marvel's Spider-Man: Miles Morales"; normalized = "marvelsspidermanmilesmorales"; profile = "miles-morales"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 1817190; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/library_600x900.jpg" },
+    @{ title = "Ghost of Tsushima DIRECTOR'S CUT"; normalized = "ghostoftsushimadirectorscut"; profile = "ghost-of-tsushima"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 2215430; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/library_600x900.jpg" },
+    @{ title = "Warframe"; normalized = "warframe"; profile = "warframe"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 230410; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/library_600x900.jpg" },
+    @{ title = "Call of Duty: Modern Warfare 4 Beta"; normalized = "callofduty"; profile = "standard"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 1938090; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg" },
+    @{ title = "Grand Theft Auto V"; normalized = "grandtheftautov"; profile = "standard"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 271590; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg" }
 )
 
 foreach ($b in $builtin) {
