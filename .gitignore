@@ -1,28 +1,86 @@
-# Compilation / Build outputs
+# Compilation / build outputs
 build/
 build-win/
 build-linux/
+build-*/
+cmake-build-*/
+dist/
 bin/
 obj/
 out/
 x64/
 ARM64/
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+
+# Compiled binaries and debug symbols generated outside a build directory
+*.exe
+!third_party/prerequisites/*.exe
+*.dll
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.obj
+*.pext
+
+# Local diagnostics, captures and runtime logs
+diagnose-*.json
+diagnostics-*.json
+.local-backups/
+*.log
+*.dmp
+*.trace
+captures/
+logs/
+
+# Temporary downloads, extracted upstream sources and local packages
+.tmp-*/
+tmp/
+temp/
+downloads/
+packages/
+.cache/
+*.tmp
+*.temp
+*.zip
+*.7z
+*.tar
+*.tar.gz
+
+# Test/runtime generated results (test source code remains versioned)
+Testing/
+test-results/
+coverage/
+*.coverage
+*.gcda
+*.gcno
+*.profraw
+*.profdata
 
 # IDE files and workspace settings
 .vs/
 .vscode/
+.idea/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
+*.VC.db
+*.VC.opendb
 
-# CMake generated files (if you want to keep CMakeLists.txt but ignore build directory)
+# CMake generated files accidentally created in the source tree
 CMakeSettings.json
+CMakeUserPresets.json
 CompilerIdCXX/
 CompilerIdC/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
 Makefile
 
 # OS files

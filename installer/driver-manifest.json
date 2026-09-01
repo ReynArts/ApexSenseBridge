@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "usbip-win2": {
+    "version": "0.9.7.7",
+    "installer": "USBip-0.9.7.7-x64.exe",
+    "sha256": "51620FA5F9F8BE5932BC9D786DEEE557CE06D5407A99CAB490DCFAC71F185FEA",
+    "productCode": "{199505b0-b93d-4521-a8c7-897818e0205a}_is1",
+    "originalInf": ["usbip2_ude.inf", "usbip2_filter.inf"],
+    "services": ["usbip2_ude", "usbip2_filter"],
+    "certificatesAddedByApexSenseBridge": []
+  },
+  "HidHide": {
+    "version": "1.5.230",
+    "installer": "HidHide_1.5.230_x64.exe",
+    "sha256": "F4BBBCB82E6258641B887C74BC81C4C5F66E4AA811808DFC304347687B7605F6",
+    "productCode": "{01E0AB21-D1CC-42B4-9DFF-84FFE4F26DAF}",
+    "originalInf": ["HidHide.inf"],
+    "services": ["HidHide"],
+    "certificatesAddedByApexSenseBridge": []
+  }
+}

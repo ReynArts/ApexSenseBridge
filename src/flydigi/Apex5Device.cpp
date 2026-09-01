@@ -136,14 +136,14 @@ bool Apex5Device::verifyIdentity(std::string& error) {
     return false;
 }
 
-bool Apex5Device::mayWriteAdaptiveTrigger(std::string& error) const {
+bool Apex5Device::mayWriteEffects(std::string& error) const {
     if (!identity_) {
-        error = "Adaptive-trigger write refused: device identity was not verified";
+        error = "Effect write refused: device identity was not verified";
         return false;
     }
     if (!identity_->isApex5() || !identity_->supportsAdaptiveTriggers()) {
-        error = "Adaptive-trigger write refused: " + identity_->describe() +
-                " is not an Apex 5 with FORCEADAPT";
+        error = "Effect write refused: " + identity_->describe() +
+                " is not a verified Apex 5";
         return false;
     }
     return true;
@@ -154,11 +154,22 @@ bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
         error = "Apex 5 device is not open";
         return false;
     }
-    if (!mayWriteAdaptiveTrigger(error)) {
+    if (!mayWriteEffects(error)) {
         return false;
     }
     const auto report = buildForceTrigger(effect, true);
     return transport_->writeOutputReport(report, error);
+}
+
+bool Apex5Device::setTriggerRaw(const ForceTriggerCommand& command, std::string& error) {
+    if (!isOpen()) {
+        error = "Apex 5 device is not open";
+        return false;
+    }
+    if (!mayWriteEffects(error)) {
+        return false;
+    }
+    return transport_->writeOutputReport(buildForceTriggerRaw(command, true), error);
 }
 
 bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
@@ -166,7 +177,7 @@ bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
         error = "Apex 5 device is not open";
         return false;
     }
-    if (!mayWriteAdaptiveTrigger(error)) {
+    if (!mayWriteEffects(error)) {
         return false;
     }
     const auto report = buildNormal(side);
@@ -174,7 +185,7 @@ bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
 }
 
 bool Apex5Device::clearAll(std::string& error) {
-    if (!mayWriteAdaptiveTrigger(error)) {
+    if (!mayWriteEffects(error)) {
         return false;
     }
     std::string leftError;
@@ -193,6 +204,24 @@ bool Apex5Device::clearAll(std::string& error) {
         return false;
     }
     return true;
+}
+
+bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
+                            std::uint8_t highFrequencyMotor,
+                            std::string& error) {
+    if (!isOpen()) {
+        error = "Apex 5 device is not open";
+        return false;
+    }
+    if (!mayWriteEffects(error)) {
+        return false;
+    }
+    return transport_->writeOutputReport(
+        buildRumble(lowFrequencyMotor, highFrequencyMotor), error);
+}
+
+bool Apex5Device::stopRumble(std::string& error) {
+    return setRumble(0, 0, error);
 }
 
 } // namespace asb::flydigi

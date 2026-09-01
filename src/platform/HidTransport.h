@@ -24,6 +24,11 @@ public:
     [[nodiscard]] virtual bool isOpen() const noexcept = 0;
     [[nodiscard]] virtual const HidDeviceInfo& info() const noexcept = 0;
     virtual bool writeOutputReport(std::span<const std::uint8_t> report, std::string& error) = 0;
+    virtual bool readFeatureReport(std::span<std::uint8_t> report, std::string& error) {
+        (void)report;
+        error = "Reading HID feature reports is not supported by this transport.";
+        return false;
+    }
     virtual HidReadStatus readInputReport(
         std::span<std::uint8_t> report,
         std::chrono::milliseconds timeout,

@@ -1,0 +1,2399 @@
+diff --git a/device/dualsense/const.go b/device/dualsense/const.go
+new file mode 100644
+index 0000000..bb046cd
+--- /dev/null
++++ b/device/dualsense/const.go
+@@ -0,0 +1,82 @@
++package dualsense
++
++const (
++	DefaultVID = 0x054C
++	DefaultPID = 0x0CE6
++)
++
++const (
++	EndpointAudioOut = 0x01
++	EndpointAudioIn  = 0x82
++	EndpointIn       = 0x84
++	EndpointOut      = 0x03
++)
++
++const (
++	ReportIDInput            = 0x01
++	ReportIDOutput           = 0x02
++	ReportIDBluetoothEffects = 0x31
++)
++
++const (
++	InputReportSize  = 64
++	OutputReportSize = 48
++)
++
++const (
++	FeedbackFrameHIDOutput    = 0x01
++	FeedbackFrameAudioHaptics = 0x02
++)
++
++const (
++	ButtonPS            uint16 = 0x0001
++	ButtonTouchpadClick uint16 = 0x0002
++	ButtonMute          uint16 = 0x0004
++	ButtonSquare        uint16 = 0x0010
++	ButtonCross         uint16 = 0x0020
++	ButtonCircle        uint16 = 0x0040
++	ButtonTriangle      uint16 = 0x0080
++	ButtonL1            uint16 = 0x0100
++	ButtonR1            uint16 = 0x0200
++	ButtonL2            uint16 = 0x0400
++	ButtonR2            uint16 = 0x0800
++	ButtonCreate        uint16 = 0x1000
++	ButtonOptions       uint16 = 0x2000
++	ButtonL3            uint16 = 0x4000
++	ButtonR3            uint16 = 0x8000
++)
++
++const (
++	DPadUp    = 0x01
++	DPadDown  = 0x02
++	DPadLeft  = 0x04
++	DPadRight = 0x08
++)
++
++const (
++	DPadUSBUp        = 0x00
++	DPadUSBUpRight   = 0x01
++	DPadUSBRight     = 0x02
++	DPadUSBDownRight = 0x03
++	DPadUSBDown      = 0x04
++	DPadUSBDownLeft  = 0x05
++	DPadUSBLeft      = 0x06
++	DPadUSBUpLeft    = 0x07
++	DPadUSBNeutral   = 0x08
++)
++
++const (
++	TouchInactiveMask uint8  = 0x80
++	TouchpadMaxX      uint16 = 1919
++	TouchpadMaxY      uint16 = 1069
++)
++
++const (
++	DS5EnableRumbleEmulation  = 0x01
++	DS5DisableAudioHaptics    = 0x02
++	DS5EnableImprovedRumble   = 0x04
++	DS5ConnectionStateUSB     = 0x08
++	DS5BatteryStatusDischarge = 0x00
++	DS5BatteryStatusCharging  = 0x01
++	DS5BatteryStatusFull      = 0x02
++)
+diff --git a/device/dualsense/device.go b/device/dualsense/device.go
+new file mode 100644
+index 0000000..9957b97
+--- /dev/null
++++ b/device/dualsense/device.go
+@@ -0,0 +1,920 @@
++package dualsense
++
++import (
++	"encoding/binary"
++	"log/slog"
++	"sync"
++
++	"github.com/Alia5/VIIPER/device"
++	"github.com/Alia5/VIIPER/usb"
++	"github.com/Alia5/VIIPER/usb/hid"
++	"github.com/Alia5/VIIPER/usbip"
++)
++
++type DualSense struct {
++	inputState *InputState
++	stateMu    sync.Mutex
++	outputFunc func(FeedbackFrame)
++	descriptor usb.Descriptor
++
++	reportCounter   uint8
++	packetSequence  uint32
++	sensorTimestamp uint32
++	touch1Tracking  uint8
++	touch2Tracking  uint8
++	touch1WasActive bool
++	touch2WasActive bool
++
++	interfaceAlt   [4]uint8
++	audioMu        sync.Mutex
++	audioSeq       uint32
++	audioFrames    uint32
++	audioFrontSum  uint64
++	audioLeftSum   uint64
++	audioRightSum  uint64
++	audioFrontPeak uint16
++	audioLeftPeak  uint16
++	audioRightPeak uint16
++	audioLastLeft  uint16
++	audioLastRight uint16
++}
++
++type inputReportState struct {
++	input           InputState
++	reportCounter   uint8
++	packetSequence  uint32
++	sensorTimestamp uint32
++	touch1Tracking  uint8
++	touch2Tracking  uint8
++}
++
++func New(o *device.CreateOptions) (*DualSense, error) {
++	d := &DualSense{
++		descriptor: defaultDescriptor,
++	}
++	if o != nil {
++		if o.IdVendor != nil {
++			d.descriptor.Device.IDVendor = *o.IdVendor
++		}
++		if o.IdProduct != nil {
++			d.descriptor.Device.IDProduct = *o.IdProduct
++		}
++	}
++
++	d.inputState = &InputState{
++		LX:                  0x80,
++		LY:                  0x80,
++		RX:                  0x80,
++		RY:                  0x80,
++		BatteryLevelPercent: 100,
++		ChargeState:         DS5BatteryStatusFull,
++	}
++
++	return d, nil
++}
++
++func (d *DualSense) SetOutputCallback(f func(FeedbackFrame)) {
++	d.outputFunc = f
++}
++
++func (d *DualSense) UpdateInputState(state *InputState) {
++	d.stateMu.Lock()
++	defer d.stateMu.Unlock()
++
++	if state.Touch1Active && !d.touch1WasActive {
++		d.touch1Tracking = (d.touch1Tracking + 1) & 0x7F
++	}
++	if state.Touch2Active && !d.touch2WasActive {
++		d.touch2Tracking = (d.touch2Tracking + 1) & 0x7F
++	}
++	d.touch1WasActive = state.Touch1Active
++	d.touch2WasActive = state.Touch2Active
++	d.reportCounter++
++	d.packetSequence++
++	d.sensorTimestamp += 12000
++	st := *state
++	d.inputState = &st
++}
++
++func (d *DualSense) inputReportState() inputReportState {
++	d.stateMu.Lock()
++	defer d.stateMu.Unlock()
++	return inputReportState{
++		input:           *d.inputState,
++		reportCounter:   d.reportCounter,
++		packetSequence:  d.packetSequence,
++		sensorTimestamp: d.sensorTimestamp,
++		touch1Tracking:  d.touch1Tracking,
++		touch2Tracking:  d.touch2Tracking,
++	}
++}
++
++func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
++	if dir == usbip.DirIn {
++		switch ep {
++		case 4:
++			return d.buildUSBInputReport(d.inputReportState())
++		default:
++			return nil
++		}
++	}
++
++	if dir == usbip.DirOut && ep == 3 {
++		if feedback, ok := parseOutputReport(out); ok && d.outputFunc != nil {
++			d.outputFunc(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
++		}
++	}
++
++	return nil
++}
++
++func (d *DualSense) HandleIsoTransfer(ep uint32, dir uint32, out []byte, packets []usb.IsoPacket) ([]byte, []usb.IsoPacket) {
++	if dir == usbip.DirOut && ep == 1 {
++		d.consumeAudioHaptics(out)
++		return nil, completeIsoPackets(packets, out)
++	}
++	if dir == usbip.DirIn && ep == 2 {
++		data := make([]byte, isoPayloadLength(packets, 196))
++		return data, completeIsoPackets(packets, data)
++	}
++	return nil, completeIsoPackets(packets, out)
++}
++
++func (d *DualSense) SetInterfaceAlt(interfaceNumber, alternateSetting uint8) {
++	if int(interfaceNumber) >= len(d.interfaceAlt) {
++		return
++	}
++	d.interfaceAlt[interfaceNumber] = alternateSetting
++}
++
++func (d *DualSense) GetInterfaceAlt(interfaceNumber uint8) uint8 {
++	if int(interfaceNumber) >= len(d.interfaceAlt) {
++		return 0
++	}
++	return d.interfaceAlt[interfaceNumber]
++}
++
++func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex, wLength uint16, data []byte) ([]byte, bool) {
++	const (
++		hidGetReport = 0x01
++		hidSetIdle   = 0x0A
++		hidSetReport = 0x09
++	)
++	const (
++		reportTypeInput   = 0x01
++		reportTypeOutput  = 0x02
++		reportTypeFeature = 0x03
++	)
++
++	reportType := uint8(wValue >> 8)
++	reportID := uint8(wValue & 0xFF)
++
++	if bmRequestType == 0xA1 && bRequest == hidGetReport {
++		if reportType == reportTypeInput && reportID == ReportIDInput {
++			report := d.buildUSBInputReport(d.inputReportState())
++			if wLength > 0 && int(wLength) < len(report) {
++				return report[:wLength], true
++			}
++			return report, true
++		}
++
++		if reportType == reportTypeFeature {
++			var report []byte
++			switch reportID {
++			case 0x03:
++				report = buildCapabilitiesFeatureReport()
++			case 0x05:
++				report = buildCalibrationFeatureReport()
++			case 0x09:
++				report = buildSerialFeatureReport()
++			case 0x20:
++				report = buildFirmwareFeatureReport()
++			default:
++				report = buildGenericFeatureReport(reportID)
++			}
++			if len(report) > 0 {
++				return fitReportLength(report, wLength), true
++			}
++		}
++	}
++
++	if bmRequestType == 0x21 && bRequest == hidSetReport {
++		if reportType == reportTypeOutput &&
++			(reportID == ReportIDOutput || reportID == ReportIDBluetoothEffects) {
++			if feedback, ok := parseOutputReport(data); ok {
++				if d.outputFunc != nil {
++					d.outputFunc(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
++				}
++				return nil, true
++			}
++		}
++	}
++
++	if bmRequestType == 0x21 && bRequest == hidSetIdle {
++		return nil, true
++	}
++
++	if (bmRequestType == 0x21 || bmRequestType == 0x22 ||
++		bmRequestType == 0xA1 || bmRequestType == 0xA2) &&
++		uint8(wIndex&0xff) != 0x03 {
++		return d.handleAudioClassControl(bRequest, wValue, wLength, data), true
++	}
++
++	slog.Warn("Unsupported DualSense control request",
++		"bmRequestType", bmRequestType,
++		"bRequest", bRequest,
++		"reportType", reportType,
++		"reportID", reportID)
++
++	return nil, false
++}
++
++func parseOutputReport(data []byte) (OutputState, bool) {
++	if len(data) >= OutputReportSize && data[0] == ReportIDOutput {
++		data = data[1:]
++	} else if len(data) >= 78 && data[0] == ReportIDBluetoothEffects {
++		data = data[3:]
++	}
++	if len(data) < 47 {
++		return OutputState{}, false
++	}
++
++	var feedback OutputState
++	feedback.EnableBits1 = data[0]
++	feedback.EnableBits2 = data[1]
++	feedback.RumbleRight = data[2]
++	feedback.RumbleLeft = data[3]
++	copy(feedback.RightTriggerEffect[:], data[10:21])
++	copy(feedback.LeftTriggerEffect[:], data[21:32])
++	feedback.EnableBits3 = data[38]
++	return feedback, true
++}
++
++func isoPayloadLength(packets []usb.IsoPacket, fallback uint32) int {
++	var total uint32
++	for _, pkt := range packets {
++		total += pkt.Length
++	}
++	if total == 0 && len(packets) > 0 {
++		total = fallback * uint32(len(packets))
++	}
++	return int(total)
++}
++
++func completeIsoPackets(packets []usb.IsoPacket, data []byte) []usb.IsoPacket {
++	out := make([]usb.IsoPacket, len(packets))
++	for i, pkt := range packets {
++		out[i] = pkt
++		if pkt.Length > 0 {
++			out[i].ActualLength = pkt.Length
++		}
++		if int(pkt.Offset+pkt.Length) > len(data) && pkt.Offset < uint32(len(data)) {
++			out[i].ActualLength = uint32(len(data)) - pkt.Offset
++		}
++		out[i].Status = 0
++	}
++	return out
++}
++
++func (d *DualSense) consumeAudioHaptics(data []byte) {
++	if len(data) < 8 {
++		return
++	}
++
++	d.audioMu.Lock()
++	defer d.audioMu.Unlock()
++
++	for i := 0; i+7 < len(data); i += 8 {
++		frontLeft := absS16(int16(binary.LittleEndian.Uint16(data[i : i+2])))
++		frontRight := absS16(int16(binary.LittleEndian.Uint16(data[i+2 : i+4])))
++		left := absS16(int16(binary.LittleEndian.Uint16(data[i+4 : i+6])))
++		right := absS16(int16(binary.LittleEndian.Uint16(data[i+6 : i+8])))
++		d.audioFrontSum += uint64(frontLeft) + uint64(frontRight)
++		d.audioLeftSum += uint64(left)
++		d.audioRightSum += uint64(right)
++		if frontLeft > d.audioFrontPeak {
++			d.audioFrontPeak = frontLeft
++		}
++		if frontRight > d.audioFrontPeak {
++			d.audioFrontPeak = frontRight
++		}
++		if left > d.audioLeftPeak {
++			d.audioLeftPeak = left
++		}
++		if right > d.audioRightPeak {
++			d.audioRightPeak = right
++		}
++		d.audioFrames++
++		if d.audioFrames >= 240 {
++			d.flushAudioHapticsLocked()
++		}
++	}
++}
++
++func (d *DualSense) flushAudioHapticsLocked() {
++	if d.audioFrames == 0 || d.outputFunc == nil {
++		d.resetAudioAccumulatorLocked()
++		return
++	}
++
++	frontAvg := d.audioFrontSum / uint64(d.audioFrames*2)
++	hapticAvg := (d.audioLeftSum + d.audioRightSum) / uint64(d.audioFrames*2)
++	if looksLikeSpeakerAudio(frontAvg, hapticAvg, d.audioFrontPeak, d.audioLeftPeak, d.audioRightPeak) {
++		d.resetAudioAccumulatorLocked()
++		return
++	}
++
++	left := scaleAudioEnergy(d.audioLeftSum / uint64(d.audioFrames))
++	right := scaleAudioEnergy(d.audioRightSum / uint64(d.audioFrames))
++	leftPeak := scaleAudioEnergy(uint64(d.audioLeftPeak))
++	rightPeak := scaleAudioEnergy(uint64(d.audioRightPeak))
++	leftTransient := uint16(0)
++	rightTransient := uint16(0)
++	if left > d.audioLastLeft {
++		leftTransient = left - d.audioLastLeft
++	}
++	if right > d.audioLastRight {
++		rightTransient = right - d.audioLastRight
++	}
++
++	d.audioSeq++
++	frame := FeedbackFrame{
++		Type: FeedbackFrameAudioHaptics,
++		Audio: AudioHapticsState{
++			Sequence:       d.audioSeq,
++			LeftEnergy:     left,
++			RightEnergy:    right,
++			LeftPeak:       leftPeak,
++			RightPeak:      rightPeak,
++			LeftTransient:  leftTransient,
++			RightTransient: rightTransient,
++		},
++	}
++	d.audioLastLeft = left
++	d.audioLastRight = right
++	d.resetAudioAccumulatorLocked()
++
++	d.outputFunc(frame)
++}
++
++func (d *DualSense) resetAudioAccumulatorLocked() {
++	d.audioFrames = 0
++	d.audioFrontSum = 0
++	d.audioLeftSum = 0
++	d.audioRightSum = 0
++	d.audioFrontPeak = 0
++	d.audioLeftPeak = 0
++	d.audioRightPeak = 0
++}
++
++func absS16(v int16) uint16 {
++	if v == -32768 {
++		return 32768
++	}
++	if v < 0 {
++		return uint16(-v)
++	}
++	return uint16(v)
++}
++
++func scaleAudioEnergy(value uint64) uint16 {
++	const noiseFloor = 128
++	if value <= noiseFloor {
++		return 0
++	}
++	scaled := (value - noiseFloor) * 3
++	if scaled > 0xFFFF {
++		scaled = 0xFFFF
++	}
++	return uint16(scaled)
++}
++
++func looksLikeSpeakerAudio(frontAvg, hapticAvg uint64, frontPeak, leftPeak, rightPeak uint16) bool {
++	const speakerNoiseFloor = 256
++	if frontAvg <= speakerNoiseFloor || frontPeak <= 1000 {
++		return false
++	}
++	hapticPeak := leftPeak
++	if rightPeak > hapticPeak {
++		hapticPeak = rightPeak
++	}
++	if hapticAvg <= 48 && hapticPeak <= 256 {
++		return true
++	}
++	return hapticAvg*8 <= frontAvg &&
++		uint64(hapticPeak)*8 <= uint64(frontPeak) &&
++		hapticPeak < 1200
++}
++
++func (d *DualSense) handleAudioClassControl(bRequest uint8, wValue, wLength uint16, data []byte) []byte {
++	const (
++		audioSetCur = 0x01
++		audioGetCur = 0x81
++		audioGetMin = 0x82
++		audioGetMax = 0x83
++		audioGetRes = 0x84
++	)
++
++	control := uint8(wValue >> 8)
++	switch bRequest {
++	case audioSetCur:
++		return nil
++	case audioGetCur, audioGetMin, audioGetMax, audioGetRes:
++		resp := make([]byte, wLength)
++		if control == 0x01 && len(resp) >= 1 {
++			resp[0] = 0 // mute off
++		}
++		if control == 0x02 && len(resp) >= 2 {
++			// UAC1 signed 8.8 dB volume. Use a sane 0 dB current/max.
++			if bRequest == audioGetMin {
++				binary.LittleEndian.PutUint16(resp[:2], 0xD000)
++			} else if bRequest == audioGetRes {
++				binary.LittleEndian.PutUint16(resp[:2], 0x0100)
++			}
++		}
++		if control == 0x01 && len(resp) >= 3 {
++			resp[0] = 0x80
++			resp[1] = 0xBB
++			resp[2] = 0x00
++		}
++		_ = data
++		return resp
++	default:
++		return make([]byte, wLength)
++	}
++}
++
++func (d *DualSense) GetDescriptor() *usb.Descriptor {
++	return &d.descriptor
++}
++
++func (d *DualSense) GetDeviceSpecificArgs() map[string]any {
++	return map[string]any{}
++}
++
++func (d *DualSense) buildUSBInputReport(snapshot inputReportState) []byte {
++	s := snapshot.input
++	b := make([]byte, InputReportSize)
++	b[0] = ReportIDInput
++	b[1] = s.LX
++	b[2] = s.LY
++	b[3] = s.RX
++	b[4] = s.RY
++	b[5] = s.L2
++	b[6] = s.R2
++	b[7] = snapshot.reportCounter
++
++	b[8] = dpadToHat(s.DPad) | faceButtonsNibble(s.Buttons)
++	b[9] = shoulderButtonsByte(s.Buttons)
++	b[10] = systemButtonsByte(s.Buttons)
++	b[11] = 0
++
++	binary.LittleEndian.PutUint32(b[12:16], snapshot.packetSequence)
++	binary.LittleEndian.PutUint16(b[16:18], uint16(s.GyroX))
++	binary.LittleEndian.PutUint16(b[18:20], uint16(s.GyroY))
++	binary.LittleEndian.PutUint16(b[20:22], uint16(s.GyroZ))
++	binary.LittleEndian.PutUint16(b[22:24], uint16(s.AccelX))
++	binary.LittleEndian.PutUint16(b[24:26], uint16(s.AccelY))
++	binary.LittleEndian.PutUint16(b[26:28], uint16(s.AccelZ))
++	binary.LittleEndian.PutUint32(b[28:32], snapshot.sensorTimestamp)
++	b[32] = 0
++
++	touch1Counter := snapshot.touch1Tracking & 0x7F
++	if !s.Touch1Active {
++		touch1Counter |= TouchInactiveMask
++	}
++	b[33] = touch1Counter
++	encodeTouchCoords(b[34:37], s.Touch1X, s.Touch1Y)
++
++	touch2Counter := snapshot.touch2Tracking & 0x7F
++	if !s.Touch2Active {
++		touch2Counter |= TouchInactiveMask
++	}
++	b[37] = touch2Counter
++	encodeTouchCoords(b[38:41], s.Touch2X, s.Touch2Y)
++
++	binary.LittleEndian.PutUint32(b[49:53], snapshot.sensorTimestamp)
++	b[53] = batteryByte(s.BatteryLevelPercent, s.ChargeState)
++	b[54] = DS5ConnectionStateUSB
++	return b
++}
++
++func dpadToHat(dpad uint8) uint8 {
++	if dpad&DPadUp != 0 && dpad&DPadRight != 0 {
++		return DPadUSBUpRight
++	}
++	if dpad&DPadUp != 0 && dpad&DPadLeft != 0 {
++		return DPadUSBUpLeft
++	}
++	if dpad&DPadDown != 0 && dpad&DPadRight != 0 {
++		return DPadUSBDownRight
++	}
++	if dpad&DPadDown != 0 && dpad&DPadLeft != 0 {
++		return DPadUSBDownLeft
++	}
++	if dpad&DPadUp != 0 {
++		return DPadUSBUp
++	}
++	if dpad&DPadDown != 0 {
++		return DPadUSBDown
++	}
++	if dpad&DPadLeft != 0 {
++		return DPadUSBLeft
++	}
++	if dpad&DPadRight != 0 {
++		return DPadUSBRight
++	}
++	return DPadUSBNeutral
++}
++
++func faceButtonsNibble(buttons uint16) uint8 {
++	var face uint8
++	if buttons&ButtonSquare != 0 {
++		face |= 0x01
++	}
++	if buttons&ButtonCross != 0 {
++		face |= 0x02
++	}
++	if buttons&ButtonCircle != 0 {
++		face |= 0x04
++	}
++	if buttons&ButtonTriangle != 0 {
++		face |= 0x08
++	}
++	return face << 4
++}
++
++func shoulderButtonsByte(buttons uint16) uint8 {
++	var out uint8
++	if buttons&ButtonL1 != 0 {
++		out |= 0x01
++	}
++	if buttons&ButtonR1 != 0 {
++		out |= 0x02
++	}
++	if buttons&ButtonL2 != 0 {
++		out |= 0x04
++	}
++	if buttons&ButtonR2 != 0 {
++		out |= 0x08
++	}
++	if buttons&ButtonCreate != 0 {
++		out |= 0x10
++	}
++	if buttons&ButtonOptions != 0 {
++		out |= 0x20
++	}
++	if buttons&ButtonL3 != 0 {
++		out |= 0x40
++	}
++	if buttons&ButtonR3 != 0 {
++		out |= 0x80
++	}
++	return out
++}
++
++func systemButtonsByte(buttons uint16) uint8 {
++	var out uint8
++	if buttons&ButtonPS != 0 {
++		out |= 0x01
++	}
++	if buttons&ButtonTouchpadClick != 0 {
++		out |= 0x02
++	}
++	if buttons&ButtonMute != 0 {
++		out |= 0x04
++	}
++	return out
++}
++
++func encodeTouchCoords(b []byte, x, y uint16) {
++	if x > TouchpadMaxX {
++		x = TouchpadMaxX
++	}
++	if y > TouchpadMaxY {
++		y = TouchpadMaxY
++	}
++
++	b[0] = uint8(x & 0xFF)
++	b[1] = uint8((x>>8)&0x0F) | uint8((y&0x0F)<<4)
++	b[2] = uint8(y >> 4)
++}
++
++func batteryByte(levelPercent, chargeState uint8) uint8 {
++	level := levelPercent / 10
++	if level > 10 {
++		level = 10
++	}
++
++	status := uint8(DS5BatteryStatusDischarge)
++	switch chargeState {
++	case 2:
++		status = DS5BatteryStatusCharging
++	case 4:
++		status = DS5BatteryStatusFull
++	}
++	return (status << 4) | (level & 0x0F)
++}
++
++func buildCalibrationFeatureReport() []byte {
++	b := make([]byte, 41)
++	b[0] = 0x05
++	putS16 := func(offset int, value int16) {
++		binary.LittleEndian.PutUint16(b[offset:offset+2], uint16(value))
++	}
++	putS16(1, 0)
++	putS16(3, 0)
++	putS16(5, 0)
++	putS16(7, 1024)
++	putS16(9, -1024)
++	putS16(11, 1024)
++	putS16(13, -1024)
++	putS16(15, 1024)
++	putS16(17, -1024)
++	putS16(19, 64)
++	putS16(21, 64)
++	putS16(23, 8192)
++	putS16(25, -8192)
++	putS16(27, 8192)
++	putS16(29, -8192)
++	putS16(31, 8192)
++	putS16(33, -8192)
++	return b
++}
++
++func buildSerialFeatureReport() []byte {
++	b := make([]byte, 20)
++	b[0] = 0x09
++	copy(b[1:], []byte{0xC0, 0x13, 0x37, 0x05, 0x02, 0x06})
++	copy(b[7:], []byte{0x08, 0x25, 0x00})
++	return b
++}
++
++func buildCapabilitiesFeatureReport() []byte {
++	b := make([]byte, 48)
++	b[0] = 0x03
++	b[2] = 0x28
++	b[4] = 0x02 | 0x04 | 0x08 | 0x40
++	b[5] = 0x00
++	b[20] = 0x80 | 0x01
++	return b
++}
++
++func buildGenericFeatureReport(reportID uint8) []byte {
++	sizes := map[uint8]int{
++		0x08: 48,
++		0x0A: 27,
++		0x21: 5,
++		0x22: 64,
++		0x80: 64,
++		0x81: 64,
++		0x82: 10,
++		0x83: 64,
++		0x84: 64,
++		0x85: 3,
++		0xA0: 2,
++		0xE0: 64,
++		0xF0: 64,
++		0xF1: 64,
++		0xF2: 16,
++		0xF4: 64,
++		0xF5: 4,
++	}
++	size, ok := sizes[reportID]
++	if !ok {
++		return nil
++	}
++	b := make([]byte, size)
++	b[0] = reportID
++	return b
++}
++
++func fitReportLength(report []byte, wLength uint16) []byte {
++	if wLength == 0 {
++		return report
++	}
++	size := int(wLength)
++	if len(report) == size {
++		return report
++	}
++	fit := make([]byte, size)
++	copy(fit, report)
++	return fit
++}
++
++func buildFirmwareFeatureReport() []byte {
++	b := make([]byte, 64)
++	b[0] = 0x20
++
++	// Mirror VIIPER v0.7.0's report captured from a current BDM-050/060
++	// DualSense. Native PC games gate compatible-vibration v2 and adaptive
++	// trigger support on this report; the old 0x0224 value is rejected by
++	// newer titles as obsolete controller firmware.
++	copy(b[1:12], []byte("Jul 04 2025"))
++	copy(b[12:20], []byte("10:10:32"))
++	b[20] = 0x03 // HardwareType
++	b[21] = 0x01
++	b[22] = 0x44
++	binary.LittleEndian.PutUint32(b[24:28], 0x01000208) // HardwareInfo
++	b[28] = 0x36
++	b[31] = 0x01
++	b[32] = 0xC1
++	b[33] = 0xC8
++	binary.LittleEndian.PutUint16(b[44:46], 0x0630) // UpdateVersion
++	b[48] = 0x14
++	b[52] = 0x0B
++	b[54] = 0x01
++	b[56] = 0x06
++	return b
++}
++
++var defaultDescriptor = usb.Descriptor{
++	Device: usb.DeviceDescriptor{
++		BcdUSB:             0x0200,
++		BDeviceClass:       0x00,
++		BDeviceSubClass:    0x00,
++		BDeviceProtocol:    0x00,
++		BMaxPacketSize0:    0x40,
++		IDVendor:           DefaultVID,
++		IDProduct:          DefaultPID,
++		BcdDevice:          0x0100,
++		IManufacturer:      0x01,
++		IProduct:           0x02,
++		ISerialNumber:      0x00,
++		BNumConfigurations: 0x01,
++		Speed:              2,
++	},
++	Interfaces: []usb.InterfaceConfig{
++		{
++			Descriptor: usb.InterfaceDescriptor{
++				BInterfaceNumber:   0x00,
++				BAlternateSetting:  0x00,
++				BNumEndpoints:      0x00,
++				BInterfaceClass:    0x01,
++				BInterfaceSubClass: 0x01,
++				BInterfaceProtocol: 0x00,
++				IInterface:         0x00,
++			},
++			ClassDescriptors: []usb.ClassSpecificDescriptor{
++				{DescriptorType: 0x24, Payload: usb.Data{0x01, 0x00, 0x01, 0x49, 0x00, 0x02, 0x01, 0x02}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x02, 0x01, 0x01, 0x01, 0x06, 0x04, 0x33, 0x00, 0x00, 0x00}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x06, 0x02, 0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x03, 0x03, 0x01, 0x03, 0x04, 0x02, 0x00}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x02, 0x04, 0x02, 0x04, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x06, 0x05, 0x04, 0x01, 0x03, 0x00, 0x00}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x03, 0x06, 0x01, 0x01, 0x01, 0x05, 0x00}},
++			},
++		},
++		{
++			Descriptor: usb.InterfaceDescriptor{
++				BInterfaceNumber:   0x01,
++				BAlternateSetting:  0x00,
++				BNumEndpoints:      0x00,
++				BInterfaceClass:    0x01,
++				BInterfaceSubClass: 0x02,
++				BInterfaceProtocol: 0x00,
++				IInterface:         0x00,
++			},
++		},
++		{
++			Descriptor: usb.InterfaceDescriptor{
++				BInterfaceNumber:   0x01,
++				BAlternateSetting:  0x01,
++				BNumEndpoints:      0x01,
++				BInterfaceClass:    0x01,
++				BInterfaceSubClass: 0x02,
++				BInterfaceProtocol: 0x00,
++				IInterface:         0x00,
++			},
++			ClassDescriptors: []usb.ClassSpecificDescriptor{
++				{DescriptorType: 0x24, Payload: usb.Data{0x01, 0x01, 0x01, 0x01, 0x00}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x02, 0x01, 0x04, 0x02, 0x10, 0x01, 0x80, 0xBB, 0x00}},
++			},
++			Endpoints: []usb.EndpointDescriptor{
++				{
++					BEndpointAddress: EndpointAudioOut,
++					BMAttributes:     0x09,
++					WMaxPacketSize:   392,
++					BInterval:        1,
++					Extra:            usb.Data{0x00, 0x00},
++					ClassDescriptors: []usb.ClassSpecificDescriptor{
++						{DescriptorType: 0x25, Payload: usb.Data{0x01, 0x01, 0x00, 0x00, 0x00}},
++					},
++				},
++			},
++		},
++		{
++			Descriptor: usb.InterfaceDescriptor{
++				BInterfaceNumber:   0x02,
++				BAlternateSetting:  0x00,
++				BNumEndpoints:      0x00,
++				BInterfaceClass:    0x01,
++				BInterfaceSubClass: 0x02,
++				BInterfaceProtocol: 0x00,
++				IInterface:         0x00,
++			},
++		},
++		{
++			Descriptor: usb.InterfaceDescriptor{
++				BInterfaceNumber:   0x02,
++				BAlternateSetting:  0x01,
++				BNumEndpoints:      0x01,
++				BInterfaceClass:    0x01,
++				BInterfaceSubClass: 0x02,
++				BInterfaceProtocol: 0x00,
++				IInterface:         0x00,
++			},
++			ClassDescriptors: []usb.ClassSpecificDescriptor{
++				{DescriptorType: 0x24, Payload: usb.Data{0x01, 0x06, 0x01, 0x01, 0x00}},
++				{DescriptorType: 0x24, Payload: usb.Data{0x02, 0x01, 0x02, 0x02, 0x10, 0x01, 0x80, 0xBB, 0x00}},
++			},
++			Endpoints: []usb.EndpointDescriptor{
++				{
++					BEndpointAddress: EndpointAudioIn,
++					BMAttributes:     0x05,
++					WMaxPacketSize:   196,
++					BInterval:        1,
++					Extra:            usb.Data{0x00, 0x00},
++					ClassDescriptors: []usb.ClassSpecificDescriptor{
++						{DescriptorType: 0x25, Payload: usb.Data{0x01, 0x00, 0x00, 0x00, 0x00}},
++					},
++				},
++			},
++		},
++		{
++			Descriptor: usb.InterfaceDescriptor{
++				BInterfaceNumber:   0x03,
++				BAlternateSetting:  0x00,
++				BNumEndpoints:      0x02,
++				BInterfaceClass:    0x03,
++				BInterfaceSubClass: 0x00,
++				BInterfaceProtocol: 0x00,
++				IInterface:         0x00,
++			},
++			HID: &usb.HIDFunction{
++				Descriptor: usb.HIDDescriptor{
++					BcdHID:       0x0111,
++					BCountryCode: 0x00,
++					Descriptors: []usb.HIDSubDescriptor{
++						{Type: usb.ReportDescType},
++					},
++				},
++				Report: hid.Report{
++					Items: []hid.Item{
++						hid.RawItem{Data: hid.Data{
++							0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x85, 0x01,
++							0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x35,
++							0x09, 0x33, 0x09, 0x34, 0x15, 0x00, 0x26, 0xff,
++							0x00, 0x75, 0x08, 0x95, 0x06, 0x81, 0x02, 0x06,
++							0x00, 0xff, 0x09, 0x20, 0x95, 0x01, 0x81, 0x02,
++							0x05, 0x01, 0x09, 0x39, 0x15, 0x00, 0x25, 0x07,
++							0x35, 0x00, 0x46, 0x3b, 0x01, 0x65, 0x14, 0x75,
++							0x04, 0x95, 0x01, 0x81, 0x42, 0x65, 0x00, 0x05,
++							0x09, 0x19, 0x01, 0x29, 0x0f, 0x15, 0x00, 0x25,
++							0x01, 0x75, 0x01, 0x95, 0x0f, 0x81, 0x02, 0x06,
++							0x00, 0xff, 0x09, 0x21, 0x95, 0x0d, 0x81, 0x02,
++							0x06, 0x00, 0xff, 0x09, 0x22, 0x15, 0x00, 0x26,
++							0xff, 0x00, 0x75, 0x08, 0x95, 0x34, 0x81, 0x02,
++							0x85, 0x02, 0x09, 0x23, 0x95, 0x2f, 0x91, 0x02,
++							0x85, 0x05, 0x09, 0x33, 0x95, 0x28, 0xb1, 0x02,
++							0x85, 0x08, 0x09, 0x34, 0x95, 0x2f, 0xb1, 0x02,
++							0x85, 0x09, 0x09, 0x24, 0x95, 0x13, 0xb1, 0x02,
++							0x85, 0x0a, 0x09, 0x25, 0x95, 0x1a, 0xb1, 0x02,
++							0x85, 0x20, 0x09, 0x26, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0x21, 0x09, 0x27, 0x95, 0x04, 0xb1, 0x02,
++							0x85, 0x22, 0x09, 0x40, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0x80, 0x09, 0x28, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0x81, 0x09, 0x29, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0x82, 0x09, 0x2a, 0x95, 0x09, 0xb1, 0x02,
++							0x85, 0x83, 0x09, 0x2b, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0x84, 0x09, 0x2c, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0x85, 0x09, 0x2d, 0x95, 0x02, 0xb1, 0x02,
++							0x85, 0xa0, 0x09, 0x2e, 0x95, 0x01, 0xb1, 0x02,
++							0x85, 0xe0, 0x09, 0x2f, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0xf0, 0x09, 0x30, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0xf1, 0x09, 0x31, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0xf2, 0x09, 0x32, 0x95, 0x0f, 0xb1, 0x02,
++							0x85, 0xf4, 0x09, 0x35, 0x95, 0x3f, 0xb1, 0x02,
++							0x85, 0xf5, 0x09, 0x36, 0x95, 0x03, 0xb1, 0x02,
++							0xc0,
++						}},
++					},
++				},
++			},
++			Endpoints: []usb.EndpointDescriptor{
++				{
++					BEndpointAddress: EndpointIn,
++					BMAttributes:     0x03,
++					WMaxPacketSize:   64,
++					BInterval:        4,
++				},
++				{
++					BEndpointAddress: EndpointOut,
++					BMAttributes:     0x03,
++					WMaxPacketSize:   64,
++					BInterval:        4,
++				},
++			},
++		},
++	},
++	Strings: map[uint8]string{
++		0: "\u0409",
++		1: "Sony Interactive Entertainment",
++		2: "Wireless Controller",
++	},
++}
+diff --git a/device/dualsense/dualsense_test.go b/device/dualsense/dualsense_test.go
+new file mode 100644
+index 0000000..25e6247
+--- /dev/null
++++ b/device/dualsense/dualsense_test.go
+@@ -0,0 +1,343 @@
++package dualsense
++
++import (
++	"encoding/binary"
++	"testing"
++
++	"github.com/Alia5/VIIPER/device"
++	"github.com/Alia5/VIIPER/usb"
++	"github.com/Alia5/VIIPER/usbip"
++)
++
++func requireEqual[T comparable](t *testing.T, got, want T, name string) {
++	t.Helper()
++	if got != want {
++		t.Fatalf("%s: got %v, want %v", name, got, want)
++	}
++}
++
++func decodeTouchCoords(b []byte) (uint16, uint16) {
++	x := uint16(b[0]) | (uint16(b[1]&0x0F) << 8)
++	y := (uint16(b[1]) >> 4) | (uint16(b[2]) << 4)
++	return x, y
++}
++
++func TestDescriptorAndFeatureReports(t *testing.T) {
++	vendor := uint16(0x1234)
++	product := uint16(0x5678)
++	dev, err := New(&device.CreateOptions{IdVendor: &vendor, IdProduct: &product})
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	desc := dev.GetDescriptor()
++	requireEqual(t, desc.Device.IDVendor, vendor, "vendor override")
++	requireEqual(t, desc.Device.IDProduct, product, "product override")
++	requireEqual(t, desc.Device.ISerialNumber, uint8(0), "usb serial string index")
++	requireEqual(t, desc.Strings[1], "Sony Interactive Entertainment", "manufacturer string")
++	requireEqual(t, desc.Strings[2], "Wireless Controller", "product string")
++	requireEqual(t, desc.Interfaces[0].Descriptor.BInterfaceClass, uint8(0x01), "audio control interface class")
++	requireEqual(t, desc.Interfaces[2].Endpoints[0].BEndpointAddress, uint8(EndpointAudioOut), "audio output endpoint")
++	requireEqual(t, desc.Interfaces[4].Endpoints[0].BEndpointAddress, uint8(EndpointAudioIn), "audio input endpoint")
++	requireEqual(t, desc.Interfaces[5].Descriptor.BInterfaceClass, uint8(0x03), "hid interface class")
++	requireEqual(t, desc.Interfaces[5].Endpoints[0].BEndpointAddress, uint8(EndpointIn), "input endpoint")
++	requireEqual(t, desc.Interfaces[5].Endpoints[1].BEndpointAddress, uint8(EndpointOut), "output endpoint")
++
++	report, err := desc.Interfaces[5].HID.ReportBytes()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(report) == 0 {
++		t.Fatal("empty report descriptor")
++	}
++	requireEqual(t, len(report), 273, "hid report descriptor length")
++	if !containsReportID(report, 0x05) {
++		t.Fatal("report descriptor does not declare calibration feature report 0x05")
++	}
++
++	for _, tc := range []struct {
++		name    string
++		wValue  uint16
++		wLength uint16
++		wantID  byte
++	}{
++		{"capabilities", 0x0303, 48, 0x03},
++		{"calibration", 0x0305, 41, 0x05},
++		{"serial", 0x0309, 20, 0x09},
++		{"firmware", 0x0320, 64, 0x20},
++		{"generic", 0x0380, 64, 0x80},
++	} {
++		resp, handled := dev.HandleControl(0xA1, 0x01, tc.wValue, 0, tc.wLength, nil)
++		if !handled {
++			t.Fatalf("%s: feature report was not handled", tc.name)
++		}
++		requireEqual(t, len(resp), int(tc.wLength), tc.name+" length")
++		requireEqual(t, resp[0], tc.wantID, tc.name+" report id")
++		if tc.name == "serial" {
++			requireEqual(t, resp[7], byte(0x08), "serial pairing constant 0")
++			requireEqual(t, resp[8], byte(0x25), "serial pairing constant 1")
++			requireEqual(t, resp[9], byte(0x00), "serial pairing constant 2")
++		}
++		if tc.name == "firmware" {
++			requireEqual(t, string(resp[1:12]), "Jul 04 2025", "firmware build date")
++			requireEqual(t, string(resp[12:20]), "10:10:32", "firmware build time")
++			requireEqual(t, binary.LittleEndian.Uint16(resp[20:22]), uint16(0x0103), "firmware type")
++			requireEqual(t, binary.LittleEndian.Uint32(resp[24:28]), uint32(0x01000208), "hardware info")
++			requireEqual(t, binary.LittleEndian.Uint32(resp[28:32]), uint32(0x01000036), "firmware version")
++			requireEqual(t, binary.LittleEndian.Uint16(resp[44:46]), uint16(0x0630), "firmware update version")
++		}
++	}
++}
++
++func TestInputStateWireRoundTrip(t *testing.T) {
++	in := InputState{
++		LX:                  1,
++		LY:                  2,
++		RX:                  3,
++		RY:                  4,
++		L2:                  5,
++		R2:                  6,
++		DPad:                DPadUp | DPadLeft,
++		Buttons:             ButtonCross | ButtonPS | ButtonTouchpadClick,
++		Touch1X:             100,
++		Touch1Y:             200,
++		Touch1Active:        true,
++		Touch2X:             300,
++		Touch2Y:             400,
++		Touch2Active:        true,
++		GyroX:               -1,
++		GyroY:               -2,
++		GyroZ:               3,
++		AccelX:              4,
++		AccelY:              -5,
++		AccelZ:              6,
++		BatteryLevelPercent: 87,
++		ChargeState:         4,
++	}
++
++	data, err := in.MarshalBinary()
++	if err != nil {
++		t.Fatal(err)
++	}
++	requireEqual(t, len(data), 33, "input wire size")
++
++	var out InputState
++	if err := out.UnmarshalBinary(data); err != nil {
++		t.Fatal(err)
++	}
++	requireEqual(t, out, in, "input round trip")
++}
++
++func TestInputReport(t *testing.T) {
++	dev, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	dev.UpdateInputState(&InputState{
++		LX:                  0x11,
++		LY:                  0x22,
++		RX:                  0x33,
++		RY:                  0x44,
++		L2:                  0x55,
++		R2:                  0x66,
++		DPad:                DPadUp | DPadRight,
++		Buttons:             ButtonCross | ButtonCircle | ButtonL1 | ButtonR2 | ButtonOptions | ButtonPS | ButtonTouchpadClick | ButtonMute,
++		Touch1X:             1000,
++		Touch1Y:             500,
++		Touch1Active:        true,
++		Touch2X:             0,
++		Touch2Y:             0,
++		Touch2Active:        false,
++		GyroX:               -1234,
++		GyroY:               2345,
++		GyroZ:               -3456,
++		AccelX:              4567,
++		AccelY:              -5678,
++		AccelZ:              6789,
++		BatteryLevelPercent: 87,
++		ChargeState:         4,
++	})
++
++	report := dev.HandleTransfer(4, usbip.DirIn, nil)
++	requireEqual(t, len(report), InputReportSize, "input report size")
++	requireEqual(t, report[0], byte(ReportIDInput), "input report id")
++	requireEqual(t, report[1], byte(0x11), "left stick x")
++	requireEqual(t, report[6], byte(0x66), "right trigger")
++	requireEqual(t, report[8], byte(0x61), "dpad and face buttons")
++	requireEqual(t, report[9], byte(0x29), "shoulder buttons")
++	requireEqual(t, report[10], byte(0x07), "system buttons")
++	requireEqual(t, binary.LittleEndian.Uint32(report[12:16]), uint32(1), "packet sequence")
++	requireEqual(t, int16(binary.LittleEndian.Uint16(report[16:18])), int16(-1234), "gyro x")
++	requireEqual(t, int16(binary.LittleEndian.Uint16(report[26:28])), int16(6789), "accel z")
++	requireEqual(t, binary.LittleEndian.Uint32(report[28:32]), uint32(12000), "sensor timestamp")
++
++	requireEqual(t, report[33], byte(1), "touch1 tracking")
++	x, y := decodeTouchCoords(report[34:37])
++	requireEqual(t, x, uint16(1000), "touch1 x")
++	requireEqual(t, y, uint16(500), "touch1 y")
++	requireEqual(t, report[37]&TouchInactiveMask, TouchInactiveMask, "touch2 inactive")
++	requireEqual(t, binary.LittleEndian.Uint32(report[49:53]), uint32(12000), "secondary timestamp")
++	requireEqual(t, report[53], byte(0x28), "battery byte")
++	requireEqual(t, report[54], byte(DS5ConnectionStateUSB), "usb connection state")
++}
++
++func TestOutputFeedback(t *testing.T) {
++	report := make([]byte, OutputReportSize)
++	report[0] = ReportIDOutput
++	report[1] = 0x03
++	report[2] = 0x04
++	report[3] = 0x21
++	report[4] = 0xDC
++	report[11] = 0xAA
++	report[21] = 0xBB
++	report[22] = 0xCC
++	report[32] = 0xDD
++	report[39] = 0x40
++
++	feedback, ok := parseOutputReport(report)
++	if !ok {
++		t.Fatal("output report was not parsed")
++	}
++	requireEqual(t, feedback.EnableBits1, uint8(0x03), "enable bits 1")
++	requireEqual(t, feedback.EnableBits2, uint8(0x04), "enable bits 2")
++	requireEqual(t, feedback.RumbleRight, uint8(0x21), "right rumble")
++	requireEqual(t, feedback.RumbleLeft, uint8(0xDC), "left rumble")
++	requireEqual(t, feedback.RightTriggerEffect[0], uint8(0xAA), "right trigger first byte")
++	requireEqual(t, feedback.RightTriggerEffect[10], uint8(0xBB), "right trigger last byte")
++	requireEqual(t, feedback.LeftTriggerEffect[0], uint8(0xCC), "left trigger first byte")
++	requireEqual(t, feedback.LeftTriggerEffect[10], uint8(0xDD), "left trigger last byte")
++	requireEqual(t, feedback.EnableBits3, uint8(0x40), "enable bits 3")
++
++	bluetoothReport := make([]byte, 78)
++	bluetoothReport[0] = ReportIDBluetoothEffects
++	bluetoothReport[2] = 0x10
++	bluetoothReport[3] = 0x01
++	bluetoothReport[5] = 0x77
++	bluetoothReport[6] = 0x88
++	bluetoothFeedback, ok := parseOutputReport(bluetoothReport)
++	if !ok {
++		t.Fatal("bluetooth-style output report was not parsed")
++	}
++	requireEqual(t, bluetoothFeedback.RumbleRight, uint8(0x77), "bluetooth right rumble")
++	requireEqual(t, bluetoothFeedback.RumbleLeft, uint8(0x88), "bluetooth left rumble")
++
++	data, err := feedback.MarshalBinary()
++	if err != nil {
++		t.Fatal(err)
++	}
++	requireEqual(t, len(data), 27, "feedback wire size")
++
++	var roundTrip OutputState
++	if err := roundTrip.UnmarshalBinary(data); err != nil {
++		t.Fatal(err)
++	}
++	requireEqual(t, roundTrip, feedback, "feedback round trip")
++}
++
++func containsReportID(report []byte, id byte) bool {
++	for i := 0; i+1 < len(report); i++ {
++		if report[i] == 0x85 && report[i+1] == id {
++			return true
++		}
++	}
++	return false
++}
++
++func TestOutputCallback(t *testing.T) {
++	dev, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	var got OutputState
++	called := false
++	dev.SetOutputCallback(func(frame FeedbackFrame) {
++		got = frame.HID
++		called = true
++	})
++
++	report := make([]byte, OutputReportSize)
++	report[0] = ReportIDOutput
++	report[3] = 0x44
++	report[4] = 0x55
++	dev.HandleTransfer(3, usbip.DirOut, report)
++
++	if !called {
++		t.Fatal("output callback was not called")
++	}
++	requireEqual(t, got.RumbleRight, uint8(0x44), "callback right rumble")
++	requireEqual(t, got.RumbleLeft, uint8(0x55), "callback left rumble")
++}
++
++func TestAudioHapticsIsoFeedback(t *testing.T) {
++	dev, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	var got FeedbackFrame
++	called := false
++	dev.SetOutputCallback(func(frame FeedbackFrame) {
++		got = frame
++		called = true
++	})
++
++	pcm := make([]byte, 240*8)
++	leftSample := int16(12000)
++	rightSample := int16(-18000)
++	for i := 0; i < 240; i++ {
++		base := i * 8
++		binary.LittleEndian.PutUint16(pcm[base+4:base+6], uint16(leftSample))
++		binary.LittleEndian.PutUint16(pcm[base+6:base+8], uint16(rightSample))
++	}
++	resp, packets := dev.HandleIsoTransfer(1, usbip.DirOut, pcm, []usb.IsoPacket{
++		{Offset: 0, Length: uint32(len(pcm))},
++	})
++	if len(resp) != 0 {
++		t.Fatal("audio OUT should not return payload")
++	}
++	requireEqual(t, len(packets), 1, "iso response packet count")
++	requireEqual(t, packets[0].ActualLength, uint32(len(pcm)), "iso actual length")
++	if !called {
++		t.Fatal("audio haptics callback was not called")
++	}
++	requireEqual(t, got.Type, uint8(FeedbackFrameAudioHaptics), "audio frame type")
++	requireEqual(t, got.Audio.Sequence, uint32(1), "audio sequence")
++	if got.Audio.LeftEnergy == 0 || got.Audio.RightEnergy == 0 {
++		t.Fatal("audio energy was not extracted from haptic channels")
++	}
++	if got.Audio.RightEnergy <= got.Audio.LeftEnergy {
++		t.Fatal("right audio energy should be higher than left in test PCM")
++	}
++}
++
++func TestAudioHapticsIgnoresSpeakerAudio(t *testing.T) {
++	dev, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	called := false
++	dev.SetOutputCallback(func(frame FeedbackFrame) {
++		if frame.Type == FeedbackFrameAudioHaptics {
++			called = true
++		}
++	})
++
++	pcm := make([]byte, 240*8)
++	putS16 := func(dst []byte, v int16) {
++		binary.LittleEndian.PutUint16(dst, uint16(v))
++	}
++	for i := 0; i < 240; i++ {
++		base := i * 8
++		putS16(pcm[base:base+2], 18000)
++		putS16(pcm[base+2:base+4], -16000)
++		putS16(pcm[base+4:base+6], 60)
++		putS16(pcm[base+6:base+8], -40)
++	}
++	dev.HandleIsoTransfer(1, usbip.DirOut, pcm, []usb.IsoPacket{
++		{Offset: 0, Length: uint32(len(pcm))},
++	})
++	if called {
++		t.Fatal("speaker audio was incorrectly emitted as haptic feedback")
++	}
++}
+diff --git a/device/dualsense/handler.go b/device/dualsense/handler.go
+new file mode 100644
+index 0000000..5204510
+--- /dev/null
++++ b/device/dualsense/handler.go
+@@ -0,0 +1,60 @@
++package dualsense
++
++import (
++	"fmt"
++	"io"
++	"log/slog"
++	"net"
++
++	"github.com/Alia5/VIIPER/device"
++	"github.com/Alia5/VIIPER/internal/server/api"
++	"github.com/Alia5/VIIPER/usb"
++)
++
++func init() {
++	api.RegisterDevice("dualsense", &handler{})
++}
++
++type handler struct{}
++
++func (h *handler) CreateDevice(o *device.CreateOptions) (usb.Device, error) { return New(o) }
++
++func (h *handler) StreamHandler() api.StreamHandlerFunc {
++	return func(conn net.Conn, devPtr *usb.Device, logger *slog.Logger) error {
++		if devPtr == nil || *devPtr == nil {
++			return fmt.Errorf("nil device")
++		}
++		ds, ok := (*devPtr).(*DualSense)
++		if !ok {
++			return fmt.Errorf("device is not dualsense")
++		}
++
++		ds.SetOutputCallback(func(frame FeedbackFrame) {
++			data, err := frame.MarshalBinary()
++			if err != nil {
++				logger.Error("failed to marshal feedback", "error", err)
++				return
++			}
++			if _, err := conn.Write(data); err != nil {
++				logger.Error("failed to send feedback", "error", err)
++			}
++		})
++
++		buf := make([]byte, 33)
++		for {
++			if _, err := io.ReadFull(conn, buf); err != nil {
++				if err == io.EOF {
++					logger.Info("client disconnected")
++					return nil
++				}
++				return fmt.Errorf("read input state: %w", err)
++			}
++
++			var state InputState
++			if err := state.UnmarshalBinary(buf); err != nil {
++				return fmt.Errorf("unmarshal input state: %w", err)
++			}
++			ds.UpdateInputState(&state)
++		}
++	}
++}
+diff --git a/device/dualsense/inputstate.go b/device/dualsense/inputstate.go
+new file mode 100644
+index 0000000..1c2a494
+--- /dev/null
++++ b/device/dualsense/inputstate.go
+@@ -0,0 +1,173 @@
++package dualsense
++
++import (
++	"encoding/binary"
++	"io"
++)
++
++// viiper:wire dualsense c2s stickLX:u8 stickLY:u8 stickRX:u8 stickRY:u8 triggerL2:u8 triggerR2:u8 dpad:u8 buttons:u16 touch1X:u16 touch1Y:u16 touch1Active:bool touch2X:u16 touch2Y:u16 touch2Active:bool gyroX:i16 gyroY:i16 gyroZ:i16 accelX:i16 accelY:i16 accelZ:i16 batteryLevelPercent:u8 chargeState:u8
++type InputState struct {
++	LX, LY uint8
++	RX, RY uint8
++	L2, R2 uint8
++	DPad   uint8
++
++	Buttons uint16
++
++	Touch1X, Touch1Y uint16
++	Touch1Active     bool
++	Touch2X, Touch2Y uint16
++	Touch2Active     bool
++
++	GyroX, GyroY, GyroZ    int16
++	AccelX, AccelY, AccelZ int16
++	BatteryLevelPercent    uint8
++	ChargeState            uint8
++}
++
++func (s *InputState) MarshalBinary() ([]byte, error) {
++	b := make([]byte, 33)
++	b[0] = s.LX
++	b[1] = s.LY
++	b[2] = s.RX
++	b[3] = s.RY
++	b[4] = s.L2
++	b[5] = s.R2
++	b[6] = s.DPad
++	binary.LittleEndian.PutUint16(b[7:9], s.Buttons)
++	binary.LittleEndian.PutUint16(b[9:11], s.Touch1X)
++	binary.LittleEndian.PutUint16(b[11:13], s.Touch1Y)
++	if s.Touch1Active {
++		b[13] = 1
++	}
++	binary.LittleEndian.PutUint16(b[14:16], s.Touch2X)
++	binary.LittleEndian.PutUint16(b[16:18], s.Touch2Y)
++	if s.Touch2Active {
++		b[18] = 1
++	}
++	binary.LittleEndian.PutUint16(b[19:21], uint16(s.GyroX))
++	binary.LittleEndian.PutUint16(b[21:23], uint16(s.GyroY))
++	binary.LittleEndian.PutUint16(b[23:25], uint16(s.GyroZ))
++	binary.LittleEndian.PutUint16(b[25:27], uint16(s.AccelX))
++	binary.LittleEndian.PutUint16(b[27:29], uint16(s.AccelY))
++	binary.LittleEndian.PutUint16(b[29:31], uint16(s.AccelZ))
++	b[31] = s.BatteryLevelPercent
++	b[32] = s.ChargeState
++	return b, nil
++}
++
++func (s *InputState) UnmarshalBinary(data []byte) error {
++	if len(data) < 33 {
++		return io.ErrUnexpectedEOF
++	}
++	s.LX = data[0]
++	s.LY = data[1]
++	s.RX = data[2]
++	s.RY = data[3]
++	s.L2 = data[4]
++	s.R2 = data[5]
++	s.DPad = data[6]
++	s.Buttons = binary.LittleEndian.Uint16(data[7:9])
++	s.Touch1X = binary.LittleEndian.Uint16(data[9:11])
++	s.Touch1Y = binary.LittleEndian.Uint16(data[11:13])
++	s.Touch1Active = data[13] != 0
++	s.Touch2X = binary.LittleEndian.Uint16(data[14:16])
++	s.Touch2Y = binary.LittleEndian.Uint16(data[16:18])
++	s.Touch2Active = data[18] != 0
++	s.GyroX = int16(binary.LittleEndian.Uint16(data[19:21]))
++	s.GyroY = int16(binary.LittleEndian.Uint16(data[21:23]))
++	s.GyroZ = int16(binary.LittleEndian.Uint16(data[23:25]))
++	s.AccelX = int16(binary.LittleEndian.Uint16(data[25:27]))
++	s.AccelY = int16(binary.LittleEndian.Uint16(data[27:29]))
++	s.AccelZ = int16(binary.LittleEndian.Uint16(data[29:31]))
++	s.BatteryLevelPercent = data[31]
++	s.ChargeState = data[32]
++	return nil
++}
++
++// viiper:wire dualsense s2c enableBits1:u8 enableBits2:u8 rumbleRight:u8 rumbleLeft:u8 enableBits3:u8 rightTriggerEffect:u8*11 leftTriggerEffect:u8*11
++type OutputState struct {
++	EnableBits1        uint8
++	EnableBits2        uint8
++	RumbleRight        uint8
++	RumbleLeft         uint8
++	EnableBits3        uint8
++	RightTriggerEffect [11]uint8
++	LeftTriggerEffect  [11]uint8
++}
++
++func (f *OutputState) MarshalBinary() ([]byte, error) {
++	b := make([]byte, 27)
++	b[0] = f.EnableBits1
++	b[1] = f.EnableBits2
++	b[2] = f.RumbleRight
++	b[3] = f.RumbleLeft
++	b[4] = f.EnableBits3
++	copy(b[5:16], f.RightTriggerEffect[:])
++	copy(b[16:27], f.LeftTriggerEffect[:])
++	return b, nil
++}
++
++func (f *OutputState) UnmarshalBinary(data []byte) error {
++	if len(data) < 27 {
++		return io.ErrUnexpectedEOF
++	}
++	f.EnableBits1 = data[0]
++	f.EnableBits2 = data[1]
++	f.RumbleRight = data[2]
++	f.RumbleLeft = data[3]
++	f.EnableBits3 = data[4]
++	copy(f.RightTriggerEffect[:], data[5:16])
++	copy(f.LeftTriggerEffect[:], data[16:27])
++	return nil
++}
++
++type AudioHapticsState struct {
++	Sequence       uint32
++	LeftEnergy     uint16
++	RightEnergy    uint16
++	LeftPeak       uint16
++	RightPeak      uint16
++	LeftTransient  uint16
++	RightTransient uint16
++}
++
++func (s *AudioHapticsState) MarshalBinary() ([]byte, error) {
++	b := make([]byte, 16)
++	binary.LittleEndian.PutUint32(b[0:4], s.Sequence)
++	binary.LittleEndian.PutUint16(b[4:6], s.LeftEnergy)
++	binary.LittleEndian.PutUint16(b[6:8], s.RightEnergy)
++	binary.LittleEndian.PutUint16(b[8:10], s.LeftPeak)
++	binary.LittleEndian.PutUint16(b[10:12], s.RightPeak)
++	binary.LittleEndian.PutUint16(b[12:14], s.LeftTransient)
++	binary.LittleEndian.PutUint16(b[14:16], s.RightTransient)
++	return b, nil
++}
++
++type FeedbackFrame struct {
++	Type  uint8
++	HID   OutputState
++	Audio AudioHapticsState
++}
++
++func (f *FeedbackFrame) MarshalBinary() ([]byte, error) {
++	var payload []byte
++	var err error
++	switch f.Type {
++	case FeedbackFrameHIDOutput:
++		payload, err = f.HID.MarshalBinary()
++	case FeedbackFrameAudioHaptics:
++		payload, err = f.Audio.MarshalBinary()
++	default:
++		payload = nil
++	}
++	if err != nil {
++		return nil, err
++	}
++
++	b := make([]byte, 3+len(payload))
++	b[0] = f.Type
++	binary.LittleEndian.PutUint16(b[1:3], uint16(len(payload)))
++	copy(b[3:], payload)
++	return b, nil
++}
+diff --git a/internal/registry/devices.go b/internal/registry/devices.go
+index 9e57d75..95d5bcc 100644
+--- a/internal/registry/devices.go
++++ b/internal/registry/devices.go
+@@ -1,6 +1,7 @@
+ package registry
+ 
+ import (
++	_ "github.com/Alia5/VIIPER/device/dualsense"
+ 	_ "github.com/Alia5/VIIPER/device/dualshock4"
+ 	_ "github.com/Alia5/VIIPER/device/keyboard"
+ 	_ "github.com/Alia5/VIIPER/device/mouse"
+diff --git a/internal/server/usb/server.go b/internal/server/usb/server.go
+index 24da95d..988b784 100644
+--- a/internal/server/usb/server.go
++++ b/internal/server/usb/server.go
+@@ -33,6 +33,8 @@ type batchingWriter struct {
+ 
+ const (
+ 	retSubmitHeaderSize = 0x30
++	nonIsoPacketCount   = 0xFFFFFFFF
++	isoOutSubmitDelay   = 2 * time.Millisecond
+ 
+ 	// avoid windows socket overhead while keeping latency very low.
+ 	writeBatcherBufferSize   = 256 * 1024
+@@ -125,6 +127,8 @@ const (
+ 	usbReqSetDescriptor    = 0x07
+ 	usbReqGetConfiguration = 0x08
+ 	usbReqSetConfiguration = 0x09
++	usbReqGetInterface     = 0x0A
++	usbReqSetInterface     = 0x0B
+ 
+ 	// USB descriptor types
+ 	usbDescTypeDevice        = 0x01
+@@ -134,9 +138,10 @@ const (
+ 	usbDescTypeHIDReport     = 0x22
+ 
+ 	// USB request types (bmRequestType)
+-	usbReqTypeStandardToDevice    = 0x00
+-	usbReqTypeStandardToInterface = 0x81
+-	usbReqTypeStandardFromDevice  = 0x80
++	usbReqTypeStandardToDevice     = 0x00
++	usbReqTypeStandardOutInterface = 0x01
++	usbReqTypeStandardToInterface  = 0x81
++	usbReqTypeStandardFromDevice   = 0x80
+ 
+ 	// USB configuration values
+ 	usbConfigValueDefault   = 1
+@@ -144,16 +149,19 @@ const (
+ 	usbConfigMaxPower100mA  = 50 // In units of 2mA
+ 
+ 	// URB header field offsets
+-	urbHdrSize          = 0x30
+-	urbHdrOffsetCommand = 0x00
+-	urbHdrOffsetSeqnum  = 0x04
+-	urbHdrOffsetDevid   = 0x08
+-	urbHdrOffsetDir     = 0x0c
+-	urbHdrOffsetEp      = 0x10
+-	urbHdrOffsetUnlink  = 0x14
+-	urbHdrOffsetFlags   = 0x14
+-	urbHdrOffsetLength  = 0x18
+-	urbHdrOffsetSetup   = 0x28
++	urbHdrSize                  = 0x30
++	urbHdrOffsetCommand         = 0x00
++	urbHdrOffsetSeqnum          = 0x04
++	urbHdrOffsetDevid           = 0x08
++	urbHdrOffsetDir             = 0x0c
++	urbHdrOffsetEp              = 0x10
++	urbHdrOffsetUnlink          = 0x14
++	urbHdrOffsetFlags           = 0x14
++	urbHdrOffsetLength          = 0x18
++	urbHdrOffsetStartFrame      = 0x1c
++	urbHdrOffsetNumberOfPackets = 0x20
++	urbHdrOffsetInterval        = 0x24
++	urbHdrOffsetSetup           = 0x28
+ 
+ 	// Standard header peek size
+ 	headerPeekSize = 8
+@@ -436,16 +444,10 @@ func (s *Server) handleDevList(conn net.Conn) error {
+ 			BDeviceProtocol:     desc.Device.BDeviceProtocol,
+ 			BConfigurationValue: usbConfigValueDefault,
+ 			BNumConfigurations:  desc.Device.BNumConfigurations,
+-			BNumInterfaces:      uint8(len(desc.Interfaces)),
++			BNumInterfaces:      uniqueInterfaceCount(desc),
+ 		}
+ 
+-		for _, iface := range desc.Interfaces {
+-			exp.Interfaces = append(exp.Interfaces, usbip.InterfaceDesc{
+-				Class:    iface.Descriptor.BInterfaceClass,
+-				SubClass: iface.Descriptor.BInterfaceSubClass,
+-				Protocol: iface.Descriptor.BInterfaceProtocol,
+-			})
+-		}
++		exp.Interfaces = appendUniqueInterfaceDescs(exp.Interfaces, desc)
+ 		_ = exp.WriteDevlist(&buf)
+ 	}
+ 	if _, err := conn.Write(buf.Bytes()); err != nil {
+@@ -492,14 +494,7 @@ func (s *Server) handleImport(conn net.Conn, first8 []byte) (usb.Device, error)
+ 		BDeviceProtocol:     chosenDesc.Device.BDeviceProtocol,
+ 		BConfigurationValue: usbConfigValueDefault,
+ 		BNumConfigurations:  chosenDesc.Device.BNumConfigurations,
+-		BNumInterfaces:      uint8(len(chosenDesc.Interfaces)),
+-	}
+-	for _, iface := range chosenDesc.Interfaces {
+-		exp.Interfaces = append(exp.Interfaces, usbip.InterfaceDesc{
+-			Class:    iface.Descriptor.BInterfaceClass,
+-			SubClass: iface.Descriptor.BInterfaceSubClass,
+-			Protocol: iface.Descriptor.BInterfaceProtocol,
+-		})
++		BNumInterfaces:      uniqueInterfaceCount(chosenDesc),
+ 	}
+ 	_ = exp.WriteImport(&buf)
+ 	if _, err := conn.Write(buf.Bytes()); err != nil {
+@@ -519,6 +514,31 @@ func (s *Server) getAllDeviceMetas() []virtualbus.DeviceMeta {
+ 	return out
+ }
+ 
++func uniqueInterfaceCount(desc *usb.Descriptor) uint8 {
++	seen := map[uint8]bool{}
++	for _, iface := range desc.Interfaces {
++		seen[iface.Descriptor.BInterfaceNumber] = true
++	}
++	return uint8(len(seen))
++}
++
++func appendUniqueInterfaceDescs(dst []usbip.InterfaceDesc, desc *usb.Descriptor) []usbip.InterfaceDesc {
++	seen := map[uint8]bool{}
++	for _, iface := range desc.Interfaces {
++		number := iface.Descriptor.BInterfaceNumber
++		if seen[number] {
++			continue
++		}
++		seen[number] = true
++		dst = append(dst, usbip.InterfaceDesc{
++			Class:    iface.Descriptor.BInterfaceClass,
++			SubClass: iface.Descriptor.BInterfaceSubClass,
++			Protocol: iface.Descriptor.BInterfaceProtocol,
++		})
++	}
++	return dst
++}
++
+ type readBufferConn struct {
+ 	net.Conn
+ 	buf []byte
+@@ -566,6 +586,82 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 	} else {
+ 		writer = conn
+ 	}
++	var writerMu sync.Mutex
++
++	writeRetSubmit := func(ret usbip.RetSubmit, respData []byte, respIsoPackets []usbip.IsoPacketDescriptor) error {
++		var out bytes.Buffer
++		out.Grow(retSubmitHeaderSize)
++		if err := ret.Write(&out); err != nil {
++			return fmt.Errorf("build RET_SUBMIT header: %w", err)
++		}
++		writerMu.Lock()
++		defer writerMu.Unlock()
++		if _, err := writer.Write(out.Bytes()); err != nil {
++			return fmt.Errorf("write RET_SUBMIT: %w", err)
++		}
++		if len(respData) > 0 {
++			if _, err := writer.Write(respData); err != nil {
++				return fmt.Errorf("write RET_SUBMIT payload: %w", err)
++			}
++		}
++		for i := range respIsoPackets {
++			if err := respIsoPackets[i].Write(writer); err != nil {
++				return fmt.Errorf("write RET_SUBMIT ISO packet descriptor: %w", err)
++			}
++		}
++		return nil
++	}
++
++	writeRetUnlink := func(ret usbip.RetUnlink) error {
++		writerMu.Lock()
++		defer writerMu.Unlock()
++		return ret.Write(writer)
++	}
++
++	type pendingIsoOutSubmit struct {
++		ret usbip.RetSubmit
++		iso []usbip.IsoPacketDescriptor
++		t   *time.Timer
++	}
++	var pendingMu sync.Mutex
++	pendingIsoOut := map[uint32]*pendingIsoOutSubmit{}
++	defer func() {
++		pendingMu.Lock()
++		defer pendingMu.Unlock()
++		for _, pending := range pendingIsoOut {
++			if pending.t != nil {
++				pending.t.Stop()
++			}
++		}
++		pendingIsoOut = nil
++	}()
++
++	scheduleIsoOutSubmit := func(seq uint32, ret usbip.RetSubmit, respIsoPackets []usbip.IsoPacketDescriptor) {
++		pending := &pendingIsoOutSubmit{
++			ret: ret,
++			iso: append([]usbip.IsoPacketDescriptor(nil), respIsoPackets...),
++		}
++		pendingMu.Lock()
++		pendingIsoOut[seq] = pending
++		pendingMu.Unlock()
++		pending.t = time.AfterFunc(isoOutSubmitDelay, func() {
++			pendingMu.Lock()
++			if pendingIsoOut == nil {
++				pendingMu.Unlock()
++				return
++			}
++			current, ok := pendingIsoOut[seq]
++			if !ok || current != pending {
++				pendingMu.Unlock()
++				return
++			}
++			delete(pendingIsoOut, seq)
++			pendingMu.Unlock()
++			if err := writeRetSubmit(pending.ret, nil, pending.iso); err != nil && !isClientDisconnect(err) {
++				s.logger.Error("failed to write delayed ISO OUT RET_SUBMIT", "seq", seq, "error", err)
++			}
++		})
++	}
+ 
+ 	var owningBus *virtualbus.VirtualBus
+ 	for _, b := range s.busses {
+@@ -637,9 +733,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 		if cmd == usbip.CmdUnlinkCode {
+ 			unlinkSeq := binary.BigEndian.Uint32(hdr[urbHdrOffsetUnlink : urbHdrOffsetUnlink+4])
+ 			s.logger.Debug("USBIP_CMD_UNLINK", "seq", seq, "unlink", unlinkSeq)
++			pendingMu.Lock()
++			if pending, ok := pendingIsoOut[unlinkSeq]; ok {
++				delete(pendingIsoOut, unlinkSeq)
++				if pending.t != nil {
++					pending.t.Stop()
++				}
++				s.logger.Debug("suppressed delayed ISO OUT RET_SUBMIT after unlink", "seq", seq, "unlink", unlinkSeq)
++			}
++			pendingMu.Unlock()
+ 			// Reply with -ECONNRESET
+ 			ret := usbip.RetUnlink{Basic: usbip.HeaderBasic{Command: usbip.RetUnlinkCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0}, Status: errConnReset}
+-			_ = ret.Write(writer)
++			_ = writeRetUnlink(ret)
+ 			continue
+ 		}
+ 		if cmd != usbip.CmdSubmitCode {
+@@ -647,6 +752,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 		}
+ 		xferFlags := binary.BigEndian.Uint32(hdr[urbHdrOffsetFlags : urbHdrOffsetFlags+4])
+ 		xferLen := binary.BigEndian.Uint32(hdr[urbHdrOffsetLength : urbHdrOffsetLength+4])
++		startFrame := binary.BigEndian.Uint32(hdr[urbHdrOffsetStartFrame : urbHdrOffsetStartFrame+4])
++		numberOfPackets := binary.BigEndian.Uint32(hdr[urbHdrOffsetNumberOfPackets : urbHdrOffsetNumberOfPackets+4])
++		isIsoTransfer := numberOfPackets != 0 && numberOfPackets != nonIsoPacketCount
+ 		setup := hdr[urbHdrOffsetSetup:urbHdrSize]
+ 
+ 		var outPayload []byte
+@@ -657,7 +765,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 			}
+ 		}
+ 
+-		respData := s.processSubmit(dev, ep, dir, setup, outPayload)
++		var isoPackets []usbip.IsoPacketDescriptor
++		if isIsoTransfer {
++			isoPackets = make([]usbip.IsoPacketDescriptor, 0, numberOfPackets)
++			for i := uint32(0); i < numberOfPackets; i++ {
++				var pkt usbip.IsoPacketDescriptor
++				if err := pkt.Read(conn); err != nil {
++					return fmt.Errorf("read ISO packet descriptor: %w", err)
++				}
++				isoPackets = append(isoPackets, pkt)
++			}
++		}
++
++		respData, respIsoPackets := s.processSubmit(dev, ep, dir, setup, outPayload, isoPackets)
+ 
+ 		actualLen := uint32(len(respData))
+ 		if dir == usbip.DirOut {
+@@ -668,22 +788,14 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 			Basic:           usbip.HeaderBasic{Command: usbip.RetSubmitCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0},
+ 			Status:          0,
+ 			ActualLength:    actualLen,
+-			StartFrame:      0,
+-			NumberOfPackets: 0,
++			StartFrame:      startFrame,
++			NumberOfPackets: uint32(len(respIsoPackets)),
+ 			ErrorCount:      0,
+ 		}
+-		var out bytes.Buffer
+-		out.Grow(retSubmitHeaderSize)
+-		if err := ret.Write(&out); err != nil {
+-			return fmt.Errorf("build RET_SUBMIT header: %w", err)
+-		}
+-		if _, err := writer.Write(out.Bytes()); err != nil {
+-			return fmt.Errorf("write RET_SUBMIT: %w", err)
+-		}
+-		if len(respData) > 0 {
+-			if _, err := writer.Write(respData); err != nil {
+-				return fmt.Errorf("write RET_SUBMIT payload: %w", err)
+-			}
++		if isIsoTransfer && dir == usbip.DirOut && len(respIsoPackets) > 0 {
++			scheduleIsoOutSubmit(seq, ret, respIsoPackets)
++		} else if err := writeRetSubmit(ret, respData, respIsoPackets); err != nil {
++			return err
+ 		}
+ 		_ = xferFlags
+ 		_ = devid
+@@ -717,12 +829,65 @@ func isClientDisconnect(err error) bool {
+ 	return false
+ }
+ 
+-func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []byte, out []byte) []byte {
++func findInterface(desc *usb.Descriptor, number, alt uint8) *usb.InterfaceConfig {
++	for i := range desc.Interfaces {
++		if desc.Interfaces[i].Descriptor.BInterfaceNumber == number &&
++			desc.Interfaces[i].Descriptor.BAlternateSetting == alt {
++			return &desc.Interfaces[i]
++		}
++	}
++	for i := range desc.Interfaces {
++		if desc.Interfaces[i].Descriptor.BInterfaceNumber == number {
++			return &desc.Interfaces[i]
++		}
++	}
++	return nil
++}
++
++func getInterfaceAlt(dev usb.Device, number uint8) uint8 {
++	if altDev, ok := dev.(usb.InterfaceAltDevice); ok {
++		return altDev.GetInterfaceAlt(number)
++	}
++	return 0
++}
++
++func setInterfaceAlt(dev usb.Device, number, alt uint8) {
++	if altDev, ok := dev.(usb.InterfaceAltDevice); ok {
++		altDev.SetInterfaceAlt(number, alt)
++	}
++}
++
++func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []byte, out []byte, isoPackets []usbip.IsoPacketDescriptor) ([]byte, []usbip.IsoPacketDescriptor) {
+ 	if ep != 0 {
+-		return dev.HandleTransfer(ep, dir, out)
++		if len(isoPackets) > 0 {
++			if isoDev, ok := dev.(usb.IsoTransferDevice); ok {
++				packets := make([]usb.IsoPacket, len(isoPackets))
++				for i, pkt := range isoPackets {
++					packets[i] = usb.IsoPacket{
++						Offset:       pkt.Offset,
++						Length:       pkt.Length,
++						ActualLength: pkt.ActualLength,
++						Status:       pkt.Status,
++					}
++				}
++				data, usbPackets := isoDev.HandleIsoTransfer(ep, dir, out, packets)
++				respPackets := make([]usbip.IsoPacketDescriptor, len(usbPackets))
++				for i, pkt := range usbPackets {
++					respPackets[i] = usbip.IsoPacketDescriptor{
++						Offset:       pkt.Offset,
++						Length:       pkt.Length,
++						ActualLength: pkt.ActualLength,
++						Status:       pkt.Status,
++					}
++				}
++				return data, respPackets
++			}
++			return dev.HandleTransfer(ep, dir, out), isoPackets
++		}
++		return dev.HandleTransfer(ep, dir, out), nil
+ 	}
+ 	if len(setup) != 8 {
+-		return nil
++		return nil, nil
+ 	}
+ 	bm := setup[0]
+ 	breq := setup[1]
+@@ -731,16 +896,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+ 	wLength := binary.LittleEndian.Uint16(setup[6:8])
+ 
+ 	if breq == usbReqGetStatus {
+-		return []byte{0x00, 0x00}
++		return []byte{0x00, 0x00}, nil
++	}
++	if (breq == usbReqClearFeature || breq == usbReqSetFeature) && (bm&0x60) == 0 {
++		return nil, nil
+ 	}
+ 	if breq == usbReqSetAddress && bm == usbReqTypeStandardToDevice {
+-		return nil
++		return nil, nil
+ 	}
+ 	if breq == usbReqSetConfiguration && bm == usbReqTypeStandardToDevice {
+-		return nil
++		return nil, nil
+ 	}
+ 	if breq == usbReqGetConfiguration && bm == usbReqTypeStandardFromDevice {
+-		return []byte{0x01}
++		return []byte{0x01}, nil
+ 	}
+ 
+ 	desc := dev.GetDescriptor()
+@@ -760,33 +928,33 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+ 			}
+ 		}
+ 		if len(data) == 0 {
+-			return nil
++			return nil, nil
+ 		}
+ 		if int(wLength) < len(data) {
+-			return data[:wLength]
++			return data[:wLength], nil
+ 		}
+-		return data
++		return data, nil
+ 	}
+ 	if breq == usbReqGetDescriptor && bm == usbReqTypeStandardToInterface {
+ 		dtype := uint8(wValue >> 8)
+ 		iface := uint8(wIndex & 0xff)
+ 		var data []byte
+-		if int(iface) < len(desc.Interfaces) {
+-			ifaceConf := desc.Interfaces[iface]
++		ifaceConf := findInterface(desc, iface, getInterfaceAlt(dev, iface))
++		if ifaceConf != nil {
+ 			if ifaceConf.HID != nil {
+ 				switch dtype {
+ 				case usbDescTypeHID:
+ 					d, err := ifaceConf.HID.DescriptorBytes()
+ 					if err != nil {
+ 						s.logger.Error("failed to build HID descriptor", "iface", iface, "error", err)
+-						return nil
++						return nil, nil
+ 					}
+ 					data = []byte(d)
+ 				case usbDescTypeHIDReport:
+ 					d, err := ifaceConf.HID.ReportBytes()
+ 					if err != nil {
+ 						s.logger.Error("failed to build HID report descriptor", "iface", iface, "error", err)
+-						return nil
++						return nil, nil
+ 					}
+ 					data = []byte(d)
+ 				}
+@@ -801,38 +969,46 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+ 			}
+ 		}
+ 		if len(data) == 0 {
+-			return nil
++			return nil, nil
+ 		}
+ 		if int(wLength) < len(data) {
+-			return data[:wLength]
++			return data[:wLength], nil
+ 		}
+-		return data
++		return data, nil
++	}
++
++	if breq == usbReqGetInterface && bm == usbReqTypeStandardToInterface {
++		return []byte{getInterfaceAlt(dev, uint8(wIndex&0xff))}, nil
++	}
++	if breq == usbReqSetInterface && bm == usbReqTypeStandardOutInterface {
++		setInterfaceAlt(dev, uint8(wIndex&0xff), uint8(wValue&0xff))
++		return nil, nil
+ 	}
+ 
+ 	if cd, ok := dev.(usb.ControlDevice); ok {
+ 		if resp, handled := cd.HandleControl(bm, breq, wValue, wIndex, wLength, out); handled {
+ 			if resp == nil {
+-				return nil
++				return nil, nil
+ 			}
+ 			if int(wLength) < len(resp) {
+-				return resp[:wLength]
++				return resp[:wLength], nil
+ 			}
+-			return resp
++			return resp, nil
+ 		}
+ 	}
+ 
+-	return nil
++	return nil, nil
+ }
+ 
+ func (s *Server) buildConfigDescriptor(desc *usb.Descriptor) []byte {
+ 	var b bytes.Buffer
+ 	h := usb.ConfigHeader{
+ 		WTotalLength:        0, // to be patched
+-		BNumInterfaces:      uint8(len(desc.Interfaces)),
++		BNumInterfaces:      uniqueInterfaceCount(desc),
+ 		BConfigurationValue: usbConfigValueDefault,
+ 		IConfiguration:      0,
+-		BMAttributes:        usbConfigAttrBusPowered,
+-		BMaxPower:           usbConfigMaxPower100mA,
++		BMAttributes:        0xC0,
++		BMaxPower:           0xFA,
+ 	}
+ 	h.Write(&b)
+ 	for _, iface := range desc.Interfaces {
+@@ -851,6 +1027,9 @@ func (s *Server) buildConfigDescriptor(desc *usb.Descriptor) []byte {
+ 		}
+ 		for _, ep := range iface.Endpoints {
+ 			ep.Write(&b)
++			for _, cd := range ep.ClassDescriptors {
++				b.Write([]byte(cd.Bytes()))
++			}
+ 		}
+ 	}
+ 
+diff --git a/usb/device.go b/usb/device.go
+index bfa4742..f217a41 100644
+--- a/usb/device.go
++++ b/usb/device.go
+@@ -1,7 +1,7 @@
+ package usb
+ 
+ // Device is the minimal interface a device must implement.
+-// It only handles non-EP0 (interrupt/bulk) transfers.
++// It only handles non-EP0 interrupt/bulk transfers.
+ type Device interface {
+ 	// HandleTransfer processes a non-EP0 transfer (interrupt/bulk).
+ 	// ep is the endpoint number (without direction). dir is usbip.DirIn or usbip.DirOut.
+@@ -28,3 +28,24 @@ type ControlDevice interface {
+ 	// If handled is true, the returned bytes (if any) will be used as the IN data stage.
+ 	HandleControl(bmRequestType, bRequest uint8, wValue, wIndex, wLength uint16, data []byte) (resp []byte, handled bool)
+ }
++
++// IsoPacket describes one isochronous packet inside a USB/IP URB.
++type IsoPacket struct {
++	Offset       uint32
++	Length       uint32
++	ActualLength uint32
++	Status       int32
++}
++
++// IsoTransferDevice is implemented by devices that need isochronous audio
++// endpoints. The server still falls back to HandleTransfer for non-ISO URBs.
++type IsoTransferDevice interface {
++	HandleIsoTransfer(ep uint32, dir uint32, out []byte, packets []IsoPacket) ([]byte, []IsoPacket)
++}
++
++// InterfaceAltDevice lets composite devices observe and report active alternate
++// settings for audio streaming interfaces.
++type InterfaceAltDevice interface {
++	SetInterfaceAlt(interfaceNumber, alternateSetting uint8)
++	GetInterfaceAlt(interfaceNumber uint8) uint8
++}
+diff --git a/usb/hid/raw.go b/usb/hid/raw.go
+new file mode 100644
+index 0000000..278b31d
+--- /dev/null
++++ b/usb/hid/raw.go
+@@ -0,0 +1,13 @@
++package hid
++
++// RawItem injects an already encoded HID descriptor byte stream.
++// It is intended for descriptors copied from hardware traces where the
++// structured item model would be more error-prone than the raw descriptor.
++type RawItem struct {
++	Data Data
++}
++
++func (r RawItem) encode(e *encoder) error {
++	e.buf = append(e.buf, r.Data...)
++	return nil
++}
+diff --git a/usb/usbdesc.go b/usb/usbdesc.go
+index 59c19a6..edc5917 100644
+--- a/usb/usbdesc.go
++++ b/usb/usbdesc.go
+@@ -164,15 +164,23 @@ type EndpointDescriptor struct {
+ 	BMAttributes     uint8
+ 	WMaxPacketSize   uint16 // LE
+ 	BInterval        uint8
++
++	// Extra bytes extend the endpoint descriptor length. Audio isochronous
++	// endpoints use this for bRefresh and bSyncAddress.
++	Extra Data
++
++	// ClassDescriptors are emitted immediately after this endpoint descriptor.
++	ClassDescriptors []ClassSpecificDescriptor
+ }
+ 
+ func (e EndpointDescriptor) Write(b *bytes.Buffer) {
+-	b.WriteByte(EndpointDescLen)
++	b.WriteByte(uint8(EndpointDescLen + len(e.Extra)))
+ 	b.WriteByte(EndpointDescType)
+ 	b.WriteByte(e.BEndpointAddress)
+ 	b.WriteByte(e.BMAttributes)
+ 	_ = binary.Write(b, binary.LittleEndian, e.WMaxPacketSize)
+ 	b.WriteByte(e.BInterval)
++	b.Write([]byte(e.Extra))
+ 
+ }
+ 
+diff --git a/usbip/usbip.go b/usbip/usbip.go
+index 6f85bed..fd46604 100644
+--- a/usbip/usbip.go
++++ b/usbip/usbip.go
+@@ -283,6 +283,41 @@ func (r *RetSubmit) Write(w io.Writer) error {
+ 	return err
+ }
+ 
++// IsoPacketDescriptor is the USB/IP isochronous packet descriptor that follows
++// the transfer buffer for ISO URBs.
++type IsoPacketDescriptor struct {
++	Offset       uint32
++	Length       uint32
++	ActualLength uint32
++	Status       int32
++}
++
++func (d *IsoPacketDescriptor) Read(r io.Reader) error {
++	if err := binary.Read(r, binary.BigEndian, &d.Offset); err != nil {
++		return err
++	}
++	if err := binary.Read(r, binary.BigEndian, &d.Length); err != nil {
++		return err
++	}
++	if err := binary.Read(r, binary.BigEndian, &d.ActualLength); err != nil {
++		return err
++	}
++	return binary.Read(r, binary.BigEndian, &d.Status)
++}
++
++func (d *IsoPacketDescriptor) Write(w io.Writer) error {
++	if err := binary.Write(w, binary.BigEndian, d.Offset); err != nil {
++		return err
++	}
++	if err := binary.Write(w, binary.BigEndian, d.Length); err != nil {
++		return err
++	}
++	if err := binary.Write(w, binary.BigEndian, d.ActualLength); err != nil {
++		return err
++	}
++	return binary.Write(w, binary.BigEndian, d.Status)
++}
++
+ // CmdUnlink and RetUnlink
+ type CmdUnlink struct {
+ 	Basic        HeaderBasic
+diff --git a/internal/server/api/autoattach_windows.go b/internal/server/api/autoattach_windows.go
+index 4c433c2..7ea31d1 100644
+--- a/internal/server/api/autoattach_windows.go
++++ b/internal/server/api/autoattach_windows.go
+@@ -53,8 +53,8 @@ const (
+ 	niMaxServ = 32
+ )
+ 
+-// PLUGIN_HARDWARE structure from usbip-win2
+-type attachIOCTL struct {
++// PLUGIN_HARDWARE structure from usbip-win2 <= v0.9.7.7.
++type attachIOCTLLegacy struct {
+ 	Size       uint32
+ 	PortOutput int32
+ 	BusID      [32]byte
+@@ -62,6 +62,12 @@ type attachIOCTL struct {
+ 	Host       [niMaxHost]byte
+ }
+ 
++// PLUGIN_HARDWARE structure from newer usbip-win2 master builds.
++type attachIOCTL struct {
++	attachIOCTLLegacy
++	Serial [16]byte
++}
++
+ const (
+ 	fileDeviceUnknown   = 0x00000022
+ 	methodBuffered      = 0
+@@ -93,21 +99,8 @@ func attachViaIOCTL(ctx context.Context, deviceExportMeta *usbip.ExportMeta, usb
+ 
+ 	logger.Debug("Found usbip-win2 device", "path", devicePath)
+ 
+-	var ioctlData attachIOCTL
+-	ioctlData.Size = uint32(unsafe.Sizeof(ioctlData))
+-
+ 	busID := fmt.Sprintf("%d-%d", deviceExportMeta.BusId, deviceExportMeta.DevId)
+-	if len(busID) >= len(ioctlData.BusID) {
+-		return fmt.Errorf("ArgumentValidation: bus ID too long: %s", busID)
+-	}
+-	copy(ioctlData.BusID[:], busID)
+-
+ 	service := fmt.Sprintf("%d", usbipServerPort)
+-	if len(service) >= len(ioctlData.Service) {
+-		return fmt.Errorf("ArgumentValidation: service string too long: %s", service)
+-	}
+-	copy(ioctlData.Service[:], service)
+-	copy(ioctlData.Host[:], "localhost")
+ 
+ 	devicePathUTF16, err := windows.UTF16PtrFromString(devicePath)
+ 	if err != nil {
+@@ -130,35 +123,76 @@ func attachViaIOCTL(ctx context.Context, deviceExportMeta *usbip.ExportMeta, usb
+ 
+ 	logger.Debug("Opened device handle")
+ 
+-	var bytesReturned uint32
+-	err = windows.DeviceIoControl(
+-		handle,
+-		ioctlPluginHardware,
+-		(*byte)(unsafe.Pointer(&ioctlData)),
+-		uint32(unsafe.Sizeof(ioctlData)),
+-		(*byte)(unsafe.Pointer(&ioctlData)),
+-		uint32(unsafe.Sizeof(ioctlData)),
+-		&bytesReturned,
+-		nil,
+-	)
++	var ioctlData attachIOCTL
++	if err := prepareAttachIOCTL(&ioctlData.attachIOCTLLegacy, uint32(unsafe.Sizeof(ioctlData)), busID, service); err != nil {
++		return err
++	}
++
++	bytesReturned, err := callAttachIOCTL(handle, unsafe.Pointer(&ioctlData), uint32(unsafe.Sizeof(ioctlData)))
++	portOutput := ioctlData.PortOutput
+ 	if err != nil {
+-		return fmt.Errorf("IOControl: DeviceIoControl failed: %w", err)
++		logger.Warn("Native IOCTL attach with current usbip-win2 ABI failed; retrying legacy ABI",
++			"error", err,
++			"currentSize", uint32(unsafe.Sizeof(ioctlData)))
++
++		var legacyData attachIOCTLLegacy
++		if legacyErr := prepareAttachIOCTL(&legacyData, uint32(unsafe.Sizeof(legacyData)), busID, service); legacyErr != nil {
++			return legacyErr
++		}
++
++		bytesReturned, err = callAttachIOCTL(handle, unsafe.Pointer(&legacyData), uint32(unsafe.Sizeof(legacyData)))
++		portOutput = legacyData.PortOutput
++		if err != nil {
++			return fmt.Errorf("IOControl: DeviceIoControl failed with current and legacy usbip-win2 ABI: %w", err)
++		}
+ 	}
+ 
+-	logger.Debug("IOCTL completed", "bytesReturned", bytesReturned, "portOutput", ioctlData.PortOutput)
++	logger.Debug("IOCTL completed", "bytesReturned", bytesReturned, "portOutput", portOutput)
+ 
+-	if ioctlData.PortOutput <= 0 {
+-		return fmt.Errorf("ResponseValidation: invalid USB port returned: %d", ioctlData.PortOutput)
++	if portOutput <= 0 {
++		return fmt.Errorf("ResponseValidation: invalid USB port returned: %d", portOutput)
+ 	}
+ 
+ 	logger.Info("Successfully attached device via IOCTL",
+ 		"busID", deviceExportMeta.BusId,
+ 		"deviceID", deviceExportMeta.DevId,
+-		"usbPort", ioctlData.PortOutput)
++		"usbPort", portOutput)
+ 
+ 	return nil
+ }
+ 
++func prepareAttachIOCTL(ioctlData *attachIOCTLLegacy, structSize uint32, busID string, service string) error {
++	ioctlData.Size = structSize
++
++	if len(busID) >= len(ioctlData.BusID) {
++		return fmt.Errorf("ArgumentValidation: bus ID too long: %s", busID)
++	}
++	copy(ioctlData.BusID[:], busID)
++
++	if len(service) >= len(ioctlData.Service) {
++		return fmt.Errorf("ArgumentValidation: service string too long: %s", service)
++	}
++	copy(ioctlData.Service[:], service)
++	copy(ioctlData.Host[:], "localhost")
++
++	return nil
++}
++
++func callAttachIOCTL(handle windows.Handle, ioctlData unsafe.Pointer, ioctlSize uint32) (uint32, error) {
++	var bytesReturned uint32
++	err := windows.DeviceIoControl(
++		handle,
++		ioctlPluginHardware,
++		(*byte)(ioctlData),
++		ioctlSize,
++		(*byte)(ioctlData),
++		ioctlSize,
++		&bytesReturned,
++		nil,
++	)
++	return bytesReturned, err
++}
++
+ func attachViaCommand(ctx context.Context, deviceExportMeta *usbip.ExportMeta, usbipServerPort uint16, logger *slog.Logger) error {
+ 	logger.Info("Auto-attaching localhost client", "busID", deviceExportMeta.BusId, "deviceID", deviceExportMeta.DevId)
+ 

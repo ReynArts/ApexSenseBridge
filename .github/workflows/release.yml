@@ -1,0 +1,55 @@
+name: Release ApexSenseBridge
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup Inno Setup
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.2'
+
+      - name: Build Patched VIIPER
+        shell: powershell
+        run: |
+          if (Test-Path scripts\build-viiper-windows.ps1) {
+            .\scripts\build-viiper-windows.ps1
+          }
+
+      - name: Build Engine, Playnite Extension and Offline Installer
+        shell: powershell
+        run: |
+          .\scripts\build-installer.ps1
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/ApexSenseBridge-Setup.exe
+            dist/*.pext
+          generate_release_notes: true
+          draft: false
+          prerelease: false

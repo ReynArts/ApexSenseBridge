@@ -15,6 +15,7 @@ struct HidDeviceInfo {
     std::wstring className;
     std::wstring instanceId;
     std::wstring parentInstanceId;
+    std::wstring containerId;
     std::wstring interfaceNumber;
     std::vector<std::wstring> hardwareIds;
     std::vector<std::wstring> compatibleIds;

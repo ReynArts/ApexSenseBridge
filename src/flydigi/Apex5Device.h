@@ -37,11 +37,16 @@ public:
     bool verifyIdentity(std::string& error);
 
     bool setTrigger(const TriggerEffect& effect, std::string& error);
+    bool setTriggerRaw(const ForceTriggerCommand& command, std::string& error);
     bool clearTrigger(TriggerSide side, std::string& error);
     bool clearAll(std::string& error);
+    bool setRumble(std::uint8_t lowFrequencyMotor,
+                   std::uint8_t highFrequencyMotor,
+                   std::string& error);
+    bool stopRumble(std::string& error);
 
 private:
-    [[nodiscard]] bool mayWriteAdaptiveTrigger(std::string& error) const;
+    [[nodiscard]] bool mayWriteEffects(std::string& error) const;
 
     TransportPtr transport_{};
     std::optional<Apex5Identity> identity_{};

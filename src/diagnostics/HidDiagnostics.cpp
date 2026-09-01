@@ -220,6 +220,7 @@ std::string formatHidDevicesJson(std::span<const HidDeviceInfo> devices) {
                << "      \"feature_report_length\": " << info.featureReportLength << ",\n"
                << "      \"instance_id\": "; appendJsonString(output, info.instanceId); output << ",\n"
                << "      \"parent_instance_id\": "; appendJsonString(output, info.parentInstanceId); output << ",\n"
+               << "      \"container_id\": "; appendJsonString(output, info.containerId); output << ",\n"
                << "      \"interface_number\": "; appendJsonString(output, info.interfaceNumber); output << ",\n"
                << "      \"hardware_ids\": "; appendJsonStringArray(output, info.hardwareIds, "      "); output << ",\n"
                << "      \"compatible_ids\": "; appendJsonStringArray(output, info.compatibleIds, "      "); output << '\n'

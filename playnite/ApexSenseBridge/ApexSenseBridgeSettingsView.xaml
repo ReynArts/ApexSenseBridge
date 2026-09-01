@@ -1,0 +1,125 @@
+<UserControl x:Class="ApexSenseBridge.ApexSenseBridgeSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="700" d:DesignWidth="760">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,16"
+                       TextWrapping="Wrap"
+                       Text="ApexSenseBridge détecte automatiquement les jeux disposant d'un profil vérifié. Il masque alors les interfaces physiques de l'APEX, puis attend que la DualSense virtuelle soit prête. Les titres inconnus et les jeux explicitement désactivés conservent le chemin XInput natif." />
+
+            <!-- Installation Status -->
+            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,4,12,10"
+                       VerticalAlignment="Center" Text="Installation" />
+            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Text="{Binding InstallationStatus}" />
+                <TextBlock Margin="0,3,0,0" Opacity="0.7" TextWrapping="Wrap"
+                           Text="{Binding InstalledExecutablePath}" />
+            </StackPanel>
+
+            <!-- Updates Section -->
+            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,4,12,14"
+                       VerticalAlignment="Top" Text="Mises à jour" />
+            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                <DockPanel LastChildFill="False" Margin="0,0,0,6">
+                    <TextBlock Text="Version actuelle :" VerticalAlignment="Center" Margin="0,0,6,0" Opacity="0.8" />
+                    <TextBlock Text="{Binding CurrentVersionDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Button Content="Rechercher une mise à jour" Padding="10,4"
+                            Command="{Binding CheckForUpdatesCommand}"
+                            IsEnabled="{Binding IsCheckingForUpdate, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                </DockPanel>
+
+                <CheckBox Margin="0,4,0,6"
+                          IsChecked="{Binding Settings.AutoCheckUpdates}"
+                          Content="Vérifier automatiquement les mises à jour GitHub au démarrage de Playnite" />
+
+                <!-- Update Status Message -->
+                <TextBlock Text="{Binding UpdateCheckStatus}" TextWrapping="Wrap" Margin="0,4,0,6"
+                           FontStyle="Italic" Opacity="0.85" />
+
+                <!-- Action Button when Update is Available -->
+                <StackPanel Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVis}}" Margin="0,4,0,0">
+                    <Button Content="Mettre à jour" Padding="12,6"
+                            FontWeight="SemiBold" HorizontalAlignment="Left" Margin="0,0,0,3"
+                            Command="{Binding DownloadAndInstallUpdateCommand}" />
+                    <TextBlock Text="Met à jour automatiquement le moteur et l'extension."
+                               Opacity="0.7" FontSize="11" Margin="0,0,0,6" />
+                    <ProgressBar Height="14" Minimum="0" Maximum="100" Margin="0,4,0,0"
+                                 Value="{Binding DownloadProgress}"
+                                 Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Automatic Profiles -->
+            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,4,12,10"
+                       VerticalAlignment="Center" Text="Profils automatiques" />
+            <CheckBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10"
+                      IsChecked="{Binding Settings.EnableAutomaticProfiles}"
+                      Content="Détecter automatiquement les profils vérifiés au lancement des jeux" />
+
+            <!-- Rumble Settings -->
+            <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,4,12,10"
+                       VerticalAlignment="Center" Text="Vibrations" />
+            <CheckBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10"
+                       IsChecked="{Binding Settings.EnableRumble}"
+                       Content="Activer les vibrations des poignées et l'haptique audio" />
+
+            <!-- Haptic Threshold -->
+            <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,4,12,10"
+                       VerticalAlignment="Center" Text="Seuil haptique (%)" />
+            <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10"
+                     MaxWidth="100" HorizontalAlignment="Left"
+                     Text="{Binding Settings.HapticThresholdPercent, UpdateSourceTrigger=PropertyChanged}" />
+
+            <!-- Init Timeout -->
+            <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,4,12,10"
+                       VerticalAlignment="Center" Text="Délai d'initialisation (s)" />
+            <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10"
+                     MaxWidth="100" HorizontalAlignment="Left"
+                     Text="{Binding Settings.InitializationTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
+
+            <!-- Enabled Profiles Header -->
+            <StackPanel Grid.Row="7" Grid.ColumnSpan="3" Margin="0,12,0,8">
+                <TextBlock FontWeight="SemiBold" Text="Overrides manuels" />
+                <TextBlock Margin="0,4,0,0" Opacity="0.75" TextWrapping="Wrap"
+                           Text="La liste reste vide pour les jeux gérés automatiquement. Un clic droit sur un jeu → ApexSenseBridge permet de forcer un profil, de le désactiver ou de revenir à la détection automatique." />
+            </StackPanel>
+
+            <!-- Profiles Grid -->
+            <DataGrid Grid.Row="8" Grid.ColumnSpan="3" MinHeight="180"
+                      AutoGenerateColumns="False" CanUserAddRows="False"
+                      CanUserDeleteRows="False" IsReadOnly="True"
+                      ItemsSource="{Binding Settings.Profiles}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Jeu" Width="*" Binding="{Binding GameName}" />
+                    <DataGridTextColumn Header="Profil" Width="200" Binding="{Binding ProfileTypeDisplayName}" />
+                    <DataGridCheckBoxColumn Header="Steam doit être fermé" Width="160"
+                                            Binding="{Binding RequireSteamStopped}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

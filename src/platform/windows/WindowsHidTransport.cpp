@@ -5,10 +5,13 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <objbase.h>
 #include <setupapi.h>
 #include <hidsdi.h>
 #include <hidpi.h>
 #include <cfgmgr32.h>
+#include <combaseapi.h>
+#include <devpkey.h>
 
 #include <algorithm>
 #include <array>
@@ -128,6 +131,25 @@ std::wstring parentInstanceId(const SP_DEVINFO_DATA& deviceInfo) {
         return {};
     }
     return buffer.data();
+}
+
+std::wstring containerId(HDEVINFO deviceSet, SP_DEVINFO_DATA& deviceInfo) {
+    GUID container{};
+    DEVPROPTYPE propertyType = 0;
+    DWORD requiredSize = 0;
+    if (!SetupDiGetDevicePropertyW(
+            deviceSet, &deviceInfo, &DEVPKEY_Device_ContainerId,
+            &propertyType, reinterpret_cast<PBYTE>(&container),
+            sizeof(container), &requiredSize, 0) ||
+        propertyType != DEVPROP_TYPE_GUID || requiredSize != sizeof(container)) {
+        return {};
+    }
+
+    std::array<wchar_t, 40> text{};
+    const int length = StringFromGUID2(container, text.data(),
+                                       static_cast<int>(text.size()));
+    return length > 1 ? std::wstring(text.data(), static_cast<std::size_t>(length - 1))
+                      : std::wstring{};
 }
 
 std::wstring interfaceNumber(std::wstring_view path) {
@@ -258,6 +280,25 @@ public:
             << "); HidD_SetOutputReport also failed (" << hidError << ": "
             << win32Error(hidError) << ")";
         error = oss.str();
+        return false;
+    }
+
+    bool readFeatureReport(std::span<std::uint8_t> report, std::string& error) override {
+        if (!isOpen()) {
+            error = "HID handle is not open";
+            return false;
+        }
+        if (report.empty() || report.size() > (std::numeric_limits<ULONG>::max)()) {
+            error = "HID feature-report buffer has an invalid size";
+            return false;
+        }
+        if (HidD_GetFeature(handle_, report.data(), static_cast<ULONG>(report.size()))) {
+            return true;
+        }
+
+        const auto code = GetLastError();
+        error = "HidD_GetFeature failed (" + std::to_string(code) + ": " +
+                win32Error(code) + ')';
         return false;
     }
 
@@ -423,6 +464,7 @@ std::vector<HidDeviceInfo> enumerateHidDevices(std::string& error) {
         info.compatibleIds = registryMultiString(deviceSet, deviceInfo, SPDRP_COMPATIBLEIDS);
         info.instanceId = instanceId(deviceSet, deviceInfo);
         info.parentInstanceId = parentInstanceId(deviceInfo);
+        info.containerId = containerId(deviceSet, deviceInfo);
         info.interfaceNumber = interfaceNumber(info.path);
 
         if (const auto vendorId = idFromPath(info.path, L"vid_")) {
@@ -482,7 +524,7 @@ HidTransport* createHidTransport(const HidDeviceInfo& info, std::string& error) 
     if (handle == INVALID_HANDLE_VALUE) {
         const auto code = GetLastError();
         std::ostringstream oss;
-        oss << "Could not open Flydigi vendor HID interface (" << code << ": "
+        oss << "Could not open HID interface (" << code << ": "
             << win32Error(code) << ")";
         error = oss.str();
         return nullptr;

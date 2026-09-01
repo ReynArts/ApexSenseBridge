@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <cstdint>
 
 namespace asb {
@@ -30,6 +32,15 @@ struct TriggerEffect {
     std::uint8_t p2 = 1;
     std::uint8_t p3 = 1;
     bool matchInput = false;
+};
+
+// Exact five-byte FORCEADAPT parameter block used by protocol translators.
+struct ForceTriggerCommand {
+    TriggerSide side = TriggerSide::Right;
+    TriggerMode mode = TriggerMode::Normal;
+    std::array<std::uint8_t, 5> params{};
+
+    bool operator==(const ForceTriggerCommand&) const = default;
 };
 
 } // namespace asb

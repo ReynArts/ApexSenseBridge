@@ -56,6 +56,18 @@ int main() {
     assert(recoilReport[9] == 1);
     assert(recoilReport[12] == 1);
 
+    const auto rumble = buildRumble(0x34, 0x12);
+    assert(rumble[0] == 0x03);
+    assert(rumble[1] == 0x5A);
+    assert(rumble[2] == 0xA5);
+    assert(rumble[3] == 0x12);
+    assert(rumble[4] == 6);
+    assert(rumble[5] == 0x34);
+    assert(rumble[6] == 0x12);
+    for (std::size_t index = 7; index < rumble.size(); ++index) {
+        assert(rumble[index] == 0);
+    }
+
     std::cout << "Protocol tests passed\n";
     return 0;
 }

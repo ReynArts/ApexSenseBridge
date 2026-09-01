@@ -79,11 +79,43 @@ Report buildForceTrigger(const TriggerEffect& effect, bool apply) {
     return buildNormal(effect.side);
 }
 
+Report buildForceTriggerRaw(const ForceTriggerCommand& command, bool apply) {
+    Report report{};
+    report[0] = kReportIdOut;
+    report[1] = kMagic0;
+    report[2] = kMagic1;
+    report[3] = kCmdSetForceTrigger;
+    report[4] = 10;
+    report[5] = static_cast<std::uint8_t>(apply ? 1 : 0);
+    report[6] = static_cast<std::uint8_t>(command.side);
+    report[7] = static_cast<std::uint8_t>(command.mode);
+    std::copy(command.params.begin(), command.params.end(), report.begin() + 8);
+
+    // Flydigi ForceTriggerConfigCommon quirk, retained byte-for-byte.
+    if (command.mode == TriggerMode::Race && report[8] == 0 && report[10] == 1) {
+        report[10] = 0;
+    }
+    return report;
+}
+
 Report buildNormal(TriggerSide side) {
     TriggerEffect effect{};
     effect.side = side;
     effect.mode = TriggerMode::Normal;
     return buildForceTrigger(effect, true);
+}
+
+Report buildRumble(std::uint8_t lowFrequencyMotor,
+                   std::uint8_t highFrequencyMotor) {
+    Report report{};
+    report[0] = kReportIdOut;
+    report[1] = kMagic0;
+    report[2] = kMagic1;
+    report[3] = kCmdSetRumble;
+    report[4] = 6;
+    report[5] = lowFrequencyMotor;
+    report[6] = highFrequencyMotor;
+    return report;
 }
 
 } // namespace asb::flydigi
