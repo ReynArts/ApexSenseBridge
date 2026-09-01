@@ -2,7 +2,7 @@
 """
 update_pcgw_list.py
 Fetches PC games with DualSense Adaptive Triggers and Haptic Feedback
-from PCGamingWiki API and generates data/supported_games.json.
+from PCGamingWiki API, resolves Steam cover thumbnails, and generates data/supported_games.json.
 """
 
 import html
@@ -10,11 +10,13 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
 PCGW_API = "https://www.pcgamingwiki.com/w/api.php"
+STEAM_SEARCH_API = "https://store.steampowered.com/api/storesearch/"
 USER_AGENT = "ApexSenseBridge-Updater/1.0 (https://github.com/ReynArts/ApexSenseBridge)"
 
 ADAPTIVE_PAGE = "List of games that support PlayStation adaptive triggers"
@@ -37,6 +39,8 @@ BUILTIN_GAMES = [
         "adaptiveTriggers": True,
         "hapticFeedback": True,
         "profile": "spider-man-2",
+        "steamAppId": 0,
+        "iconUrl": "",
     },
     {
         "title": "Marvel's Spider-Man: Miles Morales",
@@ -44,6 +48,8 @@ BUILTIN_GAMES = [
         "adaptiveTriggers": True,
         "hapticFeedback": True,
         "profile": "miles-morales",
+        "steamAppId": 1817190,
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/capsule_231x87.jpg",
     },
     {
         "title": "Ghost of Tsushima DIRECTOR'S CUT",
@@ -51,6 +57,8 @@ BUILTIN_GAMES = [
         "adaptiveTriggers": True,
         "hapticFeedback": True,
         "profile": "ghost-of-tsushima",
+        "steamAppId": 2215430,
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/capsule_231x87.jpg",
     },
     {
         "title": "Warframe",
@@ -58,6 +66,8 @@ BUILTIN_GAMES = [
         "adaptiveTriggers": True,
         "hapticFeedback": True,
         "profile": "warframe",
+        "steamAppId": 230410,
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/capsule_231x87.jpg",
     },
     {
         "title": "Call of Duty: Modern Warfare 4 Beta",
@@ -65,6 +75,8 @@ BUILTIN_GAMES = [
         "adaptiveTriggers": True,
         "hapticFeedback": True,
         "profile": "standard",
+        "steamAppId": 1938090,
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/capsule_231x87.jpg",
     },
     {
         "title": "Grand Theft Auto V",
@@ -72,6 +84,8 @@ BUILTIN_GAMES = [
         "adaptiveTriggers": True,
         "hapticFeedback": True,
         "profile": "standard",
+        "steamAppId": 271590,
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/capsule_231x87.jpg",
     },
 ]
 
@@ -114,13 +128,11 @@ def fetch_pcgw_titles(page_title: str) -> list:
         print(f"[WARN] Empty text content for {page_title}", file=sys.stderr)
         return []
 
-    # Match table rows containing game titles: <tr><td><a href="..." title="...">Game Title</a></td>
     pattern = re.compile(r'<tr>\s*<td><a href="[^"]*" title="([^"]*)">([^<]*)</a></td>')
     matches = pattern.findall(text_content)
 
     titles = []
     for raw_title, text_title in matches:
-        # Prefer the raw title or text title, decoded
         title = html.unescape(raw_title or text_title).strip()
         if title:
             titles.append(title)
@@ -128,9 +140,47 @@ def fetch_pcgw_titles(page_title: str) -> list:
     return titles
 
 
+def resolve_steam_cover(title: str) -> tuple:
+    """Queries Steam store search for a matching app ID and capsule image."""
+    try:
+        clean_title = re.sub(r"[\u2122\u00AE\u00A9]", "", title).strip()
+        params = {"term": clean_title, "l": "english", "cc": "US"}
+        url = f"{STEAM_SEARCH_API}?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        items = data.get("items", [])
+        if items:
+            first = items[0]
+            app_id = int(first.get("id", 0))
+            if app_id > 0:
+                tiny_img = first.get("tiny_image", "")
+                if tiny_img:
+                    return app_id, tiny_img
+                return app_id, f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{app_id}/capsule_231x87.jpg"
+    except Exception:
+        pass
+    return 0, ""
+
+
 def main():
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_path = os.path.join(root_dir, "data", "supported_games.json")
+
+    # 1. Load existing cache to avoid re-querying Steam for known games
+    existing_cache = {}
+    if os.path.exists(output_path):
+        try:
+            with open(output_path, "r", encoding="utf-8") as f:
+                old_data = json.load(f)
+                for g in old_data.get("games", []):
+                    norm = g.get("normalized")
+                    if norm:
+                        existing_cache[norm] = g
+        except Exception:
+            pass
 
     print(f"[*] Fetching Adaptive Triggers list from PCGamingWiki...")
     adaptive_titles = fetch_pcgw_titles(ADAPTIVE_PAGE)
@@ -146,6 +196,7 @@ def main():
         norm = normalize_title(title)
         if not norm:
             continue
+        cached = existing_cache.get(norm, {})
         if norm not in games_dict:
             games_dict[norm] = {
                 "title": title,
@@ -153,6 +204,8 @@ def main():
                 "adaptiveTriggers": True,
                 "hapticFeedback": False,
                 "profile": get_special_profile(norm),
+                "steamAppId": cached.get("steamAppId", 0),
+                "iconUrl": cached.get("iconUrl", ""),
             }
         else:
             games_dict[norm]["adaptiveTriggers"] = True
@@ -161,6 +214,7 @@ def main():
         norm = normalize_title(title)
         if not norm:
             continue
+        cached = existing_cache.get(norm, {})
         if norm not in games_dict:
             games_dict[norm] = {
                 "title": title,
@@ -168,6 +222,8 @@ def main():
                 "adaptiveTriggers": False,
                 "hapticFeedback": True,
                 "profile": get_special_profile(norm),
+                "steamAppId": cached.get("steamAppId", 0),
+                "iconUrl": cached.get("iconUrl", ""),
             }
         else:
             games_dict[norm]["hapticFeedback"] = True
@@ -178,12 +234,31 @@ def main():
         if norm not in games_dict:
             games_dict[norm] = dict(b)
         else:
-            if b["profile"] != "standard":
+            if b.get("profile") and b["profile"] != "standard":
                 games_dict[norm]["profile"] = b["profile"]
+            if b.get("iconUrl"):
+                games_dict[norm]["iconUrl"] = b["iconUrl"]
+            if b.get("steamAppId"):
+                games_dict[norm]["steamAppId"] = b["steamAppId"]
             if b.get("adaptiveTriggers"):
                 games_dict[norm]["adaptiveTriggers"] = True
             if b.get("hapticFeedback"):
                 games_dict[norm]["hapticFeedback"] = True
+
+    # Resolve Steam thumbnails for any games that don't have an iconUrl yet
+    need_resolve = [g for g in games_dict.values() if not g.get("iconUrl")]
+    if need_resolve:
+        print(f"[*] Resolving Steam cover thumbnails for {len(need_resolve)} games...")
+        count = 0
+        for g in need_resolve:
+            app_id, icon_url = resolve_steam_cover(g["title"])
+            if icon_url:
+                g["steamAppId"] = app_id
+                g["iconUrl"] = icon_url
+                count += 1
+            # Slight delay to respect Steam rate limits
+            time.sleep(0.05)
+        print(f"[+] Successfully resolved {count} cover thumbnails.")
 
     output_list = sorted(games_dict.values(), key=lambda g: g["title"].lower())
 

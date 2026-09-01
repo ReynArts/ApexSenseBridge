@@ -173,6 +173,26 @@ namespace ApexSenseBridgeTray
             get { return Game != null ? Game.Profile : "standard"; }
         }
 
+        public string IconUrl
+        {
+            get { return Game != null ? Game.IconUrl : string.Empty; }
+        }
+
+        public bool HasIcon
+        {
+            get { return !string.IsNullOrWhiteSpace(IconUrl); }
+        }
+
+        public Visibility IconVisibility
+        {
+            get { return HasIcon ? Visibility.Visible : Visibility.Collapsed; }
+        }
+
+        public Visibility PlaceholderVisibility
+        {
+            get { return HasIcon ? Visibility.Collapsed : Visibility.Visible; }
+        }
+
         public bool HasCustomRemapping
         {
             get

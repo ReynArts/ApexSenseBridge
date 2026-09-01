@@ -173,6 +173,12 @@ namespace ApexSenseBridgeTray.Services
                         g.AdaptiveTriggers = item.ContainsKey("adaptiveTriggers") && Convert.ToBoolean(item["adaptiveTriggers"]);
                         g.HapticFeedback = item.ContainsKey("hapticFeedback") && Convert.ToBoolean(item["hapticFeedback"]);
                         g.Profile = item.ContainsKey("profile") && item["profile"] != null ? item["profile"].ToString() : "standard";
+                        g.IconUrl = item.ContainsKey("iconUrl") && item["iconUrl"] != null ? item["iconUrl"].ToString() : string.Empty;
+                        if (item.ContainsKey("steamAppId") && item["steamAppId"] != null)
+                        {
+                            int sid;
+                            if (int.TryParse(item["steamAppId"].ToString(), out sid)) g.SteamAppId = sid;
+                        }
 
                         if (string.IsNullOrWhiteSpace(g.Normalized) && !string.IsNullOrWhiteSpace(g.Title))
                         {

@@ -9,12 +9,15 @@ namespace ApexSenseBridgeTray.Models
         public bool AdaptiveTriggers { get; set; }
         public bool HapticFeedback { get; set; }
         public string Profile { get; set; }
+        public string IconUrl { get; set; }
+        public int SteamAppId { get; set; }
 
         public SupportedGame()
         {
             Title = string.Empty;
             Normalized = string.Empty;
             Profile = "standard";
+            IconUrl = string.Empty;
         }
 
         public override string ToString()

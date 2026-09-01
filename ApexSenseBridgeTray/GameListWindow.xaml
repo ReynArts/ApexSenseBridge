@@ -226,11 +226,16 @@
             <!-- 3. Scrollable Games List -->
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="20,4,20,8">
                 <ItemsControl x:Name="LstGames">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
                                     BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                                    Padding="16,12" Margin="0,0,0,8" Opacity="{Binding CardOpacity}">
+                                    Padding="14,10" Margin="0,0,0,8" Opacity="{Binding CardOpacity}">
                                 <DockPanel>
                                     <!-- Exclude / Include toggle button -->
                                     <CheckBox Style="{StaticResource ExcludeCheckBox}" DockPanel.Dock="Right"
@@ -238,10 +243,30 @@
                                               IsChecked="{Binding IsExcluded, Mode=TwoWay}"
                                               Click="OnGameExcludedToggled"/>
 
+                                    <!-- Left Cover / Thumbnail (Rounded 6px) -->
+                                    <Border Width="64" Height="36" CornerRadius="6" Background="{DynamicResource ControlBackground}"
+                                            BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
+                                            ClipToBounds="True" Margin="0,0,12,0" VerticalAlignment="Center"
+                                            DockPanel.Dock="Left">
+                                        <Grid>
+                                            <!-- Default Placeholder Graphic -->
+                                            <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Opacity="0.35" Visibility="{Binding PlaceholderVisibility}">
+                                                <Path Data="M 3,3 L 13,3 L 13,13 L 3,13 Z M 6,8 L 10,8 M 8,6 L 8,10"
+                                                      Stroke="{DynamicResource TextMuted}" StrokeThickness="1.5"
+                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                            </Viewbox>
+                                            <!-- Async Loaded Cover Image -->
+                                            <Image Source="{Binding IconUrl}" Stretch="UniformToFill"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   Visibility="{Binding IconVisibility}"/>
+                                        </Grid>
+                                    </Border>
+
                                     <!-- Game Details -->
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                                   Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" Margin="0,0,0,5"/>
                                         
                                         <!-- Feature badges -->
                                         <WrapPanel Orientation="Horizontal">
