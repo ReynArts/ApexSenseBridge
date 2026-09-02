@@ -19,8 +19,14 @@ PCGW_API = "https://www.pcgamingwiki.com/w/api.php"
 STEAM_SEARCH_API = "https://store.steampowered.com/api/storesearch/"
 USER_AGENT = "ApexSenseBridge-Updater/1.0 (https://github.com/ReynArts/ApexSenseBridge)"
 
-ADAPTIVE_PAGE = "List of games that support PlayStation adaptive triggers"
-HAPTIC_PAGE = "List of games that support DualSense haptic feedback"
+ADAPTIVE_PAGES = [
+    "List of games that support PlayStation adaptive triggers",
+    "List of games that support Playstation adaptive triggers",
+]
+HAPTIC_PAGES = [
+    "List of games that support Dualsense haptic feedback",
+    "List of games that support DualSense haptic feedback",
+]
 
 SPECIAL_PROFILES = {
     "spiderman2": "spider-man-2",
@@ -71,7 +77,7 @@ BUILTIN_GAMES = [
     },
     {
         "title": "Call of Duty: Modern Warfare 4 Beta",
-        "normalized": "callofduty",
+        "normalized": "callofdutymodernwarfare4beta",
         "adaptiveTriggers": True,
         "hapticFeedback": True,
         "profile": "standard",
@@ -104,40 +110,49 @@ def get_special_profile(norm: str) -> str:
     return "standard"
 
 
-def fetch_pcgw_titles(page_title: str) -> list:
-    """Queries PCGW parse API for table game titles."""
-    params = {
-        "action": "parse",
-        "page": page_title,
-        "prop": "text",
-        "format": "json",
-    }
-    url = f"{PCGW_API}?{urllib.parse.urlencode(params)}"
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+def fetch_pcgw_titles(page_titles: list) -> list:
+    """Queries PCGW parse API for table game titles across candidate page titles."""
+    for page_title in page_titles:
+        params = {
+            "action": "parse",
+            "page": page_title,
+            "prop": "text",
+            "format": "json",
+        }
+        url = f"{PCGW_API}?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
 
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception as err:
-        print(f"[WARN] Failed to fetch {page_title}: {err}", file=sys.stderr)
-        return []
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception as err:
+            print(f"[WARN] Failed to fetch {page_title}: {err}", file=sys.stderr)
+            continue
 
-    parse_data = data.get("parse", {})
-    text_content = parse_data.get("text", {}).get("*", "")
-    if not text_content:
-        print(f"[WARN] Empty text content for {page_title}", file=sys.stderr)
-        return []
+        if data.get("error"):
+            print(f"[INFO] Page '{page_title}' not found on PCGW: {data['error'].get('info', '')}", file=sys.stderr)
+            continue
 
-    pattern = re.compile(r'<tr>\s*<td><a href="[^"]*" title="([^"]*)">([^<]*)</a></td>')
-    matches = pattern.findall(text_content)
+        parse_data = data.get("parse", {})
+        text_content = parse_data.get("text", {}).get("*", "")
+        if not text_content:
+            continue
 
-    titles = []
-    for raw_title, text_title in matches:
-        title = html.unescape(raw_title or text_title).strip()
-        if title:
-            titles.append(title)
+        pattern = re.compile(r'<tr>\s*<td><a href="[^"]*" title="([^"]*)">([^<]*)</a></td>')
+        matches = pattern.findall(text_content)
 
-    return titles
+        titles = []
+        for raw_title, text_title in matches:
+            title = html.unescape(raw_title or text_title).strip()
+            if title:
+                titles.append(title)
+
+        if titles:
+            print(f"[+] Successfully fetched {len(titles)} titles from PCGW page: '{page_title}'")
+            return titles
+
+    print(f"[ERROR] Could not fetch any titles from candidate pages: {page_titles}", file=sys.stderr)
+    return []
 
 
 def resolve_steam_cover(title: str) -> tuple:
@@ -180,12 +195,16 @@ def main():
             pass
 
     print(f"[*] Fetching Adaptive Triggers list from PCGamingWiki...")
-    adaptive_titles = fetch_pcgw_titles(ADAPTIVE_PAGE)
+    adaptive_titles = fetch_pcgw_titles(ADAPTIVE_PAGES)
     print(f"[+] Found {len(adaptive_titles)} games with Adaptive Triggers.")
 
     print(f"[*] Fetching Haptic Feedback list from PCGamingWiki...")
-    haptic_titles = fetch_pcgw_titles(HAPTIC_PAGE)
+    haptic_titles = fetch_pcgw_titles(HAPTIC_PAGES)
     print(f"[+] Found {len(haptic_titles)} games with Haptic Feedback.")
+
+    if not adaptive_titles or not haptic_titles:
+        print(f"[ERROR] Incomplete fetch (Adaptive: {len(adaptive_titles)}, Haptic: {len(haptic_titles)}). Aborting to prevent data loss.", file=sys.stderr)
+        sys.exit(1)
 
     games_dict = {}
 
@@ -259,7 +278,7 @@ def main():
 
     output_list = sorted(games_dict.values(), key=lambda g: g["title"].lower())
 
-    if len(output_list) < 20:
+    if len(output_list) < 150:
         print(f"[ERROR] Extracted list suspiciously small ({len(output_list)} games). Aborting write to prevent data loss.", file=sys.stderr)
         sys.exit(1)
 

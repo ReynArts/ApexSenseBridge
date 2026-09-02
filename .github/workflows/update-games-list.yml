@@ -26,7 +26,7 @@ jobs:
 
       - name: Validate Generated JSON Schema
         run: |
-          python -c "import json; data=json.load(open('data/supported_games.json')); assert data['totalGames'] > 50; print(f'Validated {data[\"totalGames\"]} games.')"
+          python -c "import json; data=json.load(open('data/supported_games.json')); assert data['totalGames'] >= 200, f'Expected >= 200 games, got {data[\"totalGames\"]}'; print(f'Validated {data[\"totalGames\"]} games.')"
 
       - name: Commit and Push if Changed
         run: |
