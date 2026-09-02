@@ -30,6 +30,8 @@ The bridge, triggers, and DSP haptics have been 100% verified in-game on:
 
 ## End-user installation
 
+For common troubleshooting, diagnostic interpretations (JSON test outputs), and game setup guides, see the [Knowledge Base & Troubleshooting Guide](TROUBLESHOOTING.md).
+
 Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator elevation and does not show PowerShell or console windows. It installs:
 
 - the statically linked engine and Win32 control panel under `%ProgramFiles%\ApexSenseBridge`;
@@ -67,7 +69,7 @@ For players using other game launchers (Steam, Epic Games Store, GOG, EA App, Xb
 
 ## Playnite usage
 
-No executable path, XInput index, or initial per-game configuration must be selected.
+No executable path, XInput index, or initial per-game configuration must be selected for a normal setup installation.
 
 1. Start a recognized game normally from Playnite Desktop or Fullscreen mode.
 2. The extension selects Spider-Man 2, Miles Morales, Ghost of Tsushima, or
@@ -75,7 +77,7 @@ No executable path, XInput index, or initial per-game configuration must be sele
 3. To override it, right-click the game in Playnite Desktop and open
    `ApexSenseBridge`. A manual profile or explicit disable always wins.
 
-The extension resolves the engine from the machine-wide installation record. Existing `BridgeExecutablePath`, `XInputIndex`, profiles, haptic threshold and preferences are accepted during migration, but the obsolete path/index controls are no longer exposed.
+The extension resolves the engine from the machine-wide installation record by default. For a portable or custom installation, its Playnite settings provide an executable picker; that explicit `ApexSenseBridge.exe` path takes priority over automatic discovery. Existing `XInputIndex`, profiles, haptic threshold and preferences are still accepted during migration.
 
 Before Playnite is allowed to launch a recognized or manually configured game, the engine verifies all of the following:
 
@@ -165,6 +167,21 @@ Build the native targets and tests:
 .\scripts\build-windows.ps1
 ctest --test-dir .\build-win -C Release --output-on-failure
 ```
+
+Clean generated workspace content without touching `dist/` or private notes:
+
+```powershell
+# Preview every removal first.
+.\scripts\clean-workspace.ps1 -IncludeBuildOutputs -IncludeToolCache -IncludeScratch -WhatIf
+
+# Remove temporary sources, verification builds, C# bin/obj folders and logs.
+.\scripts\clean-workspace.ps1
+```
+
+Use `-IncludeBuildOutputs` to also remove `build-win/`, `-IncludeToolCache` for
+the downloaded libVIIPER toolchains, and `-IncludeScratch` for local scratch
+work. Release artifacts in `dist/` and internal documents in `notes/` are
+always protected.
 
 Rebuild both pinned VIIPER payloads and create the offline installer plus
 portable ZIP:
