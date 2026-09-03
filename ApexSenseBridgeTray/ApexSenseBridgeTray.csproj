@@ -14,7 +14,7 @@
     <WarningLevel>4</WarningLevel>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
-    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <ApplicationIcon>..\assets\app.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -68,6 +68,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="LearnedExecutablesWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -80,9 +84,18 @@
       <DependentUpon>GameListWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="LearnedExecutablesWindow.xaml.cs">
+      <DependentUpon>LearnedExecutablesWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Models\LearnedExecutableBinding.cs" />
     <Compile Include="Models\SupportedGame.cs" />
     <Compile Include="Models\TraySettings.cs" />
     <Compile Include="Services\CloudGameListService.cs" />
+    <Compile Include="Services\ExecutableLearningService.cs" />
+    <Compile Include="Services\GameProcessSessionTracker.cs" />
+    <Compile Include="Services\GameActivationPolicy.cs" />
+    <Compile Include="Services\PlatformClientProcessFilter.cs" />
     <Compile Include="Services\ProcessMonitorService.cs" />
     <Compile Include="Services\EngineSessionManager.cs" />
     <Compile Include="Services\UpdateCheckerService.cs" />
@@ -91,6 +104,7 @@
     <Compile Include="Common\InstallLocator.cs" />
     <Compile Include="Common\ThemeManager.cs" />
     <Compile Include="Common\LocalizationManager.cs" />
+    <Compile Include="Common\CoverCacheService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -104,8 +118,12 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Resources\logo.png" />
-    <Resource Include="Resources\app.ico" />
+    <Resource Include="..\assets\logo.png">
+      <Link>Resources\logo.png</Link>
+    </Resource>
+    <Resource Include="..\assets\app.ico">
+      <Link>Resources\app.ico</Link>
+    </Resource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

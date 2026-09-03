@@ -34,7 +34,7 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
-$script:CollectorVersion = "1.3.0"
+$script:CollectorVersion = "1.4.0"
 $script:Warnings = New-Object System.Collections.Generic.List[string]
 $script:Steps = New-Object System.Collections.Generic.List[object]
 
@@ -299,6 +299,16 @@ function Get-ConnectedModelAssessment([string]$HidJsonPath, $PnpResult) {
             -not $result.apex4_usb_or_hid_visible -and
             $joined -notmatch "(?i)(DIREWOLF|APEX[ _-]*(2|3|5|6)|VADER[ _-]*(2|4|5))"
         )
+        # The Apex 4's legacy 04B4:2412 USB firmware reports the product string
+        # "Flydigi VADER3" on all four interfaces. That string is not evidence
+        # of a second controller when the model-specific Apex 4 VID:PID is active.
+        $onlyKnownLegacyAlias = (
+            $result.apex4_usb_or_hid_visible -and
+            $joined -notmatch "(?i)(DIREWOLF|APEX[ _-]*(2|3|5|6)|VADER[ _-]*(2|4|5))"
+        )
+        if ($onlyKnownLegacyAlias) {
+            $hasOther = $false
+        }
         $result.apex4_xinput_mode_likely = $apex4XInputCandidate
         $result.other_flydigi_model_visible = ($hasOther -and -not $apex4XInputCandidate)
         $result.reported_products = $products

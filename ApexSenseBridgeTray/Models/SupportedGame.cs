@@ -11,6 +11,8 @@ namespace ApexSenseBridgeTray.Models
         public string Profile { get; set; }
         public string IconUrl { get; set; }
         public int SteamAppId { get; set; }
+        public bool SteamAppIdVerified { get; set; }
+        public string[] Executables { get; set; }
 
         public SupportedGame()
         {
@@ -18,6 +20,7 @@ namespace ApexSenseBridgeTray.Models
             Normalized = string.Empty;
             Profile = "standard";
             IconUrl = string.Empty;
+            Executables = new string[0];
         }
 
         public override string ToString()

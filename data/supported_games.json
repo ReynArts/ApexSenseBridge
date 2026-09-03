@@ -1,1861 +1,2465 @@
 ﻿{
-    "updatedAt":  "2026-09-02T09:24:18.4695983Z",
+    "updatedAt":  "2026-09-02T17:12:42.1327346Z",
     "games":  [
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3768760/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "007 First Light",
                       "normalized":  "007firstlight",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3768760
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3768760/library_600x900.jpg",
+                      "steamAppId":  3768760,
+                      "title":  "007 First Light",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1182900/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "A Plague Tale: Requiem",
                       "normalized":  "aplaguetalerequiem",
+                      "executables":  [
+                                          "aplaguetalerequiem_x64.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1182900
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1182900/library_600x900.jpg",
+                      "steamAppId":  1182900,
+                      "title":  "A Plague Tale: Requiem",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3274290/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Alan Wake II",
                       "normalized":  "alanwakeii",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3274290
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co7d62.jpg",
+                      "steamAppId":  0,
+                      "title":  "Alan Wake II",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/813230/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Animal Well",
                       "normalized":  "animalwell",
+                      "executables":  [
+                                          "animal well.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  813230
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/813230/library_600x900.jpg",
+                      "steamAppId":  813230,
+                      "title":  "Animal Well",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172470/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Apex Legends",
                       "normalized":  "apexlegends",
+                      "executables":  [
+                                          "r5apex.exe",
+                                          "r5apex_dx12.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1172470
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172470/library_600x900.jpg",
+                      "steamAppId":  1172470,
+                      "title":  "Apex Legends",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4732690/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Arknights: Endfield",
                       "normalized":  "arknightsendfield",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  4732690
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4732690/library_600x900.jpg",
+                      "steamAppId":  4732690,
+                      "title":  "Arknights: Endfield",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3035570/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Assassin\u0027s Creed Mirage",
                       "normalized":  "assassinscreedmirage",
+                      "executables":  [
+                                          "acmirage.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  3035570
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3035570/library_600x900.jpg",
+                      "steamAppId":  3035570,
+                      "title":  "Assassin\u0027s Creed Mirage",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3159330/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Assassin\u0027s Creed Shadows",
                       "normalized":  "assassinscreedshadows",
+                      "executables":  [
+                                          "acshadows.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3159330
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3159330/library_600x900.jpg",
+                      "steamAppId":  3159330,
+                      "title":  "Assassin\u0027s Creed Shadows",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2208920/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Assassin\u0027s Creed Valhalla",
                       "normalized":  "assassinscreedvalhalla",
+                      "executables":  [
+                                          "acvalhalla.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2208920
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2208920/library_600x900.jpg",
+                      "steamAppId":  2208920,
+                      "title":  "Assassin\u0027s Creed Valhalla",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3751950/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Assassin\u0027s Creed: Black Flag Resynced",
                       "normalized":  "assassinscreedblackflagresynced",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3751950
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3751950/library_600x900.jpg",
+                      "steamAppId":  3751950,
+                      "title":  "Assassin\u0027s Creed: Black Flag Resynced",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/244210/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Assetto Corsa",
                       "normalized":  "assettocorsa",
+                      "executables":  [
+                                          "acs.exe",
+                                          "assettocorsa.exe",
+                                          "jsgme.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  244210
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/244210/library_600x900.jpg",
+                      "steamAppId":  244210,
+                      "title":  "Assetto Corsa",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2840770/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Avatar: Frontiers of Pandora",
                       "normalized":  "avatarfrontiersofpandora",
+                      "executables":  [
+                                          "afop.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2840770
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2840770/library_600x900.jpg",
+                      "steamAppId":  2840770,
+                      "title":  "Avatar: Frontiers of Pandora",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1493640/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Banishers: Ghosts of New Eden",
                       "normalized":  "banishersghostsofneweden",
+                      "executables":  [
+                                          "banishers-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1493640
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1493640/library_600x900.jpg",
+                      "steamAppId":  1493640,
+                      "title":  "Banishers: Ghosts of New Eden",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2807960/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Battlefield 6",
                       "normalized":  "battlefield6",
+                      "executables":  [
+                                          "bf6.exe",
+                                          "bf6event.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2807960
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2807960/library_600x900.jpg",
+                      "steamAppId":  2807960,
+                      "title":  "Battlefield 6",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/284160/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "BeamNG.drive",
                       "normalized":  "beamngdrive",
+                      "executables":  [
+                                          "beamng.drive.exe",
+                                          "beamng.drive.x64.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  284160
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/284160/library_600x900.jpg",
+                      "steamAppId":  284160,
+                      "title":  "BeamNG.drive",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2001760/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Beast of Reincarnation",
                       "normalized":  "beastofreincarnation",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2001760
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2001760/library_600x900.jpg",
+                      "steamAppId":  2001760,
+                      "title":  "Beast of Reincarnation",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2358720/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Black Myth: Wukong",
                       "normalized":  "blackmythwukong",
+                      "executables":  [
+                                          "b1-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2358720
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2358720/library_600x900.jpg",
+                      "steamAppId":  2358720,
+                      "title":  "Black Myth: Wukong",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1285190/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Borderlands 4",
                       "normalized":  "borderlands4",
+                      "executables":  [
+                                          "borderlands4.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1285190
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1285190/library_600x900.jpg",
+                      "steamAppId":  1285190,
+                      "title":  "Borderlands 4",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1623940/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Bramble: The Mountain King",
                       "normalized":  "bramblethemountainking",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1623940
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1623940/library_600x900.jpg",
+                      "steamAppId":  1623940,
+                      "title":  "Bramble: The Mountain King",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/674140/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Bugsnax",
                       "normalized":  "bugsnax",
+                      "executables":  [
+                                          "bugsnax.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  674140
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/674140/library_600x900.jpg",
+                      "steamAppId":  674140,
+                      "title":  "Bugsnax",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1588550/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Cairn",
                       "normalized":  "cairn",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1588550
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1588550/library_600x900.jpg",
+                      "steamAppId":  1588550,
+                      "title":  "Cairn",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4384550/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Call of Duty: Black Ops 6",
                       "normalized":  "callofdutyblackops6",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  4384550
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4384550/library_600x900.jpg",
+                      "steamAppId":  4384550,
+                      "title":  "Call of Duty: Black Ops 6",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3606480/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Call of Duty: Black Ops 7",
                       "normalized":  "callofdutyblackops7",
+                      "executables":  [
+                                          "cod25-cod.exe",
+                                          "sp25-cod.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3606480
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3606480/library_600x900.jpg",
+                      "steamAppId":  3606480,
+                      "title":  "Call of Duty: Black Ops 7",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1985810/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Call of Duty: Black Ops Cold War",
                       "normalized":  "callofdutyblackopscoldwar",
+                      "executables":  [
+                                          "blackopscoldwar.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1985810
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1985810/library_600x900.jpg",
+                      "steamAppId":  1985810,
+                      "title":  "Call of Duty: Black Ops Cold War",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4435490/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Call of Duty: Modern Warfare 4",
                       "normalized":  "callofdutymodernwarfare4",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  4435490
-                  },
-                  {
-                      "hapticFeedback":  true,
-                      "normalized":  "callofdutymodernwarfare4beta",
                       "profile":  "standard",
+                      "steamAppIdVerified":  true,
                       "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
-                      "adaptiveTriggers":  true,
-                      "steamAppId":  1938090,
-                      "title":  "Call of Duty: Modern Warfare 4 Beta"
+                      "steamAppId":  4435490,
+                      "title":  "Call of Duty: Modern Warfare 4",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595230/library_600x900.jpg",
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
                       "hapticFeedback":  true,
                       "profile":  "standard",
-                      "title":  "Call of Duty: Modern Warfare II",
+                      "title":  "Call of Duty: Modern Warfare 4 Beta",
+                      "normalized":  "callofdutymodernwarfare4beta",
+                      "steamAppIdVerified":  false,
+                      "adaptiveTriggers":  true,
+                      "steamAppId":  0
+                  },
+                  {
                       "normalized":  "callofdutymodernwarfareii",
+                      "executables":  [
+                                          "cod22-cod.exe",
+                                          "sp22-cod.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3595230
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595230/library_600x900.jpg",
+                      "steamAppId":  3595230,
+                      "title":  "Call of Duty: Modern Warfare II",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595270/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Call of Duty: Modern Warfare III",
                       "normalized":  "callofdutymodernwarfareiii",
+                      "executables":  [
+                                          "cod23-cod.exe",
+                                          "mp23-cod.exe",
+                                          "sp23-cod.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3595270
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3595270/library_600x900.jpg",
+                      "steamAppId":  3595270,
+                      "title":  "Call of Duty: Modern Warfare III",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Call of Duty: Warzone 2.0",
                       "normalized":  "callofdutywarzone20",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Call of Duty: Warzone 2.0",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1408610/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Call of the Wild: The Angler",
                       "normalized":  "callofthewildtheangler",
+                      "executables":  [
+                                          "cotwtheangler_steam.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1408610
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1408610/library_600x900.jpg",
+                      "steamAppId":  1408610,
+                      "title":  "Call of the Wild: The Angler",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2070270/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Cloudheim",
                       "normalized":  "cloudheim",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2070270
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2070270/library_600x900.jpg",
+                      "steamAppId":  2070270,
+                      "title":  "Cloudheim",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3669870/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Control",
                       "normalized":  "control",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3669870
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/870780/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Control",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2933080/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Crime Boss: Rockay City",
                       "normalized":  "crimebossrockaycity",
+                      "executables":  [
+                                          "crimeboss-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2933080
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2933080/library_600x900.jpg",
+                      "steamAppId":  2933080,
+                      "title":  "Crime Boss: Rockay City",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3321460/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Crimson Desert",
                       "normalized":  "crimsondesert",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3321460
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co3p2u.jpg",
+                      "steamAppId":  0,
+                      "title":  "Crimson Desert",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2101960/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Cronos: The New Dawn",
                       "normalized":  "cronosthenewdawn",
+                      "executables":  [
+                                          "cronos-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2101960
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2101960/library_600x900.jpg",
+                      "steamAppId":  2101960,
+                      "title":  "Cronos: The New Dawn",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2760560/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Cthulhu: The Cosmic Abyss",
                       "normalized":  "cthulhuthecosmicabyss",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2760560
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2760560/library_600x900.jpg",
+                      "steamAppId":  2760560,
+                      "title":  "Cthulhu: The Cosmic Abyss",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Cyberpunk 2077",
                       "normalized":  "cyberpunk2077",
+                      "executables":  [
+                                          "cyberpunk2077.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1091500
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/library_600x900.jpg",
+                      "steamAppId":  1091500,
+                      "title":  "Cyberpunk 2077",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1868140/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Dave the Diver",
                       "normalized":  "davethediver",
+                      "executables":  [
+                                          "davethediver.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1868140
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1868140/library_600x900.jpg",
+                      "steamAppId":  1868140,
+                      "title":  "Dave the Diver",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1259420/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Days Gone",
                       "normalized":  "daysgone",
+                      "executables":  [
+                                          "daysgone.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1259420
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1259420/library_600x900.jpg",
+                      "steamAppId":  1259420,
+                      "title":  "Days Gone",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3280350/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Death Stranding",
                       "normalized":  "deathstranding",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3280350
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1850570/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Death Stranding",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3280350/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Death Stranding 2: On the Beach",
                       "normalized":  "deathstranding2onthebeach",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3280350
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3280350/library_600x900.jpg",
+                      "steamAppId":  3280350,
+                      "title":  "Death Stranding 2: On the Beach",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1850570/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Death Stranding Director\u0027s Cut",
                       "normalized":  "deathstrandingdirectorscut",
+                      "executables":  [
+                                          "ds.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1850570
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1850570/library_600x900.jpg",
+                      "steamAppId":  1850570,
+                      "title":  "Death Stranding Director\u0027s Cut",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1252330/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Deathloop",
                       "normalized":  "deathloop",
+                      "executables":  [
+                                          "deathloop.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1252330
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1252330/library_600x900.jpg",
+                      "steamAppId":  1252330,
+                      "title":  "Deathloop",
+                      "hapticFeedback":  true
                   },
                   {
-                      "hapticFeedback":  true,
                       "normalized":  "depersonalization",
-                      "profile":  "standard",
-                      "iconUrl":  "",
                       "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1479810/library_600x900.jpg",
                       "steamAppId":  0,
-                      "title":  "Depersonalization"
+                      "title":  "Depersonalization",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1004921/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "DiRT 4",
                       "normalized":  "dirt4",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1004921
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/421020/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "DiRT 4",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/690790/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "DiRT Rally",
                       "normalized":  "dirtrally",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  690790
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/310560/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "DiRT Rally",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/690790/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "DiRT Rally 2.0",
                       "normalized":  "dirtrally20",
+                      "executables":  [
+                                          "dirtrally2.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  690790
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/690790/library_600x900.jpg",
+                      "steamAppId":  690790,
+                      "title":  "DiRT Rally 2.0",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/831050/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Dolmen",
                       "normalized":  "dolmen",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  831050
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/831050/library_600x900.jpg",
+                      "steamAppId":  831050,
+                      "title":  "Dolmen",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1845910/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Dragon Age: The Veilguard",
                       "normalized":  "dragonagetheveilguard",
+                      "executables":  [
+                                          "dragon age the veilguard.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1845910
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1845910/library_600x900.jpg",
+                      "steamAppId":  1845910,
+                      "title":  "Dragon Age: The Veilguard",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/312530/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Duck Game",
                       "normalized":  "duckgame",
+                      "executables":  [
+                                          "duckgame.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  312530
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/312530/library_600x900.jpg",
+                      "steamAppId":  312530,
+                      "title":  "Duck Game",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/239140/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Dying Light",
                       "normalized":  "dyinglight",
+                      "executables":  [
+                                          "dyinglightgame.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  239140
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/239140/library_600x900.jpg",
+                      "steamAppId":  239140,
+                      "title":  "Dying Light",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/534380/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Dying Light 2 Stay Human",
                       "normalized":  "dyinglight2stayhuman",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  534380
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/534380/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Dying Light 2 Stay Human",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3008130/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Dying Light: The Beast",
                       "normalized":  "dyinglightthebeast",
+                      "executables":  [
+                                          "dyinglightgame_thebeast_x64_rwdi.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3008130
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3008130/library_600x900.jpg",
+                      "steamAppId":  3008130,
+                      "title":  "Dying Light: The Beast",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1849250/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "EA Sports WRC",
                       "normalized":  "easportswrc",
+                      "executables":  [
+                                          "wrc.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1849250
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1849250/library_600x900.jpg",
+                      "steamAppId":  1849250,
+                      "title":  "EA Sports WRC",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2377280/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Eriksholm: The Stolen Dream",
                       "normalized":  "eriksholmthestolendream",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2377280
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2377280/library_600x900.jpg",
+                      "steamAppId":  2377280,
+                      "title":  "Eriksholm: The Stolen Dream",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/227300/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Euro Truck Simulator 2",
                       "normalized":  "eurotrucksimulator2",
+                      "executables":  [
+                                          "eurotrucks2.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  227300
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/227300/library_600x900.jpg",
+                      "steamAppId":  227300,
+                      "title":  "Euro Truck Simulator 2",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1128920/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Everspace 2",
                       "normalized":  "everspace2",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1128920
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1128920/library_600x900.jpg",
+                      "steamAppId":  1128920,
+                      "title":  "Everspace 2",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1660061/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "F1 2021",
                       "normalized":  "f12021",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1660061
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1526700/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "F1 2021",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2056900/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "F1 22",
                       "normalized":  "f122",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2056900
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1692250/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "F1 22",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2426210/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "F1 23",
                       "normalized":  "f123",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2426210
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2108330/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "F1 23",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2488620/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "F1 24",
                       "normalized":  "f124",
+                      "executables":  [
+                                          "f1_24.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2488620
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2488620/library_600x900.jpg",
+                      "steamAppId":  2488620,
+                      "title":  "F1 24",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3059520/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "F1 25",
                       "normalized":  "f125",
+                      "executables":  [
+                                          "f1_25.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3059520
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3059520/library_600x900.jpg",
+                      "steamAppId":  3059520,
+                      "title":  "F1 25",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/377160/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Fallout 4",
                       "normalized":  "fallout4",
+                      "executables":  [
+                                          "fallout4.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  377160
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/377160/library_600x900.jpg",
+                      "steamAppId":  377160,
+                      "title":  "Fallout 4",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2844850/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Fantasian Neo Dimension",
                       "normalized":  "fantasianneodimension",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2844850
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2844850/library_600x900.jpg",
+                      "steamAppId":  2844850,
+                      "title":  "Fantasian Neo Dimension",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2369390/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Far Cry 6",
                       "normalized":  "farcry6",
+                      "executables":  [
+                                          "farcry6.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2369390
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2369390/library_600x900.jpg",
+                      "steamAppId":  2369390,
+                      "title":  "Far Cry 6",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2272540/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "FBC: Firebreak",
                       "normalized":  "fbcfirebreak",
+                      "executables":  [
+                                          "fbcfirebreak.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2272540
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2272540/library_600x900.jpg",
+                      "steamAppId":  2272540,
+                      "title":  "FBC: Firebreak",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2909400/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Final Fantasy VII Rebirth",
                       "normalized":  "finalfantasyviirebirth",
+                      "executables":  [
+                                          "ff7rebirth_.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2909400
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2909400/library_600x900.jpg",
+                      "steamAppId":  2909400,
+                      "title":  "Final Fantasy VII Rebirth",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1462040/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Final Fantasy VII Remake Intergrade",
                       "normalized":  "finalfantasyviiremakeintergrade",
+                      "executables":  [
+                                          "ff7remake_.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1462040
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1462040/library_600x900.jpg",
+                      "steamAppId":  1462040,
+                      "title":  "Final Fantasy VII Remake Intergrade",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3372240/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Final Fantasy XIV: A Realm Reborn",
                       "normalized":  "finalfantasyxivarealmreborn",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3372240
-                  },
-                  {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2515020/library_600x900.jpg",
-                      "hapticFeedback":  true,
                       "profile":  "standard",
-                      "title":  "Final Fantasy XVI",
-                      "normalized":  "finalfantasyxvi",
-                      "adaptiveTriggers":  true,
-                      "steamAppId":  2515020
-                  },
-                  {
-                      "hapticFeedback":  true,
-                      "normalized":  "fobiastdinfnahotel",
-                      "profile":  "standard",
-                      "iconUrl":  "",
-                      "adaptiveTriggers":  false,
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/39210/library_600x900.jpg",
                       "steamAppId":  0,
-                      "title":  "Fobia - St. Dinfna Hotel"
+                      "title":  "Final Fantasy XIV: A Realm Reborn",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1680880/library_600x900.jpg",
-                      "hapticFeedback":  true,
+                      "normalized":  "finalfantasyxvi",
+                      "executables":  [
+                                          "ffxvi.exe",
+                                          "ffxvi_demo.exe"
+                                      ],
+                      "adaptiveTriggers":  true,
                       "profile":  "standard",
-                      "title":  "Forspoken",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2515020/library_600x900.jpg",
+                      "steamAppId":  2515020,
+                      "title":  "Final Fantasy XVI",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "fobiastdinfnahotel",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1298140/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Fobia - St. Dinfna Hotel",
+                      "hapticFeedback":  true
+                  },
+                  {
                       "normalized":  "forspoken",
+                      "executables":  [
+                                          "forspoken.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1680880
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1680880/library_600x900.jpg",
+                      "steamAppId":  1680880,
+                      "title":  "Forspoken",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1551360/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Forza Horizon 5",
                       "normalized":  "forzahorizon5",
+                      "executables":  [
+                                          "forzahorizon5.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1551360
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1551360/library_600x900.jpg",
+                      "steamAppId":  1551360,
+                      "title":  "Forza Horizon 5",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2483190/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Forza Horizon 6",
                       "normalized":  "forzahorizon6",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2483190
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2483190/library_600x900.jpg",
+                      "steamAppId":  2483190,
+                      "title":  "Forza Horizon 6",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2612090/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Forza Motorsport 7",
                       "normalized":  "forzamotorsport7",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2612090
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co1x4q.jpg",
+                      "steamAppId":  0,
+                      "title":  "Forza Motorsport 7",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3010850/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Gears of War: E-Day",
                       "normalized":  "gearsofwareday",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3010850
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3010850/library_600x900.jpg",
+                      "steamAppId":  3010850,
+                      "title":  "Gears of War: E-Day",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Genshin Impact",
                       "normalized":  "genshinimpact",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co2047.jpg",
+                      "steamAppId":  0,
+                      "title":  "Genshin Impact",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "ghost-of-tsushima",
-                      "title":  "Ghost of Tsushima Director\u0027s Cut",
                       "normalized":  "ghostoftsushimadirectorscut",
+                      "executables":  [
+                                          "ghostoftsushima.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2215430
+                      "profile":  "ghost-of-tsushima",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/library_600x900.jpg",
+                      "steamAppId":  2215430,
+                      "title":  "Ghost of Tsushima Director\u0027s Cut",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1475810/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Ghostwire: Tokyo",
                       "normalized":  "ghostwiretokyo",
+                      "executables":  [
+                                          "gwt.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1475810
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1475810/library_600x900.jpg",
+                      "steamAppId":  1475810,
+                      "title":  "Ghostwire: Tokyo",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1593500/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "God of War",
                       "normalized":  "godofwar",
+                      "executables":  [
+                                          "gow.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1593500
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1593500/library_600x900.jpg",
+                      "steamAppId":  1593500,
+                      "title":  "God of War",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2322010/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "God of War Ragnarök",
                       "normalized":  "godofwarragnarök",
+                      "executables":  [
+                                          "gowr.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2322010
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2322010/library_600x900.jpg",
+                      "steamAppId":  2322010,
+                      "title":  "God of War Ragnarök",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/881020/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Granblue Fantasy: Relink",
                       "normalized":  "granbluefantasyrelink",
+                      "executables":  [
+                                          "granblue_fantasy_relink.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  881020
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/881020/library_600x900.jpg",
+                      "steamAppId":  881020,
+                      "title":  "Granblue Fantasy: Relink",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Grand Theft Auto V",
                       "normalized":  "grandtheftautov",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  271590
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg",
+                      "steamAppId":  271590,
+                      "title":  "Grand Theft Auto V",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3240220/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Grand Theft Auto V Enhanced",
                       "normalized":  "grandtheftautovenhanced",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3240220
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3240220/library_600x900.jpg",
+                      "steamAppId":  3240220,
+                      "title":  "Grand Theft Auto V Enhanced",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1547000/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Grand Theft Auto: San Andreas",
                       "normalized":  "grandtheftautosanandreas",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1547000
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1547000/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Grand Theft Auto: San Andreas",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/858710/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Gravity Circuit",
                       "normalized":  "gravitycircuit",
+                      "executables":  [
+                                          "gravitycircuit.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  858710
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/858710/library_600x900.jpg",
+                      "steamAppId":  858710,
+                      "title":  "Gravity Circuit",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/546560/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Half-Life: Alyx",
                       "normalized":  "halflifealyx",
+                      "executables":  [
+                                          "hlvr.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  546560
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/546560/library_600x900.jpg",
+                      "steamAppId":  546560,
+                      "title":  "Half-Life: Alyx",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2806050/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Halo: Campaign Evolved",
                       "normalized":  "halocampaignevolved",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2806050
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2806050/library_600x900.jpg",
+                      "steamAppId":  2806050,
+                      "title":  "Halo: Campaign Evolved",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1796470/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Haste",
                       "normalized":  "haste",
+                      "executables":  [
+                                          "haste.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1796470
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1796470/library_600x900.jpg",
+                      "steamAppId":  1796470,
+                      "title":  "Haste",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1620730/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Hell is Us",
                       "normalized":  "hellisus",
+                      "executables":  [
+                                          "hellisus-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1620730
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1620730/library_600x900.jpg",
+                      "steamAppId":  1620730,
+                      "title":  "Hell is Us",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2461850/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Hellblade II: Senua\u0027s Saga",
                       "normalized":  "hellbladeiisenuassaga",
+                      "executables":  [
+                                          "hellblade2-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2461850
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2461850/library_600x900.jpg",
+                      "steamAppId":  2461850,
+                      "title":  "Hellblade II: Senua\u0027s Saga",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/553850/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Helldivers 2",
                       "normalized":  "helldivers2",
+                      "executables":  [
+                                          "helldivers2.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  553850
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/553850/library_600x900.jpg",
+                      "steamAppId":  553850,
+                      "title":  "Helldivers 2",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817230/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Hi-Fi Rush",
                       "normalized":  "hifirush",
+                      "executables":  [
+                                          "hi-fi-rush.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1817230
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817230/library_600x900.jpg",
+                      "steamAppId":  1817230,
+                      "title":  "Hi-Fi Rush",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/990080/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Hogwarts Legacy",
                       "normalized":  "hogwartslegacy",
+                      "executables":  [
+                                          "hogwartslegacy.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  990080
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/990080/library_600x900.jpg",
+                      "steamAppId":  990080,
+                      "title":  "Hogwarts Legacy",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2420110/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Horizon Forbidden West",
                       "normalized":  "horizonforbiddenwest",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2420110
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2420110/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Horizon Forbidden West",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2561580/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Horizon Zero Dawn Remastered",
                       "normalized":  "horizonzerodawnremastered",
+                      "executables":  [
+                                          "horizonzerodawnremastered.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2561580
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2561580/library_600x900.jpg",
+                      "steamAppId":  2561580,
+                      "title":  "Horizon Zero Dawn Remastered",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2677660/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Indiana Jones and the Great Circle",
                       "normalized":  "indianajonesandthegreatcircle",
+                      "executables":  [
+                                          "thegreatcircle.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2677660
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2677660/library_600x900.jpg",
+                      "steamAppId":  2677660,
+                      "title":  "Indiana Jones and the Great Circle",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3164330/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Infinity Nikki",
                       "normalized":  "infinitynikki",
+                      "executables":  [
+                                          "x6game-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  3164330
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3164330/library_600x900.jpg",
+                      "steamAppId":  3164330,
+                      "title":  "Infinity Nikki",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Jak II (OpenGOAL)",
                       "normalized":  "jakiiopengoal",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co2k1d.jpg",
+                      "steamAppId":  0,
+                      "title":  "Jak II (OpenGOAL)",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2157830/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "John Carpenter\u0027s Toxic Commando",
                       "normalized":  "johncarpenterstoxiccommando",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2157830
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2157830/library_600x900.jpg",
+                      "steamAppId":  2157830,
+                      "title":  "John Carpenter\u0027s Toxic Commando",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1771300/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Kingdom Come: Deliverance II",
                       "normalized":  "kingdomcomedeliveranceii",
+                      "executables":  [
+                                          "kingdomcome.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1771300
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1771300/library_600x900.jpg",
+                      "steamAppId":  1771300,
+                      "title":  "Kingdom Come: Deliverance II",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215200/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Lego Batman: Legacy of the Dark Knight",
                       "normalized":  "legobatmanlegacyofthedarkknight",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2215200
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215200/library_600x900.jpg",
+                      "steamAppId":  2215200,
+                      "title":  "Lego Batman: Legacy of the Dark Knight",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2428810/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Lego Horizon Adventures",
                       "normalized":  "legohorizonadventures",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2428810
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2428810/library_600x900.jpg",
+                      "steamAppId":  2428810,
+                      "title":  "Lego Horizon Adventures",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Lords of the Fallen (2023)",
                       "normalized":  "lordsofthefallen2023",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  0
-                  },
-                  {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3378960/library_600x900.jpg",
-                      "hapticFeedback":  true,
                       "profile":  "standard",
-                      "title":  "Lost Soul Aside",
-                      "normalized":  "lostsoulaside",
-                      "adaptiveTriggers":  true,
-                      "steamAppId":  3378960
-                  },
-                  {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1729740/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Luto",
-                      "normalized":  "luto",
-                      "adaptiveTriggers":  false,
-                      "steamAppId":  1729740
-                  },
-                  {
-                      "hapticFeedback":  true,
-                      "normalized":  "marathon2026",
-                      "profile":  "standard",
-                      "iconUrl":  "",
-                      "adaptiveTriggers":  false,
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1501750/library_600x900.jpg",
                       "steamAppId":  0,
-                      "title":  "Marathon (2026)"
+                      "title":  "Lords of the Fallen (2023)",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2767030/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Marvel Rivals",
-                      "normalized":  "marvelrivals",
+                      "normalized":  "lostsoulaside",
+                      "executables":  [
+                                          "projectlsasteam-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2767030
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3378960/library_600x900.jpg",
+                      "steamAppId":  3378960,
+                      "title":  "Lost Soul Aside",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3787240/library_600x900.jpg",
-                      "hapticFeedback":  true,
+                      "normalized":  "luto",
+                      "executables":  [
+                                          "luto-win64-shipping.exe"
+                                      ],
+                      "adaptiveTriggers":  false,
                       "profile":  "standard",
-                      "title":  "Marvel Tōkon: Fighting Souls",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1729740/library_600x900.jpg",
+                      "steamAppId":  1729740,
+                      "title":  "Luto",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "marathon2026",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3065800/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Marathon (2026)",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "marvelrivals",
+                      "executables":  [
+                                          "marvel.exe",
+                                          "marvel-win64-shipping.exe",
+                                          "marvel-win64-test.exe"
+                                      ],
+                      "adaptiveTriggers":  true,
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2767030/library_600x900.jpg",
+                      "steamAppId":  2767030,
+                      "title":  "Marvel Rivals",
+                      "hapticFeedback":  true
+                  },
+                  {
                       "normalized":  "marveltōkonfightingsouls",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  3787240
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3787240/library_600x900.jpg",
+                      "steamAppId":  3787240,
+                      "title":  "Marvel Tōkon: Fighting Souls",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2651280/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "spider-man-2",
-                      "title":  "Marvel\u0027s Spider-Man 2",
                       "normalized":  "marvelsspiderman2",
+                      "executables":  [
+                                          "spider-man2.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2651280
+                      "profile":  "spider-man-2",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2651280/library_600x900.jpg",
+                      "steamAppId":  2651280,
+                      "title":  "Marvel\u0027s Spider-Man 2",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817070/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Marvel\u0027s Spider-Man Remastered",
                       "normalized":  "marvelsspidermanremastered",
+                      "executables":  [
+                                          "spider-man.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1817070
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817070/library_600x900.jpg",
+                      "steamAppId":  1817070,
+                      "title":  "Marvel\u0027s Spider-Man Remastered",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "miles-morales",
-                      "title":  "Marvel\u0027s Spider-Man: Miles Morales",
                       "normalized":  "marvelsspidermanmilesmorales",
+                      "executables":  [
+                                          "milesmorales.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1817190
+                      "profile":  "miles-morales",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/library_600x900.jpg",
+                      "steamAppId":  1817190,
+                      "title":  "Marvel\u0027s Spider-Man: Miles Morales",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2452280/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Mecha Break",
                       "normalized":  "mechabreak",
+                      "executables":  [
+                                          "mechabreak.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2452280
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2452280/library_600x900.jpg",
+                      "steamAppId":  2452280,
+                      "title":  "Mecha Break",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/311340/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Metal Gear Solid V: Ground Zeroes",
                       "normalized":  "metalgearsolidvgroundzeroes",
+                      "executables":  [
+                                          "mgsgroundzeroes.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  311340
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/311340/library_600x900.jpg",
+                      "steamAppId":  311340,
+                      "title":  "Metal Gear Solid V: Ground Zeroes",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/287700/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Metal Gear Solid V: The Phantom Pain",
                       "normalized":  "metalgearsolidvthephantompain",
+                      "executables":  [
+                                          "mgsvmgo.exe",
+                                          "mgsvtpp.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  287700
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/287700/library_600x900.jpg",
+                      "steamAppId":  287700,
+                      "title":  "Metal Gear Solid V: The Phantom Pain",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2417610/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Metal Gear Solid Δ: Snake Eater",
                       "normalized":  "metalgearsolidδsnakeeater",
+                      "executables":  [
+                                          "mgsdelta-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2417610
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2417610/library_600x900.jpg",
+                      "steamAppId":  2417610,
+                      "title":  "Metal Gear Solid Δ: Snake Eater",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/412020/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Metro Exodus",
                       "normalized":  "metroexodus",
+                      "executables":  [
+                                          "metroexodus.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  412020
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/412020/library_600x900.jpg",
+                      "steamAppId":  412020,
+                      "title":  "Metro Exodus",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Metro Exodus Enhanced Edition",
                       "normalized":  "metroexodusenhancededition",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/412020/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Metro Exodus Enhanced Edition",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3265250/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "MindsEye",
                       "normalized":  "mindseye",
+                      "executables":  [
+                                          "mindseye-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3265250
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3265250/library_600x900.jpg",
+                      "steamAppId":  3265250,
+                      "title":  "MindsEye",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2582320/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Mixtape",
                       "normalized":  "mixtape",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2582320
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2582320/library_600x900.jpg",
+                      "steamAppId":  2582320,
+                      "title":  "Mixtape",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2246340/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Monster Hunter Wilds",
                       "normalized":  "monsterhunterwilds",
+                      "executables":  [
+                                          "monsterhunterwilds.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2246340
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2246340/library_600x900.jpg",
+                      "steamAppId":  2246340,
+                      "title":  "Monster Hunter Wilds",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2584270/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Mortal Shell II",
                       "normalized":  "mortalshellii",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2584270
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2584270/library_600x900.jpg",
+                      "steamAppId":  2584270,
+                      "title":  "Mortal Shell II",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2420660/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Neva",
                       "normalized":  "neva",
+                      "executables":  [
+                                          "neva.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2420660
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2420660/library_600x900.jpg",
+                      "steamAppId":  2420660,
+                      "title":  "Neva",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4508340/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Neverness to Everness",
                       "normalized":  "nevernesstoeverness",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  4508340
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co8j9k.jpg",
+                      "steamAppId":  0,
+                      "title":  "Neverness to Everness",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2627260/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Ninja Gaiden 4",
                       "normalized":  "ninjagaiden4",
+                      "executables":  [
+                                          "ninjagaiden4-steam.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2627260
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2627260/library_600x900.jpg",
+                      "steamAppId":  2627260,
+                      "title":  "Ninja Gaiden 4",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3681010/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Nioh 3",
                       "normalized":  "nioh3",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3681010
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3681010/library_600x900.jpg",
+                      "steamAppId":  3681010,
+                      "title":  "Nioh 3",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/275850/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "No Man\u0027s Sky",
                       "normalized":  "nomanssky",
+                      "executables":  [
+                                          "nms.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  275850
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/275850/library_600x900.jpg",
+                      "steamAppId":  275850,
+                      "title":  "No Man\u0027s Sky",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3659280/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Off The Grid",
                       "normalized":  "offthegrid",
+                      "executables":  [
+                                          "g01client-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3659280
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3659280/library_600x900.jpg",
+                      "steamAppId":  3659280,
+                      "title":  "Off The Grid",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4815780/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Overwatch 2",
                       "normalized":  "overwatch2",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  4815780
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2357570/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Overwatch 2",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1458140/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Pacific Drive",
                       "normalized":  "pacificdrive",
+                      "executables":  [
+                                          "pendriverpro-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1458140
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1458140/library_600x900.jpg",
+                      "steamAppId":  1458140,
+                      "title":  "Pacific Drive",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Painkiller (2025)",
                       "normalized":  "painkiller2025",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/39530/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Painkiller (2025)",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3357650/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Pragmata",
                       "normalized":  "pragmata",
+                      "executables":  [
+                                          "pragmata_sketchbook.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3357650
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3357650/library_600x900.jpg",
+                      "steamAppId":  3357650,
+                      "title":  "Pragmata",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2751000/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Prince of Persia: The Lost Crown",
                       "normalized":  "princeofpersiathelostcrown",
+                      "executables":  [
+                                          "thelostcrown.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2751000
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2751000/library_600x900.jpg",
+                      "steamAppId":  2751000,
+                      "title":  "Prince of Persia: The Lost Crown",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2340980/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Project Colored Mountains",
                       "normalized":  "projectcoloredmountains",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2340980
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2340980/library_600x900.jpg",
+                      "steamAppId":  2340980,
+                      "title":  "Project Colored Mountains",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1895880/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Ratchet \u0026 Clank: Rift Apart",
                       "normalized":  "ratchetclankriftapart",
+                      "executables":  [
+                                          "riftapart.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1895880
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1895880/library_600x900.jpg",
+                      "steamAppId":  1895880,
+                      "title":  "Ratchet \u0026 Clank: Rift Apart",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1144200/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Ready or Not",
                       "normalized":  "readyornot",
+                      "executables":  [
+                                          "readyornot-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1144200
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1144200/library_600x900.jpg",
+                      "steamAppId":  1144200,
+                      "title":  "Ready or Not",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1174180/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Red Dead Redemption 2",
                       "normalized":  "reddeadredemption2",
+                      "executables":  [
+                                          "rdr2.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1174180
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1174180/library_600x900.jpg",
+                      "steamAppId":  1174180,
+                      "title":  "Red Dead Redemption 2",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/21690/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Resident Evil 5",
                       "normalized":  "residentevil5",
+                      "executables":  [
+                                          "re5dx9.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  21690
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/21690/library_600x900.jpg",
+                      "steamAppId":  21690,
+                      "title":  "Resident Evil 5",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3764200/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Resident Evil Requiem",
                       "normalized":  "residentevilrequiem",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3764200
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3764200/library_600x900.jpg",
+                      "steamAppId":  3764200,
+                      "title":  "Resident Evil Requiem",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2713000/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Resonance: A Plague Tale Legacy",
                       "normalized":  "resonanceaplaguetalelegacy",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2713000
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2713000/library_600x900.jpg",
+                      "steamAppId":  2713000,
+                      "title":  "Resonance: A Plague Tale Legacy",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1649240/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Returnal",
                       "normalized":  "returnal",
+                      "executables":  [
+                                          "returnal-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1649240
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1649240/library_600x900.jpg",
+                      "steamAppId":  1649240,
+                      "title":  "Returnal",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1340990/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Rise of the Ronin",
                       "normalized":  "riseoftheronin",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1340990
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1340990/library_600x900.jpg",
+                      "steamAppId":  1340990,
+                      "title":  "Rise of the Ronin",
+                      "hapticFeedback":  true
                   },
                   {
-                      "hapticFeedback":  true,
                       "normalized":  "riven2024",
-                      "profile":  "standard",
-                      "iconUrl":  "",
                       "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1712350/library_600x900.jpg",
                       "steamAppId":  0,
-                      "title":  "Riven (2024)"
+                      "title":  "Riven (2024)",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2104890/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "RoadCraft",
                       "normalized":  "roadcraft",
+                      "executables":  [
+                                          "roadcraft - retail.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2104890
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2104890/library_600x900.jpg",
+                      "steamAppId":  2104890,
+                      "title":  "RoadCraft",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Rocket League",
                       "normalized":  "rocketleague",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/252950/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Rocket League",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1643320/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "S.T.A.L.K.E.R. 2: Heart of Chornobyl",
                       "normalized":  "stalker2heartofchornobyl",
+                      "executables":  [
+                                          "stalker2-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1643320
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1643320/library_600x900.jpg",
+                      "steamAppId":  1643320,
+                      "title":  "S.T.A.L.K.E.R. 2: Heart of Chornobyl",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2427430/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "S.T.A.L.K.E.R.: Call of Prypiat Enhanced Edition",
                       "normalized":  "stalkercallofprypiatenhancededition",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2427430
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2427430/library_600x900.jpg",
+                      "steamAppId":  2427430,
+                      "title":  "S.T.A.L.K.E.R.: Call of Prypiat Enhanced Edition",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2427420/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "S.T.A.L.K.E.R.: Clear Sky Enhanced Edition",
                       "normalized":  "stalkerclearskyenhancededition",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2427420
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2427420/library_600x900.jpg",
+                      "steamAppId":  2427420,
+                      "title":  "S.T.A.L.K.E.R.: Clear Sky Enhanced Edition",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2427410/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "S.T.A.L.K.E.R.: Shadow of Chornobyl Enhanced Edition",
                       "normalized":  "stalkershadowofchornobylenhancededition",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2427410
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2427410/library_600x900.jpg",
+                      "steamAppId":  2427410,
+                      "title":  "S.T.A.L.K.E.R.: Shadow of Chornobyl Enhanced Edition",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1599660/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Sackboy: A Big Adventure",
                       "normalized":  "sackboyabigadventure",
+                      "executables":  [
+                                          "sackboy-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1599660
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1599660/library_600x900.jpg",
+                      "steamAppId":  1599660,
+                      "title":  "Sackboy: A Big Adventure",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/526870/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Satisfactory",
                       "normalized":  "satisfactory",
+                      "executables":  [
+                                          "factorygameegs-win64-shipping.exe",
+                                          "factorygamesteam-win64-shipping.exe",
+                                          "factorygame-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  526870
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/526870/library_600x900.jpg",
+                      "steamAppId":  526870,
+                      "title":  "Satisfactory",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1196090/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Scars Above",
                       "normalized":  "scarsabove",
+                      "executables":  [
+                                          "project-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1196090
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1196090/library_600x900.jpg",
+                      "steamAppId":  1196090,
+                      "title":  "Scars Above",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Screamer (2026)",
                       "normalized":  "screamer2026",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2814990/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Screamer (2026)",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172620/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Sea of Thieves",
                       "normalized":  "seaofthieves",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1172620
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172620/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Sea of Thieves",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/695330/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "SEASON: A letter to the future",
                       "normalized":  "seasonalettertothefuture",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  695330
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/695330/library_600x900.jpg",
+                      "steamAppId":  695330,
+                      "title":  "SEASON: A letter to the future",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1262350/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Signalis",
                       "normalized":  "signalis",
+                      "executables":  [
+                                          "signalis.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1262350
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1262350/library_600x900.jpg",
+                      "steamAppId":  1262350,
+                      "title":  "Signalis",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2124490/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Silent Hill 2",
                       "normalized":  "silenthill2",
+                      "executables":  [
+                                          "shproto-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2124490
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2124490/library_600x900.jpg",
+                      "steamAppId":  2124490,
+                      "title":  "Silent Hill 2",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3354750/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Skate",
                       "normalized":  "skate",
+                      "executables":  [
+                                          "skate.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  3354750
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3354750/library_600x900.jpg",
+                      "steamAppId":  3354750,
+                      "title":  "Skate",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2853730/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Skull and Bones",
                       "normalized":  "skullandbones",
+                      "executables":  [
+                                          "skullandbones.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2853730
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2853730/library_600x900.jpg",
+                      "steamAppId":  2853730,
+                      "title":  "Skull and Bones",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2446540/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Sleep Awake",
                       "normalized":  "sleepawake",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2446540
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2446540/library_600x900.jpg",
+                      "steamAppId":  2446540,
+                      "title":  "Sleep Awake",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2486820/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Sonic Racing: CrossWorlds",
                       "normalized":  "sonicracingcrossworlds",
+                      "executables":  [
+                                          "sonicracingcrossworldssteam.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2486820
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2486820/library_600x900.jpg",
+                      "steamAppId":  2486820,
+                      "title":  "Sonic Racing: CrossWorlds",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2022670/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Sonic Superstars",
                       "normalized":  "sonicsuperstars",
+                      "executables":  [
+                                          "sonicsuperstars.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2022670
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2022670/library_600x900.jpg",
+                      "steamAppId":  2022670,
+                      "title":  "Sonic Superstars",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1774580/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Star Wars Jedi: Survivor",
                       "normalized":  "starwarsjedisurvivor",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1774580
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1774580/library_600x900.jpg",
+                      "steamAppId":  1774580,
+                      "title":  "Star Wars Jedi: Survivor",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2842040/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Star Wars Outlaws",
                       "normalized":  "starwarsoutlaws",
+                      "executables":  [
+                                          "outlaws.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2842040
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2842040/library_600x900.jpg",
+                      "steamAppId":  2842040,
+                      "title":  "Star Wars Outlaws",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3489700/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Stellar Blade",
                       "normalized":  "stellarblade",
+                      "executables":  [
+                                          "sb-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3489700
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3489700/library_600x900.jpg",
+                      "steamAppId":  3489700,
+                      "title":  "Stellar Blade",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1622910/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Still Wakes the Deep",
                       "normalized":  "stillwakesthedeep",
+                      "executables":  [
+                                          "stillwakesthedeep.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1622910
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1622910/library_600x900.jpg",
+                      "steamAppId":  1622910,
+                      "title":  "Still Wakes the Deep",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1332010/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Stray",
                       "normalized":  "stray",
+                      "executables":  [
+                                          "stray-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1332010
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1332010/library_600x900.jpg",
+                      "steamAppId":  1332010,
+                      "title":  "Stray",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3290690/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Styx: Blades of Greed",
                       "normalized":  "styxbladesofgreed",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3290690
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3290690/library_600x900.jpg",
+                      "steamAppId":  3290690,
+                      "title":  "Styx: Blades of Greed",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/315210/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Suicide Squad: Kill the Justice League",
                       "normalized":  "suicidesquadkillthejusticeleague",
+                      "executables":  [
+                                          "suicidesquad_ktjl.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  315210
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/315210/library_600x900.jpg",
+                      "steamAppId":  315210,
+                      "title":  "Suicide Squad: Kill the Justice League",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2453160/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Sword of the Sea",
                       "normalized":  "swordofthesea",
+                      "executables":  [
+                                          "swordofthesea-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2453160
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2453160/library_600x900.jpg",
+                      "steamAppId":  2453160,
+                      "title":  "Sword of the Sea",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/866570/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "System Shock 2: 25th Anniversary Remaster",
                       "normalized":  "systemshock225thanniversaryremaster",
+                      "executables":  [
+                                          "hathor_shipping_playfab_steam_x64.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  866570
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/866570/library_600x900.jpg",
+                      "steamAppId":  866570,
+                      "title":  "System Shock 2: 25th Anniversary Remaster",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1466060/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Tainted Grail: The Fall of Avalon",
                       "normalized":  "taintedgrailthefallofavalon",
+                      "executables":  [
+                                          "fall of avalon.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1466060
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1466060/library_600x900.jpg",
+                      "steamAppId":  1466060,
+                      "title":  "Tainted Grail: The Fall of Avalon",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1778820/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Tekken 8",
                       "normalized":  "tekken8",
+                      "executables":  [
+                                          "polaris-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1778820
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1778820/library_600x900.jpg",
+                      "steamAppId":  1778820,
+                      "title":  "Tekken 8",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1249970/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Test Drive Unlimited Solar Crown",
                       "normalized":  "testdriveunlimitedsolarcrown",
+                      "executables":  [
+                                          "tdusc.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1249970
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1249970/library_600x900.jpg",
+                      "steamAppId":  1249970,
+                      "title":  "Test Drive Unlimited Solar Crown",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1577250/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "The Chant",
                       "normalized":  "thechant",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1577250
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1577250/library_600x900.jpg",
+                      "steamAppId":  1577250,
+                      "title":  "The Chant",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2698940/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "The Crew Motorfest",
                       "normalized":  "thecrewmotorfest",
+                      "executables":  [
+                                          "thecrewmotorfest_be.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2698940
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2698940/library_600x900.jpg",
+                      "steamAppId":  2698940,
+                      "title":  "The Crew Motorfest",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2623190/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "The Elder Scrolls IV: Oblivion Remastered",
                       "normalized":  "theelderscrollsivoblivionremastered",
+                      "executables":  [
+                                          "oblivionremastered-win64-shipping.exe",
+                                          "oblivionremastered-wingdk-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2623190
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2623190/library_600x900.jpg",
+                      "steamAppId":  2623190,
+                      "title":  "The Elder Scrolls IV: Oblivion Remastered",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/489830/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "The Elder Scrolls V: Skyrim Special Edition",
                       "normalized":  "theelderscrollsvskyrimspecialedition",
+                      "executables":  [
+                                          "skyrimse.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  489830
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/489830/library_600x900.jpg",
+                      "steamAppId":  489830,
+                      "title":  "The Elder Scrolls V: Skyrim Special Edition",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2680010/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "The First Berserker: Khazan",
                       "normalized":  "thefirstberserkerkhazan",
+                      "executables":  [
+                                          "bbq-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2680010
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2680010/library_600x900.jpg",
+                      "steamAppId":  2680010,
+                      "title":  "The First Berserker: Khazan",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2074920/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "The First Descendant",
                       "normalized":  "thefirstdescendant",
+                      "executables":  [
+                                          "m1-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2074920
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2074920/library_600x900.jpg",
+                      "steamAppId":  2074920,
+                      "title":  "The First Descendant",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1888930/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "The Last of Us Part I",
                       "normalized":  "thelastofusparti",
+                      "executables":  [
+                                          "tlou-i.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1888930
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1888930/library_600x900.jpg",
+                      "steamAppId":  1888930,
+                      "title":  "The Last of Us Part I",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2531310/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "The Last of Us Part II Remastered",
                       "normalized":  "thelastofuspartiiremastered",
+                      "executables":  [
+                                          "tlou-ii.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2531310
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2531310/library_600x900.jpg",
+                      "steamAppId":  2531310,
+                      "title":  "The Last of Us Part II Remastered",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/780310/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "The Riftbreaker",
                       "normalized":  "theriftbreaker",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  780310
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/780310/library_600x900.jpg",
+                      "steamAppId":  780310,
+                      "title":  "The Riftbreaker",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2825860/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "The Sinking City 2",
                       "normalized":  "thesinkingcity2",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2825860
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2825860/library_600x900.jpg",
+                      "steamAppId":  2825860,
+                      "title":  "The Sinking City 2",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2397500/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "The Smurfs 2: The Prisoner of the Green Stone",
                       "normalized":  "thesmurfs2theprisonerofthegreenstone",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2397500
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2397500/library_600x900.jpg",
+                      "steamAppId":  2397500,
+                      "title":  "The Smurfs 2: The Prisoner of the Green Stone",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/5006530/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "The Witcher 3: Wild Hunt",
                       "normalized":  "thewitcher3wildhunt",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  5006530
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/292030/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "The Witcher 3: Wild Hunt",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2379390/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Tom Clancy\u0027s Rainbow Six Extraction",
                       "normalized":  "tomclancysrainbowsixextraction",
+                      "executables":  [
+                                          "r6-extraction.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2379390
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2379390/library_600x900.jpg",
+                      "steamAppId":  2379390,
+                      "title":  "Tom Clancy\u0027s Rainbow Six Extraction",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/359550/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "Tom Clancy\u0027s Rainbow Six Siege",
                       "normalized":  "tomclancysrainbowsixsiege",
+                      "executables":  [
+                                          "rainbowsix.exe",
+                                          "rainbowsix_be.exe",
+                                          "rainbowsix_vulkan.exe",
+                                          "rainbowsixgame.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  359550
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/359550/library_600x900.jpg",
+                      "steamAppId":  359550,
+                      "title":  "Tom Clancy\u0027s Rainbow Six Siege",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Tomb Raider (2013)",
                       "normalized":  "tombraider2013",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  0
-                  },
-                  {
-                      "hapticFeedback":  false,
-                      "normalized":  "tonyhawksproskater34",
                       "profile":  "standard",
-                      "iconUrl":  "",
-                      "adaptiveTriggers":  true,
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/203160/library_600x900.jpg",
                       "steamAppId":  0,
-                      "title":  "Tony Hawk\u0027s Pro Skater 3 + 4"
+                      "title":  "Tomb Raider (2013)",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2464280/library_600x900.jpg",
-                      "hapticFeedback":  true,
+                      "normalized":  "tonyhawksproskater34",
+                      "adaptiveTriggers":  true,
                       "profile":  "standard",
-                      "title":  "Tormented Souls 2",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co2k1e.jpg",
+                      "steamAppId":  0,
+                      "title":  "Tony Hawk\u0027s Pro Skater 3 + 4",
+                      "hapticFeedback":  false
+                  },
+                  {
                       "normalized":  "tormentedsouls2",
+                      "executables":  [
+                                          "tormentedsouls2-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  2464280
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2464280/library_600x900.jpg",
+                      "steamAppId":  2464280,
+                      "title":  "Tormented Souls 2",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3936520/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Tour de France 2026",
                       "normalized":  "tourdefrance2026",
                       "adaptiveTriggers":  false,
-                      "steamAppId":  3936520
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3936520/library_600x900.jpg",
+                      "steamAppId":  3936520,
+                      "title":  "Tour de France 2026",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1659420/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Uncharted: Legacy of Thieves Collection",
                       "normalized":  "unchartedlegacyofthievescollection",
+                      "executables":  [
+                                          "u4.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1659420
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1659420/library_600x900.jpg",
+                      "steamAppId":  1659420,
+                      "title":  "Uncharted: Legacy of Thieves Collection",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2172010/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Until Dawn",
                       "normalized":  "untildawn",
+                      "executables":  [
+                                          "bates-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2172010
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2172010/library_600x900.jpg",
+                      "steamAppId":  2172010,
+                      "title":  "Until Dawn",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1604030/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "V Rising",
                       "normalized":  "vrising",
+                      "executables":  [
+                                          "vrising.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1604030
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1604030/library_600x900.jpg",
+                      "steamAppId":  1604030,
+                      "title":  "V Rising",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1491000/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "War Robots: Frontiers",
                       "normalized":  "warrobotsfrontiers",
+                      "executables":  [
+                                          "wrfrontiers-win64-shipping.exe"
+                                      ],
                       "adaptiveTriggers":  false,
-                      "steamAppId":  1491000
-                  },
-                  {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "warframe",
-                      "title":  "Warframe",
-                      "normalized":  "warframe",
-                      "adaptiveTriggers":  true,
-                      "steamAppId":  230410
-                  },
-                  {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2183900/library_600x900.jpg",
-                      "hapticFeedback":  false,
                       "profile":  "standard",
-                      "title":  "Warhammer 40,000: Space Marine II",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1491000/library_600x900.jpg",
+                      "steamAppId":  1491000,
+                      "title":  "War Robots: Frontiers",
+                      "hapticFeedback":  true
+                  },
+                  {
+                      "normalized":  "warframe",
+                      "executables":  [
+                                          "warframe.exe",
+                                          "warframe.x64.exe"
+                                      ],
+                      "adaptiveTriggers":  true,
+                      "profile":  "warframe",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/library_600x900.jpg",
+                      "steamAppId":  230410,
+                      "title":  "Warframe",
+                      "hapticFeedback":  false
+                  },
+                  {
                       "normalized":  "warhammer40000spacemarineii",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  2183900
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2183900/library_600x900.jpg",
+                      "steamAppId":  0,
+                      "title":  "Warhammer 40,000: Space Marine II",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3564740/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Where Winds Meet",
                       "normalized":  "wherewindsmeet",
+                      "executables":  [
+                                          "where winds meet.exe",
+                                          "wwm.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3564740
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3564740/library_600x900.jpg",
+                      "steamAppId":  3564740,
+                      "title":  "Where Winds Meet",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/699130/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "World War Z",
                       "normalized":  "worldwarz",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  699130
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/699130/library_600x900.jpg",
+                      "steamAppId":  699130,
+                      "title":  "World War Z",
+                      "hapticFeedback":  true
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1462810/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "WRC 10: FIA World Rally Championship",
                       "normalized":  "wrc10fiaworldrallychampionship",
+                      "executables":  [
+                                          "wrc10.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1462810
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1462810/library_600x900.jpg",
+                      "steamAppId":  1462810,
+                      "title":  "WRC 10: FIA World Rally Championship",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1953520/library_600x900.jpg",
-                      "hapticFeedback":  false,
-                      "profile":  "standard",
-                      "title":  "WRC Generations",
                       "normalized":  "wrcgenerations",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  1953520
-                  },
-                  {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3513350/library_600x900.jpg",
-                      "hapticFeedback":  false,
                       "profile":  "standard",
-                      "title":  "Wuthering Waves",
-                      "normalized":  "wutheringwaves",
-                      "adaptiveTriggers":  true,
-                      "steamAppId":  3513350
-                  },
-                  {
-                      "hapticFeedback":  true,
-                      "normalized":  "xdefiant",
-                      "profile":  "standard",
-                      "iconUrl":  "",
-                      "adaptiveTriggers":  false,
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1953520/library_600x900.jpg",
                       "steamAppId":  0,
-                      "title":  "XDefiant"
+                      "title":  "WRC Generations",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3937550/library_600x900.jpg",
-                      "hapticFeedback":  false,
+                      "normalized":  "wutheringwaves",
+                      "executables":  [
+                                          "client-win64-shipping.exe",
+                                          "wuthering waves.exe"
+                                      ],
+                      "adaptiveTriggers":  true,
                       "profile":  "standard",
-                      "title":  "Yakuza Kiwami 3 \u0026 Dark Ties",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3513350/library_600x900.jpg",
+                      "steamAppId":  3513350,
+                      "title":  "Wuthering Waves",
+                      "hapticFeedback":  false
+                  },
+                  {
+                      "normalized":  "xdefiant",
+                      "adaptiveTriggers":  false,
+                      "profile":  "standard",
+                      "steamAppIdVerified":  false,
+                      "iconUrl":  "https://images.igdb.com/igdb/image/upload/t_cover_big/co6ugp.jpg",
+                      "steamAppId":  0,
+                      "title":  "XDefiant",
+                      "hapticFeedback":  true
+                  },
+                  {
                       "normalized":  "yakuzakiwami3darkties",
                       "adaptiveTriggers":  true,
-                      "steamAppId":  3937550
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3937550/library_600x900.jpg",
+                      "steamAppId":  3937550,
+                      "title":  "Yakuza Kiwami 3 \u0026 Dark Ties",
+                      "hapticFeedback":  false
                   },
                   {
-                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4162040/library_600x900.jpg",
-                      "hapticFeedback":  true,
-                      "profile":  "standard",
-                      "title":  "Zenless Zone Zero",
                       "normalized":  "zenlesszonezero",
+                      "executables":  [
+                                          "zenlesszonezero.exe"
+                                      ],
                       "adaptiveTriggers":  true,
-                      "steamAppId":  4162040
+                      "profile":  "standard",
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4162040/library_600x900.jpg",
+                      "steamAppId":  4162040,
+                      "title":  "Zenless Zone Zero",
+                      "hapticFeedback":  true
                   }
               ],
     "totalGames":  206,
+    "discordExecutableGames":  125,
     "version":  1
 }

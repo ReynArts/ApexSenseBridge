@@ -25,6 +25,7 @@ namespace ApexSenseBridgeTray
         private TraySettings settings;
         private CloudGameListService gameListService;
         private EngineSessionManager sessionManager;
+        private ExecutableLearningService learningService;
         private ProcessMonitorService monitorService;
         private UpdateCheckerService updateChecker;
         private MainWindow mainWindow;
@@ -78,10 +79,19 @@ namespace ApexSenseBridgeTray
                 gameListService.Initialize();
 
                 sessionManager = new EngineSessionManager();
-                monitorService = new ProcessMonitorService(gameListService, sessionManager, settings);
+                learningService = new ExecutableLearningService();
+                monitorService = new ProcessMonitorService(
+                    gameListService, sessionManager, learningService, settings);
                 updateChecker = new UpdateCheckerService();
 
-                mainWindow = new MainWindow(gameListService, sessionManager, monitorService, updateChecker, settings);
+                mainWindow = new MainWindow(
+                    gameListService, sessionManager, learningService,
+                    monitorService, updateChecker, settings);
+
+                // Loading is deliberately started only after the existing process
+                // watchers are active. Until it completes, detection follows the
+                // unchanged exact/metadata/fuzzy path.
+                learningService.InitializeAsync();
 
                 InitializeNotifyIcon();
 
@@ -368,6 +378,7 @@ namespace ApexSenseBridgeTray
         private void ExitApplication()
         {
             if (monitorService != null) monitorService.Dispose();
+            if (learningService != null) learningService.Dispose();
             if (sessionManager != null) sessionManager.StopSession("Tray exiting");
             EngineSessionManager.KillOrphanProcesses();
 
@@ -387,6 +398,7 @@ namespace ApexSenseBridgeTray
         protected override void OnExit(ExitEventArgs e)
         {
             if (monitorService != null) monitorService.Dispose();
+            if (learningService != null) learningService.Dispose();
             if (sessionManager != null) sessionManager.StopSession("Tray app closing");
             EngineSessionManager.KillOrphanProcesses();
 

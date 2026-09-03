@@ -17,7 +17,11 @@ This document covers common questions, diagnostic interpretations, game-specific
 
 ## 1. Understanding the "Test APEX" Diagnostic Output
 
-When clicking **"Test APEX"** (or *"Tester l'APEX"* in the Tray/Control Panel), you might see diagnostic output similar to this:
+When clicking **"Test APEX"** (or *"Tester l'APEX"* in the Tray/Control Panel),
+the expected backend depends on the connected model. APEX 4 must be connected
+over USB or the 2.4 GHz receiver in DInput mode with Flydigi Space Station
+closed; its successful backend is `apex4-v1-hid-event`. APEX 5 can produce
+diagnostic output similar to this:
 
 ```json
 {
@@ -35,6 +39,9 @@ When clicking **"Test APEX"** (or *"Tester l'APEX"* in the Tray/Control Panel), 
   "l2": 0,
   "r2": 0,
   "dpad": 0,
+  "dpad_name": "neutral",
+  "seen_dpad": 0,
+  "seen_dpad_directions": "neutral",
   "buttons": 0,
   "warning": "APEX HID input unavailable (The APEX HID descriptor does not expose the complete X/Y/Rx/Ry/Z/Rz state required for a lossless DualSense proxy. Available value usages: page=0x1 usage=0x31 page=0x1 usage=0x30 page=0x1 usage=0x34 page=0x1 usage=0x33 page=0x1 usage=0x32 page=0x1 usage=0x39); trying XInput fallback."
 }
@@ -44,9 +51,11 @@ When clicking **"Test APEX"** (or *"Tester l'APEX"* in the Tray/Control Panel), 
 > [!NOTE]
 > **No, this indicates a 100% successful test of your physical controller!**
 
-- **`"backend": "xinput-fallback"` & Warning:** On current Flydigi APEX firmware, the native direct HID descriptor omits the `Rz` axis control. ApexSenseBridge automatically and losslessly falls back to its optimized internal XInput reader to capture the full controller state. This is the expected and intended design.
+- **`"backend": "apex4-v1-hid-event"`:** This is the expected APEX 4 result. The bridge reads its complete 32-byte `04 FE` state stream directly and does not need the compact DInput game interface.
+- **`"backend": "xinput-fallback"` & Warning:** This is the expected APEX 5 result on current firmware. Its native direct HID descriptor omits the `Rz` axis control, so ApexSenseBridge automatically and losslessly uses its optimized internal XInput reader.
 - **`"received_state": true`, `"timeouts": 0`, `"parse_failures": 0`:** Confirms that the bridge opened the controller communication channel cleanly without dropped data.
 - **`"state_changes": 1`:** If you held the controller still during the 2-second test window, `state_changes: 1` is completely normal (initial state capture). If you move the analog sticks or press buttons during the test, this counter will increase.
+- **`"dpad"` is a bit mask:** `1` is Up, `2` Down, `4` Left and `8` Right. Values combine for diagonals, so `5` means Up+Left. `dpad_name` spells out the final value, while `seen_dpad` and `seen_dpad_directions` combine every direction observed during the test window.
 - **Physical Test Only:** The "Test APEX" button *only* verifies reading from the physical controller. It does **not** create the virtual DualSense or start the active game bridge session.
 
 ---
@@ -67,15 +76,21 @@ By default, Steam intercepts DualSense controllers and converts them into standa
 
 ---
 
-### Issue B: Game Only Scans for Controllers at Startup (Controller Enumeration Timing)
-ApexSenseBridge's automatic game detection hooks into games right as their process is detected. However, some games (e.g. *007 First Light*, certain Unreal Engine or older DirectX titles) only enumerate connected controllers during their very first initialization frames. If the virtual DualSense attaches half a second later, the game misses it.
+### Issue B: Game Only Scans for Controllers at Startup / Late Controller Detection (Controller Enumeration Timing)
+ApexSenseBridge's automatic game detection hooks into games as soon as their executable process is detected in Windows. However, some games and launchers (e.g. *007 First Light*, certain Unreal Engine, Unity, Frostbite, or older DirectX titles) only enumerate connected input devices during their very first startup frames. If the game launches faster than the virtual DualSense USB device finishes its Windows plug-and-play attachment, the game may miss the controller entirely or fallback to keyboard/mouse.
 
-**Solution (Force Continuous Activation):**
-1. Completely exit the game.
-2. In the **ApexSenseBridge Tray**, enable **Force continuous activation** (or *Activation continue forcée*).
-3. Wait until the tray tooltip / status shows **"Bridge active"**.
-4. Launch the game (with Steam Input disabled).
-5. The game will now find the virtual DualSense already present on boot.
+**Symptoms:**
+- The game launches but ignores all controller inputs, or only responds to keyboard/mouse.
+- In-game prompts remain keyboard keys even when the bridge shows as active in the Tray.
+- Plugging in a physical controller or restarting the game while the bridge is already running makes it work.
+
+**Recommended Solution (Force Continuous Activation before Launch):**
+1. Exit the game completely.
+2. In the **ApexSenseBridge Tray** (right-click the taskbar tray icon), enable **Force continuous activation** (or *Activation continue forcée*).
+3. Wait 1–2 seconds until the tray status/notification confirms **"Bridge active"**.
+4. *(Optional verification)* Press <kbd>Win</kbd> + <kbd>R</kbd>, run `joy.cpl`, and confirm **Wireless Controller** is visible.
+5. Launch your game (ensuring Steam Input is disabled).
+6. The game will now detect the virtual DualSense already fully plugged in from frame 1!
 
 ---
 

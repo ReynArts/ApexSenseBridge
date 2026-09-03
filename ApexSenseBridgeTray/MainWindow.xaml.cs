@@ -16,6 +16,7 @@ namespace ApexSenseBridgeTray
     {
         private readonly CloudGameListService gameListService;
         private readonly EngineSessionManager sessionManager;
+        private readonly ExecutableLearningService learningService;
         private readonly ProcessMonitorService monitorService;
         private readonly UpdateCheckerService updateChecker;
         private readonly TraySettings settings;
@@ -25,12 +26,14 @@ namespace ApexSenseBridgeTray
         public MainWindow(
             CloudGameListService gameListService,
             EngineSessionManager sessionManager,
+            ExecutableLearningService learningService,
             ProcessMonitorService monitorService,
             UpdateCheckerService updateChecker,
             TraySettings settings)
         {
             this.gameListService = gameListService;
             this.sessionManager = sessionManager;
+            this.learningService = learningService;
             this.monitorService = monitorService;
             this.updateChecker = updateChecker;
             this.settings = settings;
@@ -210,9 +213,20 @@ namespace ApexSenseBridgeTray
 
         public void UpdateDatabaseCount()
         {
-            int count = gameListService.TotalGamesLoaded;
+            int count = gameListService != null ? gameListService.TotalGamesLoaded : 0;
             string key = count > 1 ? "Loc_CertifiedGamesPlural" : "Loc_CertifiedGamesSingular";
-            TxtDatabaseInfo.Text = LocalizationManager.Format(key, count);
+            string baseStr = LocalizationManager.Format(key, count);
+
+            int learned = learningService != null ? learningService.Count : 0;
+            if (learned > 0)
+            {
+                string learnedKey = learned > 1 ? "Loc_LearnedCountPlural" : "Loc_LearnedCountSingular";
+                TxtDatabaseInfo.Text = string.Format("{0} • {1}", baseStr, LocalizationManager.Format(learnedKey, learned));
+            }
+            else
+            {
+                TxtDatabaseInfo.Text = baseStr;
+            }
         }
 
         private void OnAutoDetectChanged(object sender, RoutedEventArgs e)
@@ -326,9 +340,18 @@ namespace ApexSenseBridgeTray
 
         private void OnOpenGameListClick(object sender, RoutedEventArgs e)
         {
-            var win = new GameListWindow(gameListService, settings);
+            var win = new GameListWindow(gameListService, settings, learningService);
             win.Owner = this;
             win.ShowDialog();
+            UpdateDatabaseCount();
+        }
+
+        private void OnOpenLearnedExecutablesClick(object sender, RoutedEventArgs e)
+        {
+            var win = new GameListWindow(gameListService, settings, learningService, initialTab: "learned");
+            win.Owner = this;
+            win.ShowDialog();
+            UpdateDatabaseCount();
         }
 
         private void OnHideWindowClick(object sender, RoutedEventArgs e)

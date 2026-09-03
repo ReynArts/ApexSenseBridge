@@ -5,6 +5,8 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $projectDir = Join-Path $root "ApexSenseBridgeTray"
 $project = Join-Path $projectDir "ApexSenseBridgeTray.csproj"
+$learningTestProject = Join-Path $root "tests\ApexSenseBridgeTray.LearningTests.csproj"
+$learningTestExe = Join-Path $root "tests\bin\Release\ApexSenseBridgeTray.LearningTests.exe"
 $outputDir = Join-Path $projectDir "bin\Release"
 $buildWinRelease = Join-Path $root "build-win\Release"
 $dist = Join-Path $root "dist"
@@ -49,6 +51,16 @@ if ($LASTEXITCODE -ne 0) {
     Fail "ApexSenseBridgeTray compilation failed."
 }
 
+Write-Host "Running executable-learning regression tests..."
+& $msbuild $learningTestProject /t:Rebuild /p:Configuration=Release
+if ($LASTEXITCODE -ne 0) {
+    Fail "Executable-learning test compilation failed."
+}
+& $learningTestExe
+if ($LASTEXITCODE -ne 0) {
+    Fail "Executable-learning regression tests failed."
+}
+
 $trayExe = Join-Path $outputDir "ApexSenseBridgeTray.exe"
 if (-not (Test-Path $trayExe)) {
     Fail "ApexSenseBridgeTray.exe was not created."
@@ -69,19 +81,7 @@ if (-not (Test-Path $dist)) {
 }
 Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $dist -Force
 
-# This root-level copy is only a developer convenience. A running Tray can
-# briefly keep it locked while shutting down; never fail release packaging for
-# that optional copy because the verified build-win and dist payloads above are
-# already complete.
-$rootCopy = Join-Path $root "ApexSenseBridgeTray.exe"
-try {
-    Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $root -Force
-} catch {
-    Write-Warning "Skipping optional root Tray copy: $($_.Exception.Message)"
-}
-
 Write-Host ""
 Write-Host "ApexSenseBridgeTray built successfully:" -ForegroundColor Green
-Write-Host "  Root:    $rootCopy (optional developer copy)"
 Write-Host "  Dist:    $(Join-Path $dist 'ApexSenseBridgeTray.exe')"
 Write-Host "  Release: $trayExe"

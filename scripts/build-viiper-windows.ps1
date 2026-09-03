@@ -19,7 +19,7 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     throw "Git is required to fetch the pinned VIIPER source."
 }
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-    throw "Go 1.26.2 or newer is required to build the VIIPER sidecar."
+    throw "Go is required to build the VIIPER sidecar."
 }
 if (-not (Test-Path -LiteralPath $patchPath -PathType Leaf)) {
     throw "Missing VIIPER patch: $patchPath"

@@ -19,6 +19,8 @@ using TransportPtr = std::unique_ptr<platform::HidTransport, TransportDeleter>;
 
 class Apex5Device {
 public:
+    // Historical API name retained for source compatibility. This transport
+    // now supports both Apex 5 (Flydigi V2) and Apex 4 (Flydigi V1/DInput).
     Apex5Device() = default;
     explicit Apex5Device(TransportPtr transport);
 
@@ -47,6 +49,7 @@ public:
 
 private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
+    [[nodiscard]] bool usesApex4Protocol() const noexcept;
 
     TransportPtr transport_{};
     std::optional<Apex5Identity> identity_{};

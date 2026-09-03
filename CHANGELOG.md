@@ -2,6 +2,75 @@
 
 ## 0.5.0
 
+- Added the first experimental Flydigi APEX 4 Windows path. It detects the
+  model-specific `04B4:2412` DInput interface, verifies the legacy `05 EC`
+  identity reply, translates FORCEADAPT through command `05 A0`, and uses the
+  V1 `05 0F` grip-rumble command. Other Flydigi V1 model identities are refused.
+- Corrected the APEX 4 DInput FORCEADAPT frame after the first hardware pass:
+  command `05 A0` requires the `01` effect-family byte before the apply flag.
+  The previous shifted packet was accepted by Windows but ignored by firmware.
+- Hardware-validated the corrected APEX 4 wired DInput path on DeviceType `84`,
+  firmware `0x6837`: verified identity, 5,001 input reports in 10 seconds with
+  no timeout or parse failure, working grip rumble, felt RT resistance and a
+  clean reset to Normal. This first pass covered the wired physical path; the
+  following passes cover the receiver and complete virtual session.
+- Confirmed that the same DeviceType `84`, firmware `0x6837` identity exchange
+  also works through the 2.4 GHz receiver. V1 identity now retries over the
+  same roughly three-second window as SDL because RF command acknowledgements
+  can be intermittent, and failed probes report the observed HID traffic.
+- Physically confirmed both grip rumble and RT FORCEADAPT resistance through
+  the APEX 4 dongle in separate runs. A compact combined pass now keeps one
+  verified HID session alive while testing input and both effects together.
+- Hardware-validated that combined dongle pass: DeviceType `84`, firmware
+  `0x6837`, 10,001 event-driven input reports in 10 seconds, 547 state changes,
+  all D-pad directions, zero timeout/parse failure, felt grip rumble and felt
+  RT FORCEADAPT resistance followed by a clean Normal reset.
+- Fixed the compact tester scripts treating native stderr as a terminating
+  PowerShell exception. A later command failure is now logged with its real
+  exit code instead of contradicting a successful preceding identity result.
+- Kept the APEX 4 identity authorization inside one process for both the
+  compact hardware pass and the complete virtual DualSense session. The dongle
+  can rate-limit repeated `0xEC` replies even while its `04 FE` input stream is
+  healthy, so disposable preflight processes no longer consume that reply.
+- Clarified `input-status` D-pad diagnostics with a human-readable final
+  direction and an aggregate direction mask. The existing numeric value is a
+  bit mask, so `5` correctly represents the Up+Left diagonal.
+- Added a compact APEX 4 full-session tester that uses the integrated virtual
+  DualSense backend, validates the required driver versions, temporarily
+  isolates the physical pad, opens `joy.cpl`, captures in-game feedback results
+  and restores controller visibility on clean stop or after a bounded timeout.
+- Added event-driven APEX 4 input decoding from the complete `04 FE` state
+  report on vendor interface `MI_02`, plus targeted HidHide isolation of only
+  the game-facing `MI_00` HID/USB nodes. A first complete Death Stranding 2
+  session then exposed double input, sticky aim and occasional missed RT shots:
+  bridge telemetry showed matching 989 Hz physical/virtual rates and 47 us p99
+  forwarding latency, ruling out a one-second bridge queue. Isolation now also
+  hides the APEX 4 `MI_01` auxiliary HID mouse while leaving vendor transports
+  `MI_02/MI_03` available. Full-session tester 1.5 records Raw Input enumeration
+  only as diagnostic context and instead listens for actual `MI_00`/`MI_01`
+  events in a non-whitelisted process while the tester operates the controller.
+  It blocks the game only when a physical event really leaks through HidHide.
+  The existing APEX 5 path is unchanged.
+- Promoted APEX 4 from experimental to supported after complete wired/dongle
+  and in-game validation across DeviceTypes `84` and `103`. The final nine-minute
+  Fortnite isolation pass forwarded 499,461 samples at about 913 Hz with 149 us
+  p99 latency, zero lost/coalesced reports, zero physical event leaks, no double
+  input, working rumble and no effect-write failure. A preceding Death Stranding
+  2 session had already confirmed in-game adaptive-trigger and haptic routing.
+- Hardened APEX 4 isolation so launch fails closed unless both HID and USB nodes
+  for the `MI_00` gamepad and `MI_01` auxiliary input have been identified.
+- Updated full-session tester 1.5.1 to always archive early failures, verify
+  isolation using live Raw Input events and reliably record the bridge exit code.
+- Added last-active adaptive-trigger type and translated FORCEADAPT parameters
+  to session telemetry. This preserves the meaningful resistance command even
+  when the game's final output resets the trigger to Normal, making weak-effect
+  reports diagnosable without blindly amplifying firmware values.
+- Added a small, no-install APEX 4 tester bundle and interactive validation
+  script. Read-only identity/input checks run first; gentle rumble and trigger
+  writes each require explicit confirmation and produce a shareable result ZIP.
+- Restored an explicit `ApexSenseBridge.exe` picker in the Playnite settings
+  for portable and custom installations. A valid user-selected path now takes
+  priority over registry discovery and can be reset to automatic detection.
 - Promoted the in-process `libVIIPER v0.7.0-asb5` backend to the official
   default after complete Call of Duty and Spider-Man 2 hardware validation.
   The release payload still contains the validated `asb3` sidecar and falls

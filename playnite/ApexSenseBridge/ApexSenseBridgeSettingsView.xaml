@@ -38,6 +38,17 @@
                 <TextBlock FontWeight="SemiBold" Text="{Binding InstallationStatus}" />
                 <TextBlock Margin="0,3,0,0" Opacity="0.7" TextWrapping="Wrap"
                            Text="{Binding InstalledExecutablePath}" />
+                <DockPanel Margin="0,8,0,0" LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Margin="6,0,0,0" Padding="10,4"
+                            Content="Détection automatique"
+                            Command="{Binding UseAutomaticInstallationCommand}" />
+                    <Button DockPanel.Dock="Right" Margin="6,0,0,0" Padding="10,4"
+                            Content="Parcourir…"
+                            Command="{Binding BrowseForExecutableCommand}" />
+                    <TextBox VerticalContentAlignment="Center"
+                             Text="{Binding ConfiguredExecutablePath, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Chemin facultatif vers ApexSenseBridge.exe pour une installation portable ou personnalisée" />
+                </DockPanel>
             </StackPanel>
 
             <!-- Updates Section -->

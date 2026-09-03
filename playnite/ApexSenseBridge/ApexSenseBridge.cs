@@ -137,7 +137,7 @@ namespace ApexSenseBridge
                 if (string.IsNullOrWhiteSpace(bridgeExecutable))
                 {
                     CancelStartup(args,
-                        "L'installation ApexSenseBridge est introuvable. Lancez ApexSenseBridge-Setup.exe puis redémarrez Playnite.");
+                        "ApexSenseBridge.exe est introuvable. Sélectionnez l'exécutable dans les réglages de l'extension Playnite.");
                     return;
                 }
 

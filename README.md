@@ -1,6 +1,41 @@
 # ApexSenseBridge 0.5.0
 
-ApexSenseBridge gives a Flydigi APEX 5 a virtual DualSense path on Windows while translating native adaptive-trigger and haptic feedback back to the physical controller.
+ApexSenseBridge gives a Flydigi APEX 4 or APEX 5 a virtual DualSense path on Windows while translating native adaptive-trigger and haptic feedback back to the physical controller.
+
+## ⚠️ Known USBIP-WIN2 crash risk
+
+ApexSenseBridge relies on the third-party `usbip-win2` kernel driver through
+VIIPER to expose the virtual DualSense. A defect in that driver can crash
+Windows with a blue screen; because it runs in kernel mode, ApexSenseBridge
+cannot catch or recover from such a failure in user space. Repeated
+`DPC_WATCHDOG_VIOLATION (0x133)` crashes have been observed during active game
+sessions with `usbip-win2 0.9.7.7`, matching the upstream
+[`usbip2_ude!send` report](https://github.com/vadimgrn/usbip-win2/issues/172).
+The upstream `0.9.7.8` release is not a safe workaround: its own release notes
+warn that it can cause memory corruption and BSODs.
+
+This risk applies whether ApexSenseBridge is started by Playnite or by the
+standalone tray application; the launcher is not the component executing the
+faulting kernel code. If a BSOD occurs, do not repeatedly reproduce it: restart Windows,
+stop the current bridge session, preserve the newest file from
+`C:\Windows\Minidump`, and review that dump before trying again. A future
+signed `usbip-win2` release must be validated before this warning can be
+removed.
+
+APEX 4 and APEX 5 are both hardware- and in-game-validated release paths. The
+APEX 4 bridge has passed wired and 2.4 GHz DInput testing on retail DeviceTypes
+`84`/`103` and firmware `0x6830`/`0x6837`: read-only identity verification,
+complete event-driven input, grip rumble, FORCEADAPT resistance and automatic
+trigger reset all passed. A Death Stranding 2 session confirmed complete
+virtual DualSense controls, adaptive-trigger feedback and haptics. After adding
+targeted isolation for the auxiliary `MI_01` mouse, a nine-minute Fortnite
+regression observed no leaked physical event and no double input, forwarded
+499,461 input samples at about 913 Hz with 149 us p99 latency and no lost or
+coalesced report, and delivered rumble without a write failure. Fortnite sent
+only Normal trigger commands in that run, so games still need to provide an
+active native DualSense effect for resistance to be felt. The bridge verifies
+the controller's Flydigi identity before it permits any FORCEADAPT or rumble
+write.
 
 ## Locked runtime architecture
 
@@ -20,13 +55,24 @@ In DualSense mode the game never receives sticks, buttons, triggers or D-pad inp
 
 Recognized games receive their verified profile automatically. Unknown and explicitly disabled games retain their native APEX XInput path and do not start the engine, sidecar, service or tray application.
 
-## Verified and tested games
+## Game compatibility & validation levels
 
-The bridge, triggers, and DSP haptics have been 100% verified in-game on:
+- **✅ Hardware verified with ApexSenseBridge (In-Game Tested & Confirmed):**
+  - **Call of Duty: Modern Warfare 4 Beta:** dynamic adaptive triggers per weapon (semi-auto wall, full-auto recoil kick, bolt-action stop) and textured audio haptics (footsteps, slides, explosions).
+  - **Marvel's Spider-Man 2:** adaptive web-line tension while swinging, web-shooter clicks, gadget resistances, alternating D-pad Up camera gestures, and full touchpad swipe gestures (FNSM app & abilities).
+  - **Grand Theft Auto V Enhanced (GTA V Enhanced):** driving trigger resistance (throttle resistance, ABS braking, off-road vibration) and deep haptic feedback (engine revs, gear shifts, surface grit).
+  - **Death Stranding 2:** full virtual DualSense controls, adaptive terrain/cargo trigger resistances, and rich haptic vibration feedback.
+  - **Ghost of Tsushima Director's Cut:** directional wind touchpad swipe gestures (D-pad Right + Stick), combat trigger resistance, and haptic feedback.
+  - **Marvel's Spider-Man: Miles Morales:** venom powers trigger feedback and FNSM touchpad integration.
+  - **Warframe:** custom touchpad gesture profiles for instant ability activation and adaptive trigger feedback.
+- **206+ automatically detected games with documented native DualSense features:**
+  - Continuously synchronized with PCGamingWiki for titles with documented native DualSense Adaptive Triggers and Haptics.
+  - Automatically monitored and bridged by the Standalone Tray App and Playnite extension.
 
-- **Call of Duty: Modern Warfare 4 Beta:** dynamic adaptive triggers per weapon (semi-auto wall, full-auto recoil kick, bolt-action stop) and textured audio haptics (footsteps, slides, explosions).
-- **Marvel's Spider-Man 2:** adaptive web-line tension while swinging, web-shooter clicks, gadget resistances, and full touchpad swipe gestures (FNSM app & abilities).
-- **Grand Theft Auto V Enhanced (GTA V Enhanced):** driving trigger resistance (throttle resistance, ABS braking, off-road vibration) and deep haptic feedback (engine revs, gear shifts, surface grit).
+## Input performance & safety
+
+- **Sub-2 ms measured p99 forwarding latency** on the hardware test system (measured 0.67–1.54 ms p99 report forwarding in active gameplay).
+- **No game-process injection or memory modification.** Uses OS-level virtual HID/controller interfaces and standard Windows APIs. Anti-cheat compatibility may vary by game.
 
 ## End-user installation
 
@@ -42,9 +88,9 @@ Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator el
 - the Playnite extension under the current user's Playnite extension directory;
 - the engine location and exact dependency ownership metadata under `HKLM\Software\ApexSenseBridge`.
 
-usbip-win2 `0.9.7.8` is explicitly refused because its official release warns about memory corruption and BSOD risk. The native binaries use the static MSVC runtime, so the Visual C++ Redistributable is not a prerequisite. A Windows restart can be required after first driver installation.
+usbip-win2 `0.9.7.8` is explicitly refused because its official release warns about memory corruption and BSOD risk. This does not make `0.9.7.7` crash-proof; see the known-risk warning above. The native binaries use the static MSVC runtime, so the Visual C++ Redistributable is not a prerequisite. A Windows restart can be required after first driver installation.
 
-Healthy WHLK-certified USBip `0.9.7.5`–`0.9.7.7` installations are preserved because they use the compatible driver ABI. If an unsupported version or an incomplete USBip installation is detected, setup now stops with repair instructions instead of invoking USBip's nested upgrade/uninstall path, which can hang on `Uninstalling USBip…`. A fresh prerequisite install is limited to five minutes and writes its persistent diagnostic log to `%ProgramData%\ApexSenseBridge\usbip-install.log`.
+Healthy WHLK-certified USBip `0.9.7.5`–`0.9.7.7` installations are preserved because they use the compatible driver ABI. Driver signing and ABI compatibility do not guarantee freedom from the kernel crash described above. If an unsupported version or an incomplete USBip installation is detected, setup now stops with repair instructions instead of invoking USBip's nested upgrade/uninstall path, which can hang on `Uninstalling USBip…`. A fresh prerequisite install is limited to five minutes and writes its persistent diagnostic log to `%ProgramData%\ApexSenseBridge\usbip-install.log`.
 
 ### Portable ZIP
 
@@ -63,9 +109,32 @@ For players using other game launchers (Steam, Epic Games Store, GOG, EA App, Xb
 
 1. Launch **`ApexSenseBridgeTray.exe`** (or check "Launch at Windows startup" during installation).
 2. The application sits quietly in the notification area (System Tray).
-3. **Day-One Automatic Detection**: Supports over **206 verified compatible games** out of the box. As soon as any supported game launches (continuously synchronized with PCGamingWiki for Adaptive Triggers & Haptics), ApexSenseBridge automatically starts the virtual DualSense bridge and shows a brief notification.
+3. **Day-One Automatic Detection**: Supports **206+ automatically detected games with documented native DualSense features** out of the box. As soon as any supported game launches (continuously synchronized with PCGamingWiki for Adaptive Triggers & Haptics), ApexSenseBridge automatically starts the virtual DualSense bridge and shows a brief notification.
 4. When you exit the game, the bridge cleanly closes and restores the native physical XInput controller.
 5. Click the taskbar tray icon to open the clean dashboard, view the list of all 206+ supported titles, manually force a profile (e.g. *Spider-Man 2*, *Ghost of Tsushima*), or trigger a manual database sync.
+
+The Tray learns the exact executable only after the existing detector has
+started a successful bridge session and that session remains active for 30
+seconds. The generated game database is also enriched offline with Windows,
+non-launcher executable names from Discord's detectable-application catalog,
+joined only by a Steam AppID whose store title has been verified by a unique
+exact normalized-name match. Unknown or ambiguous identities remain unset and
+cannot feed the executable index. Discord entries that look like launchers,
+editors, server managers, benchmarks, crash reporters, updaters or configuration
+tools are also excluded even when their upstream `is_launcher` flag is false.
+At runtime the remaining names are resolved through a
+lock-free, case-insensitive in-memory index; names shared by multiple supported
+games are excluded. No Discord or PCGamingWiki request occurs while detecting a
+launch.
+
+The first launch therefore keeps the existing WMI/exact/metadata/fuzzy
+detection path, with the exact database executable index ahead of the existing
+heuristics. Later launches can additionally use one lock-free learned-path lookup
+before falling back to the same detector. Validated associations are stored locally in
+`%LocalAppData%\ApexSenseBridge\learned_executables.json`. The **Learned** view
+can remove individual associations or export selected executable names for
+manual database review; exports never contain absolute local paths and are never
+uploaded automatically.
 
 ## Playnite usage
 
@@ -117,7 +186,20 @@ touchpad click and creates no directional gesture.
 
 ## Input, latency and resource behavior
 
-`PhysicalInputSource` first attempts an overlapped, event-driven HID source on the APEX `IG_01` interface belonging to the same Windows container as FORCEADAPT. A HID descriptor that cannot represent the full physical state is rejected. On the validated APEX firmware, the missing `Rz` control makes the internal XInput source the lossless fallback.
+For APEX 4 in DInput mode, `PhysicalInputSource` reads the complete 32-byte
+Flydigi V1 state stream from the verified `04B4:2412` vendor interface `MI_02`.
+Its game-facing `MI_00` gamepad and `MI_01` auxiliary mouse are isolated without
+hiding the `MI_02`/`MI_03` command and input transports used by the bridge. A
+wired hardware run received
+5,001 reports in 10 seconds with 849 state changes, no timeout and no parse
+failure; grip rumble and a gentle RT resistance were both physically confirmed.
+The 2.4 GHz dongle run received 10,001 reports in 10 seconds with 547 state
+changes, all four D-pad directions, no timeout or parse failure; grip rumble and
+RT resistance were again physically confirmed. A subsequent full-session
+regression confirmed zero physical Raw Input event leakage while the virtual
+DualSense continued receiving the full stick, trigger, D-pad and button ranges.
+
+For APEX 5, `PhysicalInputSource` first attempts an overlapped, event-driven HID source on the APEX `IG_01` interface belonging to the same Windows container as FORCEADAPT. A HID descriptor that cannot represent the full physical state is rejected. On the validated APEX 5 firmware, the missing `Rz` control makes the internal XInput source the lossless fallback.
 
 That fallback is still private to ApexSenseBridge: the physical APEX remains hidden from the game. It associates the controller by VID/PID through `XInputGetCapabilitiesEx`, translates the complete state without per-report allocation and uses Windows events/high-resolution timers instead of the former fixed `sleep_for(4 ms)` loop. `--xinput-index` remains available only as an advanced diagnostic override.
 

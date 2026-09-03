@@ -61,6 +61,12 @@ void AdaptiveTriggerBridge::apply(TriggerSide side,
     {
         std::lock_guard lock(stateMutex_);
         (side == TriggerSide::Left ? lastLeft_ : lastRight_) = translated;
+        if (translated->mode != TriggerMode::Normal) {
+            (side == TriggerSide::Left ? lastActiveLeftType_ : lastActiveRightType_) =
+                effect[0];
+            (side == TriggerSide::Left ? lastActiveLeft_ : lastActiveRight_) =
+                translated;
+        }
     }
     translated_.fetch_add(1, std::memory_order_relaxed);
     if (translated->mode == TriggerMode::Normal) {
@@ -90,7 +96,9 @@ AdaptiveTriggerBridgeStats AdaptiveTriggerBridge::stats() const noexcept {
             writeFailures_.load(std::memory_order_relaxed),
             lastLeftType_.load(std::memory_order_relaxed),
             lastRightType_.load(std::memory_order_relaxed),
-            lastLeft_, lastRight_};
+            lastLeft_, lastRight_,
+            lastActiveLeftType_, lastActiveRightType_,
+            lastActiveLeft_, lastActiveRight_};
 }
 
 } // namespace asb::dualsense

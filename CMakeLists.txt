@@ -29,6 +29,8 @@ add_library(asb_core STATIC
     src/platform/PhysicalInputSource.h
     src/platform/SessionControl.cpp
     src/platform/XInputMapping.cpp
+    src/flydigi/Apex4Input.cpp
+    src/flydigi/Apex4Protocol.cpp
     src/flydigi/Apex5Identity.cpp
     src/flydigi/Apex5Protocol.cpp
     src/flydigi/Apex5Device.cpp
@@ -63,7 +65,15 @@ if(WIN32)
     set(ASB_RC_FILE src/platform/windows/ApexSenseBridge.rc)
 endif()
 
-add_executable(ApexSenseBridge src/main.cpp ${ASB_RC_FILE})
+add_executable(ApexSenseBridge
+    src/main.cpp
+    src/cli/CliApplication.cpp
+    src/cli/CommandSupport.cpp
+    src/cli/DeviceCommands.cpp
+    src/cli/VirtualDualSenseCommand.cpp
+    src/cli/BridgeCommand.cpp
+    ${ASB_RC_FILE}
+)
 target_link_libraries(ApexSenseBridge PRIVATE asb_core)
 if(WIN32)
     target_link_libraries(ApexSenseBridge PRIVATE psapi)
@@ -90,7 +100,10 @@ include(CTest)
 if(BUILD_TESTING)
     add_executable(ApexSenseBridgeTests
         tests/test_protocol.cpp
+        src/flydigi/Apex4Input.cpp
+        src/flydigi/Apex4Protocol.cpp
         src/flydigi/Apex5Protocol.cpp
+        src/platform/XInputMapping.cpp
     )
     target_include_directories(ApexSenseBridgeTests PRIVATE src)
     if(MSVC)

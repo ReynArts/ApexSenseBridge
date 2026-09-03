@@ -3,6 +3,7 @@ using Playnite.SDK.Data;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -73,8 +74,8 @@ namespace ApexSenseBridge
         private DateTime? lastUpdateCheckUtc;
         private List<GameBridgeProfile> profiles = new List<GameBridgeProfile>();
 
-        // Kept solely so Playnite can deserialize settings created by older
-        // versions. Normal sessions discover the machine installation.
+        // Optional explicit override for portable and custom installations.
+        // When empty, the extension uses machine-wide discovery.
         public string BridgeExecutablePath { get => bridgeExecutablePath; set => SetValue(ref bridgeExecutablePath, value); }
         public bool EnableRumble { get => enableRumble; set => SetValue(ref enableRumble, value); }
         public int HapticThresholdPercent { get => hapticThresholdPercent; set => SetValue(ref hapticThresholdPercent, value); }
@@ -165,6 +166,21 @@ namespace ApexSenseBridge
 
         public string CurrentVersionDisplay => "v" + UpdateManager.GetCurrentVersion().ToString(3);
 
+        public string ConfiguredExecutablePath
+        {
+            get => Settings?.BridgeExecutablePath ?? string.Empty;
+            set
+            {
+                if (Settings == null || string.Equals(Settings.BridgeExecutablePath, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                Settings.BridgeExecutablePath = value ?? string.Empty;
+                RefreshInstallationStatus();
+            }
+        }
+
         public string InstalledExecutablePath
         {
             get
@@ -174,10 +190,20 @@ namespace ApexSenseBridge
             }
         }
 
-        public string InstallationStatus =>
-            string.IsNullOrWhiteSpace(plugin.ResolveBridgeExecutable(Settings))
-                ? "Installation ApexSenseBridge introuvable"
-                : "Installation détectée automatiquement";
+        public string InstallationStatus
+        {
+            get
+            {
+                if (InstallLocator.IsEngine(ConfiguredExecutablePath))
+                {
+                    return "Exécutable ApexSenseBridge configuré manuellement";
+                }
+
+                return string.IsNullOrWhiteSpace(plugin.ResolveBridgeExecutable(Settings))
+                    ? "Installation ApexSenseBridge introuvable"
+                    : "Installation détectée automatiquement";
+            }
+        }
 
         public bool IsCheckingForUpdate { get => isCheckingForUpdate; set => SetValue(ref isCheckingForUpdate, value); }
         public string UpdateCheckStatus { get => updateCheckStatus; set => SetValue(ref updateCheckStatus, value); }
@@ -189,6 +215,8 @@ namespace ApexSenseBridge
 
         public RelayCommand CheckForUpdatesCommand { get; }
         public RelayCommand DownloadAndInstallUpdateCommand { get; }
+        public RelayCommand BrowseForExecutableCommand { get; }
+        public RelayCommand UseAutomaticInstallationCommand { get; }
 
         public ApexSenseBridgeSettingsViewModel(ApexSenseBridge plugin)
         {
@@ -198,6 +226,35 @@ namespace ApexSenseBridge
 
             CheckForUpdatesCommand = new RelayCommand(async () => await CheckForUpdatesAsync());
             DownloadAndInstallUpdateCommand = new RelayCommand(async () => await DownloadAndInstallUpdateAsync(), () => IsUpdateAvailable && !IsDownloadingUpdate && !string.IsNullOrWhiteSpace(AvailableUpdateSetupUrl));
+            BrowseForExecutableCommand = new RelayCommand(BrowseForExecutable);
+            UseAutomaticInstallationCommand = new RelayCommand(() => ConfiguredExecutablePath = string.Empty);
+        }
+
+        private void BrowseForExecutable()
+        {
+            var selectedPath = plugin.PlayniteApi.Dialogs.SelectFile(
+                "ApexSenseBridge|ApexSenseBridge.exe|Exécutables Windows|*.exe");
+            if (string.IsNullOrWhiteSpace(selectedPath))
+            {
+                return;
+            }
+
+            if (!InstallLocator.IsEngine(selectedPath))
+            {
+                plugin.PlayniteApi.Dialogs.ShowErrorMessage(
+                    "Sélectionnez le fichier ApexSenseBridge.exe du dossier d'installation ou de la version portable.",
+                    "ApexSenseBridge");
+                return;
+            }
+
+            ConfiguredExecutablePath = Path.GetFullPath(selectedPath);
+        }
+
+        private void RefreshInstallationStatus()
+        {
+            OnPropertyChanged(nameof(ConfiguredExecutablePath));
+            OnPropertyChanged(nameof(InstalledExecutablePath));
+            OnPropertyChanged(nameof(InstallationStatus));
         }
 
         public async Task CheckForUpdatesAsync()
@@ -287,14 +344,14 @@ namespace ApexSenseBridge
         public void BeginEdit()
         {
             editingClone = Serialization.GetClone(Settings);
-            OnPropertyChanged(nameof(InstalledExecutablePath));
-            OnPropertyChanged(nameof(InstallationStatus));
+            RefreshInstallationStatus();
             OnPropertyChanged(nameof(CurrentVersionDisplay));
         }
 
         public void CancelEdit()
         {
             Settings = editingClone;
+            RefreshInstallationStatus();
         }
 
         public void EndEdit()
@@ -307,7 +364,7 @@ namespace ApexSenseBridge
             errors = new List<string>();
             if (string.IsNullOrWhiteSpace(plugin.ResolveBridgeExecutable(Settings)))
             {
-                errors.Add("ApexSenseBridge n'est pas installé. Lancez ApexSenseBridge-Setup.exe puis rouvrez Playnite.");
+                errors.Add("ApexSenseBridge est introuvable. Installez-le ou sélectionnez ApexSenseBridge.exe dans les réglages de l'extension.");
             }
             if (Settings.HapticThresholdPercent < 0 || Settings.HapticThresholdPercent > 95)
             {

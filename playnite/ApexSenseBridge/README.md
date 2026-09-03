@@ -10,7 +10,7 @@ Les jeux inconnus ou explicitement désactivés utilisent directement l'APEX en 
 2. Lancer normalement un jeu reconnu depuis Playnite Bureau ou Plein écran : le profil est sélectionné automatiquement.
 3. Pour forcer un profil ou désactiver le bridge, faire un clic droit sur le jeu dans Playnite Bureau et ouvrir `ApexSenseBridge`.
 
-Il n'y a plus de fichier `ApexSenseBridge.exe` ni d'index XInput à sélectionner. Le chemin du moteur est lu automatiquement dans `HKLM\Software\ApexSenseBridge`. Les anciens champs sont uniquement conservés pour migrer une configuration existante.
+Le chemin du moteur est lu automatiquement dans `HKLM\Software\ApexSenseBridge` après une installation normale. Pour une version portable ou installée dans un emplacement personnalisé, les réglages de l'extension permettent de sélectionner `ApexSenseBridge.exe` ; ce chemin manuel est prioritaire. L'ancien index XInput est uniquement conservé pour migrer une configuration existante.
 
 Pendant un profil DualSense, tous les sticks, boutons, gâchettes et directions transitent par le bridge ; HidHide empêche le jeu de voir les interfaces physiques. Si cette isolation ou le proxy intégral échoue, le lancement est annulé.
 

@@ -23,6 +23,10 @@ struct AdaptiveTriggerBridgeStats {
     std::uint8_t lastRightDualSenseType = 0;
     std::optional<ForceTriggerCommand> lastLeftCommand;
     std::optional<ForceTriggerCommand> lastRightCommand;
+    std::uint8_t lastActiveLeftDualSenseType = 0;
+    std::uint8_t lastActiveRightDualSenseType = 0;
+    std::optional<ForceTriggerCommand> lastActiveLeftCommand;
+    std::optional<ForceTriggerCommand> lastActiveRightCommand;
 };
 
 class AdaptiveTriggerBridge {
@@ -40,6 +44,10 @@ private:
     std::uint8_t leftMotor_ = 0;
     std::optional<ForceTriggerCommand> lastLeft_;
     std::optional<ForceTriggerCommand> lastRight_;
+    std::uint8_t lastActiveLeftType_ = 0;
+    std::uint8_t lastActiveRightType_ = 0;
+    std::optional<ForceTriggerCommand> lastActiveLeft_;
+    std::optional<ForceTriggerCommand> lastActiveRight_;
     mutable std::mutex stateMutex_;
     std::atomic_bool failed_{false};
     mutable std::mutex errorMutex_;

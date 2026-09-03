@@ -25,6 +25,17 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
+        public bool IsSessionHealthy
+        {
+            get
+            {
+                lock (syncLock)
+                {
+                    return activeSession != null && activeSession.ProcessId != 0;
+                }
+            }
+        }
+
         public string ActiveGameTitle
         {
             get

@@ -30,6 +30,8 @@ MinSizeRel/
 diagnose-*.json
 diagnostics-*.json
 Apex4-Diagnostics-Collector/
+Apex4-Port-Tester1/
+Apex4-Full-Session-Tester/
 .local-backups/
 *.log
 *.dmp

@@ -51,7 +51,8 @@ Source: "..\build-win\Release\ApexSenseBridge.exe"; DestDir: "{app}"; Flags: ign
 Source: "..\build-win\Release\ApexSenseBridgeControl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe.config"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\ApexSenseBridgeTray\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\assets\app.ico"; DestDir: "{app}\Resources"; Flags: ignoreversion
+Source: "..\assets\logo.png"; DestDir: "{app}\Resources"; Flags: ignoreversion
 Source: "..\data\supported_games.json"; DestDir: "{app}\Data"; Flags: ignoreversion
 Source: "..\build-win\Release\viiper.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\libVIIPER.dll"; DestDir: "{app}"; Flags: ignoreversion

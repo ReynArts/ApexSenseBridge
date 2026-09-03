@@ -10,8 +10,15 @@ namespace ApexSenseBridge
         private const string RegistryPath = @"SOFTWARE\ApexSenseBridge";
         private const string EngineFileName = "ApexSenseBridge.exe";
 
-        public static string ResolveEngine(string legacyPath)
+        public static string ResolveEngine(string configuredPath)
         {
+            // A user-selected executable is authoritative. This keeps portable
+            // distributions usable when the machine-wide installer cannot run.
+            if (IsEngine(configuredPath))
+            {
+                return Path.GetFullPath(configuredPath);
+            }
+
             foreach (var view in RegistryViews())
             {
                 try
@@ -53,9 +60,7 @@ namespace ApexSenseBridge
                 }
             }
 
-            // Migration only: old settings remain deserializable and can rescue
-            // a development installation, but the path is no longer user-facing.
-            return IsEngine(legacyPath) ? Path.GetFullPath(legacyPath) : string.Empty;
+            return string.Empty;
         }
 
         private static IEnumerable<RegistryView> RegistryViews()
@@ -71,7 +76,7 @@ namespace ApexSenseBridge
             }
         }
 
-        private static bool IsEngine(string path)
+        internal static bool IsEngine(string path)
         {
             return !string.IsNullOrWhiteSpace(path) &&
                    string.Equals(Path.GetFileName(path), EngineFileName,

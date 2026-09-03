@@ -16,7 +16,12 @@ namespace ApexSenseBridgeTray.Services
         private readonly object syncRoot = new object();
         private readonly Dictionary<string, SupportedGame> gamesByNormalizedName =
             new Dictionary<string, SupportedGame>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<int, SupportedGame> gamesBySteamAppId =
+            new Dictionary<int, SupportedGame>();
+        private readonly HashSet<int> ambiguousSteamAppIds = new HashSet<int>();
         private readonly List<SupportedGame> allGames = new List<SupportedGame>();
+        private volatile Dictionary<string, SupportedGame> gamesByExecutableName =
+            new Dictionary<string, SupportedGame>(StringComparer.OrdinalIgnoreCase);
 
         public event Action GamesUpdated;
         public DateTime? LastUpdated { get; private set; }
@@ -171,6 +176,29 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
+        public bool TryFindBySteamAppId(int steamAppId, out SupportedGame game)
+        {
+            game = null;
+            if (steamAppId <= 0) return false;
+
+            lock (syncRoot)
+            {
+                return gamesBySteamAppId.TryGetValue(steamAppId, out game);
+            }
+        }
+
+        public bool TryFindByExecutable(string executablePathOrName, out SupportedGame game)
+        {
+            game = null;
+            var executableName = GetExecutableName(executablePathOrName);
+            if (string.IsNullOrEmpty(executableName)) return false;
+
+            // The dictionary is fully built before publication and never mutated afterwards.
+            // Reading the volatile snapshot therefore requires no lock or I/O in detection.
+            var snapshot = gamesByExecutableName;
+            return snapshot.TryGetValue(executableName, out game);
+        }
+
         private static int GetMatchScore(string candidate, string gameName)
         {
             const int minimumFragmentLength = 6;
@@ -212,47 +240,156 @@ namespace ApexSenseBridgeTray.Services
                 var gamesArray = dict["games"] as System.Collections.ArrayList;
                 if (gamesArray == null) return false;
 
+                var parsedGames = new List<SupportedGame>();
+                var parsedByNormalizedName =
+                    new Dictionary<string, SupportedGame>(StringComparer.OrdinalIgnoreCase);
+                var parsedBySteamAppId = new Dictionary<int, SupportedGame>();
+                var parsedAmbiguousSteamAppIds = new HashSet<int>();
+                var parsedByExecutableName =
+                    new Dictionary<string, SupportedGame>(StringComparer.OrdinalIgnoreCase);
+                var ambiguousExecutableNames =
+                    new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (Dictionary<string, object> item in gamesArray)
+                {
+                    var g = new SupportedGame();
+                    g.Title = item.ContainsKey("title") && item["title"] != null ? item["title"].ToString() : string.Empty;
+                    var providedNormalized = item.ContainsKey("normalized") && item["normalized"] != null
+                        ? Normalize(item["normalized"].ToString())
+                        : string.Empty;
+                    g.AdaptiveTriggers = item.ContainsKey("adaptiveTriggers") && Convert.ToBoolean(item["adaptiveTriggers"]);
+                    g.HapticFeedback = item.ContainsKey("hapticFeedback") && Convert.ToBoolean(item["hapticFeedback"]);
+                    g.Profile = item.ContainsKey("profile") && item["profile"] != null ? item["profile"].ToString() : "standard";
+                    g.IconUrl = item.ContainsKey("iconUrl") && item["iconUrl"] != null ? item["iconUrl"].ToString() : string.Empty;
+                    if (item.ContainsKey("steamAppId") && item["steamAppId"] != null)
+                    {
+                        int sid;
+                        if (int.TryParse(item["steamAppId"].ToString(), out sid)) g.SteamAppId = sid;
+                    }
+                    g.SteamAppIdVerified = item.ContainsKey("steamAppIdVerified") &&
+                        item["steamAppIdVerified"] != null &&
+                        Convert.ToBoolean(item["steamAppIdVerified"]);
+                    g.Executables = g.SteamAppIdVerified
+                        ? ParseExecutables(item)
+                        : new string[0];
+
+                    var titleNormalized = Normalize(g.Title);
+                    g.Normalized = string.Equals(providedNormalized, titleNormalized, StringComparison.Ordinal)
+                        ? providedNormalized
+                        : titleNormalized;
+
+                    if (!string.IsNullOrWhiteSpace(g.Normalized))
+                    {
+                        parsedByNormalizedName[g.Normalized] = g;
+                        if (g.SteamAppIdVerified && g.SteamAppId > 0 &&
+                            !parsedAmbiguousSteamAppIds.Contains(g.SteamAppId))
+                        {
+                            if (parsedBySteamAppId.ContainsKey(g.SteamAppId))
+                            {
+                                parsedBySteamAppId.Remove(g.SteamAppId);
+                                parsedAmbiguousSteamAppIds.Add(g.SteamAppId);
+                            }
+                            else
+                            {
+                                parsedBySteamAppId[g.SteamAppId] = g;
+                            }
+                        }
+                        IndexExecutables(
+                            g, parsedByExecutableName, ambiguousExecutableNames);
+                        parsedGames.Add(g);
+                    }
+                }
+
+                parsedGames.Sort((a, b) => string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase));
+
                 lock (syncRoot)
                 {
                     gamesByNormalizedName.Clear();
+                    foreach (var entry in parsedByNormalizedName)
+                        gamesByNormalizedName.Add(entry.Key, entry.Value);
+
+                    gamesBySteamAppId.Clear();
+                    foreach (var entry in parsedBySteamAppId)
+                        gamesBySteamAppId.Add(entry.Key, entry.Value);
+
+                    ambiguousSteamAppIds.Clear();
+                    foreach (var appId in parsedAmbiguousSteamAppIds)
+                        ambiguousSteamAppIds.Add(appId);
+
                     allGames.Clear();
+                    allGames.AddRange(parsedGames);
 
-                    foreach (Dictionary<string, object> item in gamesArray)
-                    {
-                        var g = new SupportedGame();
-                        g.Title = item.ContainsKey("title") && item["title"] != null ? item["title"].ToString() : string.Empty;
-                        var providedNormalized = item.ContainsKey("normalized") && item["normalized"] != null
-                            ? Normalize(item["normalized"].ToString())
-                            : string.Empty;
-                        g.AdaptiveTriggers = item.ContainsKey("adaptiveTriggers") && Convert.ToBoolean(item["adaptiveTriggers"]);
-                        g.HapticFeedback = item.ContainsKey("hapticFeedback") && Convert.ToBoolean(item["hapticFeedback"]);
-                        g.Profile = item.ContainsKey("profile") && item["profile"] != null ? item["profile"].ToString() : "standard";
-                        g.IconUrl = item.ContainsKey("iconUrl") && item["iconUrl"] != null ? item["iconUrl"].ToString() : string.Empty;
-                        if (item.ContainsKey("steamAppId") && item["steamAppId"] != null)
-                        {
-                            int sid;
-                            if (int.TryParse(item["steamAppId"].ToString(), out sid)) g.SteamAppId = sid;
-                        }
-
-                        var titleNormalized = Normalize(g.Title);
-                        g.Normalized = string.Equals(providedNormalized, titleNormalized, StringComparison.Ordinal)
-                            ? providedNormalized
-                            : titleNormalized;
-
-                        if (!string.IsNullOrWhiteSpace(g.Normalized))
-                        {
-                            gamesByNormalizedName[g.Normalized] = g;
-                            allGames.Add(g);
-                        }
-                    }
-
-                    allGames.Sort((a, b) => string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase));
+                    // Publish only after every entry and collision has been validated.
+                    gamesByExecutableName = parsedByExecutableName;
                 }
                 return true;
             }
             catch
             {
                 return false;
+            }
+        }
+
+        private static string[] ParseExecutables(Dictionary<string, object> item)
+        {
+            if (!item.ContainsKey("executables") || item["executables"] == null)
+                return new string[0];
+
+            var values = item["executables"] as System.Collections.IEnumerable;
+            if (values == null || item["executables"] is string)
+                return new string[0];
+
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var value in values)
+            {
+                var executableName = GetExecutableName(value as string);
+                if (!string.IsNullOrEmpty(executableName)) result.Add(executableName);
+            }
+            return result.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+
+        private static void IndexExecutables(
+            SupportedGame game,
+            IDictionary<string, SupportedGame> index,
+            ISet<string> ambiguousNames)
+        {
+            foreach (var executableName in game.Executables)
+            {
+                if (ambiguousNames.Contains(executableName)) continue;
+
+                SupportedGame existing;
+                if (index.TryGetValue(executableName, out existing) &&
+                    !ReferenceEquals(existing, game))
+                {
+                    index.Remove(executableName);
+                    ambiguousNames.Add(executableName);
+                }
+                else
+                {
+                    index[executableName] = game;
+                }
+            }
+        }
+
+        private static string GetExecutableName(string executablePathOrName)
+        {
+            if (string.IsNullOrWhiteSpace(executablePathOrName)) return string.Empty;
+
+            try
+            {
+                var normalizedPath = executablePathOrName.Trim().Replace('/', '\\');
+                var executableName = Path.GetFileName(normalizedPath);
+                if (string.IsNullOrWhiteSpace(executableName) ||
+                    !executableName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                    executableName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                {
+                    return string.Empty;
+                }
+                return executableName;
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
 

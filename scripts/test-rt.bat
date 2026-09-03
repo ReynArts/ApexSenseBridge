@@ -9,7 +9,7 @@ if not exist "%EXE%" (
 )
 "%EXE%" list
 echo.
-echo If exactly one APEX 5 candidate is listed, press any key to run the gentle RT test.
+echo If exactly one APEX 4 or APEX 5 candidate is listed, press any key to run the gentle RT test.
 pause >nul
 "%EXE%" test-rt
 echo.

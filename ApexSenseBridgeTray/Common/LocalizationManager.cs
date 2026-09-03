@@ -23,7 +23,7 @@ namespace ApexSenseBridgeTray.Common
         {
             // General & App
             { "Loc_AppName", "ApexSenseBridge" },
-            { "Loc_AppSubtitle", "DualSense \u2192 Flydigi APEX 5 Bridge" },
+            { "Loc_AppSubtitle", "DualSense \u2192 Flydigi APEX 4 / APEX 5 Bridge" },
             { "Loc_AlreadyRunning", "ApexSenseBridge Tray is already running in the system tray." },
             { "Loc_StartupError", "Startup error: " },
             { "Loc_Close", "Close" },
@@ -98,12 +98,29 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_CertifiedGamesSingular", "{0} certified game" },
             { "Loc_CertifiedGamesPlural", "{0} certified games" },
             { "Loc_BtnGameList", "Game list" },
+            { "Loc_BtnLearnedExecutables", "Learned" },
             { "Loc_BtnSync", "Sync" },
             { "Loc_Syncing", "Synchronizing..." },
             { "Loc_SyncSuccess", "Update successful!\n{0} {1}." },
             { "Loc_SyncSuccessGamesSingular", "compatible game loaded" },
             { "Loc_SyncSuccessGamesPlural", "compatible games loaded" },
             { "Loc_SyncFailed", "Unable to download the latest list.\nPlease check your Internet connection." },
+            { "Loc_LearnedWindowTitle", "Learned executables" },
+            { "Loc_LearnedWindowHint", "Validated after 30 seconds of a stable bridge session. Exports never include local paths." },
+            { "Loc_LearnedGame", "Game" },
+            { "Loc_LearnedExecutable", "Executable" },
+            { "Loc_LearnedMethod", "Detection method" },
+            { "Loc_LearnedSessions", "Sessions" },
+            { "Loc_LearnedLastSeen", "Last seen" },
+            { "Loc_LearnedEmpty", "No executable has been learned yet." },
+            { "Loc_LearnedCountSingular", "{0} learned executable" },
+            { "Loc_LearnedCountPlural", "{0} learned executables" },
+            { "Loc_BtnSelectAll", "Select all" },
+            { "Loc_BtnDeleteLearned", "Delete" },
+            { "Loc_BtnExportLearned", "Export" },
+            { "Loc_LearnedDeleteConfirm", "Delete the selected learned associations ({0})?" },
+            { "Loc_LearnedExportSuccess", "The selected associations were exported without local paths." },
+            { "Loc_LearnedExportFailed", "The export failed: {0}" },
 
             // Footer
             { "Loc_FooterStatus", "ApexSenseBridge running in background" },
@@ -126,14 +143,21 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_PillTouchpad", "Touchpad remapping" },
             { "Loc_StateIncluded", "Included" },
             { "Loc_StateExcluded", "Excluded" },
-            { "Loc_ExclusionsSavedHint", "Exclusions are saved automatically." }
+            { "Loc_ExclusionsSavedHint", "Exclusions are automatically saved." },
+            { "Loc_NavCertifiedGames", "Certified games" },
+            { "NavLearnedExecutables", "Learned executables" },
+            { "Loc_NavLearnedExecutables", "Learned executables" },
+            { "Loc_LearnedSubtitle", "Executables associated with compatible games on this PC" },
+            { "Loc_LearnedSearchPlaceholder", "Search executable or game..." },
+            { "Loc_LearnedEmptySubtitle", "When a game runs with a stable session, it will appear here for instant startup." },
+            { "Loc_BtnDeleteSingle", "Delete" }
         };
 
         private static readonly Dictionary<string, string> FrenchStrings = new Dictionary<string, string>
         {
             // General & App
             { "Loc_AppName", "ApexSenseBridge" },
-            { "Loc_AppSubtitle", "Pont DualSense \u2192 Flydigi APEX 5" },
+            { "Loc_AppSubtitle", "Pont DualSense \u2192 Flydigi APEX 4 / APEX 5" },
             { "Loc_AlreadyRunning", "ApexSenseBridge Tray est déjà en cours d'exécution dans la barre des tâches." },
             { "Loc_StartupError", "Erreur de démarrage : " },
             { "Loc_Close", "Fermer" },
@@ -208,12 +232,29 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_CertifiedGamesSingular", "{0} jeu certifié" },
             { "Loc_CertifiedGamesPlural", "{0} jeux certifiés" },
             { "Loc_BtnGameList", "Liste des jeux" },
+            { "Loc_BtnLearnedExecutables", "Appris" },
             { "Loc_BtnSync", "Synchroniser" },
             { "Loc_Syncing", "Synchronisation..." },
             { "Loc_SyncSuccess", "Mise à jour réussie !\n{0} {1}." },
             { "Loc_SyncSuccessGamesSingular", "jeu compatible chargé" },
             { "Loc_SyncSuccessGamesPlural", "jeux compatibles chargés" },
             { "Loc_SyncFailed", "Impossible de télécharger la dernière liste.\nVérifiez votre connexion Internet." },
+            { "Loc_LearnedWindowTitle", "Exécutables appris" },
+            { "Loc_LearnedWindowHint", "Validés après 30 secondes de session stable. Les exports ne contiennent jamais les chemins locaux." },
+            { "Loc_LearnedGame", "Jeu" },
+            { "Loc_LearnedExecutable", "Exécutable" },
+            { "Loc_LearnedMethod", "Méthode de détection" },
+            { "Loc_LearnedSessions", "Sessions" },
+            { "Loc_LearnedLastSeen", "Dernière utilisation" },
+            { "Loc_LearnedEmpty", "Aucun exécutable n'a encore été appris." },
+            { "Loc_LearnedCountSingular", "{0} exécutable appris" },
+            { "Loc_LearnedCountPlural", "{0} exécutables appris" },
+            { "Loc_BtnSelectAll", "Tout sélectionner" },
+            { "Loc_BtnDeleteLearned", "Supprimer" },
+            { "Loc_BtnExportLearned", "Exporter" },
+            { "Loc_LearnedDeleteConfirm", "Supprimer les associations apprises sélectionnées ({0}) ?" },
+            { "Loc_LearnedExportSuccess", "Les associations sélectionnées ont été exportées sans chemins locaux." },
+            { "Loc_LearnedExportFailed", "L'export a échoué : {0}" },
 
             // Footer
             { "Loc_FooterStatus", "ApexSenseBridge actif en arrière-plan" },
@@ -236,7 +277,13 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_PillTouchpad", "Remapping pavé tactile" },
             { "Loc_StateIncluded", "Inclus" },
             { "Loc_StateExcluded", "Exclu" },
-            { "Loc_ExclusionsSavedHint", "Les exclusions sont automatiquement sauvegardées." }
+            { "Loc_ExclusionsSavedHint", "Les exclusions sont automatiquement sauvegardées." },
+            { "Loc_NavCertifiedGames", "Jeux certifiés" },
+            { "Loc_NavLearnedExecutables", "Exécutables appris" },
+            { "Loc_LearnedSubtitle", "Exécutables associés aux jeux compatibles sur ce PC" },
+            { "Loc_LearnedSearchPlaceholder", "Rechercher un exécutable ou un jeu..." },
+            { "Loc_LearnedEmptySubtitle", "Lorsqu'un jeu tourne en session stable, son association apparaîtra ici." },
+            { "Loc_BtnDeleteSingle", "Supprimer" }
         };
 
         public static void Initialize(string preferredLanguage)

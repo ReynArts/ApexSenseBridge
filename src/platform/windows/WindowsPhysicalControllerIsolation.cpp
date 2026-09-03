@@ -12,6 +12,8 @@
 #include <devpkey.h>
 
 #include "platform/PhysicalControllerIsolation.h"
+
+#include "flydigi/Apex4Protocol.h"
 #include "platform/SessionControl.h"
 
 #include <algorithm>
@@ -552,8 +554,12 @@ bool apexGameDevicePaths(const HidDeviceInfo& apexInterface,
        << std::setfill(L'0') << apexInterface.vendorId << L"&PID_"
        << std::setw(4) << apexInterface.productId;
     const auto expectedId = id.str();
+    const bool apex4DInput = flydigi::isApex4Product(
+        apexInterface.vendorId, apexInterface.productId);
     bool foundHidGamepad = false;
-    bool foundXInput = false;
+    bool foundUsbGameInterface = false;
+    bool foundHidAuxiliaryInput = !apex4DInput;
+    bool foundUsbAuxiliaryInput = !apex4DInput;
 
     for (DWORD index = 0;; ++index) {
         SP_DEVINFO_DATA info{};
@@ -567,19 +573,42 @@ bool apexGameDevicePaths(const HidDeviceInfo& apexInterface,
         const auto instance = deviceInstanceId(devices.get(), info);
         const auto normalized = upper(instance);
         if (normalized.find(expectedId) == std::wstring::npos) continue;
+        const bool apex4Gamepad = apex4DInput &&
+                                  normalized.find(L"&MI_00") != std::wstring::npos;
+        // APEX 4 DInput also exposes MI_01 as a standard HID mouse. Leaving
+        // that collection visible lets mapped trigger/mouse input reach a game
+        // beside the virtual DualSense, producing mixed input and sticky aim.
+        // MI_02/MI_03 remain visible so the bridge can keep using the vendor
+        // input, FORCEADAPT and rumble transports.
+        const bool apex4AuxiliaryInput = apex4DInput &&
+                                         normalized.find(L"&MI_01") != std::wstring::npos;
         const bool hidGamepad = normalized.starts_with(L"HID\\") &&
-                                normalized.find(L"&IG_") != std::wstring::npos;
-        const bool xinput = normalized.starts_with(L"USB\\") &&
-                            normalized.find(L"&MI_00") != std::wstring::npos;
-        if (hidGamepad || xinput) {
+            (apex4DInput
+                 ? apex4Gamepad || apex4AuxiliaryInput
+                 : normalized.find(L"&IG_") != std::wstring::npos);
+        const bool usbGameInterface = normalized.starts_with(L"USB\\") &&
+            (normalized.find(L"&MI_00") != std::wstring::npos ||
+             apex4AuxiliaryInput);
+        if (hidGamepad || usbGameInterface) {
             if (!containsCaseInsensitive(paths, instance)) paths.push_back(instance);
-            foundHidGamepad = foundHidGamepad || hidGamepad;
-            foundXInput = foundXInput || xinput;
+            foundHidGamepad = foundHidGamepad ||
+                              (hidGamepad && (!apex4DInput || apex4Gamepad));
+            foundUsbGameInterface = foundUsbGameInterface ||
+                                    (usbGameInterface &&
+                                     (!apex4DInput || apex4Gamepad));
+            foundHidAuxiliaryInput = foundHidAuxiliaryInput ||
+                                     (hidGamepad && apex4AuxiliaryInput);
+            foundUsbAuxiliaryInput = foundUsbAuxiliaryInput ||
+                                     (usbGameInterface && apex4AuxiliaryInput);
         }
     }
-    if (!foundHidGamepad || !foundXInput) {
-        error = "Could not identify both the HID and XInput game interfaces of "
-                "the selected APEX; refusing to hide a broader device group.";
+    if (!foundHidGamepad || !foundUsbGameInterface ||
+        !foundHidAuxiliaryInput || !foundUsbAuxiliaryInput) {
+        error = apex4DInput
+            ? "Could not identify the complete APEX 4 MI_00 gamepad and MI_01 "
+              "auxiliary-input HID/USB set; refusing to start with partial isolation."
+            : "Could not identify both HID and USB game interfaces of the selected "
+              "APEX; refusing to hide a broader device group.";
         return false;
     }
     return true;
