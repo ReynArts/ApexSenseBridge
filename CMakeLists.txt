@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 0.5.0 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 0.6.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -77,11 +77,23 @@ add_executable(ApexSenseBridge
 target_link_libraries(ApexSenseBridge PRIVATE asb_core)
 if(WIN32)
     target_link_libraries(ApexSenseBridge PRIVATE psapi)
+    target_compile_definitions(ApexSenseBridge PRIVATE
+        ASB_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        ASB_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
+    )
 endif()
 
 if(WIN32)
     add_executable(ApexSenseBridgeControl WIN32 src/control/ControlPanel.cpp ${ASB_RC_FILE})
     target_link_libraries(ApexSenseBridgeControl PRIVATE user32 shell32 advapi32)
+    target_compile_definitions(ApexSenseBridgeControl PRIVATE
+        ASB_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        ASB_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
+    )
 endif()
 
 if(MSVC)

@@ -47,7 +47,7 @@ namespace asb::cli {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 0.5.0\n\n"
+        << "ApexSenseBridge 0.6.0\n\n"
         << "Commands:\n"
         << "  list                         List APEX 4/5 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
@@ -92,6 +92,10 @@ int run(int argc, char** argv) {
     }
 
     const std::string_view command = argv[1];
+    if (command == "help" || command == "--help" || command == "-h") {
+        printUsage();
+        return 0;
+    }
     if (command == "xinput-view-test") {
         return commandXInputViewTest(argc, argv);
     }

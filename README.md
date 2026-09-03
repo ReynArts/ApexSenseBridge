@@ -1,4 +1,4 @@
-# ApexSenseBridge 0.5.0
+# ApexSenseBridge 0.6.0
 
 ApexSenseBridge gives a Flydigi APEX 4 or APEX 5 a virtual DualSense path on Windows while translating native adaptive-trigger and haptic feedback back to the physical controller.
 
@@ -87,6 +87,8 @@ Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator el
 - usbip-win2 `0.9.7.7` when no healthy compatible `0.9.7.5`–`0.9.7.7` driver is present, and HidHide `1.5.230` when its exact version is absent;
 - the Playnite extension under the current user's Playnite extension directory;
 - the engine location and exact dependency ownership metadata under `HKLM\Software\ApexSenseBridge`.
+
+All Windows executables (`ApexSenseBridge.exe`, `ApexSenseBridgeTray.exe`, `ApexSenseBridgeControl.exe`, `viiper.exe`, `libVIIPER.dll`, and `ApexSenseBridge-Setup.exe`) are digitally Authenticode code-signed to ensure binary integrity and prevent Windows SmartScreen security warnings.
 
 usbip-win2 `0.9.7.8` is explicitly refused because its official release warns about memory corruption and BSOD risk. This does not make `0.9.7.7` crash-proof; see the known-risk warning above. The native binaries use the static MSVC runtime, so the Visual C++ Redistributable is not a prerequisite. A Windows restart can be required after first driver installation.
 
@@ -274,6 +276,23 @@ portable ZIP:
 .\scripts\build-installer.ps1
 ```
 
+Release builds are Authenticode-signed and RFC 3161-timestamped with SHA-256.
+For GitHub Actions, configure the repository secrets
+`ASB_SIGNING_CERTIFICATE_BASE64` (the base64-encoded PFX) and
+`ASB_SIGNING_CERTIFICATE_PASSWORD`; the release workflow refuses to publish an
+unsigned build. For a signed local build, set those same environment variables,
+or set `ASB_SIGNING_CERTIFICATE_PATH` to a PFX path, then run:
+
+```powershell
+.\scripts\build-installer.ps1 -Sign
+```
+
+Certificates held in the Windows certificate store or on a compatible hardware
+token can instead be selected with `ASB_SIGNING_CERTIFICATE_THUMBPRINT`. The
+engine, control panel, Tray app, VIIPER payloads, Playnite assembly, installer
+and generated uninstaller are all signed before packaging. PFX and P12 files
+are ignored by Git and must never be committed.
+
 The official backend is the pinned in-process `libVIIPER v0.7.0-asb5` build.
 It loads inside the engine and falls back automatically to the validated
 `v0.7.0-asb3` sidecar when the DLL or its ASB exports are unavailable. Both
@@ -301,7 +320,9 @@ Release artifacts are written to `dist/`:
 ```text
 ApexSenseBridge-Setup.exe
 ApexSenseBridge-Portable.zip
-ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4_0_5_0.pext
+ApexSenseBridgeTray.exe
+ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4_0_6_0.pext
+SHA256SUMS.txt
 ```
 
 ## Useful diagnostic commands
@@ -325,7 +346,7 @@ clear [index]
 restore-controller-visibility
 ```
 
-`bridge-triggers` always enforces full proxying and physical isolation in 0.5.0, including when legacy `--proxy-xinput` or `--isolate-apex` flags are omitted. A session failure is fail-closed: the game is never allowed to fall back to a visible physical APEX during a DualSense profile.
+`bridge-triggers` always enforces full proxying and physical isolation in 0.6.0, including when legacy `--proxy-xinput` or `--isolate-apex` flags are omitted. A session failure is fail-closed: the game is never allowed to fall back to a visible physical APEX during a DualSense profile.
 
 `--virtual-backend` is an advanced validation switch. Normal users should leave
 the default `auto`; `integrated` and `sidecar` force one implementation so the

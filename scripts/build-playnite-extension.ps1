@@ -1,7 +1,8 @@
 param(
     [string]$PlayniteInstallDir = "",
     [string]$PlayniteSdkPath = "",
-    [string]$ToolboxPath = ""
+    [string]$ToolboxPath = "",
+    [switch]$Sign
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,6 +91,15 @@ Write-Host "Building the Playnite extension..."
 & $msbuild $project /t:Rebuild /p:Configuration=Release "/p:PlayniteSdkPath=$PlayniteSdkPath"
 if ($LASTEXITCODE -ne 0) {
     Fail "Playnite extension compilation failed."
+}
+
+if ($Sign) {
+    $extensionAssembly = Join-Path $output "ApexSenseBridge.dll"
+    Write-Host "Signing the Playnite extension assembly..."
+    & (Join-Path $PSScriptRoot "sign-windows-artifacts.ps1") -Path $extensionAssembly
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Playnite extension signing failed."
+    }
 }
 
 if (-not (Test-Path -LiteralPath $dist)) {

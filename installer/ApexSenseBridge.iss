@@ -1,5 +1,5 @@
 #define AppName "ApexSenseBridge"
-#define AppVersion "0.5.0"
+#define AppVersion "0.6.0"
 #define AppPublisher "ApexSenseBridge contributors"
 #define AppId "{{5F8B1901-93E1-41E2-96B4-F1B278A5A630}"
 #define ExtensionId "ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4"
@@ -31,6 +31,10 @@ UninstallDisplayIcon={app}\Resources\app.ico
 SetupIconFile=..\assets\app.ico
 LicenseFile=..\LICENSE
 WizardStyle=modern
+#ifdef SignBuild
+SignTool=asbsign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"

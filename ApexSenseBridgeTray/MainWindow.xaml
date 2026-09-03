@@ -403,7 +403,7 @@
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="{DynamicResource Loc_SoftwareUpdate}" FontSize="13" FontWeight="Medium"
                                                Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v0.5.0"
+                                    <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v0.6.0"
                                                FontSize="11" Foreground="{DynamicResource TextMuted}"/>
                                 </StackPanel>
                             </DockPanel>

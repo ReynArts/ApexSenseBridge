@@ -9,7 +9,7 @@ This document covers common questions, diagnostic interpretations, game-specific
 2. [Game Not Registering Input or Showing Xbox Button Prompts](#2-game-not-registering-input-or-showing-xbox-button-prompts)
 3. [Step-by-Step Hardware & Virtual Controller Validation (`joy.cpl`)](#3-step-by-step-hardware--virtual-controller-validation-joycpl)
 4. [HidHide Behavior and Controller Hiding](#4-hidhide-behavior-and-controller-hiding)
-5. [Driver Installation Issues & Portable Version](#5-driver-installation-issues--portable-version)
+5. [Driver Installation Issues, USBip Stability & Portable Version](#5-driver-installation-issues-usbip-stability--portable-version)
 6. [Hardware Feedback: Trigger Clicking / Motor Noise at Startup](#6-hardware-feedback-trigger-clicking--motor-noise-at-startup)
 7. [Interface & System Tray Quick Reference (FR / EN)](#7-interface--system-tray-quick-reference-fr--en)
 
@@ -141,7 +141,19 @@ If the PC lost power or a game crashed unexpectedly while the controller was hid
 
 ---
 
-## 5. Driver Installation Issues & Portable Version
+## 5. Driver Installation Issues, USBip Stability & Portable Version
+
+### Known Upstream `usbip-win2` Kernel Issue (Not Caused by ApexSenseBridge)
+ApexSenseBridge is an entirely user-space application that communicates with the system via standard Windows APIs. To emulate a virtual DualSense controller over USB, it relies on the third-party open-source driver **`usbip-win2`**.
+
+> [!WARNING]
+> **Important clarification regarding USBip instability:**
+> - Any blue screen crash (e.g. `DPC_WATCHDOG_VIOLATION (0x133)`) or kernel fault that occurs during heavy USB/IP I/O takes place strictly inside the third-party `usbip2_ude.sys` kernel driver.
+> - **ApexSenseBridge does not run in kernel mode and cannot cause or prevent kernel-level memory corruption in external drivers.** This is a documented upstream issue in `usbip-win2` (see [vadimgrn/usbip-win2 issue #172](https://github.com/vadimgrn/usbip-win2/issues/172)).
+> - **Why version `0.9.7.7` is used:** Upstream release `0.9.7.8` specifically states in its release notes that it introduces severe memory corruption risks and BSODs. ApexSenseBridge therefore strictly pins and enforces WHLK-certified `0.9.7.7`.
+> - If you ever encounter an unexpected Windows crash, restart your PC, check `C:\Windows\Minidump`, and ensure no conflicting virtual USB tools (e.g. USB forwarding tools, old virtual bus drivers) are interfering.
+
+---
 
 ### Installer stuck on "Uninstalling USBip..."
 Upstream USBip installers can hang if an older incompatible driver version is already installed.

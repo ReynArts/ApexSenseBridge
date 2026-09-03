@@ -25,6 +25,8 @@ MinSizeRel/
 *.ilk
 *.obj
 *.pext
+*.[pP][fF][xX]
+*.[pP]12
 
 # Local diagnostics, captures and runtime logs
 diagnose-*.json

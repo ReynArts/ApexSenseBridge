@@ -44,8 +44,11 @@ jobs:
 
       - name: Build Engine, Playnite Extension and Offline Installer
         shell: powershell
+        env:
+          ASB_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ASB_SIGNING_CERTIFICATE_BASE64 }}
+          ASB_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.ASB_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          .\scripts\build-installer.ps1
+          .\scripts\build-installer.ps1 -RequireSigning
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -55,7 +58,9 @@ jobs:
             dist/ApexSenseBridge-Setup.exe
             dist/ApexSenseBridge-Portable.zip
             dist/ApexSenseBridgeTray.exe
+            dist/ApexSenseBridgeTray.exe.config
             dist/*.pext
+            dist/SHA256SUMS.txt
           generate_release_notes: true
           draft: false
           prerelease: false
