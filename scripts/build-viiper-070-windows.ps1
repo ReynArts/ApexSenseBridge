@@ -7,10 +7,10 @@ $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $sourceDirectory = Join-Path $projectRoot ".tmp-viiper-070-build-source"
 $patchPath = Join-Path $projectRoot "third_party\viiper-patches\viiper-v0.7.0-asb.patch"
 $expectedCommit = "6b71b148a2243fab77ee1a46f4e22e00bd7d5a04"
-$version = "v0.7.0-asb3"
+$version = "v0.7.0-asb4"
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $projectRoot "dist\experimental\viiper-v0.7.0-asb3.exe"
+    $OutputPath = Join-Path $projectRoot "dist\experimental\viiper-v0.7.0-asb4.exe"
 } else {
     $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
 }
@@ -50,7 +50,7 @@ try {
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
     $linkerFlags = "-s -w " +
         "-X main.Version=$version " +
-        "-X main.Commit=6b71b14+asb3 " +
+        "-X main.Commit=6b71b14+asb4 " +
         "-X main.Date=2026-09-01 " +
         "-X github.com/Alia5/VIIPER/internal/codegen/common.Version=$version"
     go build -trimpath -buildvcs=false -ldflags $linkerFlags -o $OutputPath ./cmd/viiper
@@ -63,7 +63,7 @@ $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $OutputPath).Hash
 $patchHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $patchPath).Hash
 $outputDirectory = Split-Path -Parent $OutputPath
 Copy-Item -LiteralPath (Join-Path $sourceDirectory "LICENSE.txt") `
-    -Destination (Join-Path $outputDirectory "VIIPER-v0.7.0-asb3-LICENSE.txt") -Force
+    -Destination (Join-Path $outputDirectory "VIIPER-v0.7.0-asb4-LICENSE.txt") -Force
 Copy-Item -LiteralPath $patchPath `
     -Destination (Join-Path $outputDirectory "VIIPER-v0.7.0-asb.patch") -Force
 @(
@@ -77,7 +77,7 @@ Copy-Item -LiteralPath $patchPath `
     "Patch SHA-256: $patchHash"
     "Virtual DualSense firmware feature report: 0x0630"
     "Status: validated backend; the release payload is built by scripts/build-viiper-windows.ps1"
-) | Set-Content -LiteralPath (Join-Path $outputDirectory "VIIPER-v0.7.0-asb3-SOURCE.txt") `
+) | Set-Content -LiteralPath (Join-Path $outputDirectory "VIIPER-v0.7.0-asb4-SOURCE.txt") `
     -Encoding UTF8
 Write-Host "Built validation copy of $version with virtual DualSense firmware 0x0630:"
 Write-Host "  $OutputPath"

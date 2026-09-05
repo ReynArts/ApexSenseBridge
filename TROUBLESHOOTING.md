@@ -129,6 +129,10 @@ If a game is not responding, follow this quick diagnostic flow to determine whet
 
 - When no bridge session is active, ApexSenseBridge leaves "Enable device hiding" unchecked so you can use your APEX as a standard Xbox/XInput controller in Windows or non-DualSense games.
 - When an active bridge session starts, ApexSenseBridge **automatically enables HidHide** to hide the physical controller from the game (preventing double-input) and maps it exclusively through the virtual DualSense.
+- If Flydigi Space Station is installed, ApexSenseBridge keeps its installed
+  `SpaceStationService.exe` mapping service authorized through HidHide. Rear-button
+  keyboard/mouse shortcuts configured in Space Station therefore remain available
+  while the physical gamepad itself stays hidden from the game.
 - When the game exits, ApexSenseBridge automatically restores the previous HidHide state.
 
 ### Restoring Controller Visibility After an Unexpected Crash

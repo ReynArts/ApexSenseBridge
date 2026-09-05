@@ -8,7 +8,7 @@ $sourceDirectory = Join-Path $projectRoot ".tmp-libviiper-build-source"
 $patchPath = Join-Path $projectRoot "third_party\viiper-patches\viiper-v0.7.0-asb.patch"
 $toolsDirectory = Join-Path $projectRoot ".tools\libviiper-build"
 $expectedCommit = "6b71b148a2243fab77ee1a46f4e22e00bd7d5a04"
-$version = "v0.7.0-asb5"
+$version = "v0.7.0-asb6"
 
 $goArchiveName = "go1.26.5.windows-amd64.zip"
 $goArchiveHash = "97E6B2A833B6D89F9FF17D25419AC0A7E3B482A044E9AB18CDEF834BD834FD38"
@@ -134,7 +134,7 @@ try {
         $outputDirectory = Split-Path -Parent $OutputPath
         New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
         & $goExecutable build -buildmode=c-shared -trimpath -buildvcs=false `
-            -ldflags "-s -w -buildid=asb-libviiper-v0.7.0-asb5" `
+            -ldflags "-s -w -buildid=asb-libviiper-v0.7.0-asb6" `
             -o $OutputPath ./lib/viiper
         if ($LASTEXITCODE -ne 0) { throw "libVIIPER compilation failed." }
     } finally {
@@ -164,7 +164,7 @@ Copy-Item -LiteralPath $patchPath `
     "Base tag: v0.7.0"
     "Base commit: $expectedCommit"
     "Integrated library version: $version"
-    "Fallback sidecar version: v0.7.0-asb3"
+    "Fallback sidecar version: v0.7.0-asb4"
     "Patch: third_party/viiper-patches/viiper-v0.7.0-asb.patch"
     "Patch SHA-256: $patchHash"
     "Go toolchain: 1.26.5 ($goArchiveHash)"

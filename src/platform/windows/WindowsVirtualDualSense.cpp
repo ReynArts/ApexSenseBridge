@@ -513,7 +513,7 @@ private:
         }
         if (!regularFileExists(viiperPath)) {
             error = "Patched viiper.exe was not found at: " + viiperPath.string() +
-                    ". Place v0.7.0-asb3 beside ApexSenseBridge.exe or pass --viiper PATH.";
+                    ". Place v0.7.0-asb4 beside ApexSenseBridge.exe or pass --viiper PATH.";
             return false;
         }
         if (!spawnServer(viiperPath, error)) {

@@ -43,7 +43,7 @@ namespace ApexSenseBridgeTray.Services
             catch
             {
             }
-            return "0.6.0";
+            return "0.6.1";
         }
 
         public async Task<UpdateInfo> CheckForUpdatesAsync(bool silent)

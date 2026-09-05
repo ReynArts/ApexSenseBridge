@@ -505,10 +505,11 @@ new file mode 100644
 index 0000000..2bfd9a1
 --- /dev/null
 +++ b/device/dualsense/asb_extensions_test.go
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,181 @@
 +package dualsense
 +
 +import (
++	"bytes"
 +	"crypto/sha256"
 +	"encoding/binary"
 +	"fmt"
@@ -641,8 +642,18 @@ index 0000000..2bfd9a1
 +		t.Fatalf("standard DualSense HID descriptor is not exact: len=%d sha256=%s", len(report), got)
 +	}
 +	firmware := ds.featureReportFirmware()
-+	if got := binary.LittleEndian.Uint16(firmware[44:46]); got != 0x0630 {
-+		t.Fatalf("firmware = %#x, want 0x0630", got)
++	wantFirmware := []byte{
++		0x20, 0x4A, 0x75, 0x6C, 0x20, 0x20, 0x34, 0x20,
++		0x32, 0x30, 0x32, 0x35, 0x31, 0x30, 0x3A, 0x31,
++		0x30, 0x3A, 0x33, 0x32, 0x03, 0x00, 0x04, 0x00,
++		0x10, 0x13, 0x00, 0x00, 0x2A, 0x00, 0x10, 0x01,
++		0x01, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++		0x00, 0x00, 0x00, 0x00, 0x30, 0x06, 0x00, 0x00,
++		0x3C, 0x00, 0x01, 0x00, 0x0A, 0x00, 0x02, 0x00,
++		0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	}
++	if !bytes.Equal(firmware, wantFirmware) {
++		t.Fatalf("firmware report does not match current physical DualSense capture:\n got %x\nwant %x", firmware, wantFirmware)
 +	}
 +
 +	edge, err := NewEdge(nil)
@@ -825,6 +836,53 @@ index 5dd1d2c..905a515 100644
  	slog.Warn("DualSense control request unhandled",
  		"bmRequestType", bmRequestType,
  		"bRequest", bRequest,
+@@ -312,32 +363,16 @@ func (d *DualSense) featureReportPairing() []byte {
+ func (d *DualSense) featureReportFirmware() []byte {
+-	report := make([]byte, 64)
+-	report[0] = featureIDFirmware
+-
+-	d.mtx.Lock()
+-	bt := d.metaState.BuildTime
+-	d.mtx.Unlock()
+-
+-	copy(report[1:12], bt.Format("Jan 02 2006"))
+-	copy(report[12:20], bt.Format("15:04:05"))
+-
+-	report[20] = HardwareType
+-	report[21] = 0x01 // TODO: unknown
+-	report[22] = 0x44 // TODO: put in CONST!!! // build revision from real device
+-
+-	binary.LittleEndian.PutUint32(report[24:28], HwInfo)
+-
+-	// TODO: unknown
+-	report[28] = 0x36
+-	report[31] = 0x01
+-	report[32] = 0xC1
+-	report[33] = 0xC8
+-
+-	binary.LittleEndian.PutUint16(report[44:46], FirmwareVersion)
+-
+-	// TODO: unknown
+-	report[48] = 0x14
+-	report[52] = 0x0B
+-	report[54] = 0x01
+-	report[56] = 0x06
+-	return report
++	// Verbatim report 0x20 captured from a physical wired DualSense running
++	// the current type-0004 firmware 0x0630. Consumers validate more than the
++	// update-version word: synthesizing only that field left the old A-0356
++	// main firmware identity visible to PlayStation Accessories and games.
++	return []byte{
++		0x20, 0x4A, 0x75, 0x6C, 0x20, 0x20, 0x34, 0x20,
++		0x32, 0x30, 0x32, 0x35, 0x31, 0x30, 0x3A, 0x31,
++		0x30, 0x3A, 0x33, 0x32, 0x03, 0x00, 0x04, 0x00,
++		0x10, 0x13, 0x00, 0x00, 0x2A, 0x00, 0x10, 0x01,
++		0x01, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++		0x00, 0x00, 0x00, 0x00, 0x30, 0x06, 0x00, 0x00,
++		0x3C, 0x00, 0x01, 0x00, 0x0A, 0x00, 0x02, 0x00,
++		0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	}
+ }
 diff --git a/device/dualsense/ds_handler.go b/device/dualsense/ds_handler.go
 index 3a02c10..d21ba1f 100644
 --- a/device/dualsense/ds_handler.go

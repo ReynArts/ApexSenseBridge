@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1
+
+- Kept Flydigi Space Station keyboard and mouse shortcuts available during an
+  active DualSense bridge by granting its installed `SpaceStationService.exe`
+  targeted access through HidHide. The physical APEX game interfaces remain
+  hidden from games, preserving the existing double-input protection.
+- Replaced the virtual DualSense's mixed A-0356/0x0630 firmware identity with
+  the complete 64-byte report captured from current 0x0630 hardware.
+  PlayStation Accessories and native games no longer see an obsolete controller
+  while runtime telemetry reports the newer update word.
+
 ## 0.6.0
 
 - Added Authenticode digital code signing support (`sign-windows-artifacts.ps1`)

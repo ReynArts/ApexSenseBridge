@@ -1,4 +1,4 @@
-# ApexSenseBridge 0.6.0
+# ApexSenseBridge 0.6.1
 
 ApexSenseBridge gives a Flydigi APEX 4 or APEX 5 a virtual DualSense path on Windows while translating native adaptive-trigger and haptic feedback back to the physical controller.
 
@@ -82,7 +82,7 @@ Run `ApexSenseBridge-Setup.exe`. The offline installer uses one administrator el
 
 - the statically linked engine and Win32 control panel under `%ProgramFiles%\ApexSenseBridge`;
 - the standalone background Tray application (`ApexSenseBridgeTray.exe`);
-- the official integrated `libVIIPER asb5` backend, the `asb3` sidecar fallback,
+- the official integrated `libVIIPER asb6` backend, the `asb4` sidecar fallback,
   and their source/license notices;
 - usbip-win2 `0.9.7.7` when no healthy compatible `0.9.7.5`–`0.9.7.7` driver is present, and HidHide `1.5.230` when its exact version is absent;
 - the Playnite extension under the current user's Playnite extension directory;
@@ -215,7 +215,7 @@ engine working set, 0.635 ms p99 report latency, no lost report and 0.794 s
 initialization. A separate live process sample measured about 39.2 MiB total
 working set for the engine, recovery watchdog and VIIPER together.
 
-The official in-process `libVIIPER v0.7.0-asb5` backend removes process and
+The official in-process `libVIIPER v0.7.0-asb6` backend removes process and
 TCP-control overhead while keeping USB/IP traffic loopback-only. On the APEX 5
 test system, a stabilized hardware launch completed in about 0.28 s versus
 about 0.58 s for the sidecar, attached the virtual device in about 1 ms and
@@ -293,9 +293,9 @@ engine, control panel, Tray app, VIIPER payloads, Playnite assembly, installer
 and generated uninstaller are all signed before packaging. PFX and P12 files
 are ignored by Git and must never be committed.
 
-The official backend is the pinned in-process `libVIIPER v0.7.0-asb5` build.
+The official backend is the pinned in-process `libVIIPER v0.7.0-asb6` build.
 It loads inside the engine and falls back automatically to the validated
-`v0.7.0-asb3` sidecar when the DLL or its ASB exports are unavailable. Both
+`v0.7.0-asb4` sidecar when the DLL or its ASB exports are unavailable. Both
 artifacts use the same source patch containing the complete adaptive-trigger,
 grip-rumble and audio-haptics protocol required by the bridge.
 

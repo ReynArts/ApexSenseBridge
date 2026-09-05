@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 0.6.0 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 0.6.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -267,5 +267,17 @@ if(BUILD_TESTING)
         endif()
         add_test(NAME virtual_dualsense_windows_lifecycle
                  COMMAND ApexSenseBridgeVirtualDualSenseWindowsTests)
+
+        add_executable(ApexSenseBridgePhysicalIsolationWindowsTests
+            tests/test_physical_controller_isolation.cpp
+        )
+        target_link_libraries(ApexSenseBridgePhysicalIsolationWindowsTests PRIVATE asb_core)
+        if(MSVC)
+            target_compile_options(ApexSenseBridgePhysicalIsolationWindowsTests PRIVATE /W4 /permissive- /EHsc)
+        else()
+            target_compile_options(ApexSenseBridgePhysicalIsolationWindowsTests PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+        add_test(NAME physical_isolation_space_station_guard
+                 COMMAND ApexSenseBridgePhysicalIsolationWindowsTests)
     endif()
 endif()

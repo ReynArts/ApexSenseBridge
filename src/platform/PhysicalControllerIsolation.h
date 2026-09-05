@@ -39,4 +39,14 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
+namespace detail {
+
+// Kept separate from registry enumeration so the third-party application
+// identity guard can be unit-tested without changing HidHide state.
+[[nodiscard]] bool matchesFlydigiSpaceStationInstall(
+    std::wstring_view displayName,
+    std::wstring_view publisher) noexcept;
+
+} // namespace detail
+
 } // namespace asb::platform

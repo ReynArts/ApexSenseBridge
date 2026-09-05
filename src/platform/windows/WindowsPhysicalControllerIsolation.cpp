@@ -20,6 +20,7 @@
 #include <array>
 #include <cstdint>
 #include <cwctype>
+#include <filesystem>
 #include <iomanip>
 #include <memory>
 #include <sstream>
@@ -40,6 +41,11 @@ constexpr wchar_t kRunOnceValue[] =
 constexpr DWORD kRecoveryVersion = 1;
 constexpr DWORD kPhasePrepared = 0;
 constexpr DWORD kPhaseConfigurationMayHaveChanged = 1;
+constexpr wchar_t kUninstallKey[] =
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
+constexpr wchar_t kSpaceStationDisplayName[] = L"Flydigi Space Station";
+constexpr wchar_t kSpaceStationPublisher[] = L"Flydigi";
+constexpr wchar_t kSpaceStationService[] = L"SpaceStationService.exe";
 
 constexpr DWORD kIoctlGetWhitelist =
     static_cast<DWORD>(CTL_CODE(32769, 2048, METHOD_BUFFERED, FILE_READ_DATA));
@@ -127,6 +133,20 @@ std::wstring upper(std::wstring value) {
         return static_cast<wchar_t>(std::towupper(character));
     });
     return value;
+}
+
+bool startsWithCaseInsensitive(std::wstring_view value,
+                               std::wstring_view prefix) noexcept {
+    if (value.size() < prefix.size()) return false;
+    return _wcsnicmp(value.data(), prefix.data(), prefix.size()) == 0;
+}
+
+bool hasPrefixBoundary(std::wstring_view value,
+                       std::wstring_view prefix) noexcept {
+    if (!startsWithCaseInsensitive(value, prefix)) return false;
+    if (value.size() == prefix.size()) return true;
+    const auto next = value[prefix.size()];
+    return std::iswspace(next) || next == L',' || next == L'.';
 }
 
 bool containsCaseInsensitive(const std::vector<std::wstring>& values,
@@ -473,8 +493,8 @@ bool startWatchdog(const std::wstring& executable, DWORD processId,
     return true;
 }
 
-std::wstring currentImageNtPath(const std::wstring& executable,
-                                std::string& error) {
+std::wstring imageNtPath(const std::wstring& executable,
+                         std::string& error) {
     if (executable.size() < 3 || executable[1] != L':') {
         error = "HidHide isolation currently requires ApexSenseBridge to run "
                 "from a drive-letter path.";
@@ -488,6 +508,110 @@ std::wstring currentImageNtPath(const std::wstring& executable,
         return {};
     }
     return std::wstring(devicePath.data()) + executable.substr(2);
+}
+
+bool readRegistryString(HKEY key, const wchar_t* name,
+                        std::wstring& value) {
+    DWORD type = 0;
+    DWORD bytes = 0;
+    auto status = RegQueryValueExW(
+        key, name, nullptr, &type, nullptr, &bytes);
+    if (status != ERROR_SUCCESS ||
+        (type != REG_SZ && type != REG_EXPAND_SZ) ||
+        bytes < sizeof(wchar_t) || bytes > 64 * 1024 ||
+        bytes % sizeof(wchar_t) != 0) {
+        return false;
+    }
+
+    std::vector<wchar_t> buffer(bytes / sizeof(wchar_t) + 1, L'\0');
+    status = RegQueryValueExW(
+        key, name, nullptr, &type,
+        reinterpret_cast<BYTE*>(buffer.data()), &bytes);
+    if (status != ERROR_SUCCESS) return false;
+    value.assign(buffer.data());
+
+    if (type == REG_EXPAND_SZ) {
+        const auto required = ExpandEnvironmentStringsW(value.c_str(), nullptr, 0);
+        if (required == 0 || required > 32768) return false;
+        std::vector<wchar_t> expanded(required, L'\0');
+        if (ExpandEnvironmentStringsW(
+                value.c_str(), expanded.data(), required) != required) {
+            return false;
+        }
+        value.assign(expanded.data());
+    }
+    return !value.empty();
+}
+
+void appendSpaceStationServicesFromRegistry(
+    HKEY hive, REGSAM registryView,
+    std::vector<std::wstring>& ntPaths) {
+    HKEY rawRoot = nullptr;
+    if (RegOpenKeyExW(hive, kUninstallKey, 0,
+                      KEY_ENUMERATE_SUB_KEYS | registryView,
+                      &rawRoot) != ERROR_SUCCESS) {
+        return;
+    }
+    ScopedRegistryKey root(rawRoot);
+
+    for (DWORD index = 0;; ++index) {
+        std::array<wchar_t, 256> subkeyName{};
+        DWORD nameLength = static_cast<DWORD>(subkeyName.size());
+        const auto enumStatus = RegEnumKeyExW(
+            root.get(), index, subkeyName.data(), &nameLength,
+            nullptr, nullptr, nullptr, nullptr);
+        if (enumStatus == ERROR_NO_MORE_ITEMS) break;
+        if (enumStatus != ERROR_SUCCESS) continue;
+
+        HKEY rawEntry = nullptr;
+        if (RegOpenKeyExW(root.get(), subkeyName.data(), 0,
+                          KEY_QUERY_VALUE | registryView,
+                          &rawEntry) != ERROR_SUCCESS) {
+            continue;
+        }
+        ScopedRegistryKey entry(rawEntry);
+        std::wstring displayName;
+        std::wstring publisher;
+        std::wstring installLocation;
+        if (!readRegistryString(entry.get(), L"DisplayName", displayName) ||
+            !readRegistryString(entry.get(), L"Publisher", publisher) ||
+            !detail::matchesFlydigiSpaceStationInstall(
+                displayName, publisher) ||
+            !readRegistryString(
+                entry.get(), L"InstallLocation", installLocation)) {
+            continue;
+        }
+
+        const auto service =
+            (std::filesystem::path(installLocation) /
+             kSpaceStationService).wstring();
+        const auto attributes = GetFileAttributesW(service.c_str());
+        if (attributes == INVALID_FILE_ATTRIBUTES ||
+            (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+            continue;
+        }
+
+        std::string ignored;
+        const auto ntPath = imageNtPath(service, ignored);
+        if (!ntPath.empty() &&
+            !containsCaseInsensitive(ntPaths, ntPath)) {
+            ntPaths.push_back(ntPath);
+        }
+    }
+}
+
+std::vector<std::wstring> flydigiSpaceStationServiceNtPaths() {
+    std::vector<std::wstring> paths;
+    // Space Station has shipped as both a machine-wide and per-user install.
+    // Query both registry views because its installer architecture has also
+    // changed between releases.
+    for (const auto view : {KEY_WOW64_64KEY, KEY_WOW64_32KEY}) {
+        appendSpaceStationServicesFromRegistry(
+            HKEY_LOCAL_MACHINE, view, paths);
+        appendSpaceStationServicesFromRegistry(
+            HKEY_CURRENT_USER, view, paths);
+    }
+    return paths;
 }
 
 std::wstring deviceInstanceId(HDEVINFO devices, SP_DEVINFO_DATA& info) {
@@ -706,12 +830,22 @@ bool TemporaryPhysicalControllerIsolation::activate(
     if (!apexGameDevicePaths(apexInterface, apexPaths, error)) return false;
     const auto executable = moduleFileName(error);
     if (executable.empty()) return false;
-    const auto ntExecutable = currentImageNtPath(executable, error);
+    const auto ntExecutable = imageNtPath(executable, error);
     if (ntExecutable.empty()) return false;
 
     auto temporaryWhitelist = snapshot.originalWhitelist;
     if (!containsCaseInsensitive(temporaryWhitelist, ntExecutable)) {
         temporaryWhitelist.push_back(ntExecutable);
+    }
+    // Flydigi's service turns the auxiliary buttons configured in Space
+    // Station into virtual keyboard/mouse shortcuts. It must retain read
+    // access to the selected physical APEX while HidHide keeps that controller
+    // unavailable to the game. The virtual shortcut devices are distinct and
+    // remain visible, so this does not reintroduce physical gamepad input.
+    for (const auto& service : flydigiSpaceStationServiceNtPaths()) {
+        if (!containsCaseInsensitive(temporaryWhitelist, service)) {
+            temporaryWhitelist.push_back(service);
+        }
     }
     auto temporaryBlacklist = snapshot.originalBlacklist;
     for (const auto& path : apexPaths) {
@@ -822,6 +956,19 @@ int TemporaryPhysicalControllerIsolation::watchAndRecover(
     bool recovered = false;
     return recoverPending(recovered, error) ? 0 : 2;
 }
+
+namespace detail {
+
+bool matchesFlydigiSpaceStationInstall(
+    std::wstring_view displayName,
+    std::wstring_view publisher) noexcept {
+    // Permit the version/company suffixes used by the official installer,
+    // but reject unrelated products whose names merely share these prefixes.
+    return hasPrefixBoundary(displayName, kSpaceStationDisplayName) &&
+           hasPrefixBoundary(publisher, kSpaceStationPublisher);
+}
+
+} // namespace detail
 
 } // namespace asb::platform
 
