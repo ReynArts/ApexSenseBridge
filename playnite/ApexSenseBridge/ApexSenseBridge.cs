@@ -141,7 +141,7 @@ namespace ApexSenseBridge
                     return;
                 }
 
-                var arguments = BuildBridgeArguments(profile, args.Game);
+                var arguments = BuildBridgeArguments(profile);
                 string error;
                 var session = BridgeSession.TryStart(
                     bridgeExecutable,
@@ -177,6 +177,79 @@ namespace ApexSenseBridge
         }
 
         public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)
+        {
+            var games = args.Games?.ToList() ?? new List<Game>();
+            var configured = games.Count == 1
+                ? settings.Settings.FindProfile(games[0].Id)
+                : null;
+            var activation = configured?.ActivationMode ?? BridgeActivationMode.Automatic;
+            var remapping = configured?.RemappingMode ?? TouchpadRemappingMode.Automatic;
+            var apexProfile = configured?.ApexProfileSlot ?? 0;
+
+            var automaticActivationLabel = "Automatique";
+            var automaticRemappingLabel = "Automatique";
+            BridgeProfileType detectedProfile;
+            string ignoredReason;
+            if (games.Count == 1 && AutomaticProfileDetector.TryDetect(
+                    games[0], out detectedProfile, out ignoredReason))
+            {
+                automaticActivationLabel = "Automatique (jeu reconnu)";
+                automaticRemappingLabel = "Automatique (" +
+                    GameBridgeProfile.GetProfileDisplayName(detectedProfile) + ")";
+            }
+
+            yield return CreateMenuItem(
+                "ApexSenseBridge|Activation",
+                Mark(activation == BridgeActivationMode.Automatic) + automaticActivationLabel,
+                action => SetActivations(action.Games, BridgeActivationMode.Automatic));
+            yield return CreateMenuItem(
+                "ApexSenseBridge|Activation",
+                Mark(activation == BridgeActivationMode.Enabled) + "Activé",
+                action => SetActivations(action.Games, BridgeActivationMode.Enabled));
+            yield return CreateMenuItem(
+                "ApexSenseBridge|Activation",
+                Mark(activation == BridgeActivationMode.Disabled) + "Désactivé",
+                action => SetActivations(action.Games, BridgeActivationMode.Disabled));
+
+            yield return CreateMenuItem(
+                "ApexSenseBridge|Remapping tactile",
+                Mark(remapping == TouchpadRemappingMode.Automatic) + automaticRemappingLabel,
+                action => SetRemappings(action.Games, TouchpadRemappingMode.Automatic));
+            yield return CreateMenuItem(
+                "ApexSenseBridge|Remapping tactile",
+                Mark(remapping == TouchpadRemappingMode.None) + "Aucun",
+                action => SetRemappings(action.Games, TouchpadRemappingMode.None));
+            foreach (var choice in new[]
+            {
+                TouchpadRemappingMode.SpiderMan2,
+                TouchpadRemappingMode.MilesMorales,
+                TouchpadRemappingMode.GhostOfTsushima,
+                TouchpadRemappingMode.Warframe
+            })
+            {
+                var selectedChoice = choice;
+                yield return CreateMenuItem(
+                    "ApexSenseBridge|Remapping tactile",
+                    Mark(remapping == selectedChoice) +
+                        GameBridgeProfile.GetRemappingDisplayName(selectedChoice),
+                    action => SetRemappings(action.Games, selectedChoice));
+            }
+
+            yield return CreateMenuItem(
+                "ApexSenseBridge|Profil APEX",
+                Mark(apexProfile == 0) + "Conserver le profil actuel",
+                action => SetApexProfiles(action.Games, 0));
+            for (var slot = 1; slot <= 4; slot++)
+            {
+                var selectedSlot = slot;
+                yield return CreateMenuItem(
+                    "ApexSenseBridge|Profil APEX",
+                    Mark(apexProfile == selectedSlot) + "Profil " + selectedSlot,
+                    action => SetApexProfiles(action.Games, selectedSlot));
+            }
+        }
+
+        private IEnumerable<GameMenuItem> GetLegacyGameMenuItems(GetGameMenuItemsArgs args)
         {
             var games = args.Games?.ToList() ?? new List<Game>();
             if (games.Count == 1)
@@ -262,19 +335,11 @@ namespace ApexSenseBridge
             SavePluginSettings(value);
         }
 
-        private string BuildBridgeArguments(GameBridgeProfile profile, Game game)
+        private string BuildBridgeArguments(GameBridgeProfile profile)
         {
             var arguments = new List<string> { "bridge-triggers" };
 
-            // A manually selected Standard profile keeps the standard launch
-            // compatibility path, but known games still receive their input
-            // gesture mapping. This mirrors the standalone tray detector.
             var gestureProfile = profile.ProfileType;
-            if (gestureProfile == BridgeProfileType.StandardDualSense &&
-                AutomaticProfileDetector.TryDetect(game, out var detectedProfile, out _))
-            {
-                gestureProfile = detectedProfile;
-            }
 
             switch (gestureProfile)
             {
@@ -300,6 +365,12 @@ namespace ApexSenseBridge
                     break;
             }
 
+            if (profile.ApexProfileSlot >= 1 && profile.ApexProfileSlot <= 4)
+            {
+                arguments.Add("--apex-profile");
+                arguments.Add(profile.ApexProfileSlot.ToString());
+            }
+
             if (settings.Settings.EnableRumble)
             {
                 arguments.Add("--rumble");
@@ -308,6 +379,59 @@ namespace ApexSenseBridge
             }
 
             return string.Join(" ", arguments);
+        }
+
+        private static string Mark(bool selected)
+        {
+            return selected ? "✓ " : "   ";
+        }
+
+        private static GameMenuItem CreateMenuItem(
+            string section,
+            string description,
+            Action<GameMenuItemActionArgs> action)
+        {
+            return new GameMenuItem
+            {
+                MenuSection = section,
+                Description = description,
+                Action = action
+            };
+        }
+
+        private void SetActivations(
+            IEnumerable<Game> games, BridgeActivationMode activationMode)
+        {
+            var list = games?.ToList() ?? new List<Game>();
+            foreach (var game in list)
+            {
+                settings.Settings.SetActivation(game, activationMode);
+            }
+            settings.SaveNow();
+            logger.Info($"ApexSenseBridge activation set to {activationMode} for {list.Count} game(s).");
+        }
+
+        private void SetRemappings(
+            IEnumerable<Game> games, TouchpadRemappingMode remappingMode)
+        {
+            var list = games?.ToList() ?? new List<Game>();
+            foreach (var game in list)
+            {
+                settings.Settings.SetRemapping(game, remappingMode);
+            }
+            settings.SaveNow();
+            logger.Info($"ApexSenseBridge remapping set to {remappingMode} for {list.Count} game(s).");
+        }
+
+        private void SetApexProfiles(IEnumerable<Game> games, int slot)
+        {
+            var list = games?.ToList() ?? new List<Game>();
+            foreach (var game in list)
+            {
+                settings.Settings.SetApexProfile(game, slot);
+            }
+            settings.SaveNow();
+            logger.Info($"ApexSenseBridge onboard profile set to {slot} for {list.Count} game(s).");
         }
 
         private void SetProfiles(IEnumerable<Game> games, BridgeProfileType profileType)

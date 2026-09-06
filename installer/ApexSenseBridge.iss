@@ -1,9 +1,11 @@
 #define AppName "ApexSenseBridge"
-#define AppVersion "0.6.1"
+#define AppVersion "0.6.2"
 #define AppPublisher "ApexSenseBridge contributors"
 #define AppId "{{5F8B1901-93E1-41E2-96B4-F1B278A5A630}"
 #define ExtensionId "ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4"
 #define UsbipProductKey "{{199505b0-b93d-4521-a8c7-897818e0205a}_is1"
+#define UsbipVersion "0.9.8.0"
+#define UsbipInstaller "USBip-0.9.8.0-x64.exe"
 #define HidHideProductCode "{{01E0AB21-D1CC-42B4-9DFF-84FFE4F26DAF}"
 
 [Setup]
@@ -41,8 +43,8 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-french.InstallingUsbip=Installation de usbip-win2 0.9.7.7…
-english.InstallingUsbip=Installing usbip-win2 0.9.7.7…
+french.InstallingUsbip=Installation de usbip-win2 {#UsbipVersion}…
+english.InstallingUsbip=Installing usbip-win2 {#UsbipVersion}…
 french.InstallingHidHide=Installation de HidHide 1.5.230…
 english.InstallingHidHide=Installing HidHide 1.5.230…
 
@@ -71,7 +73,7 @@ Source: "..\third_party\prerequisites\HIDHIDE-LICENSE.txt"; DestDir: "{app}\Lice
 
 ; The two official prerequisite installers are compressed inside the setup and
 ; extracted only when the corresponding pinned version must be installed.
-Source: "..\third_party\prerequisites\USBip-0.9.7.7-x64.exe"; DestDir: "{tmp}\ApexSenseBridge"; Flags: deleteafterinstall
+Source: "..\third_party\prerequisites\{#UsbipInstaller}"; DestDir: "{tmp}\ApexSenseBridge"; Flags: deleteafterinstall
 Source: "..\third_party\prerequisites\HidHide_1.5.230_x64.exe"; DestDir: "{tmp}\ApexSenseBridge"; Flags: deleteafterinstall
 Source: "install-usbip.ps1"; DestDir: "{tmp}\ApexSenseBridge"; Flags: deleteafterinstall
 
@@ -86,7 +88,7 @@ Source: "..\playnite\ApexSenseBridge\bin\Release\Localization\*"; DestDir: "{use
 ; The upstream USBip setup always launches the previous package's uninstaller
 ; when its AppId is already registered. We reject that unsafe upgrade path in
 ; InitializeSetup and use a bounded wrapper only for a genuinely fresh install.
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{tmp}\ApexSenseBridge\install-usbip.ps1"" -InstallerPath ""{tmp}\ApexSenseBridge\USBip-0.9.7.7-x64.exe"" -LogPath ""{commonappdata}\ApexSenseBridge\usbip-install.log"""; StatusMsg: "{cm:InstallingUsbip}"; Flags: runhidden waituntilterminated; Check: NeedUsbip; AfterInstall: VerifyUsbipInstall
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{tmp}\ApexSenseBridge\install-usbip.ps1"" -InstallerPath ""{tmp}\ApexSenseBridge\{#UsbipInstaller}"" -LogPath ""{commonappdata}\ApexSenseBridge\usbip-install.log"""; StatusMsg: "{cm:InstallingUsbip}"; Flags: runhidden waituntilterminated; Check: NeedUsbip; AfterInstall: VerifyUsbipInstall
 Filename: "{tmp}\ApexSenseBridge\HidHide_1.5.230_x64.exe"; Parameters: "/quiet /norestart"; StatusMsg: "{cm:InstallingHidHide}"; Flags: runhidden waituntilterminated; Check: NeedHidHide
 Filename: "{app}\ApexSenseBridgeTray.exe"; Description: "Lancer ApexSenseBridge Tray (Barre des tâches)"; Flags: nowait postinstall skipifsilent
 
@@ -178,9 +180,7 @@ end;
 
 function IsSupportedUsbipVersion(const Version: String): Boolean;
 begin
-  Result := (CompareText(Version, '0.9.7.5') = 0) or
-            (CompareText(Version, '0.9.7.6') = 0) or
-            (CompareText(Version, '0.9.7.7') = 0);
+  Result := CompareText(Version, '{#UsbipVersion}') = 0;
 end;
 
 function InitializeSetup: Boolean;
@@ -229,24 +229,6 @@ begin
   end;
 
   if UsbipUninstallEntryPresent and
-     (CompareText(UsbipVersionBefore, '0.9.7.8') = 0) then
-  begin
-    MsgBox(
-      UsbipMessage(
-        'usbip-win2 0.9.7.8 est installé. Cette version est explicitement refusée ' +
-        'en raison de son avertissement officiel de corruption mémoire/BSOD.'#13#10#13#10 +
-        'Désinstallez 0.9.7.8, redémarrez Windows, puis relancez ce programme. ' +
-        'La version sûre 0.9.7.7 est incluse hors ligne.',
-        'usbip-win2 0.9.7.8 is installed. This version is explicitly refused ' +
-        'because of its official memory-corruption/BSOD warning.'#13#10#13#10 +
-        'Uninstall 0.9.7.8, restart Windows, then run this setup again. ' +
-        'The safer 0.9.7.7 release is included offline.'),
-      mbCriticalError, MB_OK);
-    Result := False;
-    Exit;
-  end;
-
-  if UsbipUninstallEntryPresent and
      (not IsSupportedUsbipVersion(UsbipVersionBefore)) then
   begin
     MsgBox(
@@ -255,12 +237,12 @@ begin
         'Son installateur officiel tente de désinstaller automatiquement toute ' +
         'autre version et peut rester bloqué sur « Uninstalling USBip… ».'#13#10#13#10 +
         'Désinstallez d''abord USBip depuis les Paramètres Windows, redémarrez, ' +
-        'puis relancez ApexSenseBridge. La version 0.9.7.7 sûre est incluse hors ligne.',
+        'puis relancez ApexSenseBridge. La version signée {#UsbipVersion} est incluse hors ligne.',
         'USBip ' + UsbipVersionBefore + ' is already installed.'#13#10#13#10 +
         'Its official setup tries to uninstall every other version automatically ' +
         'and can hang on "Uninstalling USBip...".'#13#10#13#10 +
         'Uninstall USBip in Windows Settings first, restart Windows, then run ' +
-        'ApexSenseBridge setup again. The supported 0.9.7.7 release is included offline.'),
+        'ApexSenseBridge setup again. The signed {#UsbipVersion} build is included offline.'),
       mbCriticalError, MB_OK);
     Result := False;
     Exit;
@@ -311,7 +293,7 @@ begin
   if UsbipUninstallEntryPresent then
     Result := UsbipVersionBefore
   else
-    Result := '0.9.7.7';
+    Result := '{#UsbipVersion}';
 end;
 
 procedure VerifyUsbipInstall;
@@ -320,17 +302,17 @@ var
 begin
   if (not RegQueryStringValue(
         HKLM64, UsbipUninstallKey, 'DisplayVersion', InstalledVersion)) or
-     (CompareText(Trim(InstalledVersion), '0.9.7.7') <> 0) or
+     (CompareText(Trim(InstalledVersion), '{#UsbipVersion}') <> 0) or
      (not RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\usbip2_ude')) or
      (not RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\usbip2_filter')) then
   begin
     RaiseException(
       UsbipMessage(
-        'L''installation de usbip-win2 0.9.7.7 n''a pas abouti. ' +
+        'L''installation de usbip-win2 {#UsbipVersion} n''a pas abouti. ' +
         'Consultez le journal dans ' +
         ExpandConstant('{commonappdata}\ApexSenseBridge\usbip-install.log') +
         ', redémarrez Windows, puis relancez l''installation.',
-        'usbip-win2 0.9.7.7 did not install successfully. See the log at ' +
+        'usbip-win2 {#UsbipVersion} did not install successfully. See the log at ' +
         ExpandConstant('{commonappdata}\ApexSenseBridge\usbip-install.log') +
         ', restart Windows, then run setup again.'));
   end;

@@ -46,9 +46,12 @@ public:
                    std::uint8_t highFrequencyMotor,
                    std::string& error);
     bool stopRumble(std::string& error);
+    bool readProfileStatus(ProfileStatus& status, std::string& error);
+    bool applyProfile(std::uint8_t slot, std::string& error);
 
 private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
+    [[nodiscard]] bool mayControlProfiles(std::string& error) const;
     [[nodiscard]] bool usesApex4Protocol() const noexcept;
 
     TransportPtr transport_{};

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -22,7 +23,9 @@ public:
 
     bool activate(const HidDeviceInfo& apexInterface,
                   std::string_view sessionToken,
+                  std::optional<std::uint8_t> originalApexProfile,
                   std::string& error);
+    bool confirmApexProfileRestored(std::string& error) noexcept;
     bool restore(std::string& error) noexcept;
     [[nodiscard]] bool active() const noexcept;
     [[nodiscard]] bool recoveredStaleIsolation() const noexcept;
@@ -46,6 +49,23 @@ namespace detail {
 [[nodiscard]] bool matchesFlydigiSpaceStationInstall(
     std::wstring_view displayName,
     std::wstring_view publisher) noexcept;
+
+// Requires the complete, vendor-specific PnP topology so a real Sony
+// controller or ApexSenseBridge's VIIPER device can never match by VID/PID
+// alone.
+[[nodiscard]] bool matchesFlydigiVirtualDualSenseTopology(
+    std::wstring_view hidInstanceId,
+    std::wstring_view usbInstanceId,
+    std::wstring_view rootInstanceId,
+    std::wstring_view rootService) noexcept;
+
+[[nodiscard]] bool matchesApexProfileRecoveryDevice(
+    const HidDeviceInfo& candidate,
+    std::wstring_view originalPath,
+    std::wstring_view originalContainerId,
+    std::uint16_t vendorId,
+    std::uint16_t productId,
+    std::uint16_t usagePage) noexcept;
 
 } // namespace detail
 

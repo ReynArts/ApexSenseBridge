@@ -113,7 +113,13 @@ if ([string]::IsNullOrWhiteSpace($extensionId) -or [string]::IsNullOrWhiteSpace(
     Fail "extension.yaml does not contain a valid Id and Version."
 }
 $packageBase = "{0}_{1}" -f $extensionId, ($version -replace '\.', '_')
-$packagePath = Join-Path $dist ($packageBase + ".pext")
+$toolboxPackagePath = Join-Path $dist ($packageBase + ".pext")
+$packagePath = Join-Path $dist ("ApexSenseBridge-Playnite-{0}.pext" -f $version)
+foreach ($stalePackage in @($toolboxPackagePath, $packagePath)) {
+    if (Test-Path -LiteralPath $stalePackage) {
+        Remove-Item -LiteralPath $stalePackage -Force
+    }
+}
 
 Write-Host "Packing the Playnite extension..."
 if (-not [string]::IsNullOrWhiteSpace($ToolboxPath) -and
@@ -128,10 +134,14 @@ if (-not [string]::IsNullOrWhiteSpace($ToolboxPath) -and
     # by Playnite's official ExtensionInstaller (ZipFile.OpenRead).
     $temporaryZip = Join-Path $dist ($packageBase + ".zip")
     if (Test-Path -LiteralPath $temporaryZip) { Remove-Item -LiteralPath $temporaryZip -Force }
-    if (Test-Path -LiteralPath $packagePath) { Remove-Item -LiteralPath $packagePath -Force }
     Compress-Archive -Path (Join-Path $output "*") -DestinationPath $temporaryZip -CompressionLevel Optimal
-    Move-Item -LiteralPath $temporaryZip -Destination $packagePath
+    Move-Item -LiteralPath $temporaryZip -Destination $toolboxPackagePath
 }
+
+if (-not (Test-Path -LiteralPath $toolboxPackagePath -PathType Leaf)) {
+    Fail "Playnite packaging did not create the expected package: $toolboxPackagePath"
+}
+Move-Item -LiteralPath $toolboxPackagePath -Destination $packagePath
 
 Write-Host ""
 Write-Host "Playnite extension built successfully:" -ForegroundColor Green

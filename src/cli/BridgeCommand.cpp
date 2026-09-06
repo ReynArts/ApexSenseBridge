@@ -1,5 +1,6 @@
 #include "cli/Commands.h"
 #include "cli/CommandSupport.h"
+#include "core/ApexProfileRestoreGuard.h"
 #include "core/TriggerResetGuard.h"
 #include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
@@ -214,6 +215,7 @@ struct BridgeCommandOptions {
     bool hapticThresholdExplicit = false;
     std::optional<unsigned int> xinputIndex;
     std::optional<std::string> sessionToken;
+    std::optional<std::uint8_t> apexProfileSlot;
     std::filesystem::path telemetryJson;
 };
 
@@ -309,6 +311,23 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 return false;
             }
             options.sessionToken = token;
+        } else if (value == "--apex-profile") {
+            if (++i >= argc) {
+                error = "--apex-profile requires a profile number from 1 to 4.";
+                return false;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(argv[i], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[i]).size() ||
+                    parsed < 1 || parsed > asb::flydigi::kProfileSlotCount) {
+                    throw std::out_of_range("apex-profile");
+                }
+                options.apexProfileSlot = static_cast<std::uint8_t>(parsed - 1);
+            } catch (...) {
+                error = "--apex-profile requires a profile number from 1 to 4.";
+                return false;
+            }
         } else if (!value.empty() && value.front() != '-' && !options.deviceIndex) {
             try { options.deviceIndex = static_cast<std::size_t>(std::stoul(std::string(value))); }
             catch (...) { error = "The device index must be an integer."; return false; }
@@ -334,7 +353,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     BridgeCommandOptions options{};
     std::string error;
     if (!parseBridgeOptions(argc, argv, options, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--isolate-apex] [--session-token 32HEX]\n";
+        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--apex-profile 1..4] [--isolate-apex] [--session-token 32HEX]\n";
         return 1;
     }
 
@@ -376,6 +395,46 @@ int commandBridgeTriggers(int argc, char** argv) {
         const std::string message = "APEX identity check failed: " + error;
         std::cerr << message << '\n';
         return failSession(3, message);
+    }
+
+    std::optional<asb::flydigi::ProfileStatus> originalProfile;
+    bool profileSwitchRequired = false;
+    bool profileSwitchAcknowledged = true;
+    if (options.apexProfileSlot) {
+        if (!device->identity() || !device->identity()->isApex5()) {
+            constexpr std::string_view message =
+                "--apex-profile currently supports a verified Apex 5 only.";
+            std::cerr << message << '\n';
+            return failSession(15, message);
+        }
+
+        asb::flydigi::ProfileStatus first{};
+        asb::flydigi::ProfileStatus second{};
+        if (!device->readProfileStatus(first, error)) {
+            const std::string message =
+                "Could not read the original Apex 5 profile: " + error;
+            std::cerr << message << '\n';
+            return failSession(15, message);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        error.clear();
+        if (!device->readProfileStatus(second, error) ||
+            first.rawSlot != second.rawSlot) {
+            const std::string message = error.empty()
+                ? "The Apex 5 profile changed during the startup preflight."
+                : "Could not confirm the original Apex 5 profile: " + error;
+            std::cerr << message << '\n';
+            return failSession(15, message);
+        }
+        if (first.switchBank) {
+            constexpr std::string_view message =
+                "The Apex 5 is using its Nintendo Switch profile bank; the "
+                "XInput profile switch was refused.";
+            std::cerr << message << '\n';
+            return failSession(15, message);
+        }
+        originalProfile = first;
+        profileSwitchRequired = first.slot != *options.apexProfileSlot;
     }
     asb::TriggerResetGuard resetOnExit(*device);
     if (!device->clearAll(error)) {
@@ -503,22 +562,127 @@ int commandBridgeTriggers(int argc, char** argv) {
 
     asb::platform::TemporaryPhysicalControllerIsolation physicalIsolation;
     if (!physicalIsolation.activate(
-            device->info(), options.sessionToken.value_or(""), error)) {
+            device->info(), options.sessionToken.value_or(""),
+            profileSwitchRequired
+                ? std::optional<std::uint8_t>(originalProfile->slot)
+                : std::nullopt,
+            error)) {
         virtualDualSense->close();
         std::cerr << "Temporary APEX isolation failed: " << error << '\n';
         return failSession(11, "Temporary APEX isolation failed: " + error);
     }
     const auto isolationReadyAt = std::chrono::steady_clock::now();
 
+    std::unique_ptr<asb::ApexProfileRestoreGuard> profileRestoreOnExit;
+    const auto restoreTemporaryApexProfile =
+        [&profileRestoreOnExit, &physicalIsolation](std::string& restoreError) {
+            restoreError.clear();
+            if (!profileRestoreOnExit) return true;
+            if (!profileRestoreOnExit->restore(restoreError)) return false;
+            if (!physicalIsolation.confirmApexProfileRestored(restoreError)) {
+                return false;
+            }
+            return true;
+        };
+    const auto rollbackFailedProfileStartup =
+        [&virtualDualSense, &profileRestoreOnExit, &physicalIsolation,
+         &restoreTemporaryApexProfile, &failSession](int exitCode,
+                                                     std::string message) {
+            virtualDualSense->close();
+            std::string profileRollbackError;
+            bool profileRolledBack =
+                restoreTemporaryApexProfile(profileRollbackError);
+            std::string isolationRollbackError;
+            const bool isolationRolledBack =
+                physicalIsolation.restore(isolationRollbackError);
+            if (isolationRolledBack && profileRestoreOnExit) {
+                profileRolledBack = true;
+                profileRestoreOnExit->dismiss();
+            }
+            if (!profileRolledBack) {
+                message += "; original profile rollback failed: " +
+                           profileRollbackError;
+            }
+            if (!isolationRolledBack) {
+                message += "; controller session rollback failed: " +
+                           isolationRollbackError;
+            }
+            std::cerr << message << '\n';
+            return failSession(exitCode, message);
+        };
+
+    if (profileSwitchRequired) {
+        // The persistent crash marker is armed by physicalIsolation.activate()
+        // before the controller receives the temporary switch command.
+        profileRestoreOnExit = std::make_unique<asb::ApexProfileRestoreGuard>(
+            *device, originalProfile->slot);
+        error.clear();
+        profileSwitchAcknowledged =
+            device->applyProfile(*options.apexProfileSlot, error);
+        const std::string applyError = error;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        asb::flydigi::ProfileStatus applied{};
+        std::string statusError;
+        const bool statusRead = device->readProfileStatus(applied, statusError);
+        if (!statusRead || applied.switchBank ||
+            applied.slot != *options.apexProfileSlot) {
+            std::string message = "Could not verify the requested Apex 5 profile";
+            if (!profileSwitchAcknowledged && !applyError.empty()) {
+                message += ": " + applyError;
+            } else if (!statusRead && !statusError.empty()) {
+                message += ": " + statusError;
+            } else if (statusRead) {
+                message += ": controller reported raw slot " +
+                           std::to_string(applied.rawSlot);
+            }
+            return rollbackFailedProfileStartup(15, std::move(message));
+        }
+
+        // Selecting an onboard profile can reapply that slot's trigger mode.
+        // Re-establish the bridge's neutral output baseline before declaring
+        // the session ready, without modifying the saved onboard profile.
+        std::string baselineError;
+        if (!device->clearAll(baselineError)) {
+            return rollbackFailedProfileStartup(
+                4, "Could not establish a Normal trigger baseline after the "
+                   "Apex 5 profile switch: " + baselineError);
+        }
+        if (options.routeRumble && !device->stopRumble(baselineError)) {
+            return rollbackFailedProfileStartup(
+                12, "Could not establish a stopped grip-rumble baseline after "
+                    "the Apex 5 profile switch: " + baselineError);
+        }
+    }
+
     if (sessionControl) {
         if (!sessionControl->publish(asb::platform::SessionPhase::Ready, 0,
                                      "Bridge ready; game launch may continue.", error) ||
             !sessionControl->signalReady(error)) {
             virtualDualSense->close();
-            std::string ignored;
-            (void)physicalIsolation.restore(ignored);
-            std::cerr << "Playnite session ready signal failed: " << error << '\n';
-            return failSession(13, "Playnite session ready signal failed: " + error);
+            const std::string signalError = error;
+            std::string profileRollbackError;
+            bool profileRolledBack =
+                restoreTemporaryApexProfile(profileRollbackError);
+            std::string isolationRollbackError;
+            const bool isolationRolledBack =
+                physicalIsolation.restore(isolationRollbackError);
+            if (isolationRolledBack && profileRestoreOnExit) {
+                profileRolledBack = true;
+                profileRestoreOnExit->dismiss();
+            }
+            std::string message =
+                "Playnite session ready signal failed: " + signalError;
+            if (!profileRolledBack) {
+                message += "; original profile rollback failed: " +
+                           profileRollbackError;
+            }
+            if (!isolationRolledBack) {
+                message += "; controller session rollback failed: " +
+                           isolationRollbackError;
+            }
+            std::cerr << message << '\n';
+            return failSession(13, message);
         }
     }
 
@@ -561,6 +725,16 @@ int commandBridgeTriggers(int argc, char** argv) {
                       ? "Touchpad gesture profile: " +
                             std::string(asb::dualsense::touchpadGestureProfileName(
                                 options.touchpadProfile)) + ".\n"
+                      : "")
+              << (options.apexProfileSlot
+                      ? "Apex onboard profile: " +
+                            std::to_string(*options.apexProfileSlot + 1) +
+                            (originalProfile && originalProfile->slot !=
+                                                    *options.apexProfileSlot
+                                 ? " (temporary; original profile " +
+                                       std::to_string(originalProfile->slot + 1) +
+                                       " will be restored).\n"
+                                 : " (already active).\n")
                       : "")
               << (physicalIsolation.active()
                       ? "The original APEX game interface is hidden for this bridge session only.\n"
@@ -802,8 +976,17 @@ int commandBridgeTriggers(int argc, char** argv) {
     // devices can never prevent restoration/uninstall.
     const bool physicalControlsReleased = waitForPhysicalControlsReleased(
         *inputSource, std::chrono::milliseconds(1500));
+    std::string profileRestoreError;
+    bool profileRestored =
+        restoreTemporaryApexProfile(profileRestoreError);
     std::string isolationRestoreError;
     const bool isolationRestored = physicalIsolation.restore(isolationRestoreError);
+    // A successful watchdog-backed session restore also proves the saved
+    // onboard profile was restored, even if the first in-process attempt failed.
+    if (isolationRestored && profileRestoreOnExit) {
+        profileRestored = true;
+        profileRestoreOnExit->dismiss();
+    }
     const auto inputSourceStats = inputSource->stats();
     const auto processUsageFinished = processUsageSnapshot();
     const double runtimeSeconds = runtimeMilliseconds > 0
@@ -933,6 +1116,18 @@ int commandBridgeTriggers(int argc, char** argv) {
               << (virtualInputNeutralized ? "yes" : "no") << '\n'
               << "physical_controls_released_before_restore="
               << (physicalControlsReleased ? "yes" : "no") << '\n'
+              << "apex_profile_requested="
+              << (options.apexProfileSlot
+                      ? std::to_string(*options.apexProfileSlot + 1)
+                      : "none") << '\n'
+              << "apex_profile_original="
+              << (originalProfile
+                      ? std::to_string(originalProfile->slot + 1)
+                      : "unknown") << '\n'
+              << "apex_profile_switch_acknowledged="
+              << (profileSwitchAcknowledged ? "yes" : "no") << '\n'
+              << "apex_profile_restored="
+              << (profileRestored ? "yes" : "no") << '\n'
               << "input_updates=" << virtualStats.inputUpdates << '\n'
               << "dualsense_firmware_update="
               << (virtualFirmware ? hex16(virtualFirmware->updateVersion) : "unavailable")
@@ -1079,11 +1274,18 @@ int commandBridgeTriggers(int argc, char** argv) {
                   << rumbleResetError << "\nPower-cycle the controller before continuing.\n";
         return failSession(12, "Grip-rumble automatic stop failed: " + rumbleResetError);
     }
+    if (!profileRestored) {
+        const std::string message =
+            "Could not restore the original Apex 5 profile: " + profileRestoreError;
+        std::cerr << "WARNING: " << message << "\nUse the controller's profile "
+                     "shortcut to restore it manually.\n";
+        return failSession(15, message);
+    }
     if (!isolationRestored) {
-        std::cerr << "WARNING: could not restore the original APEX visibility: "
+        std::cerr << "WARNING: could not restore the original APEX session state: "
                   << isolationRestoreError
                   << "\nRun 'ApexSenseBridge restore-controller-visibility' before playing without the bridge.\n";
-        return failSession(11, "Could not restore the original APEX visibility: " +
+        return failSession(11, "Could not restore the original APEX session state: " +
                                    isolationRestoreError);
     }
     if (bridge.failed()) {

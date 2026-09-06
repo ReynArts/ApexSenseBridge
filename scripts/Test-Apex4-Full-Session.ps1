@@ -501,8 +501,8 @@ try {
     } else { "" }
     Add-Result $resultLines "usbip_version" $usbipVersion
     Add-Result $resultLines "hidhide_version" $hidHideVersion
-    if ($usbipVersion -notin @("0.9.7.5", "0.9.7.6", "0.9.7.7")) {
-        throw "Version usbip-win2 absente ou non prise en charge ($usbipVersion). Utiliser uniquement 0.9.7.5 a 0.9.7.7."
+    if ($usbipVersion -ne "0.9.8.0") {
+        throw "Version usbip-win2 absente ou non prise en charge ($usbipVersion). Utiliser uniquement 0.9.8.0."
     }
     if ($hidHideVersion -ne "1.5.230") {
         throw "Version HidHide absente ou non validee ($hidHideVersion). La version attendue est 1.5.230."

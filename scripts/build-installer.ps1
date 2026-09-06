@@ -17,8 +17,8 @@ $distDir = Join-Path $projectRoot "dist"
 
 $requiredPackages = @(
     @{
-        Name = "USBip-0.9.7.7-x64.exe"
-        Sha256 = "51620FA5F9F8BE5932BC9D786DEEE557CE06D5407A99CAB490DCFAC71F185FEA"
+        Name = "USBip-0.9.8.0-x64.exe"
+        Sha256 = "81F426741F7EE2ED991FEBE24A22DACA8400B6AE2F171054E3FB404897E15D39"
     },
     @{
         Name = "HidHide_1.5.230_x64.exe"
@@ -67,8 +67,10 @@ $portableStaging = Join-Path $distFull "ApexSenseBridge-Portable"
 if (Test-Path -LiteralPath $portableStaging) {
     Remove-Item -LiteralPath $portableStaging -Recurse -Force
 }
-Get-ChildItem -LiteralPath $distFull -Filter "ApexSenseBridge_*.pext" -File `
-    -ErrorAction SilentlyContinue | Remove-Item -Force
+foreach ($filter in @("ApexSenseBridge_*.pext", "ApexSenseBridge-Playnite-*.pext")) {
+    Get-ChildItem -LiteralPath $distFull -Filter $filter -File `
+        -ErrorAction SilentlyContinue | Remove-Item -Force
+}
 
 foreach ($package in $requiredPackages) {
     $path = Join-Path $prerequisiteDir $package.Name
@@ -174,7 +176,7 @@ $releaseArtifactPaths = @(
     (Join-Path $distFull "ApexSenseBridgeTray.exe.config")
 )
 $releaseArtifactPaths += @(
-    Get-ChildItem -LiteralPath $distFull -Filter "ApexSenseBridge_*.pext" -File |
+    Get-ChildItem -LiteralPath $distFull -Filter "ApexSenseBridge-Playnite-*.pext" -File |
         Select-Object -ExpandProperty FullName
 )
 foreach ($artifactPath in $releaseArtifactPaths) {

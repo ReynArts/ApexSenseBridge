@@ -10,11 +10,12 @@ Windows kernel drivers cannot be made portable. Before the first use:
 2. Restart Windows.
 3. Run Start-ApexSenseBridge.cmd.
 
-The helper installs the pinned usbip-win2 0.9.7.7 and HidHide 1.5.230 drivers
-only when they are absent. Healthy compatible USBip 0.9.7.5-0.9.7.7 drivers
-are preserved. If an unsupported USBip version or a damaged installation is
+The helper installs the pinned usbip-win2 0.9.8.0 and HidHide 1.5.230 drivers
+only when they are absent. An intact USBip 0.9.8.0 installation is preserved.
+If an older, unsupported USBip version or a damaged installation is
 found, it stops with a clear message instead of entering USBip's known nested-
-uninstaller hang. Details are written to driver-install.log.
+uninstaller hang. Uninstall the old USBip package in Windows Settings, restart,
+then run this helper again. Details are written to driver-install.log.
 
 Keep every EXE and DLL, plus the Resources, Data, Drivers, and Licenses folders
 together. libVIIPER.dll is the default backend; viiper.exe is its automatic

@@ -49,6 +49,7 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
@@ -57,6 +58,7 @@
     <Compile Include="AutomaticProfileDetector.cs" />
     <Compile Include="BridgeSession.cs" />
     <Compile Include="InstallLocator.cs" />
+    <Compile Include="SupportedGameCatalog.cs" />
     <Compile Include="UpdateManager.cs" />
     <Compile Include="ApexSenseBridgeSettingsView.xaml.cs">
       <DependentUpon>ApexSenseBridgeSettingsView.xaml</DependentUpon>
@@ -85,6 +87,9 @@
     </Page>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="..\..\data\supported_games.json">
+      <Link>supported_games.json</Link>
+    </EmbeddedResource>
     <None Include="icon.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

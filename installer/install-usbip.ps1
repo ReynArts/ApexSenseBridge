@@ -9,6 +9,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$usbipVersion = "0.9.8.0"
+$expectedInstallerSha256 = "81F426741F7EE2ED991FEBE24A22DACA8400B6AE2F171054E3FB404897E15D39"
 $usbipKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{199505b0-b93d-4521-a8c7-897818e0205a}_is1"
 $udeServiceKey = "HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_ude"
 $filterServiceKey = "HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_filter"
@@ -33,12 +35,16 @@ try {
     if (-not (Test-Path -LiteralPath $InstallerPath)) {
         throw "The bundled USBip installer is missing: $InstallerPath"
     }
+    $installerSha256 = (Get-FileHash -LiteralPath $InstallerPath -Algorithm SHA256).Hash
+    if ($installerSha256 -ne $expectedInstallerSha256) {
+        throw "The bundled USBip installer failed its SHA-256 integrity check."
+    }
 
     $installed = Get-ItemProperty -LiteralPath $usbipKey -ErrorAction SilentlyContinue
     if ($null -ne $installed) {
         $installedVersion = [string]$installed.DisplayVersion
-        if ($installedVersion.Trim() -eq "0.9.7.7" -and (Test-UsbipServices)) {
-            Write-UsbipLog "USBip 0.9.7.7 and both driver services are already present; skipping."
+        if ($installedVersion.Trim() -eq $usbipVersion -and (Test-UsbipServices)) {
+            Write-UsbipLog "USBip $usbipVersion and both driver services are already present; skipping."
             exit 0
         }
         throw "Refusing USBip's nested upgrade path because version '$installedVersion' is already registered."
@@ -74,11 +80,11 @@ try {
 
     $installed = Get-ItemProperty -LiteralPath $usbipKey -ErrorAction SilentlyContinue
     $installedVersion = if ($null -ne $installed) { [string]$installed.DisplayVersion } else { "" }
-    if ($installedVersion.Trim() -ne "0.9.7.7" -or -not (Test-UsbipServices)) {
-        throw "USBip setup returned success but its 0.9.7.7 registration or driver services are missing."
+    if ($installedVersion.Trim() -ne $usbipVersion -or -not (Test-UsbipServices)) {
+        throw "USBip setup returned success but its $usbipVersion registration or driver services are missing."
     }
 
-    Write-UsbipLog "usbip-win2 0.9.7.7 prerequisite installation completed successfully."
+    Write-UsbipLog "usbip-win2 $usbipVersion prerequisite installation completed successfully."
     exit 0
 }
 catch {

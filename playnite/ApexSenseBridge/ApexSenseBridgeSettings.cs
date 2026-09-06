@@ -19,11 +19,32 @@ namespace ApexSenseBridge
         Disabled
     }
 
+    public enum BridgeActivationMode
+    {
+        Automatic,
+        Enabled,
+        Disabled
+    }
+
+    public enum TouchpadRemappingMode
+    {
+        Automatic,
+        None,
+        SpiderMan2,
+        MilesMorales,
+        GhostOfTsushima,
+        Warframe
+    }
+
     public class GameBridgeProfile : ObservableObject
     {
         private Guid gameId;
         private string gameName = string.Empty;
         private BridgeProfileType profileType;
+        private int configurationVersion;
+        private BridgeActivationMode activationMode;
+        private TouchpadRemappingMode remappingMode;
+        private int apexProfileSlot;
 
         public Guid GameId { get => gameId; set => SetValue(ref gameId, value); }
         public string GameName { get => gameName; set => SetValue(ref gameName, value); }
@@ -36,9 +57,49 @@ namespace ApexSenseBridge
                 OnPropertyChanged(nameof(ProfileTypeDisplayName));
             }
         }
+        public int ConfigurationVersion { get => configurationVersion; set => SetValue(ref configurationVersion, value); }
+        public BridgeActivationMode ActivationMode
+        {
+            get => activationMode;
+            set
+            {
+                SetValue(ref activationMode, value);
+                OnPropertyChanged(nameof(ActivationDisplayName));
+            }
+        }
+        public TouchpadRemappingMode RemappingMode
+        {
+            get => remappingMode;
+            set
+            {
+                SetValue(ref remappingMode, value);
+                OnPropertyChanged(nameof(RemappingDisplayName));
+            }
+        }
+        // 0 keeps the currently active onboard profile; 1..4 select a slot.
+        public int ApexProfileSlot
+        {
+            get => apexProfileSlot;
+            set
+            {
+                SetValue(ref apexProfileSlot, value);
+                OnPropertyChanged(nameof(ApexProfileDisplayName));
+            }
+        }
 
         [DontSerialize]
         public string ProfileTypeDisplayName => GetProfileDisplayName(ProfileType);
+
+        [DontSerialize]
+        public string ActivationDisplayName => GetActivationDisplayName(ActivationMode);
+
+        [DontSerialize]
+        public string RemappingDisplayName => GetRemappingDisplayName(RemappingMode);
+
+        [DontSerialize]
+        public string ApexProfileDisplayName => ApexProfileSlot == 0
+            ? "Conserver le profil actuel"
+            : "Profil " + ApexProfileSlot;
 
         public static string GetProfileDisplayName(BridgeProfileType type)
         {
@@ -58,6 +119,38 @@ namespace ApexSenseBridge
                     return "Désactivé (override manuel)";
                 default:
                     return type.ToString();
+            }
+        }
+
+        public static string GetActivationDisplayName(BridgeActivationMode mode)
+        {
+            switch (mode)
+            {
+                case BridgeActivationMode.Enabled:
+                    return "Activé";
+                case BridgeActivationMode.Disabled:
+                    return "Désactivé";
+                default:
+                    return "Automatique";
+            }
+        }
+
+        public static string GetRemappingDisplayName(TouchpadRemappingMode mode)
+        {
+            switch (mode)
+            {
+                case TouchpadRemappingMode.None:
+                    return "Aucun";
+                case TouchpadRemappingMode.SpiderMan2:
+                    return "Spider-Man 2";
+                case TouchpadRemappingMode.MilesMorales:
+                    return "Spider-Man: Miles Morales";
+                case TouchpadRemappingMode.GhostOfTsushima:
+                    return "Ghost of Tsushima";
+                case TouchpadRemappingMode.Warframe:
+                    return "Warframe";
+                default:
+                    return "Automatique";
             }
         }
     }
@@ -97,37 +190,97 @@ namespace ApexSenseBridge
 
         public GameBridgeProfile ResolveProfile(Game game, out bool automatic, out string reason)
         {
-            automatic = false;
-            reason = null;
             var configured = FindProfile(game.Id);
-            if (configured != null)
-            {
-                return configured.ProfileType == BridgeProfileType.Disabled ? null : configured;
-            }
-            if (!EnableAutomaticProfiles ||
-                !AutomaticProfileDetector.TryDetect(game, out var detectedType, out reason))
+            BridgeProfileType detectedProfile;
+            var detected = AutomaticProfileDetector.TryDetect(
+                game, out detectedProfile, out reason);
+            var activation = configured?.ActivationMode ?? BridgeActivationMode.Automatic;
+            automatic = activation == BridgeActivationMode.Automatic;
+
+            var enabled = activation == BridgeActivationMode.Enabled ||
+                (activation == BridgeActivationMode.Automatic &&
+                 EnableAutomaticProfiles && detected);
+            if (!enabled || activation == BridgeActivationMode.Disabled)
             {
                 return null;
             }
 
-            automatic = true;
+            var remapping = configured?.RemappingMode ?? TouchpadRemappingMode.Automatic;
+            var effectiveProfile = remapping == TouchpadRemappingMode.Automatic
+                ? (detected ? detectedProfile : BridgeProfileType.StandardDualSense)
+                : ToBridgeProfileType(remapping);
+            if (!detected && activation == BridgeActivationMode.Enabled)
+            {
+                reason = "activation manuelle";
+            }
+
             return new GameBridgeProfile
             {
                 GameId = game.Id,
                 GameName = game.Name,
-                ProfileType = detectedType
+                ConfigurationVersion = 2,
+                ActivationMode = activation,
+                RemappingMode = remapping,
+                ApexProfileSlot = configured?.ApexProfileSlot ?? 0,
+                ProfileType = effectiveProfile
             };
         }
 
+        public void MigrateLegacyProfiles()
+        {
+            foreach (var profile in Profiles)
+            {
+                if (profile.ConfigurationVersion >= 2)
+                {
+                    profile.ApexProfileSlot = Math.Max(0, Math.Min(4, profile.ApexProfileSlot));
+                    continue;
+                }
+
+                profile.ActivationMode = profile.ProfileType == BridgeProfileType.Disabled
+                    ? BridgeActivationMode.Disabled
+                    : BridgeActivationMode.Enabled;
+                profile.RemappingMode = FromLegacyProfileType(profile.ProfileType);
+                profile.ApexProfileSlot = 0;
+                profile.ConfigurationVersion = 2;
+            }
+        }
+
+        public void SetActivation(Game game, BridgeActivationMode mode)
+        {
+            var profile = GetOrCreateProfile(game);
+            profile.ActivationMode = mode;
+            PruneEmptyProfile(profile);
+            OnPropertyChanged(nameof(Profiles));
+        }
+
+        public void SetRemapping(Game game, TouchpadRemappingMode mode)
+        {
+            var profile = GetOrCreateProfile(game);
+            profile.RemappingMode = mode;
+            PruneEmptyProfile(profile);
+            OnPropertyChanged(nameof(Profiles));
+        }
+
+        public void SetApexProfile(Game game, int slot)
+        {
+            var profile = GetOrCreateProfile(game);
+            profile.ApexProfileSlot = Math.Max(0, Math.Min(4, slot));
+            PruneEmptyProfile(profile);
+            OnPropertyChanged(nameof(Profiles));
+        }
+
+        // Compatibility entry point retained for settings created by 0.6.1.
         public void SetProfile(Game game, BridgeProfileType profileType)
         {
-            var profile = FindProfile(game.Id);
-            if (profile == null)
+            if (profileType == BridgeProfileType.Disabled)
             {
-                profile = new GameBridgeProfile { GameId = game.Id };
-                Profiles.Add(profile);
+                SetActivation(game, BridgeActivationMode.Disabled);
+                return;
             }
-            profile.GameName = game.Name;
+
+            var profile = GetOrCreateProfile(game);
+            profile.ActivationMode = BridgeActivationMode.Enabled;
+            profile.RemappingMode = FromLegacyProfileType(profileType);
             profile.ProfileType = profileType;
             OnPropertyChanged(nameof(Profiles));
         }
@@ -136,6 +289,69 @@ namespace ApexSenseBridge
         {
             Profiles.RemoveAll(profile => profile.GameId == gameId);
             OnPropertyChanged(nameof(Profiles));
+        }
+
+        private GameBridgeProfile GetOrCreateProfile(Game game)
+        {
+            var profile = FindProfile(game.Id);
+            if (profile == null)
+            {
+                profile = new GameBridgeProfile
+                {
+                    GameId = game.Id,
+                    ConfigurationVersion = 2,
+                    ActivationMode = BridgeActivationMode.Automatic,
+                    RemappingMode = TouchpadRemappingMode.Automatic
+                };
+                Profiles.Add(profile);
+            }
+            profile.GameName = game.Name;
+            return profile;
+        }
+
+        private void PruneEmptyProfile(GameBridgeProfile profile)
+        {
+            if (profile.ActivationMode == BridgeActivationMode.Automatic &&
+                profile.RemappingMode == TouchpadRemappingMode.Automatic &&
+                profile.ApexProfileSlot == 0)
+            {
+                Profiles.Remove(profile);
+            }
+        }
+
+        private static TouchpadRemappingMode FromLegacyProfileType(BridgeProfileType type)
+        {
+            switch (type)
+            {
+                case BridgeProfileType.SpiderMan2:
+                    return TouchpadRemappingMode.SpiderMan2;
+                case BridgeProfileType.MilesMorales:
+                    return TouchpadRemappingMode.MilesMorales;
+                case BridgeProfileType.GhostOfTsushima:
+                    return TouchpadRemappingMode.GhostOfTsushima;
+                case BridgeProfileType.Warframe:
+                    return TouchpadRemappingMode.Warframe;
+                default:
+                    // Standard already auto-detected special remappings in 0.6.1.
+                    return TouchpadRemappingMode.Automatic;
+            }
+        }
+
+        private static BridgeProfileType ToBridgeProfileType(TouchpadRemappingMode mode)
+        {
+            switch (mode)
+            {
+                case TouchpadRemappingMode.SpiderMan2:
+                    return BridgeProfileType.SpiderMan2;
+                case TouchpadRemappingMode.MilesMorales:
+                    return BridgeProfileType.MilesMorales;
+                case TouchpadRemappingMode.GhostOfTsushima:
+                    return BridgeProfileType.GhostOfTsushima;
+                case TouchpadRemappingMode.Warframe:
+                    return BridgeProfileType.Warframe;
+                default:
+                    return BridgeProfileType.StandardDualSense;
+            }
         }
     }
 
@@ -223,6 +439,7 @@ namespace ApexSenseBridge
             this.plugin = plugin;
             Settings = plugin.LoadPluginSettings<ApexSenseBridgeSettings>() ??
                        new ApexSenseBridgeSettings();
+            Settings.MigrateLegacyProfiles();
 
             CheckForUpdatesCommand = new RelayCommand(async () => await CheckForUpdatesAsync());
             DownloadAndInstallUpdateCommand = new RelayCommand(async () => await DownloadAndInstallUpdateAsync(), () => IsUpdateAvailable && !IsDownloadingUpdate && !string.IsNullOrWhiteSpace(AvailableUpdateSetupUrl));

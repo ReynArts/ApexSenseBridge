@@ -99,6 +99,30 @@ class DiscordExecutableTests(unittest.TestCase):
         self.assertNotIn("executables", games[0])
         self.assertEqual(0, stats["matchedGames"])
 
+    def test_pinned_call_of_duty_hub_executable_survives_discord_enrichment(self):
+        games = [
+            {
+                "title": "Call of Duty",
+                "normalized": "callofduty",
+                "steamAppId": 1938090,
+                "steamAppIdVerified": True,
+                "executables": ["cod.exe"],
+            },
+            {
+                "title": "Call of Duty: Black Ops 7",
+                "normalized": "callofdutyblackops7",
+                "steamAppId": 3606480,
+                "steamAppIdVerified": True,
+            },
+        ]
+
+        UPDATER.enrich_with_discord_executables(
+            games, {3606480: ["cod.exe", "cod25-cod.exe"]}
+        )
+
+        self.assertEqual(["cod.exe"], games[0]["executables"])
+        self.assertEqual(["cod25-cod.exe"], games[1]["executables"])
+
     def test_steam_resolution_selects_unique_exact_title_not_first_result(self):
         response = _FakeResponse(
             {

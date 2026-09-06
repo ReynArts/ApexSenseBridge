@@ -9,11 +9,14 @@ TemporaryPhysicalControllerIsolation::TemporaryPhysicalControllerIsolation()
 TemporaryPhysicalControllerIsolation::~TemporaryPhysicalControllerIsolation() = default;
 
 bool TemporaryPhysicalControllerIsolation::activate(
-    const HidDeviceInfo&, std::string_view, std::string& error) {
+    const HidDeviceInfo&, std::string_view, std::optional<std::uint8_t>,
+    std::string& error) {
     error = "Physical controller isolation is only available on Windows.";
     return false;
 }
 
+bool TemporaryPhysicalControllerIsolation::confirmApexProfileRestored(
+    std::string&) noexcept { return true; }
 bool TemporaryPhysicalControllerIsolation::restore(std::string&) noexcept { return true; }
 bool TemporaryPhysicalControllerIsolation::active() const noexcept { return false; }
 bool TemporaryPhysicalControllerIsolation::recoveredStaleIsolation() const noexcept { return false; }

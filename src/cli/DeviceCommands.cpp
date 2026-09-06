@@ -409,6 +409,187 @@ int commandTestRumble(int argc, char** argv) {
     return runTestRumble(*device);
 }
 
+int commandTestProfileSwitch(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    std::optional<std::uint8_t> requestedTarget;
+    for (int index = 2; index < argc; ++index) {
+        const std::string_view option = argv[index];
+        if (option == "--target") {
+            if (++index >= argc || requestedTarget) {
+                std::cerr << "--target requires one profile number from 1 to 4.\n";
+                return 1;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(argv[index], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[index]).size() ||
+                    parsed < 1 || parsed > asb::flydigi::kProfileSlotCount) {
+                    throw std::out_of_range("target");
+                }
+                requestedTarget = static_cast<std::uint8_t>(parsed - 1);
+            } catch (...) {
+                std::cerr << "--target requires one profile number from 1 to 4.\n";
+                return 1;
+            }
+        } else {
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(std::string(option), &parsedCharacters);
+                if (parsedCharacters != option.size() || deviceIndex) {
+                    throw std::invalid_argument("index");
+                }
+                deviceIndex = static_cast<std::size_t>(parsed);
+            } catch (...) {
+                std::cerr << "Unknown test-profile-switch option: " << option << "\n"
+                          << "Usage: ApexSenseBridge test-profile-switch [index] "
+                             "[--target 1..4]\n";
+                return 1;
+            }
+        }
+    }
+
+    std::string error;
+    auto device = openSelectedIndex(deviceIndex, error);
+    if (!device) {
+        std::cerr << "APEX identity verification failed: " << error << '\n';
+        return 2;
+    }
+    if (!device->identity() || !device->identity()->isApex5()) {
+        std::cerr << "test-profile-switch supports Apex 5 only; no profile command was sent.\n";
+        return 3;
+    }
+
+    asb::flydigi::ProfileStatus initial{};
+    asb::flydigi::ProfileStatus confirmation{};
+    if (!device->readProfileStatus(initial, error)) {
+        std::cerr << "Profile preflight failed before any switch: " << error << '\n';
+        return 4;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    error.clear();
+    if (!device->readProfileStatus(confirmation, error)) {
+        std::cerr << "Second profile preflight failed before any switch: " << error << '\n';
+        return 4;
+    }
+    if (initial.rawSlot != confirmation.rawSlot) {
+        std::cerr << "Profile preflight was unstable (raw slots "
+                  << static_cast<unsigned int>(initial.rawSlot) << " then "
+                  << static_cast<unsigned int>(confirmation.rawSlot)
+                  << "); no profile switch was attempted.\n";
+        return 4;
+    }
+    if (initial.switchBank) {
+        std::cerr << "The controller is using its Nintendo Switch profile bank; "
+                     "this XInput-only diagnostic refuses to change it.\n";
+        return 4;
+    }
+
+    const auto target = requestedTarget.value_or(static_cast<std::uint8_t>(
+        (initial.slot + 1) % asb::flydigi::kProfileSlotCount));
+    if (target == initial.slot) {
+        std::cerr << "Target profile " << static_cast<unsigned int>(target + 1)
+                  << " is already active; choose a different --target.\n";
+        return 1;
+    }
+
+    std::cout << "Using: " << narrowAscii(device->info().product) << " ("
+              << hex16(device->info().vendorId) << ':'
+              << hex16(device->info().productId) << ")\n"
+              << "Preflight passed twice: profile "
+              << static_cast<unsigned int>(initial.slot + 1) << " is active.\n"
+              << "No profile data will be saved or overwritten.\n"
+              << "Temporarily switching to profile "
+              << static_cast<unsigned int>(target + 1) << "...\n";
+
+    // From this point onward the apply command may have reached the pad even
+    // when another process consumes its acknowledgement. Every path below
+    // therefore attempts and verifies restoration of the original slot.
+    error.clear();
+    const bool switchAcknowledged = device->applyProfile(target, error);
+    const std::string switchAckError = error;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    asb::flydigi::ProfileStatus switched{};
+    std::string switchStatusError;
+    const bool switchStatusRead =
+        device->readProfileStatus(switched, switchStatusError);
+    const bool switchVerified = switchStatusRead &&
+                                !switched.switchBank &&
+                                switched.slot == target;
+
+    if (switchVerified) {
+        std::cout << "Temporary switch verified: profile "
+                  << static_cast<unsigned int>(target + 1)
+                  << " is active for about 1 second.\n";
+        constexpr auto kHold = std::chrono::milliseconds(1000);
+        constexpr auto kSlice = std::chrono::milliseconds(25);
+        auto elapsed = std::chrono::milliseconds::zero();
+        while (elapsed < kHold &&
+               !g_stopRequested.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_for(kSlice);
+            elapsed += kSlice;
+        }
+    } else {
+        std::cerr << "Temporary switch could not be verified";
+        if (!switchAcknowledged && !switchAckError.empty()) {
+            std::cerr << ": " << switchAckError;
+        } else if (!switchStatusRead && !switchStatusError.empty()) {
+            std::cerr << ": " << switchStatusError;
+        } else if (switchStatusRead) {
+            std::cerr << ": controller reported raw slot "
+                      << static_cast<unsigned int>(switched.rawSlot);
+        }
+        std::cerr << ". Restoring the original profile now.\n";
+    }
+
+    bool restored = false;
+    std::string restoreError;
+    for (int attempt = 1; attempt <= 3 && !restored; ++attempt) {
+        std::string applyError;
+        const bool restoreAcknowledged =
+            device->applyProfile(initial.slot, applyError);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        asb::flydigi::ProfileStatus restoredStatus{};
+        std::string statusError;
+        const bool statusRead =
+            device->readProfileStatus(restoredStatus, statusError);
+        restored = statusRead && !restoredStatus.switchBank &&
+                   restoredStatus.slot == initial.slot;
+        if (!restored) {
+            std::ostringstream detail;
+            detail << "restore attempt " << attempt << " failed";
+            if (!restoreAcknowledged && !applyError.empty()) {
+                detail << ": " << applyError;
+            } else if (!statusRead && !statusError.empty()) {
+                detail << ": " << statusError;
+            } else if (statusRead) {
+                detail << ": controller reported raw slot "
+                       << static_cast<unsigned int>(restoredStatus.rawSlot);
+            }
+            restoreError = detail.str();
+        }
+    }
+
+    if (!restored) {
+        std::cerr << "RESTORE NOT VERIFIED: " << restoreError << "\n"
+                  << "Use the controller's profile shortcut now to return manually to profile "
+                  << static_cast<unsigned int>(initial.slot + 1) << ".\n";
+        return 14;
+    }
+
+    std::cout << "Restore verified: profile "
+              << static_cast<unsigned int>(initial.slot + 1)
+              << " is active again.\n";
+    if (!switchVerified) return 13;
+    if (!switchAcknowledged) {
+        std::cout << "Note: the apply acknowledgement was missed, but both status "
+                     "verification and restoration succeeded.\n";
+    }
+    std::cout << "Profile-switch diagnostic passed.\n";
+    return 0;
+}
+
 int commandApex4PortTest(int argc, char** argv) {
     std::optional<std::size_t> deviceIndex;
     unsigned long seconds = 10;

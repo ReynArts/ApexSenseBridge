@@ -931,10 +931,20 @@ index 3a02c10..d21ba1f 100644
  			}
  			dse.UpdateInputState(&state)
 diff --git a/internal/server/api/autoattach_windows.go b/internal/server/api/autoattach_windows.go
-index 47a805a..89e8efd 100644
+index 47a805a..7716fd4 100644
 --- a/internal/server/api/autoattach_windows.go
 +++ b/internal/server/api/autoattach_windows.go
-@@ -53,8 +53,8 @@ const (
+@@ -6,7 +6,9 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"log/slog"
++	"os"
+ 	"os/exec"
++	"path/filepath"
+ 	"strconv"
+ 	"syscall"
+ 	"unsafe"
+@@ -53,8 +55,8 @@ const (
  	niMaxServ = 32
  )
  
@@ -945,20 +955,26 @@ index 47a805a..89e8efd 100644
  	Size       uint32
  	PortOutput int32
  	BusID      [32]byte
-@@ -62,6 +62,12 @@ type attachIOCTL struct {
+@@ -62,6 +64,18 @@ type attachIOCTL struct {
  	Host       [niMaxHost]byte
  }
  
-+// PLUGIN_HARDWARE structure from newer usbip-win2 master builds.
-+type attachIOCTL struct {
++// PLUGIN_HARDWARE structure from usbip-win2 master builds before v0.9.8.0.
++type attachIOCTLPre098 struct {
 +	attachIOCTLLegacy
 +	Serial [16]byte
++}
++
++// PLUGIN_HARDWARE structure from usbip-win2 v0.9.8.0 and newer.
++type attachIOCTL struct {
++	attachIOCTLPre098
++	WskEvents bool
 +}
 +
  const (
  	fileDeviceUnknown   = 0x00000022
  	methodBuffered      = 0
-@@ -99,21 +105,8 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
+@@ -99,21 +113,8 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
  
  	logger.Debug("Found usbip-win2 device", "path", devicePath)
  
@@ -980,7 +996,7 @@ index 47a805a..89e8efd 100644
  
  	devicePathUTF16, err := windows.UTF16PtrFromString(devicePath)
  	if err != nil {
-@@ -136,35 +129,74 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
+@@ -136,41 +137,96 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
  
  	logger.Debug("Opened device handle")
  
@@ -996,7 +1012,7 @@ index 47a805a..89e8efd 100644
 -		nil,
 -	)
 +	var ioctlData attachIOCTL
-+	if err := prepareAttachIOCTL(&ioctlData.attachIOCTLLegacy, uint32(unsafe.Sizeof(ioctlData)), busID, service); err != nil {
++	if err := prepareAttachIOCTL(&ioctlData.attachIOCTLPre098.attachIOCTLLegacy, uint32(unsafe.Sizeof(ioctlData)), busID, service); err != nil {
 +		return err
 +	}
 +
@@ -1004,18 +1020,30 @@ index 47a805a..89e8efd 100644
 +	portOutput := ioctlData.PortOutput
  	if err != nil {
 -		return fmt.Errorf("IOControl: DeviceIoControl failed: %w", err)
-+		logger.Warn("Native IOCTL attach with current usbip-win2 ABI failed; retrying legacy ABI",
++		logger.Warn("Native IOCTL attach with usbip-win2 v0.9.8 ABI failed; retrying pre-v0.9.8 ABI",
 +			"error", err,
 +			"currentSize", uint32(unsafe.Sizeof(ioctlData)))
 +
-+		var legacyData attachIOCTLLegacy
-+		if legacyErr := prepareAttachIOCTL(&legacyData, uint32(unsafe.Sizeof(legacyData)), busID, service); legacyErr != nil {
-+			return legacyErr
++		var pre098Data attachIOCTLPre098
++		if pre098Err := prepareAttachIOCTL(&pre098Data.attachIOCTLLegacy, uint32(unsafe.Sizeof(pre098Data)), busID, service); pre098Err != nil {
++			return pre098Err
 +		}
-+		bytesReturned, err = callAttachIOCTL(handle, unsafe.Pointer(&legacyData), uint32(unsafe.Sizeof(legacyData)))
-+		portOutput = legacyData.PortOutput
++		bytesReturned, err = callAttachIOCTL(handle, unsafe.Pointer(&pre098Data), uint32(unsafe.Sizeof(pre098Data)))
++		portOutput = pre098Data.PortOutput
 +		if err != nil {
-+			return fmt.Errorf("IOControl: DeviceIoControl failed with current and legacy usbip-win2 ABI: %w", err)
++			logger.Warn("Native IOCTL attach with pre-v0.9.8 ABI failed; retrying legacy ABI",
++				"error", err,
++				"pre098Size", uint32(unsafe.Sizeof(pre098Data)))
++
++			var legacyData attachIOCTLLegacy
++			if legacyErr := prepareAttachIOCTL(&legacyData, uint32(unsafe.Sizeof(legacyData)), busID, service); legacyErr != nil {
++				return legacyErr
++			}
++			bytesReturned, err = callAttachIOCTL(handle, unsafe.Pointer(&legacyData), uint32(unsafe.Sizeof(legacyData)))
++			portOutput = legacyData.PortOutput
++			if err != nil {
++				return fmt.Errorf("IOControl: DeviceIoControl failed with v0.9.8, pre-v0.9.8, and legacy usbip-win2 ABIs: %w", err)
++			}
 +		}
  	}
  
@@ -1070,7 +1098,55 @@ index 47a805a..89e8efd 100644
 +
  func attachViaCommand(ctx context.Context, deviceExportMeta *usbip.ExportMeta, usbipServerPort uint16, logger *slog.Logger) error {
  	logger.Info("Auto-attaching localhost client", "busID", deviceExportMeta.BusID, "deviceID", deviceExportMeta.DevID)
++	usbipExecutable, err := findUSBIPExecutable()
++	if err != nil {
++		return err
++	}
  
+ 	cmd := exec.CommandContext(
+ 		ctx,
+-		"usbip",
++		usbipExecutable,
+ 		"--tcp-port",
+ 		strconv.FormatUint(uint64(usbipServerPort), 10),
+ 		"attach",
+@@ -190,6 +246,25 @@ func attachViaCommand(ctx context.Context, deviceExportMeta *usbip.ExportMeta, u
+ 	return nil
+ }
+ 
++func findUSBIPExecutable() (string, error) {
++	if path, err := exec.LookPath("usbip.exe"); err == nil {
++		return path, nil
++	}
++
++	for _, environmentVariable := range []string{"ProgramW6432", "ProgramFiles"} {
++		programFiles := os.Getenv(environmentVariable)
++		if programFiles == "" {
++			continue
++		}
++		candidate := filepath.Join(programFiles, "USBip", "usbip.exe")
++		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
++			return candidate, nil
++		}
++	}
++
++	return "", fmt.Errorf("usbip.exe was not found in PATH or the standard USBip installation directory")
++}
++
+ func getDeviceInterfacePath(guid *windows.GUID) (string, error) {
+ 	r0, _, e1 := syscall.SyscallN(procSetupDiGetClassDevsW.Addr(),
+ 		uintptr(unsafe.Pointer(guid)),
+@@ -281,8 +356,8 @@ func CheckAutoAttachPrerequisites(useNativeIOCTL bool, logger *slog.Logger) bool
+ 		return true
+ 	}
+ 
+-	if _, err := exec.LookPath("usbip.exe"); err != nil {
+-		logger.Warn("USB/IP tool 'usbip.exe' not found in PATH")
++	if _, err := findUSBIPExecutable(); err != nil {
++		logger.Warn("USB/IP tool 'usbip.exe' was not found", "error", err)
+ 		logger.Warn("Auto-attach requires usbip-win2")
+ 		logger.Info("Download and install usbip-win2:")
+ 		logger.Info("  https://github.com/vadimgrn/usbip-win2")
 diff --git a/internal/server/usb/config.go b/internal/server/usb/config.go
 index 5c0cc81..2271313 100644
 --- a/internal/server/usb/config.go

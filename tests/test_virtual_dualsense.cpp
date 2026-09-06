@@ -185,6 +185,8 @@ int main() {
     assert(deviceId == "ds5-abc");
     assert(viiper::isUsbIpDriverMissingResponse(
         R"({"detail":"usbip-win2 driver not found"})"));
+    assert(!viiper::isUsbIpDriverMissingResponse(
+        R"({"detail":"Failed to auto-attach device: ABI mismatch"})"));
 
     return 0;
 }

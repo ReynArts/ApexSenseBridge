@@ -3,6 +3,7 @@
 #endif
 
 #include "flydigi/Apex5Device.h"
+#include "core/ApexProfileRestoreGuard.h"
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Protocol.h"
@@ -68,6 +69,24 @@ public:
             reply[7] = 2;
             reply[12] = 5;
             replies_.push_back(std::move(reply));
+        } else if (!silent_ && !apex4_ && report.size() > 3 &&
+                   report[3] == asb::flydigi::kCmdProfileStatus) {
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdProfileStatus;
+            reply[6] = activeProfile_;
+            replies_.push_back(std::move(reply));
+        } else if (!silent_ && !apex4_ && report.size() > 5 &&
+                   report[3] == asb::flydigi::kCmdApplyProfile) {
+            activeProfile_ = report[5];
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdApplyProfile;
+            replies_.push_back(std::move(reply));
         }
         return true;
     }
@@ -97,6 +116,7 @@ private:
     bool silent_ = false;
     bool apex4_ = false;
     std::size_t ignoredApex4Requests_ = 0;
+    std::uint8_t activeProfile_ = 0;
     std::deque<std::vector<std::uint8_t>> replies_;
 };
 
@@ -176,6 +196,24 @@ int main() {
     assert(acceptedTransport->writes.size() == 2);
     assert(acceptedTransport->writes[1][3] == kCmdSetForceTrigger);
 
+    ProfileStatus profileStatus{};
+    error.clear();
+    assert(accepted.readProfileStatus(profileStatus, error));
+    assert(profileStatus.slot == 0);
+    assert(!profileStatus.switchBank);
+    assert(accepted.applyProfile(2, error));
+    assert(accepted.readProfileStatus(profileStatus, error));
+    assert(profileStatus.slot == 2);
+    assert(!accepted.applyProfile(4, error));
+    {
+        ApexProfileRestoreGuard restoreProfile(accepted, 2);
+        assert(accepted.applyProfile(1, error));
+        assert(accepted.readProfileStatus(profileStatus, error));
+        assert(profileStatus.slot == 1);
+    }
+    assert(accepted.readProfileStatus(profileStatus, error));
+    assert(profileStatus.slot == 2);
+
     FakeTransport* apex4Transport = nullptr;
     auto apex4 = makeDevice(apex4Transport, 84, false, true);
     error.clear();
@@ -192,6 +230,9 @@ int main() {
     assert(apex4Transport->writes[1].size() == kApex4ForceTriggerReportSize);
     assert(apex4Transport->writes[1][0] == kApex4CommandReportId);
     assert(apex4Transport->writes[1][1] == kApex4CmdSetForceTriggerDInput);
+    error.clear();
+    assert(!apex4.readProfileStatus(profileStatus, error));
+    assert(error.find("Apex 5") != std::string::npos);
 
     FakeTransport* intermittentApex4Transport = nullptr;
     auto intermittentApex4 = makeDevice(

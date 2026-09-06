@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.2
+
+- Adds native usbip-win2 0.9.8.0 attach-ABI support to both integrated VIIPER
+  and its sidecar, while retaining the two older ABI fallbacks. The command
+  fallback now also resolves the standard USBip installation directory instead
+  of requiring `usbip.exe` to be present in `PATH`.
+- Replaces the vulnerable bundled usbip-win2 0.9.7.7 prerequisite with the
+  Microsoft-attestation-signed OSSign 0.9.8.0 x64 build from upstream commit
+  `83bd1f78`. This contains both the 0.9.7.7 send-spinlock fix and critical
+  memory-corruption fix `4139f44`; installer, portable helper and build-time
+  SHA-256 checks are pinned to the exact signed payload.
+- Refuses to preserve or upgrade older USBip packages in place. Users with a
+  0.9.7.x installation must uninstall it and restart first, avoiding the known
+  nested-uninstaller hang while preventing continued use of vulnerable drivers.
+- Temporarily hides only Space Station's verified GeniTech DualSense proxy
+  while a bridge session is active, preventing the obsolete A-0356 proxy from
+  appearing beside ApexSenseBridge's current A-0630 DualSense.
+- Preserves Space Station keyboard and mouse remapping by keeping its service
+  whitelisted and leaving its distinct shortcut endpoints visible. The full
+  pre-session HidHide configuration is restored when the session ends or is
+  recovered after an unexpected exit.
+- Gives the standalone Playnite package a readable release filename:
+  `ApexSenseBridge-Playnite-0.6.2.pext`.
+- Adds independent per-game controls for bridge activation, automatic touchpad
+  remapping, and APEX 5 onboard profiles 1-4 in Playnite. The standalone tray's
+  compatible-games list also stores an optional onboard profile per game.
+- Switches the selected APEX 5 onboard profile only for the game session and
+  restores the exact previous profile on exit. The crash watchdog and RunOnce
+  recovery marker now protect both HidHide visibility and profile restoration.
+
 ## 0.6.1
 
 - Kept Flydigi Space Station keyboard and mouse shortcuts available during an

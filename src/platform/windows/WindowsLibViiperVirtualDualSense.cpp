@@ -201,7 +201,7 @@ public:
             return false;
         }
 
-        backendVersion_ = "libVIIPER v0.7.0-asb6 (integrated)";
+        backendVersion_ = "libVIIPER v0.7.0-asb7 (integrated)";
         connected_.store(true, std::memory_order_release);
         error.clear();
         return true;

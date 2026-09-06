@@ -3,6 +3,7 @@ using ApexSenseBridgeTray.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace ApexSenseBridgeTray.Services
 {
@@ -65,6 +66,12 @@ namespace ApexSenseBridgeTray.Services
 
         public bool StartSession(string gameTitle, string profileName, TraySettings settings, out string error)
         {
+            return StartSession(gameTitle, profileName, settings, 0, out error);
+        }
+
+        public bool StartSession(string gameTitle, string profileName, TraySettings settings,
+                                 int apexProfileSlot, out string error)
+        {
             error = null;
 
             lock (syncLock)
@@ -87,7 +94,7 @@ namespace ApexSenseBridgeTray.Services
                     return false;
                 }
 
-                var args = BuildArguments(profileName, settings);
+                var args = BuildArguments(profileName, settings, apexProfileSlot);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
 
                 KillOrphanProcesses();
@@ -215,7 +222,8 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
-        private static string BuildArguments(string profileName, TraySettings settings)
+        private static string BuildArguments(string profileName, TraySettings settings,
+                                             int apexProfileSlot)
         {
             var args = new List<string> { "bridge-triggers" };
 
@@ -246,6 +254,12 @@ namespace ApexSenseBridgeTray.Services
                 args.Add("--rumble");
                 args.Add("--haptic-threshold");
                 args.Add(settings.HapticThresholdPercent.ToString());
+            }
+
+            if (apexProfileSlot >= 1 && apexProfileSlot <= 4)
+            {
+                args.Add("--apex-profile");
+                args.Add(apexProfileSlot.ToString(CultureInfo.InvariantCulture));
             }
 
             return string.Join(" ", args.ToArray());

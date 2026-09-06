@@ -5,6 +5,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <span>
 
 namespace asb::flydigi {
 
@@ -20,9 +22,18 @@ constexpr std::uint8_t kMagic1 = 0xA5;
 constexpr std::uint8_t kCmdGetInfo = 0x01;
 constexpr std::uint8_t kCmdSetRumble = 0x12;
 constexpr std::uint8_t kCmdSetForceTrigger = 81;
+constexpr std::uint8_t kCmdProfileStatus = 0xA1;
+constexpr std::uint8_t kCmdApplyProfile = 0xA2;
+constexpr std::uint8_t kProfileSlotCount = 4;
 constexpr std::size_t kReportSize = 32;
 
 using Report = std::array<std::uint8_t, kReportSize>;
+
+struct ProfileStatus {
+    std::uint8_t rawSlot = 0;
+    std::uint8_t slot = 0;
+    bool switchBank = false;
+};
 
 [[nodiscard]] Report buildForceTrigger(const TriggerEffect& effect, bool apply = true);
 [[nodiscard]] Report buildForceTriggerRaw(const ForceTriggerCommand& command,
@@ -30,6 +41,12 @@ using Report = std::array<std::uint8_t, kReportSize>;
 [[nodiscard]] Report buildNormal(TriggerSide side);
 [[nodiscard]] Report buildRumble(std::uint8_t lowFrequencyMotor,
                                  std::uint8_t highFrequencyMotor);
+[[nodiscard]] Report buildProfileStatusRequest();
+[[nodiscard]] std::optional<Report> buildApplyProfile(std::uint8_t slot);
+[[nodiscard]] bool isProfileCommandReply(
+    std::span<const std::uint8_t> report, std::uint8_t command) noexcept;
+[[nodiscard]] std::optional<ProfileStatus> parseProfileStatus(
+    std::span<const std::uint8_t> report) noexcept;
 [[nodiscard]] bool isControllerProduct(std::uint16_t productId) noexcept;
 
 } // namespace asb::flydigi

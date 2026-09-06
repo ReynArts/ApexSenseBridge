@@ -115,6 +115,48 @@ int main() {
         assert(rumble[index] == 0);
     }
 
+    const auto profileStatusRequest = buildProfileStatusRequest();
+    assert(profileStatusRequest[0] == 0x03);
+    assert(profileStatusRequest[1] == 0x5A);
+    assert(profileStatusRequest[2] == 0xA5);
+    assert(profileStatusRequest[3] == 0xA1);
+    assert(profileStatusRequest[4] == 2);
+    assert(profileStatusRequest[5] == 0xA3);
+
+    const auto applyProfile = buildApplyProfile(2);
+    assert(applyProfile);
+    assert((*applyProfile)[0] == 0x03);
+    assert((*applyProfile)[3] == 0xA2);
+    assert((*applyProfile)[4] == 3);
+    assert((*applyProfile)[5] == 2);
+    assert((*applyProfile)[6] == 0xA7);
+    assert(!buildApplyProfile(4));
+
+    std::array<std::uint8_t, 32> profileReply{};
+    profileReply[0] = kReportIdIn;
+    profileReply[1] = kMagic0;
+    profileReply[2] = kMagic1;
+    profileReply[3] = kCmdProfileStatus;
+    profileReply[6] = 2;
+    assert(isProfileCommandReply(profileReply, kCmdProfileStatus));
+    const auto xinputProfile = parseProfileStatus(profileReply);
+    assert(xinputProfile);
+    assert(xinputProfile->rawSlot == 2);
+    assert(xinputProfile->slot == 2);
+    assert(!xinputProfile->switchBank);
+
+    profileReply[6] = 6;
+    const auto switchProfile = parseProfileStatus(profileReply);
+    assert(switchProfile);
+    assert(switchProfile->rawSlot == 6);
+    assert(switchProfile->slot == 2);
+    assert(switchProfile->switchBank);
+    profileReply[6] = 8;
+    assert(!parseProfileStatus(profileReply));
+    profileReply[0] = 0xEF;
+    assert(!isProfileCommandReply(profileReply, kCmdProfileStatus));
+    assert(!parseProfileStatus(profileReply));
+
     const auto apex4Rumble = buildApex4Rumble(0x34, 0x12);
     assert((apex4Rumble == Apex4RumbleReport{0x05, 0x0F, 0x34, 0x12}));
 

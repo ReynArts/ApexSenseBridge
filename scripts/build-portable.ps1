@@ -75,7 +75,7 @@ Copy-RequiredFile (Join-Path $projectRoot "installer\driver-manifest.json") `
     (Join-Path $stagingFull "Licenses\driver-manifest.json")
 
 foreach ($name in @(
-    "USBip-0.9.7.7-x64.exe",
+    "USBip-0.9.8.0-x64.exe",
     "HidHide_1.5.230_x64.exe",
     "USBIP-WIN2-LICENSE.txt",
     "HIDHIDE-LICENSE.txt"

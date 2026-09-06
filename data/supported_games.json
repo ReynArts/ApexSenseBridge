@@ -1,8 +1,8 @@
 {
   "version": 1,
   "updatedAt": "2026-09-09T08:43:15.242868+00:00",
-  "totalGames": 206,
-  "discordExecutableGames": 125,
+  "totalGames": 207,
+  "discordExecutableGames": 126,
   "games": [
     {
       "title": "007 First Light",
@@ -260,6 +260,19 @@
       "steamAppId": 1588550,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1588550/library_600x900.jpg"
+    },
+    {
+      "title": "Call of Duty",
+      "normalized": "callofduty",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 1938090,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
+      "executables": [
+        "cod.exe"
+      ]
     },
     {
       "title": "Call of Duty: Black Ops 6",

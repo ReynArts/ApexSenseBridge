@@ -157,8 +157,7 @@ bool isUsbIpDriverMissingResponse(const std::string& json) {
     std::transform(lowered.begin(), lowered.end(), lowered.begin(),
                    [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
     return lowered.find("usbip-win2 driver not found") != std::string::npos ||
-           lowered.find("native ioctl auto-attach requires the usbip-win2 driver") != std::string::npos ||
-           lowered.find("failed to auto-attach device") != std::string::npos;
+           lowered.find("native ioctl auto-attach requires the usbip-win2 driver") != std::string::npos;
 }
 
 bool isDualSenseCompatibleVersion(const std::string& version) {

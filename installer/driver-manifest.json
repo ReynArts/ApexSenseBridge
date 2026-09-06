@@ -1,9 +1,11 @@
 {
   "schema": 1,
   "usbip-win2": {
-    "version": "0.9.7.7",
-    "installer": "USBip-0.9.7.7-x64.exe",
-    "sha256": "51620FA5F9F8BE5932BC9D786DEEE557CE06D5407A99CAB490DCFAC71F185FEA",
+    "version": "0.9.8.0",
+    "installer": "USBip-0.9.8.0-x64.exe",
+    "sha256": "81F426741F7EE2ED991FEBE24A22DACA8400B6AE2F171054E3FB404897E15D39",
+    "sourceCommit": "83bd1f781d57ed6efdf15530c55710cf5d4482bc",
+    "signing": "Microsoft attestation signed; OSSign release installer",
     "productCode": "{199505b0-b93d-4521-a8c7-897818e0205a}_is1",
     "originalInf": ["usbip2_ude.inf", "usbip2_filter.inf"],
     "services": ["usbip2_ude", "usbip2_filter"],

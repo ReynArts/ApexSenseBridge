@@ -254,6 +254,7 @@ foreach ($title in $hapticGames) {
 
 # Ensure verified built-in titles are present even if not yet on PCGW
 $builtin = @(
+    @{ title = "Call of Duty"; normalized = "callofduty"; profile = "standard"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 1938090; steamAppIdVerified = $true; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg"; executables = @("cod.exe") },
     @{ title = "Marvel's Spider-Man 2"; normalized = "marvelsspiderman2"; profile = "spider-man-2"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 0; steamAppIdVerified = $false; iconUrl = "" },
     @{ title = "Marvel's Spider-Man: Miles Morales"; normalized = "marvelsspidermanmilesmorales"; profile = "miles-morales"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 1817190; steamAppIdVerified = $true; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/library_600x900.jpg" },
     @{ title = "Ghost of Tsushima DIRECTOR'S CUT"; normalized = "ghostoftsushimadirectorscut"; profile = "ghost-of-tsushima"; adaptiveTriggers = $true; hapticFeedback = $true; steamAppId = 2215430; steamAppIdVerified = $true; iconUrl = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/library_600x900.jpg" },
@@ -352,6 +353,22 @@ foreach ($game in $outputList) {
         $_ -and $ambiguousNames -notcontains $_.ToLowerInvariant()
     })
     if ($game.executables.Count -eq 0) { [void]$game.Remove("executables") }
+}
+
+# Discord can classify the shared COD HQ runtime as a launcher. Keep cod.exe
+# assigned to the canonical hub entry even when the external feed omits it.
+foreach ($game in $outputList) {
+    $game.executables = @($game.executables | Where-Object {
+        $_ -and -not $_.Equals("cod.exe", [System.StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($game.executables.Count -eq 0) { [void]$game.Remove("executables") }
+}
+$callOfDutyHub = $gameDict["callofduty"]
+if ($callOfDutyHub -and $callOfDutyHub.steamAppIdVerified -eq $true) {
+    $callOfDutyHub.executables = @(
+        @($callOfDutyHub.executables) + "cod.exe" |
+            Sort-Object -Unique
+    )
 }
 
 $outputDir = Split-Path -Parent $OutputPath

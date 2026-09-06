@@ -47,7 +47,7 @@ namespace asb::cli {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 0.6.1\n\n"
+        << "ApexSenseBridge 0.6.2\n\n"
         << "Commands:\n"
         << "  list                         List APEX 4/5 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
@@ -66,12 +66,15 @@ void printUsage() {
         << "                  [--verify-virtual-input]\n"
         << "                  [--virtual-backend auto|integrated|sidecar]\n"
         << "                  [--touchpad-profile NAME]\n"
+        << "                  [--apex-profile 1..4]\n"
         << "                  [--view-hold-swipe-up]\n"
         << "                  [--isolate-apex]\n"
         << "                  [--session-token 32HEX]\n"
         << "                               Route adaptive triggers and optional grip/audio haptics\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
         << "  test-rumble [index]          Gentle grip-motor vibration test (~1 s)\n"
+        << "  test-profile-switch [index] [--target 1..4]\n"
+        << "                               Temporarily switch an Apex 5 profile, then restore it\n"
         << "  apex4-port-test [index] [--seconds N] [--rumble] [--forceadapt]\n"
         << "                               Validate APEX 4 input/effects with one identity exchange\n"
         << "  xinput-view-test [index] [--seconds N]\n"
@@ -125,8 +128,8 @@ int run(int argc, char** argv) {
             return 11;
         }
         std::cout << (controllerRecovered
-                          ? "The original controller visibility was restored.\n"
-                          : "No pending controller visibility recovery was found.\n");
+                          ? "The original controller visibility and Apex profile state were restored.\n"
+                          : "No pending controller/profile recovery was found.\n");
         return 0;
     }
     if (command == "stop-active-sessions") {
@@ -136,7 +139,7 @@ int run(int argc, char** argv) {
             std::cerr << "Active bridge graceful stop failed: " << error << '\n';
             return 1;
         }
-        std::cout << "No active bridge remains; virtual input and controller visibility cleanup completed.\n";
+        std::cout << "No active bridge remains; virtual input, controller visibility, and profile cleanup completed.\n";
         return 0;
     }
     if (command == "hidhide-watchdog") {
@@ -178,6 +181,9 @@ int run(int argc, char** argv) {
     }
     if (command == "test-rumble") {
         return commandTestRumble(argc, argv);
+    }
+    if (command == "test-profile-switch") {
+        return commandTestProfileSwitch(argc, argv);
     }
     if (command == "apex4-port-test") {
         return commandApex4PortTest(argc, argv);

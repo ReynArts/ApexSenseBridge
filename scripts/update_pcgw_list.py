@@ -41,6 +41,18 @@ SPECIAL_PROFILES = {
 
 BUILTIN_GAMES = [
     {
+        "title": "Call of Duty",
+        "normalized": "callofduty",
+        "adaptiveTriggers": True,
+        "hapticFeedback": True,
+        "profile": "standard",
+        "steamAppId": 1938090,
+        "steamAppIdVerified": True,
+        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
+        # Current releases enter through the shared Call of Duty HQ process.
+        "executables": ["cod.exe"],
+    },
+    {
         "title": "Marvel's Spider-Man 2",
         "normalized": "marvelsspiderman2",
         "adaptiveTriggers": True,
@@ -101,6 +113,12 @@ BUILTIN_GAMES = [
         "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg",
     },
 ]
+
+# Discord may classify a shared game hub as a launcher and omit it. These
+# basenames are runtime game processes that must keep a single canonical owner.
+PINNED_EXECUTABLE_OWNERS = {
+    "cod.exe": "callofduty",
+}
 
 
 def normalize_title(title: str) -> str:
@@ -274,6 +292,29 @@ def enrich_with_discord_executables(games: list, discord_index: dict) -> dict:
                 game["executables"] = unique_names
             else:
                 game.pop("executables", None)
+
+    # Apply curated shared-launcher ownership after Discord collision cleanup.
+    # This both preserves the alias when Discord omits it and prevents a future
+    # feed change from assigning the same basename to an individual COD title.
+    games_by_normalized = {game.get("normalized", ""): game for game in games}
+    for executable_name, owner_normalized in PINNED_EXECUTABLE_OWNERS.items():
+        executable_key = executable_name.casefold()
+        for game in games:
+            names = [
+                name
+                for name in cached_executables(game)
+                if name.casefold() != executable_key
+            ]
+            if names:
+                game["executables"] = names
+            else:
+                game.pop("executables", None)
+
+        owner = games_by_normalized.get(owner_normalized)
+        if owner and owner.get("steamAppIdVerified", False):
+            owner["executables"] = sorted(
+                cached_executables(owner) + [executable_name], key=str.casefold
+            )
 
     return {
         "matchedGames": matched_games,

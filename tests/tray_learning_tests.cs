@@ -30,6 +30,7 @@ internal static class TrayLearningTests
             TestDatabaseExecutableMissPerformance();
             TestGeneratedDatabaseExecutableCoverage();
             TestActivationPolicyStillAppliesAfterLearning();
+            TestPerGameApexProfileSettings();
             TestGameProcessSessionPidHandoff();
             TestPlatformClientsNeverCountAsGameProcesses();
             TestPidTrackingFastPathPerformance();
@@ -106,7 +107,7 @@ internal static class TrayLearningTests
                 "Deleting one learned association failed.");
             Assert(service.Count == 0, "The deleted association remained in memory.");
             WaitUntil(
-                () => File.Exists(cachePath) && !File.ReadAllText(cachePath).Contains("AlphaGame.exe"),
+                () => FileExistsWithoutText(cachePath, "AlphaGame.exe"),
                 TimeSpan.FromSeconds(2),
                 "The deletion was not persisted.");
             Assert(!File.Exists(cachePath + ".tmp"), "Atomic persistence left a temporary file behind.");
@@ -252,6 +253,32 @@ internal static class TrayLearningTests
         Assert(GameActivationPolicy.ShouldActivate(
                 game, settings, "AlphaGame", "Alpha", "AlphaGame.exe"),
             "The haptic feature criterion did not activate the learned game.");
+    }
+
+    private static void TestPerGameApexProfileSettings()
+    {
+        var settings = new TraySettings();
+        Assert(settings.GetApexProfileSlot("spiderman2") == 0,
+            "A game without an override did not keep the current Apex profile.");
+
+        settings.SetApexProfileSlot("SpiderMan2", 3);
+        Assert(settings.GetApexProfileSlot("spiderman2") == 3,
+            "The per-game Apex profile was not resolved case-insensitively.");
+
+        settings.SetApexProfileSlot("SPIDERMAN2", 4);
+        Assert(settings.GetApexProfileSlot("spiderman2") == 4 &&
+               settings.ApexProfileSlots.Count == 1,
+            "Updating a per-game Apex profile created a duplicate key.");
+
+        settings.SetApexProfileSlot("spiderman2", 0);
+        Assert(settings.GetApexProfileSlot("spiderman2") == 0 &&
+               settings.ApexProfileSlots.Count == 0,
+            "Keeping the current profile did not remove the per-game override.");
+
+        bool rejected = false;
+        try { settings.SetApexProfileSlot("spiderman2", 5); }
+        catch (ArgumentOutOfRangeException) { rejected = true; }
+        Assert(rejected, "An invalid Apex profile slot was accepted.");
     }
 
     private static void TestDatabaseExecutableResolutionAndCollisions()
@@ -452,6 +479,11 @@ internal static class TrayLearningTests
         Assert(gameList.TryFindByExecutable(@"C:\Games\Apex\r5apex.exe", out resolved) &&
                resolved != null && resolved.Title == "Apex Legends",
             "The generated Discord executable index did not resolve a known supported game.");
+        Assert(gameList.TryFindByExecutable(
+                   @"C:\Program Files (x86)\Steam\steamapps\common\Call of Duty HQ\cod.exe",
+                   out resolved) &&
+               resolved != null && resolved.Title == "Call of Duty",
+            "The shared Call of Duty HQ executable was not detected.");
     }
 
     private static CloudGameListService CreateGameList()
@@ -494,6 +526,24 @@ internal static class TrayLearningTests
             Thread.Sleep(10);
         }
         throw new InvalidOperationException(message);
+    }
+
+    private static bool FileExistsWithoutText(string path, string unwantedText)
+    {
+        try
+        {
+            return File.Exists(path) && !File.ReadAllText(path).Contains(unwantedText);
+        }
+        catch (IOException)
+        {
+            // Atomic persistence can hold the destination for a few
+            // milliseconds. WaitUntil will retry until the writer releases it.
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static void Assert(bool condition, string message)

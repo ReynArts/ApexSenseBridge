@@ -154,7 +154,8 @@ ApexSenseBridge is an entirely user-space application that communicates with the
 > **Important clarification regarding USBip instability:**
 > - Any blue screen crash (e.g. `DPC_WATCHDOG_VIOLATION (0x133)`) or kernel fault that occurs during heavy USB/IP I/O takes place strictly inside the third-party `usbip2_ude.sys` kernel driver.
 > - **ApexSenseBridge does not run in kernel mode and cannot cause or prevent kernel-level memory corruption in external drivers.** This is a documented upstream issue in `usbip-win2` (see [vadimgrn/usbip-win2 issue #172](https://github.com/vadimgrn/usbip-win2/issues/172)).
-> - **Why version `0.9.7.7` is used:** Upstream release `0.9.7.8` specifically states in its release notes that it introduces severe memory corruption risks and BSODs. ApexSenseBridge therefore strictly pins and enforces WHLK-certified `0.9.7.7`.
+> - **Why version `0.9.8.0` is used:** `0.9.7.7` can deadlock in `usbip2_ude!send`; `0.9.7.8` removes that spinlock but has a second critical memory-corruption bug. ApexSenseBridge pins the Microsoft-attestation-signed OSSign `0.9.8.0` build from commit `83bd1f78`, which contains both upstream fixes, including `4139f44`.
+> - Attestation signing permits normal installation with Secure Boot but does not certify runtime stability. Keep new minidumps if the 0.9.8.0 build produces any kernel crash.
 > - If you ever encounter an unexpected Windows crash, restart your PC, check `C:\Windows\Minidump`, and ensure no conflicting virtual USB tools (e.g. USB forwarding tools, old virtual bus drivers) are interfering.
 
 ---
@@ -165,9 +166,10 @@ Upstream USBip installers can hang if an older incompatible driver version is al
 - Extract the ZIP to your desired location.
 - Right-click `Install-Drivers.cmd` and select **Run as Administrator**.
 - The script checks and installs:
-  - **`usbip-win2 0.9.7.7`** (Version `0.9.7.8` is explicitly rejected due to known upstream memory corruption and BSOD risks; `0.9.7.7` is WHLK-certified and safe).
+  - **`usbip-win2 0.9.8.0`**, Microsoft-attestation-signed by OSSign from upstream commit `83bd1f78`.
   - **`HidHide 1.5.230`**.
 - **Restart Windows** after driver installation.
+- If USBip 0.9.7.x is already installed, uninstall it from Windows Settings and restart before running the helper. Automatic in-place upgrades remain disabled because the upstream nested uninstaller can hang.
 - Launch `Start-ApexSenseBridge.cmd` or `ApexSenseBridgeTray.exe`.
 
 ---

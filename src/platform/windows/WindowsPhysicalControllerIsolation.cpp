@@ -8,16 +8,21 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <setupapi.h>
+#include <cfgmgr32.h>
 #include <initguid.h>
 #include <devpkey.h>
 
 #include "platform/PhysicalControllerIsolation.h"
 
 #include "flydigi/Apex4Protocol.h"
+#include "flydigi/Apex5Device.h"
+#include "flydigi/Apex5Protocol.h"
+#include "platform/HidTransport.h"
 #include "platform/SessionControl.h"
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cwctype>
 #include <filesystem>
@@ -26,6 +31,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace asb::platform {
@@ -38,7 +44,7 @@ constexpr wchar_t kRunOnceKey[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce";
 constexpr wchar_t kRunOnceValue[] =
     L"!ApexSenseBridgeRestoreControllerVisibility";
-constexpr DWORD kRecoveryVersion = 1;
+constexpr DWORD kRecoveryVersion = 2;
 constexpr DWORD kPhasePrepared = 0;
 constexpr DWORD kPhaseConfigurationMayHaveChanged = 1;
 constexpr wchar_t kUninstallKey[] =
@@ -46,6 +52,11 @@ constexpr wchar_t kUninstallKey[] =
 constexpr wchar_t kSpaceStationDisplayName[] = L"Flydigi Space Station";
 constexpr wchar_t kSpaceStationPublisher[] = L"Flydigi";
 constexpr wchar_t kSpaceStationService[] = L"SpaceStationService.exe";
+constexpr wchar_t kGenitechVirtualGamepadRoot[] =
+    L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\";
+constexpr wchar_t kGenitechVirtualGamepadService[] = L"hidvirtualdriver";
+constexpr wchar_t kDualSenseHidPrefix[] = L"HID\\VID_054C&PID_0CE6";
+constexpr wchar_t kDualSenseUsbPrefix[] = L"USB\\VID_054C&PID_0CE6";
 
 constexpr DWORD kIoctlGetWhitelist =
     static_cast<DWORD>(CTL_CODE(32769, 2048, METHOD_BUFFERED, FILE_READ_DATA));
@@ -121,7 +132,21 @@ struct RecoverySnapshot {
     bool originalInverse = false;
     std::vector<std::wstring> originalWhitelist;
     std::vector<std::wstring> originalBlacklist;
+    bool profileRestorePending = false;
+    DWORD originalProfileSlot = 0;
+    std::wstring apexVendorPath;
+    std::wstring apexContainerId;
+    DWORD apexVendorId = 0;
+    DWORD apexProductId = 0;
+    DWORD apexUsagePage = 0;
 };
+
+bool setRecoveryRegistryString(HKEY key, const wchar_t* name,
+                               std::wstring_view value,
+                               std::string& error);
+bool getRecoveryRegistryString(HKEY key, const wchar_t* name,
+                               std::wstring& value,
+                               std::string& error);
 
 std::string windowsError(std::string_view operation, DWORD code) {
     return std::string(operation) + " failed (Windows error " +
@@ -141,12 +166,26 @@ bool startsWithCaseInsensitive(std::wstring_view value,
     return _wcsnicmp(value.data(), prefix.data(), prefix.size()) == 0;
 }
 
+bool equalsCaseInsensitive(std::wstring_view left,
+                           std::wstring_view right) noexcept {
+    return left.size() == right.size() &&
+           _wcsnicmp(left.data(), right.data(), left.size()) == 0;
+}
+
 bool hasPrefixBoundary(std::wstring_view value,
                        std::wstring_view prefix) noexcept {
     if (!startsWithCaseInsensitive(value, prefix)) return false;
     if (value.size() == prefix.size()) return true;
     const auto next = value[prefix.size()];
     return std::iswspace(next) || next == L',' || next == L'.';
+}
+
+bool hasDeviceIdPrefix(std::wstring_view value,
+                       std::wstring_view prefix) noexcept {
+    if (!startsWithCaseInsensitive(value, prefix)) return false;
+    if (value.size() == prefix.size()) return true;
+    const auto next = value[prefix.size()];
+    return next == L'&' || next == L'\\';
 }
 
 bool containsCaseInsensitive(const std::vector<std::wstring>& values,
@@ -359,6 +398,17 @@ bool writeRecoverySnapshot(const RecoverySnapshot& snapshot, std::string& error)
         !setRegistryDword(key.get(), L"OriginalInverse", snapshot.originalInverse ? 1 : 0, error) ||
         !setRegistryList(key.get(), L"OriginalWhitelist", snapshot.originalWhitelist, error) ||
         !setRegistryList(key.get(), L"OriginalBlacklist", snapshot.originalBlacklist, error) ||
+        !setRegistryDword(key.get(), L"ProfileRestorePending",
+                          snapshot.profileRestorePending ? 1 : 0, error) ||
+        !setRegistryDword(key.get(), L"OriginalProfileSlot",
+                          snapshot.originalProfileSlot, error) ||
+        !setRecoveryRegistryString(key.get(), L"ApexVendorPath",
+                                   snapshot.apexVendorPath, error) ||
+        !setRecoveryRegistryString(key.get(), L"ApexContainerId",
+                                   snapshot.apexContainerId, error) ||
+        !setRegistryDword(key.get(), L"ApexVendorId", snapshot.apexVendorId, error) ||
+        !setRegistryDword(key.get(), L"ApexProductId", snapshot.apexProductId, error) ||
+        !setRegistryDword(key.get(), L"ApexUsagePage", snapshot.apexUsagePage, error) ||
         !setRegistryDword(key.get(), L"Version", kRecoveryVersion, error)) {
         RegDeleteTreeW(HKEY_CURRENT_USER, kRecoveryKey);
         return false;
@@ -383,7 +433,7 @@ bool readRecoverySnapshot(RecoverySnapshot& snapshot, bool& exists,
     DWORD active = 0;
     DWORD inverse = 0;
     if (!getRegistryDword(key.get(), L"Version", version, error) ||
-        version != kRecoveryVersion ||
+        (version != 1 && version != kRecoveryVersion) ||
         !getRegistryDword(key.get(), L"OwnerProcessId", snapshot.ownerProcessId, error) ||
         !getRegistryDword(key.get(), L"Phase", snapshot.phase, error) ||
         !getRegistryDword(key.get(), L"OriginalActive", active, error) ||
@@ -392,6 +442,32 @@ bool readRecoverySnapshot(RecoverySnapshot& snapshot, bool& exists,
         !getRegistryList(key.get(), L"OriginalBlacklist", snapshot.originalBlacklist, error)) {
         if (error.empty()) error = "The controller recovery marker version is unsupported.";
         return false;
+    }
+    if (version >= 2) {
+        DWORD pending = 0;
+        if (!getRegistryDword(key.get(), L"ProfileRestorePending", pending, error) ||
+            !getRegistryDword(key.get(), L"OriginalProfileSlot",
+                              snapshot.originalProfileSlot, error) ||
+            !getRecoveryRegistryString(key.get(), L"ApexVendorPath",
+                                       snapshot.apexVendorPath, error) ||
+            !getRecoveryRegistryString(key.get(), L"ApexContainerId",
+                                       snapshot.apexContainerId, error) ||
+            !getRegistryDword(key.get(), L"ApexVendorId", snapshot.apexVendorId, error) ||
+            !getRegistryDword(key.get(), L"ApexProductId", snapshot.apexProductId, error) ||
+            !getRegistryDword(key.get(), L"ApexUsagePage", snapshot.apexUsagePage, error)) {
+            return false;
+        }
+        if (pending > 1 ||
+            (pending != 0 &&
+             (snapshot.originalProfileSlot >= flydigi::kProfileSlotCount ||
+              snapshot.apexVendorPath.empty() ||
+              snapshot.apexVendorId > 0xFFFF ||
+              snapshot.apexProductId > 0xFFFF ||
+              snapshot.apexUsagePage > 0xFFFF))) {
+            error = "The Apex profile recovery marker contains invalid values.";
+            return false;
+        }
+        snapshot.profileRestorePending = pending != 0;
     }
     if (active > 1 || inverse > 1 ||
         (snapshot.phase != kPhasePrepared &&
@@ -458,6 +534,19 @@ bool setRecoveryPhase(DWORD phase, std::string& error) {
     }
     ScopedRegistryKey key(rawKey);
     return setRegistryDword(key.get(), L"Phase", phase, error);
+}
+
+bool setProfileRestorePending(bool pending, std::string& error) {
+    HKEY rawKey = nullptr;
+    const auto status = RegOpenKeyExW(
+        HKEY_CURRENT_USER, kRecoveryKey, 0, KEY_SET_VALUE, &rawKey);
+    if (status != ERROR_SUCCESS) {
+        error = windowsError("Updating the Apex profile recovery marker", status);
+        return false;
+    }
+    ScopedRegistryKey key(rawKey);
+    return setRegistryDword(
+        key.get(), L"ProfileRestorePending", pending ? 1 : 0, error);
 }
 
 bool processIsRunning(DWORD processId) noexcept {
@@ -626,6 +715,142 @@ std::wstring deviceInstanceId(HDEVINFO devices, SP_DEVINFO_DATA& info) {
     return buffer.data();
 }
 
+std::wstring deviceNodeInstanceId(DEVINST node) {
+    ULONG required = 0;
+    if (CM_Get_Device_ID_Size(&required, node, 0) != CR_SUCCESS) return {};
+    std::vector<wchar_t> buffer(required + 1, L'\0');
+    if (CM_Get_Device_IDW(
+            node, buffer.data(), static_cast<ULONG>(buffer.size()), 0) != CR_SUCCESS) {
+        return {};
+    }
+    return buffer.data();
+}
+
+std::wstring deviceNodeStringProperty(DEVINST node,
+                                      const DEVPROPKEY& key) {
+    DEVPROPTYPE type = 0;
+    ULONG requiredBytes = 0;
+    const auto sizing = CM_Get_DevNode_PropertyW(
+        node, &key, &type, nullptr, &requiredBytes, 0);
+    if (sizing != CR_BUFFER_SMALL || requiredBytes < sizeof(wchar_t)) return {};
+
+    std::vector<BYTE> buffer(requiredBytes + sizeof(wchar_t), 0);
+    if (CM_Get_DevNode_PropertyW(
+            node, &key, &type, buffer.data(), &requiredBytes, 0) != CR_SUCCESS ||
+        type != DEVPROP_TYPE_STRING) {
+        return {};
+    }
+    return reinterpret_cast<const wchar_t*>(buffer.data());
+}
+
+bool flydigiVirtualDualSensePaths(std::vector<std::wstring>& paths,
+                                  std::string& error) {
+    std::string enumerationError;
+    const auto hidDevices = enumerateHidDevices(enumerationError);
+    if (!enumerationError.empty()) {
+        error = "Enumerating HID devices for the Flydigi DualSense proxy failed: " +
+                enumerationError;
+        return false;
+    }
+
+    for (const auto& hid : hidDevices) {
+        if (hid.vendorId != 0x054C || hid.productId != 0x0CE6 ||
+            hid.usagePage != 0x0001 || hid.usage != 0x0005 ||
+            hid.instanceId.empty()) {
+            continue;
+        }
+
+        DEVINST hidNode = 0;
+        if (CM_Locate_DevNodeW(
+                &hidNode, const_cast<wchar_t*>(hid.instanceId.c_str()),
+                CM_LOCATE_DEVNODE_NORMAL) != CR_SUCCESS) {
+            // The interface can disappear while devices are being enumerated.
+            // A vanished interface cannot leak duplicate input into the game.
+            continue;
+        }
+
+        DEVINST directParent = 0;
+        if (CM_Get_Parent(&directParent, hidNode, 0) != CR_SUCCESS) continue;
+        const auto usbInstance = deviceNodeInstanceId(directParent);
+        if (usbInstance.empty()) continue;
+
+        DEVINST ancestor = directParent;
+        bool matched = false;
+        for (unsigned depth = 0; depth < 8; ++depth) {
+            const auto rootInstance = deviceNodeInstanceId(ancestor);
+            const auto rootService = deviceNodeStringProperty(
+                ancestor, DEVPKEY_Device_Service);
+            if (detail::matchesFlydigiVirtualDualSenseTopology(
+                    hid.instanceId, usbInstance, rootInstance, rootService)) {
+                matched = true;
+                break;
+            }
+
+            // A matching GeniTech root with an unexpected service is an
+            // ambiguous third-party topology. Refuse broad hiding rather than
+            // guessing which virtual controller owns it.
+            if (startsWithCaseInsensitive(
+                    rootInstance, kGenitechVirtualGamepadRoot)) {
+                error = "A GeniTech virtual DualSense was found, but its driver "
+                        "service identity is unexpected; refusing temporary hiding.";
+                return false;
+            }
+
+            DEVINST parent = 0;
+            if (CM_Get_Parent(&parent, ancestor, 0) != CR_SUCCESS) break;
+            ancestor = parent;
+        }
+        if (!matched) continue;
+
+        if (!containsCaseInsensitive(paths, hid.instanceId)) {
+            paths.push_back(hid.instanceId);
+        }
+        if (!containsCaseInsensitive(paths, usbInstance)) {
+            paths.push_back(usbInstance);
+        }
+    }
+    return true;
+}
+
+bool setRecoveryRegistryString(HKEY key, const wchar_t* name,
+                               std::wstring_view value,
+                               std::string& error) {
+    const wchar_t* data = value.empty() ? L"" : value.data();
+    const auto status = RegSetValueExW(
+        key, name, 0, REG_SZ,
+        reinterpret_cast<const BYTE*>(data),
+        static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t)));
+    if (status != ERROR_SUCCESS) {
+        error = windowsError("Writing the controller recovery marker", status);
+        return false;
+    }
+    return true;
+}
+
+bool getRecoveryRegistryString(HKEY key, const wchar_t* name,
+                               std::wstring& value,
+                               std::string& error) {
+    DWORD type = 0;
+    DWORD bytes = 0;
+    auto status = RegQueryValueExW(key, name, nullptr, &type, nullptr, &bytes);
+    if (status != ERROR_SUCCESS || type != REG_SZ ||
+        bytes < sizeof(wchar_t) || bytes > 64 * 1024 ||
+        bytes % sizeof(wchar_t) != 0) {
+        error = "The controller recovery marker is incomplete or corrupt.";
+        return false;
+    }
+    std::vector<wchar_t> buffer(bytes / sizeof(wchar_t) + 1, L'\0');
+    status = RegQueryValueExW(
+        key, name, nullptr, &type,
+        reinterpret_cast<BYTE*>(buffer.data()), &bytes);
+    if (status != ERROR_SUCCESS) {
+        error = windowsError("Reading the controller recovery marker", status);
+        return false;
+    }
+    value.assign(buffer.data());
+    return true;
+}
+
 bool deviceContainerId(HDEVINFO devices, SP_DEVINFO_DATA& info, GUID& container) {
     DEVPROPTYPE type = 0;
     DWORD required = 0;
@@ -738,6 +963,83 @@ bool apexGameDevicePaths(const HidDeviceInfo& apexInterface,
     return true;
 }
 
+bool restoreApexProfile(const RecoverySnapshot& snapshot,
+                        std::string& error) {
+    std::string enumerationError;
+    const auto candidates = flydigi::Apex5Device::findCandidates(enumerationError);
+    std::vector<HidDeviceInfo> matches;
+    for (const auto& candidate : candidates) {
+        if (detail::matchesApexProfileRecoveryDevice(
+                candidate,
+                snapshot.apexVendorPath,
+                snapshot.apexContainerId,
+                static_cast<std::uint16_t>(snapshot.apexVendorId),
+                static_cast<std::uint16_t>(snapshot.apexProductId),
+                static_cast<std::uint16_t>(snapshot.apexUsagePage))) {
+            matches.push_back(candidate);
+        }
+    }
+    if (matches.empty()) {
+        error = enumerationError.empty()
+            ? "The saved Apex 5 profile-recovery interface is unavailable; "
+              "wake the controller and retry recovery"
+            : "Could not enumerate the saved Apex 5 profile-recovery interface: " +
+                  enumerationError;
+        return false;
+    }
+
+    const auto exact = std::find_if(
+        matches.begin(), matches.end(), [&snapshot](const HidDeviceInfo& candidate) {
+            return equalsCaseInsensitive(candidate.path, snapshot.apexVendorPath);
+        });
+    if (exact == matches.end() && matches.size() != 1) {
+        error = "Several Apex 5 interfaces match the saved recovery container; "
+                "refusing to restore an ambiguous controller";
+        return false;
+    }
+    const auto& selected = exact != matches.end() ? *exact : matches.front();
+
+    std::string lastError;
+    for (int attempt = 1; attempt <= 3; ++attempt) {
+        std::string openError;
+        auto device = flydigi::Apex5Device::open(selected, openError);
+        if (!device || !device->verifyIdentity(openError) ||
+            !device->identity() || !device->identity()->isApex5()) {
+            lastError = openError.empty()
+                ? "The saved recovery interface is not a verified Apex 5"
+                : openError;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+
+        std::string applyError;
+        const bool acknowledged = device->applyProfile(
+            static_cast<std::uint8_t>(snapshot.originalProfileSlot), applyError);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        flydigi::ProfileStatus status{};
+        std::string statusError;
+        const bool statusRead = device->readProfileStatus(status, statusError);
+        if (statusRead && !status.switchBank &&
+            status.slot == snapshot.originalProfileSlot) {
+            return true;
+        }
+
+        std::ostringstream detail;
+        detail << "Apex 5 profile restore attempt " << attempt << " failed";
+        if (!acknowledged && !applyError.empty()) {
+            detail << ": " << applyError;
+        } else if (!statusRead && !statusError.empty()) {
+            detail << ": " << statusError;
+        } else if (statusRead) {
+            detail << ": controller reported raw slot "
+                   << static_cast<unsigned int>(status.rawSlot);
+        }
+        lastError = detail.str();
+    }
+    error = lastError;
+    return false;
+}
+
 bool recoverPendingImpl(bool& recovered, std::string& error) {
     recovered = false;
     RecoverySnapshot snapshot{};
@@ -745,31 +1047,68 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
     if (!readRecoverySnapshot(snapshot, exists, error)) return false;
     if (!exists) return true;
 
-    if (snapshot.phase == kPhasePrepared) {
+    bool profileRestored = true;
+    std::string profileError;
+    if (snapshot.profileRestorePending) {
+        profileRestored = restoreApexProfile(snapshot, profileError);
+        if (profileRestored && !setProfileRestorePending(false, profileError)) {
+            profileRestored = false;
+        }
+    }
+
+    bool visibilityRestored = true;
+    std::string visibilityError;
+    if (snapshot.phase != kPhasePrepared) {
+        ScopedHandle device;
+        visibilityRestored = openHidHide(device, visibilityError);
+        if (visibilityRestored) {
+            visibilityRestored =
+                setBoolean(device.get(), kIoctlSetActive, false,
+                           "active state", visibilityError) &&
+                setList(device.get(), kIoctlSetBlacklist,
+                        snapshot.originalBlacklist,
+                        "device list", visibilityError) &&
+                setList(device.get(), kIoctlSetWhitelist,
+                        snapshot.originalWhitelist,
+                        "application list", visibilityError) &&
+                setBoolean(device.get(), kIoctlSetInverse,
+                           snapshot.originalInverse,
+                           "inverse state", visibilityError) &&
+                setBoolean(device.get(), kIoctlSetActive,
+                           snapshot.originalActive,
+                           "active state", visibilityError);
+        }
+        if (visibilityRestored &&
+            !setRecoveryPhase(kPhasePrepared, visibilityError)) {
+            visibilityRestored = false;
+        }
+    }
+
+    // A manually launched recovery executable might not be on the saved
+    // HidHide whitelist (for example after an in-place update). Once visibility
+    // is restored, retry the profile recovery immediately instead of requiring
+    // the user to run the command a second time.
+    if (!profileRestored && visibilityRestored && snapshot.profileRestorePending) {
+        profileError.clear();
+        profileRestored = restoreApexProfile(snapshot, profileError);
+        if (profileRestored && !setProfileRestorePending(false, profileError)) {
+            profileRestored = false;
+        }
+    }
+
+    if (profileRestored && visibilityRestored) {
         clearRecoveryRegistration();
         recovered = true;
         return true;
     }
 
-    ScopedHandle device;
-    if (!openHidHide(device, error)) return false;
-
-    // Visibility is restored first. Even if a later configuration write
-    // fails, games immediately regain access to the physical controller.
-    if (!setBoolean(device.get(), kIoctlSetActive, false, "active state", error) ||
-        !setList(device.get(), kIoctlSetBlacklist, snapshot.originalBlacklist,
-                 "device list", error) ||
-        !setList(device.get(), kIoctlSetWhitelist, snapshot.originalWhitelist,
-                 "application list", error) ||
-        !setBoolean(device.get(), kIoctlSetInverse, snapshot.originalInverse,
-                    "inverse state", error) ||
-        !setBoolean(device.get(), kIoctlSetActive, snapshot.originalActive,
-                    "active state", error)) {
-        return false;
+    error.clear();
+    if (!profileRestored) error = profileError;
+    if (!visibilityRestored) {
+        if (!error.empty()) error += "; ";
+        error += visibilityError;
     }
-    clearRecoveryRegistration();
-    recovered = true;
-    return true;
+    return false;
 }
 
 } // namespace
@@ -777,6 +1116,7 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
 struct TemporaryPhysicalControllerIsolation::Impl {
     bool active = false;
     bool recovered = false;
+    bool profileRecoveryArmed = false;
 };
 
 TemporaryPhysicalControllerIsolation::TemporaryPhysicalControllerIsolation()
@@ -790,6 +1130,7 @@ TemporaryPhysicalControllerIsolation::~TemporaryPhysicalControllerIsolation() {
 bool TemporaryPhysicalControllerIsolation::activate(
     const HidDeviceInfo& apexInterface,
     std::string_view sessionToken,
+    std::optional<std::uint8_t> originalApexProfile,
     std::string& error) {
     if (impl_->active) return true;
 
@@ -810,6 +1151,20 @@ bool TemporaryPhysicalControllerIsolation::activate(
     if (!openHidHide(device, error)) return false;
     RecoverySnapshot snapshot{};
     snapshot.ownerProcessId = GetCurrentProcessId();
+    if (originalApexProfile) {
+        if (*originalApexProfile >= flydigi::kProfileSlotCount ||
+            apexInterface.path.empty()) {
+            error = "The Apex profile recovery target is invalid.";
+            return false;
+        }
+        snapshot.profileRestorePending = true;
+        snapshot.originalProfileSlot = *originalApexProfile;
+        snapshot.apexVendorPath = apexInterface.path;
+        snapshot.apexContainerId = apexInterface.containerId;
+        snapshot.apexVendorId = apexInterface.vendorId;
+        snapshot.apexProductId = apexInterface.productId;
+        snapshot.apexUsagePage = apexInterface.usagePage;
+    }
     if (!getBoolean(device.get(), kIoctlGetActive, snapshot.originalActive,
                     "active state", error) ||
         !getBoolean(device.get(), kIoctlGetInverse, snapshot.originalInverse,
@@ -828,6 +1183,8 @@ bool TemporaryPhysicalControllerIsolation::activate(
 
     std::vector<std::wstring> apexPaths;
     if (!apexGameDevicePaths(apexInterface, apexPaths, error)) return false;
+    std::vector<std::wstring> flydigiProxyPaths;
+    if (!flydigiVirtualDualSensePaths(flydigiProxyPaths, error)) return false;
     const auto executable = moduleFileName(error);
     if (executable.empty()) return false;
     const auto ntExecutable = imageNtPath(executable, error);
@@ -849,6 +1206,14 @@ bool TemporaryPhysicalControllerIsolation::activate(
     }
     auto temporaryBlacklist = snapshot.originalBlacklist;
     for (const auto& path : apexPaths) {
+        if (!containsCaseInsensitive(temporaryBlacklist, path)) {
+            temporaryBlacklist.push_back(path);
+        }
+    }
+    // Space Station's GeniTech bus can expose its own DualSense proxy. Hide
+    // only that fully verified proxy for this session so games see VIIPER's
+    // current-firmware DualSense without losing Space Station shortcuts.
+    for (const auto& path : flydigiProxyPaths) {
         if (!containsCaseInsensitive(temporaryBlacklist, path)) {
             temporaryBlacklist.push_back(path);
         }
@@ -879,7 +1244,21 @@ bool TemporaryPhysicalControllerIsolation::activate(
     }
 
     impl_->active = true;
+    impl_->profileRecoveryArmed = originalApexProfile.has_value();
     return true;
+}
+
+bool TemporaryPhysicalControllerIsolation::confirmApexProfileRestored(
+    std::string& error) noexcept {
+    if (!impl_ || !impl_->profileRecoveryArmed) return true;
+    try {
+        if (!setProfileRestorePending(false, error)) return false;
+        impl_->profileRecoveryArmed = false;
+        return true;
+    } catch (...) {
+        error = "Unexpected failure while confirming the restored Apex 5 profile.";
+        return false;
+    }
 }
 
 bool TemporaryPhysicalControllerIsolation::restore(std::string& error) noexcept {
@@ -887,6 +1266,7 @@ bool TemporaryPhysicalControllerIsolation::restore(std::string& error) noexcept 
     bool recovered = false;
     if (!recoverPending(recovered, error)) return false;
     impl_->active = false;
+    impl_->profileRecoveryArmed = false;
     return true;
 }
 
@@ -966,6 +1346,40 @@ bool matchesFlydigiSpaceStationInstall(
     // but reject unrelated products whose names merely share these prefixes.
     return hasPrefixBoundary(displayName, kSpaceStationDisplayName) &&
            hasPrefixBoundary(publisher, kSpaceStationPublisher);
+}
+
+bool matchesFlydigiVirtualDualSenseTopology(
+    std::wstring_view hidInstanceId,
+    std::wstring_view usbInstanceId,
+    std::wstring_view rootInstanceId,
+    std::wstring_view rootService) noexcept {
+    return hasDeviceIdPrefix(hidInstanceId, kDualSenseHidPrefix) &&
+           hasDeviceIdPrefix(usbInstanceId, kDualSenseUsbPrefix) &&
+           rootInstanceId.size() >
+               (sizeof(kGenitechVirtualGamepadRoot) / sizeof(wchar_t)) - 1 &&
+           startsWithCaseInsensitive(
+               rootInstanceId, kGenitechVirtualGamepadRoot) &&
+           equalsCaseInsensitive(rootService, kGenitechVirtualGamepadService);
+}
+
+bool matchesApexProfileRecoveryDevice(
+    const HidDeviceInfo& candidate,
+    std::wstring_view originalPath,
+    std::wstring_view originalContainerId,
+    std::uint16_t vendorId,
+    std::uint16_t productId,
+    std::uint16_t usagePage) noexcept {
+    if (candidate.vendorId != vendorId ||
+        candidate.productId != productId ||
+        candidate.usagePage != usagePage) {
+        return false;
+    }
+    if (!originalPath.empty() &&
+        equalsCaseInsensitive(candidate.path, originalPath)) {
+        return true;
+    }
+    return !originalContainerId.empty() && !candidate.containerId.empty() &&
+           equalsCaseInsensitive(candidate.containerId, originalContainerId);
 }
 
 } // namespace detail

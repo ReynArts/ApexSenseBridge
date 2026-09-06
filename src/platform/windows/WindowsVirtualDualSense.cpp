@@ -626,6 +626,11 @@ private:
             return false;
         }
 
+        if (response.find("Failed to auto-attach device") != std::string::npos) {
+            error = "VIIPER could not attach the virtual DualSense through usbip-win2. See viiper.log for the driver error.";
+            return false;
+        }
+
         std::uint32_t returnedBusId = 0;
         std::string deviceId;
         if (!viiper::parseDeviceResponse(response, returnedBusId, deviceId) ||

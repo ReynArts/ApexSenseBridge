@@ -2,7 +2,7 @@ ApexSenseBridge - test de session complete APEX 4
 =================================================
 
 Ce petit paquet ne contient pas l'installation complete. Il exige toutefois
-que usbip-win2 0.9.7.5 a 0.9.7.7 et HidHide 1.5.230 soient deja installes,
+que usbip-win2 0.9.8.0 et HidHide 1.5.230 soient deja installes,
 puis que Windows ait ete redemarre.
 
 1. Extraire tout le ZIP dans un dossier.

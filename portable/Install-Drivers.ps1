@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Stop"
-$usbipVersion = "0.9.7.7"
+$usbipVersion = "0.9.8.0"
+$usbipInstallerSha256 = "81F426741F7EE2ED991FEBE24A22DACA8400B6AE2F171054E3FB404897E15D39"
 $usbipKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{199505b0-b93d-4521-a8c7-897818e0205a}_is1"
 $usbipUdeService = "HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_ude"
 $usbipFilterService = "HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_filter"
@@ -70,8 +71,7 @@ try {
                           (Test-Path -LiteralPath $usbipFilterService)
     if ($null -ne $usbip) {
         $installedVersion = ([string]$usbip.DisplayVersion).Trim()
-        $supportedVersions = @("0.9.7.5", "0.9.7.6", "0.9.7.7")
-        if ($installedVersion -notin $supportedVersions -or -not $usbipServicesReady) {
+        if ($installedVersion -ne $usbipVersion -or -not $usbipServicesReady) {
             throw "USBip $installedVersion is already registered or incomplete. Uninstall USBip in Windows Settings, restart, and run this helper again. This avoids the upstream uninstaller hang."
         }
         Write-DriverLog "Compatible usbip-win2 $installedVersion is already ready; preserving it."
@@ -81,7 +81,14 @@ try {
         throw "Orphaned USBip driver services were found. Repair or remove USBip, restart, and run this helper again."
     }
     else {
-        $usbipInstaller = Join-Path $PSScriptRoot "Drivers\USBip-0.9.7.7-x64.exe"
+        $usbipInstaller = Join-Path $PSScriptRoot "Drivers\USBip-0.9.8.0-x64.exe"
+        if (-not (Test-Path -LiteralPath $usbipInstaller)) {
+            throw "usbip-win2 $usbipVersion installer is missing: $usbipInstaller"
+        }
+        if ((Get-FileHash -LiteralPath $usbipInstaller -Algorithm SHA256).Hash -ne
+            $usbipInstallerSha256) {
+            throw "usbip-win2 $usbipVersion installer failed its SHA-256 integrity check."
+        }
         $usbipLog = Join-Path $PSScriptRoot "usbip-upstream.log"
         Invoke-BoundedInstaller $usbipInstaller @(
             "/VERYSILENT",

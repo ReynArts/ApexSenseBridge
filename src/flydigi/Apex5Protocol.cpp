@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <initializer_list>
+#include <span>
 
 namespace asb::flydigi {
 namespace {
@@ -27,6 +28,24 @@ Report buildCommand81(std::initializer_list<std::uint8_t> payload) {
         }
         report[offset++] = byte;
     }
+    return report;
+}
+
+Report buildChecksummedCommand(
+    std::uint8_t command, std::span<const std::uint8_t> payload) {
+    Report report{};
+    report[0] = kReportIdOut;
+    report[1] = kMagic0;
+    report[2] = kMagic1;
+    report[3] = command;
+    report[4] = static_cast<std::uint8_t>(payload.size() + 2);
+    std::copy(payload.begin(), payload.end(), report.begin() + 5);
+
+    std::uint8_t checksum = 0;
+    for (std::size_t index = 3; index < 3 + report[4]; ++index) {
+        checksum = static_cast<std::uint8_t>(checksum + report[index]);
+    }
+    report[3 + report[4]] = checksum;
     return report;
 }
 
@@ -116,6 +135,43 @@ Report buildRumble(std::uint8_t lowFrequencyMotor,
     report[5] = lowFrequencyMotor;
     report[6] = highFrequencyMotor;
     return report;
+}
+
+Report buildProfileStatusRequest() {
+    return buildChecksummedCommand(kCmdProfileStatus, {});
+}
+
+std::optional<Report> buildApplyProfile(std::uint8_t slot) {
+    if (slot >= kProfileSlotCount) return std::nullopt;
+    const std::array payload{slot};
+    return buildChecksummedCommand(kCmdApplyProfile, payload);
+}
+
+bool isProfileCommandReply(
+    std::span<const std::uint8_t> report, std::uint8_t command) noexcept {
+    return report.size() >= 4 &&
+           report[0] == kReportIdIn &&
+           report[1] == kMagic0 &&
+           report[2] == kMagic1 &&
+           report[3] == command;
+}
+
+std::optional<ProfileStatus> parseProfileStatus(
+    std::span<const std::uint8_t> report) noexcept {
+    if (report.size() < 7 ||
+        !isProfileCommandReply(report, kCmdProfileStatus)) {
+        return std::nullopt;
+    }
+
+    const auto rawSlot = report[6];
+    if (rawSlot >= kProfileSlotCount * 2) return std::nullopt;
+    const bool switchBank = rawSlot >= kProfileSlotCount;
+    return ProfileStatus{
+        rawSlot,
+        static_cast<std::uint8_t>(
+            switchBank ? rawSlot - kProfileSlotCount : rawSlot),
+        switchBank,
+    };
 }
 
 } // namespace asb::flydigi

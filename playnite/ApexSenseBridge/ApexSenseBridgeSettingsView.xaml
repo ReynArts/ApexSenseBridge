@@ -116,7 +116,7 @@
             <StackPanel Grid.Row="7" Grid.ColumnSpan="3" Margin="0,12,0,8">
                 <TextBlock FontWeight="SemiBold" Text="Overrides manuels" />
                 <TextBlock Margin="0,4,0,0" Opacity="0.75" TextWrapping="Wrap"
-                           Text="La liste reste vide pour les jeux gérés automatiquement. Un clic droit sur un jeu → ApexSenseBridge permet de forcer un profil, de le désactiver ou de revenir à la détection automatique." />
+                           Text="La liste reste vide quand tout est automatique. Clic droit sur un jeu → ApexSenseBridge pour régler séparément l’activation, le remapping tactile et le profil matériel APEX." />
             </StackPanel>
 
             <!-- Profiles Grid -->
@@ -126,7 +126,9 @@
                       ItemsSource="{Binding Settings.Profiles}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Jeu" Width="*" Binding="{Binding GameName}" />
-                    <DataGridTextColumn Header="Profil" Width="200" Binding="{Binding ProfileTypeDisplayName}" />
+                    <DataGridTextColumn Header="Activation" Width="110" Binding="{Binding ActivationDisplayName}" />
+                    <DataGridTextColumn Header="Remapping tactile" Width="180" Binding="{Binding RemappingDisplayName}" />
+                    <DataGridTextColumn Header="Profil APEX" Width="150" Binding="{Binding ApexProfileDisplayName}" />
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

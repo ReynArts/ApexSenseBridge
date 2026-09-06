@@ -64,6 +64,10 @@ namespace ApexSenseBridgeTray
                     {
                         ApplyFilter();
                         ApplyLearnedFilter();
+                        foreach (var item in allGameViewModels)
+                        {
+                            item.RefreshLocalization();
+                        }
                         UpdateTabTitles();
                     }
                     catch { }
@@ -131,11 +135,14 @@ namespace ApexSenseBridgeTray
             foreach (var g in rawGames.OrderBy(x => x.Title))
             {
                 var isExcluded = settings.IsGameExcluded(g.Normalized) || settings.IsGameExcluded(g.Title);
-                allGameViewModels.Add(new GameItemViewModel
+                var item = new GameItemViewModel
                 {
                     Game = g,
-                    IsExcluded = isExcluded
-                });
+                    IsExcluded = isExcluded,
+                    SelectedApexProfileSlot = settings.GetApexProfileSlot(g.Normalized)
+                };
+                item.ApexProfileSlotChanged += OnApexProfileSlotChanged;
+                allGameViewModels.Add(item);
             }
 
             TxtNavCertifiedCount.Text = allGameViewModels.Count.ToString();
@@ -227,6 +234,13 @@ namespace ApexSenseBridgeTray
                     ApplyFilter();
                 }
             }
+        }
+
+        private void OnApexProfileSlotChanged(GameItemViewModel item, int slot)
+        {
+            if (item == null || settings == null) return;
+            settings.SetApexProfileSlot(item.Normalized, slot);
+            settings.Save();
         }
 
         #endregion
@@ -535,6 +549,44 @@ namespace ApexSenseBridgeTray
         public Visibility HapticVisibility => HapticFeedback ? Visibility.Visible : Visibility.Collapsed;
         public Visibility RemappingVisibility => HasCustomRemapping ? Visibility.Visible : Visibility.Collapsed;
 
+        public IEnumerable<ApexProfileChoice> ApexProfileChoices
+        {
+            get
+            {
+                return new[]
+                {
+                    new ApexProfileChoice(0, LocalizationManager.Get("Loc_ApexProfileKeep")),
+                    new ApexProfileChoice(1, LocalizationManager.Format("Loc_ApexProfileNumber", 1)),
+                    new ApexProfileChoice(2, LocalizationManager.Format("Loc_ApexProfileNumber", 2)),
+                    new ApexProfileChoice(3, LocalizationManager.Format("Loc_ApexProfileNumber", 3)),
+                    new ApexProfileChoice(4, LocalizationManager.Format("Loc_ApexProfileNumber", 4))
+                };
+            }
+        }
+
+        private int selectedApexProfileSlot;
+        public int SelectedApexProfileSlot
+        {
+            get => selectedApexProfileSlot;
+            set
+            {
+                int normalized = value >= 1 && value <= 4 ? value : 0;
+                if (selectedApexProfileSlot != normalized)
+                {
+                    selectedApexProfileSlot = normalized;
+                    OnPropertyChanged("SelectedApexProfileSlot");
+                    var handler = ApexProfileSlotChanged;
+                    if (handler != null) handler(this, normalized);
+                }
+            }
+        }
+
+        public void RefreshLocalization()
+        {
+            OnPropertyChanged("ApexProfileChoices");
+            OnPropertyChanged("SelectedApexProfileSlot");
+        }
+
         private bool isExcluded;
         public bool IsExcluded
         {
@@ -553,6 +605,7 @@ namespace ApexSenseBridgeTray
         public double CardOpacity => IsExcluded ? 0.6 : 1.0;
 
         public event PropertyChangedEventHandler PropertyChanged;
+        public event Action<GameItemViewModel, int> ApexProfileSlotChanged;
         protected void OnPropertyChanged(string name)
         {
             var handler = PropertyChanged;
@@ -560,6 +613,18 @@ namespace ApexSenseBridgeTray
             {
                 handler(this, new PropertyChangedEventArgs(name));
             }
+        }
+    }
+
+    public sealed class ApexProfileChoice
+    {
+        public int Slot { get; private set; }
+        public string Name { get; private set; }
+
+        public ApexProfileChoice(int slot, string name)
+        {
+            Slot = slot;
+            Name = name;
         }
     }
 }

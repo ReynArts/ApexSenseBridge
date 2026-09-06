@@ -16,6 +16,11 @@ namespace ApexSenseBridge
                 return false;
             }
 
+            if (SupportedGameCatalog.TryResolve(game, out profileType, out reason))
+            {
+                return true;
+            }
+
             if (TryDetectValue(game.Name, out profileType))
             {
                 reason = "nom Playnite « " + game.Name + " »";

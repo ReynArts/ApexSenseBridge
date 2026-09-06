@@ -489,7 +489,12 @@ namespace ApexSenseBridgeTray.Services
                     {
                         long startSessionCalledAt = Stopwatch.GetTimestamp();
                         string error;
-                        if (!sessionManager.StartSession(game.Title, game.Profile, settings, out error))
+                        int apexProfileSlot = settings != null
+                            ? settings.GetApexProfileSlot(game.Normalized)
+                            : 0;
+                        if (!sessionManager.StartSession(
+                                game.Title, game.Profile, settings,
+                                apexProfileSlot, out error))
                         {
                             lock (retryCooldowns)
                             {

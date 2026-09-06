@@ -83,6 +83,73 @@ struct Apex4IdentityObservation {
     std::vector<std::string> samples;
 };
 
+std::optional<std::vector<std::uint8_t>> exchangeProfileCommand(
+    platform::HidTransport& transport,
+    const Report& request,
+    std::uint8_t command,
+    std::string& error) {
+    const auto bufferSize = std::max<std::size_t>(
+        kReportSize, transport.info().inputReportLength);
+    std::vector<std::uint8_t> input(bufferSize, 0);
+
+    constexpr std::size_t kMaximumDrainReports = 128;
+    for (std::size_t count = 0; count < kMaximumDrainReports; ++count) {
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport.readInputReport(
+            input, std::chrono::milliseconds(0), bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not drain stale HID input before the profile command: " +
+                    readError;
+            return std::nullopt;
+        }
+    }
+
+    std::string writeError;
+    if (!transport.writeOutputReport(request, writeError)) {
+        error = "Could not send Flydigi profile command 0x";
+        std::ostringstream commandText;
+        commandText << std::hex << std::uppercase
+                    << static_cast<unsigned int>(command);
+        error += commandText.str() + ": " + writeError;
+        return std::nullopt;
+    }
+
+    constexpr auto kReplyTimeout = std::chrono::milliseconds(750);
+    constexpr std::size_t kMaximumReplies = 4096;
+    const auto deadline = std::chrono::steady_clock::now() + kReplyTimeout;
+    for (std::size_t count = 0; count < kMaximumReplies; ++count) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) break;
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - now);
+        if (remaining.count() == 0) remaining = std::chrono::milliseconds(1);
+
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport.readInputReport(
+            input, remaining, bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not read the Flydigi profile command reply: " + readError;
+            return std::nullopt;
+        }
+        const auto bytes = std::span<const std::uint8_t>(input.data(), bytesRead);
+        if (isProfileCommandReply(bytes, command)) {
+            return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+        }
+    }
+
+    std::ostringstream commandText;
+    commandText << std::hex << std::uppercase
+                << static_cast<unsigned int>(command);
+    error = "No Flydigi profile command 0x" + commandText.str() +
+            " reply arrived within 750 ms; wake the controller and close "
+            "Flydigi Space Station before retrying";
+    return std::nullopt;
+}
+
 } // namespace
 
 void TransportDeleter::operator()(platform::HidTransport* transport) const noexcept {
@@ -244,6 +311,23 @@ bool Apex5Device::mayWriteEffects(std::string& error) const {
     return true;
 }
 
+bool Apex5Device::mayControlProfiles(std::string& error) const {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_) {
+        error = "Profile command refused: device identity was not verified";
+        return false;
+    }
+    if (!identity_->isApex5()) {
+        error = "Profile command refused: this diagnostic currently supports only "
+                "a verified Apex 5";
+        return false;
+    }
+    return true;
+}
+
 bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     if (!isOpen()) {
         error = "APEX device is not open";
@@ -327,6 +411,31 @@ bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
 
 bool Apex5Device::stopRumble(std::string& error) {
     return setRumble(0, 0, error);
+}
+
+bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {
+    if (!mayControlProfiles(error)) return false;
+    const auto reply = exchangeProfileCommand(
+        *transport_, buildProfileStatusRequest(), kCmdProfileStatus, error);
+    if (!reply) return false;
+    const auto parsed = parseProfileStatus(*reply);
+    if (!parsed) {
+        error = "The Apex 5 returned a malformed or unknown profile status";
+        return false;
+    }
+    status = *parsed;
+    return true;
+}
+
+bool Apex5Device::applyProfile(std::uint8_t slot, std::string& error) {
+    if (!mayControlProfiles(error)) return false;
+    const auto request = buildApplyProfile(slot);
+    if (!request) {
+        error = "Profile slot must be in the range 1..4";
+        return false;
+    }
+    return exchangeProfileCommand(
+        *transport_, *request, kCmdApplyProfile, error).has_value();
 }
 
 } // namespace asb::flydigi
