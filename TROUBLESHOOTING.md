@@ -158,6 +158,18 @@ If the PC lost power or a game crashed unexpectedly while the controller was hid
 
 ## 5. Driver Installation Issues, USBip Stability & Portable Version
 
+### Installer reports that USBip failed although `usbip-install.log` says success
+
+Versions 0.6.0 and 0.6.1 could query an incorrectly escaped uninstall-registry
+key after the bundled USBip installer returned success. This produced a false
+failure and could be reported as unregistered driver remnants on the next run.
+The registry verification is corrected in 0.6.2.
+
+- Do not repeatedly run the older setup or remove driver packages manually.
+- If USBip 0.9.7.x is installed, uninstall it from Windows Settings and restart.
+- Then run the 0.6.2 installer, which validates the registered 0.9.8.0 package
+  and both `usbip2_ude`/`usbip2_filter` services against the correct key.
+
 ### Known Upstream `usbip-win2` Kernel Issue (Not Caused by ApexSenseBridge)
 ApexSenseBridge is an entirely user-space application that communicates with the system via standard Windows APIs. To emulate a virtual DualSense controller over USB, it relies on the third-party open-source driver **`usbip-win2`**.
 

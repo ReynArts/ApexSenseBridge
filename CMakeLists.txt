@@ -280,5 +280,10 @@ if(BUILD_TESTING)
         endif()
         add_test(NAME physical_isolation_space_station_guard
                  COMMAND ApexSenseBridgePhysicalIsolationWindowsTests)
+
+        add_test(NAME installer_registry_contract
+                 COMMAND powershell -NoProfile -NonInteractive
+                         -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_installer_registry_contract.ps1)
     endif()
 endif()

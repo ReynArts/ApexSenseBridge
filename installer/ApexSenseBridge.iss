@@ -3,10 +3,15 @@
 #define AppPublisher "ApexSenseBridge contributors"
 #define AppId "{{5F8B1901-93E1-41E2-96B4-F1B278A5A630}"
 #define ExtensionId "ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4"
+; Inno sections require "{{" to encode a literal opening brace, whereas
+; Pascal Script strings use the registry key verbatim. Keep both forms so the
+; post-install verifier queries the same key written by USBip's installer.
 #define UsbipProductKey "{{199505b0-b93d-4521-a8c7-897818e0205a}_is1"
+#define UsbipProductKeyPascal "{199505b0-b93d-4521-a8c7-897818e0205a}_is1"
 #define UsbipVersion "0.9.8.0"
 #define UsbipInstaller "USBip-0.9.8.0-x64.exe"
 #define HidHideProductCode "{{01E0AB21-D1CC-42B4-9DFF-84FFE4F26DAF}"
+#define HidHideProductCodePascal "{01E0AB21-D1CC-42B4-9DFF-84FFE4F26DAF}"
 
 [Setup]
 AppId={#AppId}
@@ -147,12 +152,12 @@ var
 
 function UsbipUninstallKey: String;
 begin
-  Result := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#UsbipProductKey}';
+  Result := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#UsbipProductKeyPascal}';
 end;
 
 function HidHideUninstallKey: String;
 begin
-  Result := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#HidHideProductCode}';
+  Result := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#HidHideProductCodePascal}';
 end;
 
 function HasCommandLineParameter(const Wanted: String): Boolean;

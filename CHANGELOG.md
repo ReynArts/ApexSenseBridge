@@ -14,6 +14,10 @@
 - Refuses to preserve or upgrade older USBip packages in place. Users with a
   0.9.7.x installation must uninstall it and restart first, avoiding the known
   nested-uninstaller hang while preventing continued use of vulnerable drivers.
+- Fixes the installer's post-prerequisite registry checks using section-escaped
+  product IDs inside Pascal Script. A successful USBip installation is no
+  longer misreported as failed or as unregistered driver remnants; existing
+  HidHide installations are detected through their correct product key too.
 - Temporarily hides Space Station's verified GeniTech gamepad bus and its
   DualSense/XInput proxies while a bridge session is active, preventing its
   obsolete or duplicate controllers from appearing beside ApexSenseBridge's
