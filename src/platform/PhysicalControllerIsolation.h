@@ -50,12 +50,17 @@ namespace detail {
     std::wstring_view displayName,
     std::wstring_view publisher) noexcept;
 
-// Requires the complete, vendor-specific PnP topology so a real Sony
-// controller or ApexSenseBridge's VIIPER device can never match by VID/PID
-// alone.
-[[nodiscard]] bool matchesFlydigiVirtualDualSenseTopology(
+// Requires the complete, vendor-specific PnP topology. Only gamepad HID
+// collections rooted in Space Station's verified GeniTech bus match, so its
+// DualSense and XInput proxies can be hidden without selecting physical or
+// VIIPER devices by VID/PID alone.
+[[nodiscard]] bool matchesFlydigiVirtualGamepadTopology(
     std::wstring_view hidInstanceId,
-    std::wstring_view usbInstanceId,
+    std::wstring_view parentInstanceId,
+    std::wstring_view rootInstanceId,
+    std::wstring_view rootService) noexcept;
+
+[[nodiscard]] bool matchesFlydigiVirtualGamepadRoot(
     std::wstring_view rootInstanceId,
     std::wstring_view rootService) noexcept;
 

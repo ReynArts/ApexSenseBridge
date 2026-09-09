@@ -55,8 +55,6 @@ constexpr wchar_t kSpaceStationService[] = L"SpaceStationService.exe";
 constexpr wchar_t kGenitechVirtualGamepadRoot[] =
     L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\";
 constexpr wchar_t kGenitechVirtualGamepadService[] = L"hidvirtualdriver";
-constexpr wchar_t kDualSenseHidPrefix[] = L"HID\\VID_054C&PID_0CE6";
-constexpr wchar_t kDualSenseUsbPrefix[] = L"USB\\VID_054C&PID_0CE6";
 
 constexpr DWORD kIoctlGetWhitelist =
     static_cast<DWORD>(CTL_CODE(32769, 2048, METHOD_BUFFERED, FILE_READ_DATA));
@@ -180,14 +178,6 @@ bool hasPrefixBoundary(std::wstring_view value,
     return std::iswspace(next) || next == L',' || next == L'.';
 }
 
-bool hasDeviceIdPrefix(std::wstring_view value,
-                       std::wstring_view prefix) noexcept {
-    if (!startsWithCaseInsensitive(value, prefix)) return false;
-    if (value.size() == prefix.size()) return true;
-    const auto next = value[prefix.size()];
-    return next == L'&' || next == L'\\';
-}
-
 bool containsCaseInsensitive(const std::vector<std::wstring>& values,
                              const std::wstring& wanted) {
     return std::any_of(values.begin(), values.end(), [&wanted](const auto& value) {
@@ -219,22 +209,38 @@ std::vector<std::wstring> fromMultiString(const wchar_t* data,
 }
 
 bool openHidHide(ScopedHandle& device, std::string& error) {
-    const HANDLE handle = CreateFileW(
-        kHidHideDevice, GENERIC_READ,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (handle == INVALID_HANDLE_VALUE) {
-        const auto code = GetLastError();
-        if (code == ERROR_FILE_NOT_FOUND || code == ERROR_PATH_NOT_FOUND) {
-            error = "HidHide is not installed or Windows has not been restarted "
-                    "since its installation.";
-        } else {
-            error = windowsError("Opening the HidHide control device", code);
+    constexpr int kAttempts = 5;
+    DWORD code = ERROR_SUCCESS;
+    for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+        const HANDLE handle = CreateFileW(
+            kHidHideDevice, GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (handle != INVALID_HANDLE_VALUE) {
+            device.reset(handle);
+            error.clear();
+            return true;
         }
-        return false;
+
+        code = GetLastError();
+        const bool transient = code == ERROR_ACCESS_DENIED ||
+                               code == ERROR_SHARING_VIOLATION ||
+                               code == ERROR_LOCK_VIOLATION;
+        if (!transient || attempt == kAttempts) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    device.reset(handle);
-    return true;
+
+    if (code == ERROR_FILE_NOT_FOUND || code == ERROR_PATH_NOT_FOUND) {
+        error = "HidHide is not installed or Windows has not been restarted "
+                "since its installation.";
+    } else if (code == ERROR_ACCESS_DENIED) {
+        error = "Opening the HidHide control device was denied after 5 attempts "
+                "(Windows error 5). Close the HidHide Configuration Client and "
+                "restart Windows; if this persists, repair HidHide 1.5.230.";
+    } else {
+        error = windowsError("Opening the HidHide control device", code);
+    }
+    return false;
 }
 
 bool getBoolean(HANDLE device, DWORD controlCode, bool& value,
@@ -743,19 +749,56 @@ std::wstring deviceNodeStringProperty(DEVINST node,
     return reinterpret_cast<const wchar_t*>(buffer.data());
 }
 
-bool flydigiVirtualDualSensePaths(std::vector<std::wstring>& paths,
-                                  std::string& error) {
+bool flydigiVirtualGamepadPaths(std::vector<std::wstring>& paths,
+                                std::string& error) {
+    // Register the verified bus root even before Space Station publishes a
+    // child proxy for the launched game. HidHide then covers late-created
+    // DualSense/XInput children instead of taking a one-time startup snapshot.
+    const ScopedDeviceInfoSet devices(SetupDiGetClassDevsW(
+        nullptr, nullptr, nullptr, DIGCF_ALLCLASSES | DIGCF_PRESENT));
+    if (devices.get() == INVALID_HANDLE_VALUE) {
+        error = windowsError(
+            "Enumerating Flydigi virtual gamepad roots", GetLastError());
+        return false;
+    }
+    for (DWORD index = 0;; ++index) {
+        SP_DEVINFO_DATA info{};
+        info.cbSize = sizeof(info);
+        if (!SetupDiEnumDeviceInfo(devices.get(), index, &info)) {
+            if (GetLastError() != ERROR_NO_MORE_ITEMS) {
+                error = windowsError(
+                    "Enumerating Flydigi virtual gamepad roots", GetLastError());
+                return false;
+            }
+            break;
+        }
+        const auto instance = deviceInstanceId(devices.get(), info);
+        if (!startsWithCaseInsensitive(
+                instance, kGenitechVirtualGamepadRoot)) {
+            continue;
+        }
+        const auto service = deviceNodeStringProperty(
+            info.DevInst, DEVPKEY_Device_Service);
+        if (!detail::matchesFlydigiVirtualGamepadRoot(instance, service)) {
+            error = "A GeniTech virtual gamepad root was found, but its driver "
+                    "service identity is unexpected; refusing temporary hiding.";
+            return false;
+        }
+        if (!containsCaseInsensitive(paths, instance)) {
+            paths.push_back(instance);
+        }
+    }
+
     std::string enumerationError;
     const auto hidDevices = enumerateHidDevices(enumerationError);
     if (!enumerationError.empty()) {
-        error = "Enumerating HID devices for the Flydigi DualSense proxy failed: " +
+        error = "Enumerating HID devices for Flydigi virtual gamepads failed: " +
                 enumerationError;
         return false;
     }
 
     for (const auto& hid : hidDevices) {
-        if (hid.vendorId != 0x054C || hid.productId != 0x0CE6 ||
-            hid.usagePage != 0x0001 || hid.usage != 0x0005 ||
+        if (hid.usagePage != 0x0001 || hid.usage != 0x0005 ||
             hid.instanceId.empty()) {
             continue;
         }
@@ -771,18 +814,20 @@ bool flydigiVirtualDualSensePaths(std::vector<std::wstring>& paths,
 
         DEVINST directParent = 0;
         if (CM_Get_Parent(&directParent, hidNode, 0) != CR_SUCCESS) continue;
-        const auto usbInstance = deviceNodeInstanceId(directParent);
-        if (usbInstance.empty()) continue;
+        const auto parentInstance = deviceNodeInstanceId(directParent);
+        if (parentInstance.empty()) continue;
 
         DEVINST ancestor = directParent;
         bool matched = false;
+        std::wstring matchedRoot;
         for (unsigned depth = 0; depth < 8; ++depth) {
             const auto rootInstance = deviceNodeInstanceId(ancestor);
             const auto rootService = deviceNodeStringProperty(
                 ancestor, DEVPKEY_Device_Service);
-            if (detail::matchesFlydigiVirtualDualSenseTopology(
-                    hid.instanceId, usbInstance, rootInstance, rootService)) {
+            if (detail::matchesFlydigiVirtualGamepadTopology(
+                    hid.instanceId, parentInstance, rootInstance, rootService)) {
                 matched = true;
+                matchedRoot = rootInstance;
                 break;
             }
 
@@ -791,7 +836,7 @@ bool flydigiVirtualDualSensePaths(std::vector<std::wstring>& paths,
             // guessing which virtual controller owns it.
             if (startsWithCaseInsensitive(
                     rootInstance, kGenitechVirtualGamepadRoot)) {
-                error = "A GeniTech virtual DualSense was found, but its driver "
+                error = "A GeniTech virtual gamepad was found, but its driver "
                         "service identity is unexpected; refusing temporary hiding.";
                 return false;
             }
@@ -805,8 +850,16 @@ bool flydigiVirtualDualSensePaths(std::vector<std::wstring>& paths,
         if (!containsCaseInsensitive(paths, hid.instanceId)) {
             paths.push_back(hid.instanceId);
         }
-        if (!containsCaseInsensitive(paths, usbInstance)) {
-            paths.push_back(usbInstance);
+        if (!containsCaseInsensitive(paths, parentInstance)) {
+            paths.push_back(parentInstance);
+        }
+        // The GeniTech root represents the virtual gamepad bus itself. Adding
+        // it covers XUSB/XInput children that do not publish a standard HID
+        // gamepad collection, while the verified root/service pair prevents
+        // unrelated physical or virtual buses from being selected.
+        if (!matchedRoot.empty() &&
+            !containsCaseInsensitive(paths, matchedRoot)) {
+            paths.push_back(matchedRoot);
         }
     }
     return true;
@@ -1184,7 +1237,7 @@ bool TemporaryPhysicalControllerIsolation::activate(
     std::vector<std::wstring> apexPaths;
     if (!apexGameDevicePaths(apexInterface, apexPaths, error)) return false;
     std::vector<std::wstring> flydigiProxyPaths;
-    if (!flydigiVirtualDualSensePaths(flydigiProxyPaths, error)) return false;
+    if (!flydigiVirtualGamepadPaths(flydigiProxyPaths, error)) return false;
     const auto executable = moduleFileName(error);
     if (executable.empty()) return false;
     const auto ntExecutable = imageNtPath(executable, error);
@@ -1210,9 +1263,9 @@ bool TemporaryPhysicalControllerIsolation::activate(
             temporaryBlacklist.push_back(path);
         }
     }
-    // Space Station's GeniTech bus can expose its own DualSense proxy. Hide
-    // only that fully verified proxy for this session so games see VIIPER's
-    // current-firmware DualSense without losing Space Station shortcuts.
+    // Space Station's GeniTech bus can expose DualSense and XInput proxies.
+    // Hide only gamepad collections under that fully verified bus so games see
+    // VIIPER's current-firmware DualSense without duplicate controller input.
     for (const auto& path : flydigiProxyPaths) {
         if (!containsCaseInsensitive(temporaryBlacklist, path)) {
             temporaryBlacklist.push_back(path);
@@ -1227,11 +1280,51 @@ bool TemporaryPhysicalControllerIsolation::activate(
         return false;
     }
 
-    if (!setList(device.get(), kIoctlSetWhitelist, temporaryWhitelist,
-                 "application list", error) ||
-        !setList(device.get(), kIoctlSetBlacklist, temporaryBlacklist,
-                 "device list", error) ||
-        !setBoolean(device.get(), kIoctlSetActive, true, "active state", error)) {
+    bool configured =
+        setList(device.get(), kIoctlSetWhitelist, temporaryWhitelist,
+                "application list", error) &&
+        setList(device.get(), kIoctlSetBlacklist, temporaryBlacklist,
+                "device list", error) &&
+        setBoolean(device.get(), kIoctlSetActive, true, "active state", error);
+
+    // Do not report Ready based only on successful IOCTL return values. Read
+    // the effective state back so a driver/service race cannot launch the game
+    // with the physical or Space Station proxy controllers still exposed.
+    bool effectiveActive = false;
+    bool effectiveInverse = false;
+    std::vector<std::wstring> effectiveWhitelist;
+    std::vector<std::wstring> effectiveBlacklist;
+    if (configured) {
+        configured =
+            getBoolean(device.get(), kIoctlGetActive, effectiveActive,
+                       "active state after activation", error) &&
+            getBoolean(device.get(), kIoctlGetInverse, effectiveInverse,
+                       "inverse state after activation", error) &&
+            getList(device.get(), kIoctlGetWhitelist, effectiveWhitelist,
+                    "application list after activation", error) &&
+            getList(device.get(), kIoctlGetBlacklist, effectiveBlacklist,
+                    "device list after activation", error);
+    }
+    if (configured) {
+        const bool whitelistComplete = std::all_of(
+            temporaryWhitelist.begin(), temporaryWhitelist.end(),
+            [&effectiveWhitelist](const auto& path) {
+                return containsCaseInsensitive(effectiveWhitelist, path);
+            });
+        const bool blacklistComplete = std::all_of(
+            temporaryBlacklist.begin(), temporaryBlacklist.end(),
+            [&effectiveBlacklist](const auto& path) {
+                return containsCaseInsensitive(effectiveBlacklist, path);
+            });
+        configured = effectiveActive && !effectiveInverse &&
+                     whitelistComplete && blacklistComplete;
+        if (!configured) {
+            error = "HidHide did not retain the complete temporary controller "
+                    "isolation configuration; refusing to report the bridge Ready.";
+        }
+    }
+
+    if (!configured) {
         const auto activationError = error;
         bool recovered = false;
         std::string recoveryError;
@@ -1348,14 +1441,20 @@ bool matchesFlydigiSpaceStationInstall(
            hasPrefixBoundary(publisher, kSpaceStationPublisher);
 }
 
-bool matchesFlydigiVirtualDualSenseTopology(
+bool matchesFlydigiVirtualGamepadTopology(
     std::wstring_view hidInstanceId,
-    std::wstring_view usbInstanceId,
+    std::wstring_view parentInstanceId,
     std::wstring_view rootInstanceId,
     std::wstring_view rootService) noexcept {
-    return hasDeviceIdPrefix(hidInstanceId, kDualSenseHidPrefix) &&
-           hasDeviceIdPrefix(usbInstanceId, kDualSenseUsbPrefix) &&
-           rootInstanceId.size() >
+    return startsWithCaseInsensitive(hidInstanceId, L"HID\\") &&
+           !parentInstanceId.empty() &&
+           matchesFlydigiVirtualGamepadRoot(rootInstanceId, rootService);
+}
+
+bool matchesFlydigiVirtualGamepadRoot(
+    std::wstring_view rootInstanceId,
+    std::wstring_view rootService) noexcept {
+    return rootInstanceId.size() >
                (sizeof(kGenitechVirtualGamepadRoot) / sizeof(wchar_t)) - 1 &&
            startsWithCaseInsensitive(
                rootInstanceId, kGenitechVirtualGamepadRoot) &&

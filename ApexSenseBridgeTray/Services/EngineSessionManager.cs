@@ -2,13 +2,15 @@ using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
+using System.Threading;
 
 namespace ApexSenseBridgeTray.Services
 {
     public class EngineSessionManager
     {
+        private const string EngineSessionMutexName =
+            @"Local\ApexSenseBridge.ActiveSession.Owner.v1";
         private readonly object syncLock = new object();
         private BridgeSession activeSession;
         private string activeGameTitle;
@@ -86,6 +88,13 @@ namespace ApexSenseBridgeTray.Services
 
             try
             {
+                if (IsExternalSessionActive())
+                {
+                    error = "Une session ApexSenseBridge gérée par Playnite ou une autre application est déjà active.";
+                    RaiseLogMessage(error + " Le Tray laisse cette session intacte.");
+                    return false;
+                }
+
                 var enginePath = InstallLocator.ResolveEngine();
                 if (string.IsNullOrWhiteSpace(enginePath))
                 {
@@ -96,8 +105,6 @@ namespace ApexSenseBridgeTray.Services
 
                 var args = BuildArguments(profileName, settings, apexProfileSlot);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
-
-                KillOrphanProcesses();
 
                 int timeoutSec = settings != null ? settings.InitializationTimeoutSeconds : 20;
                 var session = BridgeSession.TryStart(
@@ -111,7 +118,6 @@ namespace ApexSenseBridgeTray.Services
                 if (session == null)
                 {
                     RaiseSessionError(error ?? "Échec du démarrage du bridge.");
-                    KillOrphanProcesses();
                     return false;
                 }
 
@@ -158,50 +164,11 @@ namespace ApexSenseBridgeTray.Services
                 sessionToStop.Dispose();
             }
 
-            KillOrphanProcesses();
-
             var stopHandler = SessionStopped;
             if (stopHandler != null)
             {
                 stopHandler(reason);
             }
-        }
-
-        public static void KillOrphanProcesses()
-        {
-            try
-            {
-                int currentProcId = Process.GetCurrentProcess().Id;
-                Process[] runningEngines = Process.GetProcessesByName("ApexSenseBridge");
-                for (int i = 0; i < runningEngines.Length; i++)
-                {
-                    Process p = runningEngines[i];
-                    if (p.Id != currentProcId)
-                    {
-                        try
-                        {
-                            p.Kill();
-                            p.WaitForExit(1000);
-                        }
-                        catch { }
-                        finally { p.Dispose(); }
-                    }
-                }
-
-                Process[] runningViipers = Process.GetProcessesByName("viiper");
-                for (int i = 0; i < runningViipers.Length; i++)
-                {
-                    Process p = runningViipers[i];
-                    try
-                    {
-                        p.Kill();
-                        p.WaitForExit(1000);
-                    }
-                    catch { }
-                    finally { p.Dispose(); }
-                }
-            }
-            catch { }
         }
 
         private void RaiseSessionError(string err)
@@ -210,6 +177,40 @@ namespace ApexSenseBridgeTray.Services
             if (errHandler != null)
             {
                 errHandler(err);
+            }
+        }
+
+        private static bool IsExternalSessionActive()
+        {
+            try
+            {
+                using (var sessionMutex = Mutex.OpenExisting(EngineSessionMutexName))
+                {
+                    try
+                    {
+                        if (!sessionMutex.WaitOne(0)) return true;
+                        sessionMutex.ReleaseMutex();
+                        return false;
+                    }
+                    catch (AbandonedMutexException)
+                    {
+                        // The previous engine crashed. This thread now owns the
+                        // abandoned mutex; release it and let the engine's
+                        // recovery marker perform its normal cleanup.
+                        sessionMutex.ReleaseMutex();
+                        return false;
+                    }
+                }
+            }
+            catch (WaitHandleCannotBeOpenedException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Fail closed: launching a second engine is unsafe if ownership
+                // cannot be inspected.
+                return true;
             }
         }
 

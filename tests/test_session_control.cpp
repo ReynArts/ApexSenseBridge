@@ -87,9 +87,18 @@ int main() {
     // The maintenance stop waits for the bridge guard to be destroyed, which
     // models cleanup completing before the uninstaller's taskkill fallback.
     assert(requestGlobalSessionStop(std::chrono::milliseconds(0), error));
+    // A Tray ownership probe may keep the named mutex object alive briefly
+    // without owning it. Object existence alone must not reject the engine.
+    HANDLE unownedProbe = CreateMutexW(
+        nullptr, FALSE, L"Local\\ApexSenseBridge.ActiveSession.Owner.v1");
+    assert(unownedProbe);
     auto globalStop = createGlobalSessionStop(error);
     assert(globalStop);
+    CloseHandle(unownedProbe);
     assert(!globalStop->stopRequested());
+    auto duplicateGlobalStop = createGlobalSessionStop(error);
+    assert(!duplicateGlobalStop);
+    assert(error.find("already active") != std::string::npos);
     std::atomic<bool> maintenanceResult = false;
     std::thread maintenance([&]() {
         std::string maintenanceError;
@@ -108,5 +117,11 @@ int main() {
     globalStop.reset();
     maintenance.join();
     assert(maintenanceResult.load(std::memory_order_relaxed));
+
+    error.clear();
+    auto nextGlobalStop = createGlobalSessionStop(error);
+    assert(nextGlobalStop);
+    assert(error.empty());
+    nextGlobalStop.reset();
     return 0;
 }

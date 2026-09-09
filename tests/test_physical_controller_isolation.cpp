@@ -8,7 +8,8 @@
 
 int main() {
     using asb::platform::detail::matchesFlydigiSpaceStationInstall;
-    using asb::platform::detail::matchesFlydigiVirtualDualSenseTopology;
+    using asb::platform::detail::matchesFlydigiVirtualGamepadTopology;
+    using asb::platform::detail::matchesFlydigiVirtualGamepadRoot;
     using asb::platform::detail::matchesApexProfileRecoveryDevice;
 
     assert(matchesFlydigiSpaceStationInstall(
@@ -25,45 +26,66 @@ int main() {
     assert(!matchesFlydigiSpaceStationInstall(
         L"Another Controller Tool", L"Flydigi, Inc."));
 
-    assert(matchesFlydigiVirtualDualSenseTopology(
+    assert(matchesFlydigiVirtualGamepadTopology(
         L"HID\\VID_054C&PID_0CE6&REV_0100\\2&2AF0CFB&0&0000",
         L"USB\\VID_054C&PID_0CE6&REV_0100\\1&2CC2035A&0&01",
         L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000",
         L"hidvirtualdriver"));
-    assert(matchesFlydigiVirtualDualSenseTopology(
+    assert(matchesFlydigiVirtualGamepadTopology(
         L"hid\\vid_054c&pid_0ce6\\gamepad",
         L"usb\\vid_054c&pid_0ce6\\container",
         L"root\\genitech_virtual_gamepad_device\\0001",
         L"HIDVIRTUALDRIVER"));
 
-    // ApexSenseBridge/VIIPER, a physical Sony controller, and lookalike IDs
-    // must all remain visible.
-    assert(!matchesFlydigiVirtualDualSenseTopology(
+    // Space Station's verified Xbox/XInput proxy must be hidden as well as its
+    // DualSense proxy.
+    assert(matchesFlydigiVirtualGamepadTopology(
+        L"HID\\VID_045E&PID_028E&IG_00\\GAMEPAD",
+        L"USB\\VID_045E&PID_028E\\CONTAINER",
+        L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0002",
+        L"hidvirtualdriver"));
+    assert(matchesFlydigiVirtualGamepadRoot(
+        L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000",
+        L"hidvirtualdriver"));
+    assert(!matchesFlydigiVirtualGamepadRoot(
+        L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000",
+        L"hidvirtualdriver_evil"));
+    assert(!matchesFlydigiVirtualGamepadRoot(
+        L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE_EVIL\\0000",
+        L"hidvirtualdriver"));
+
+    // ApexSenseBridge/VIIPER, physical controllers, and lookalike root/service
+    // identities must all remain visible.
+    assert(!matchesFlydigiVirtualGamepadTopology(
         L"HID\\VID_054C&PID_0CE6&MI_03\\4&127B94DB&0&0000",
         L"USB\\VID_054C&PID_0CE6\\2&3B7C36A2&0&1",
         L"ROOT\\USBIP_VHCI\\0000", L"usbip_vhci"));
-    assert(!matchesFlydigiVirtualDualSenseTopology(
+    assert(!matchesFlydigiVirtualGamepadTopology(
         L"HID\\VID_054C&PID_0CE6\\REAL",
         L"USB\\VID_054C&PID_0CE6\\REAL",
         L"USB\\ROOT_HUB30\\4&1234&0&0", L"USBHUB3"));
-    assert(!matchesFlydigiVirtualDualSenseTopology(
+    assert(!matchesFlydigiVirtualGamepadTopology(
         L"HID\\VID_054C&PID_0CE6\\GAMEPAD",
         L"USB\\VID_054C&PID_0CE6\\CONTAINER",
         L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE_EVIL\\0000",
         L"hidvirtualdriver"));
-    assert(!matchesFlydigiVirtualDualSenseTopology(
+    assert(!matchesFlydigiVirtualGamepadTopology(
         L"HID\\VID_054C&PID_0CE6\\GAMEPAD",
         L"USB\\VID_054C&PID_0CE6\\CONTAINER",
         L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000",
         L"hidvirtualdriver_evil"));
-    assert(!matchesFlydigiVirtualDualSenseTopology(
+    assert(matchesFlydigiVirtualGamepadTopology(
         L"HID\\VID_054C&PID_0DF2\\GAMEPAD",
         L"USB\\VID_054C&PID_0DF2\\CONTAINER",
         L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000",
         L"hidvirtualdriver"));
-    assert(!matchesFlydigiVirtualDualSenseTopology(
-        L"HID\\VID_054C&PID_0CE60\\GAMEPAD",
-        L"USB\\VID_054C&PID_0CE60\\CONTAINER",
+    assert(!matchesFlydigiVirtualGamepadTopology(
+        L"USB\\VID_045E&PID_028E\\GAMEPAD",
+        L"USB\\VID_045E&PID_028E\\CONTAINER",
+        L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000",
+        L"hidvirtualdriver"));
+    assert(!matchesFlydigiVirtualGamepadTopology(
+        L"HID\\VID_045E&PID_028E\\GAMEPAD", L"",
         L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000",
         L"hidvirtualdriver"));
 

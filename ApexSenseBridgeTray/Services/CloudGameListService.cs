@@ -201,7 +201,13 @@ namespace ApexSenseBridgeTray.Services
 
         private static int GetMatchScore(string candidate, string gameName)
         {
-            const int minimumFragmentLength = 6;
+            // Short catalogue names such as "Control", "Stray" and "Haste"
+            // are ordinary fragments of process/product names (Controlify,
+            // controller services, haste helpers, etc.). They remain
+            // available through exact title, Steam AppID and executable
+            // matching, but are too weak to activate a system-wide bridge
+            // from fuzzy metadata alone.
+            const int minimumFragmentLength = 8;
 
             if (gameName.Length >= minimumFragmentLength && candidate.Contains(gameName))
             {

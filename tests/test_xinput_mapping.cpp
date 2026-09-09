@@ -109,5 +109,18 @@ int main() {
         assert(((mapped.buttons & dualsense::button::kCross) != 0) ==
                ((transition & 1U) != 0));
     }
+
+    // View/Back must remain a direct touchpad click even during rapid
+    // press/release sequences. Gesture profiles are applied later and the
+    // standard profile must not debounce or defer this path.
+    for (unsigned int transition = 0; transition < 10000; ++transition) {
+        platform::XInputSnapshot snapshot{};
+        snapshot.buttons = (transition & 1U) != 0
+            ? platform::xinputButton::kBack
+            : 0;
+        const auto mapped = platform::mapXInputState(snapshot);
+        assert(((mapped.buttons & dualsense::button::kTouchpadClick) != 0) ==
+               ((transition & 1U) != 0));
+    }
     return 0;
 }

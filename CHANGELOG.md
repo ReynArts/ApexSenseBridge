@@ -14,13 +14,24 @@
 - Refuses to preserve or upgrade older USBip packages in place. Users with a
   0.9.7.x installation must uninstall it and restart first, avoiding the known
   nested-uninstaller hang while preventing continued use of vulnerable drivers.
-- Temporarily hides only Space Station's verified GeniTech DualSense proxy
-  while a bridge session is active, preventing the obsolete A-0356 proxy from
-  appearing beside ApexSenseBridge's current A-0630 DualSense.
+- Temporarily hides Space Station's verified GeniTech gamepad bus and its
+  DualSense/XInput proxies while a bridge session is active, preventing its
+  obsolete or duplicate controllers from appearing beside ApexSenseBridge's
+  current A-0630 DualSense.
 - Preserves Space Station keyboard and mouse remapping by keeping its service
   whitelisted and leaving its distinct shortcut endpoints visible. The full
   pre-session HidHide configuration is restored when the session ends or is
   recovered after an unexpected exit.
+- Prevents Tray and Playnite sessions from terminating or replacing each
+  other's bridge/VIIPER processes. The engine now owns a machine-session mutex,
+  and the Tray stops only the child session it created.
+- Rejects weak fuzzy matches for short game names such as `Control`, preventing
+  utilities such as Controlify or controller-control panels from repeatedly
+  activating the bridge. Exact title, executable and Steam AppID matches remain
+  supported.
+- Retries transient HidHide control-device access failures and reads the final
+  active/device/application lists back before reporting `Ready`. Windows error
+  5 now includes an actionable restart/repair message instead of a raw failure.
 - Gives the standalone Playnite package a readable release filename:
   `ApexSenseBridge-Playnite-0.6.2.pext`.
 - Adds independent per-game controls for bridge activation, automatic touchpad

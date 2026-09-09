@@ -380,7 +380,6 @@ namespace ApexSenseBridgeTray
             if (monitorService != null) monitorService.Dispose();
             if (learningService != null) learningService.Dispose();
             if (sessionManager != null) sessionManager.StopSession("Tray exiting");
-            EngineSessionManager.KillOrphanProcesses();
 
             if (notifyIcon != null)
             {
@@ -400,7 +399,6 @@ namespace ApexSenseBridgeTray
             if (monitorService != null) monitorService.Dispose();
             if (learningService != null) learningService.Dispose();
             if (sessionManager != null) sessionManager.StopSession("Tray app closing");
-            EngineSessionManager.KillOrphanProcesses();
 
             if (notifyIcon != null) notifyIcon.Dispose();
             if (singleInstanceMutex != null) singleInstanceMutex.Dispose();

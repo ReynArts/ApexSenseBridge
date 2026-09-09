@@ -4,6 +4,7 @@
 #include "platform/SessionControl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -81,11 +82,17 @@ constexpr wchar_t kGlobalStopEventName[] =
     L"Local\\ApexSenseBridge.ActiveSession.Stop.v1";
 constexpr wchar_t kGlobalStoppedEventName[] =
     L"Local\\ApexSenseBridge.ActiveSession.Stopped.v1";
+constexpr wchar_t kGlobalOwnerMutexName[] =
+    L"Local\\ApexSenseBridge.ActiveSession.Owner.v1";
+std::atomic_bool gGlobalSessionOwnerClaimed{false};
 
 class WindowsGlobalSessionStop final : public GlobalSessionStop {
 public:
-    WindowsGlobalSessionStop(HANDLE stopEvent, HANDLE stoppedEvent) noexcept
-        : stopEvent_(stopEvent), stoppedEvent_(stoppedEvent) {}
+    WindowsGlobalSessionStop(HANDLE ownerMutex,
+                             HANDLE stopEvent,
+                             HANDLE stoppedEvent) noexcept
+        : ownerMutex_(ownerMutex), stopEvent_(stopEvent),
+          stoppedEvent_(stoppedEvent) {}
 
     ~WindowsGlobalSessionStop() override {
         // Signal only after all objects declared after this guard have run their
@@ -93,6 +100,11 @@ public:
         if (stoppedEvent_) SetEvent(stoppedEvent_);
         if (stoppedEvent_) CloseHandle(stoppedEvent_);
         if (stopEvent_) CloseHandle(stopEvent_);
+        if (ownerMutex_) {
+            ReleaseMutex(ownerMutex_);
+            CloseHandle(ownerMutex_);
+        }
+        gGlobalSessionOwnerClaimed.store(false, std::memory_order_release);
     }
 
     [[nodiscard]] bool stopRequested() const noexcept override {
@@ -100,6 +112,7 @@ public:
     }
 
 private:
+    HANDLE ownerMutex_ = nullptr;
     HANDLE stopEvent_ = nullptr;
     HANDLE stoppedEvent_ = nullptr;
 };
@@ -107,10 +120,49 @@ private:
 } // namespace
 
 std::unique_ptr<GlobalSessionStop> createGlobalSessionStop(std::string& error) {
+    error.clear();
+    bool expected = false;
+    if (!gGlobalSessionOwnerClaimed.compare_exchange_strong(
+            expected, true, std::memory_order_acq_rel)) {
+        error = "Another ApexSenseBridge session is already active. Close either "
+                "the Tray session or the Playnite-managed session before starting another.";
+        return {};
+    }
+
+    HANDLE ownerMutex = CreateMutexW(
+        nullptr, FALSE, kGlobalOwnerMutexName);
+    if (!ownerMutex) {
+        error = windowsError("CreateMutex(global session owner)", GetLastError());
+        gGlobalSessionOwnerClaimed.store(false, std::memory_order_release);
+        return {};
+    }
+
+    // Mutex existence alone does not mean that another engine owns it: the
+    // Tray briefly opens the object while probing session state. Acquire it
+    // atomically so that this probe cannot cause a spurious launch failure.
+    const DWORD ownerWait = WaitForSingleObject(ownerMutex, 0);
+    if (ownerWait == WAIT_TIMEOUT) {
+        CloseHandle(ownerMutex);
+        gGlobalSessionOwnerClaimed.store(false, std::memory_order_release);
+        error = "Another ApexSenseBridge session is already active. Close either "
+                "the Tray session or the Playnite-managed session before starting another.";
+        return {};
+    }
+    if (ownerWait != WAIT_OBJECT_0 && ownerWait != WAIT_ABANDONED) {
+        const auto waitError = GetLastError();
+        CloseHandle(ownerMutex);
+        gGlobalSessionOwnerClaimed.store(false, std::memory_order_release);
+        error = windowsError("WaitForSingleObject(global session owner)", waitError);
+        return {};
+    }
+
     HANDLE stopEvent = CreateEventW(
         nullptr, TRUE, FALSE, kGlobalStopEventName);
     if (!stopEvent) {
         error = windowsError("CreateEvent(global session stop)", GetLastError());
+        ReleaseMutex(ownerMutex);
+        CloseHandle(ownerMutex);
+        gGlobalSessionOwnerClaimed.store(false, std::memory_order_release);
         return {};
     }
     HANDLE stoppedEvent = CreateEventW(
@@ -118,15 +170,22 @@ std::unique_ptr<GlobalSessionStop> createGlobalSessionStop(std::string& error) {
     if (!stoppedEvent) {
         error = windowsError("CreateEvent(global session stopped)", GetLastError());
         CloseHandle(stopEvent);
+        ReleaseMutex(ownerMutex);
+        CloseHandle(ownerMutex);
+        gGlobalSessionOwnerClaimed.store(false, std::memory_order_release);
         return {};
     }
     if (!ResetEvent(stopEvent) || !ResetEvent(stoppedEvent)) {
         error = windowsError("ResetEvent(global session control)", GetLastError());
         CloseHandle(stoppedEvent);
         CloseHandle(stopEvent);
+        ReleaseMutex(ownerMutex);
+        CloseHandle(ownerMutex);
+        gGlobalSessionOwnerClaimed.store(false, std::memory_order_release);
         return {};
     }
-    return std::make_unique<WindowsGlobalSessionStop>(stopEvent, stoppedEvent);
+    return std::make_unique<WindowsGlobalSessionStop>(
+        ownerMutex, stopEvent, stoppedEvent);
 }
 
 bool requestGlobalSessionStop(

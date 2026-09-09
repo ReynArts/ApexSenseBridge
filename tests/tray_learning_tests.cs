@@ -27,6 +27,7 @@ internal static class TrayLearningTests
             TestCorruptAndOversizedCaches(testRoot);
             TestAmbiguousSteamAppIdFallsBackToNormalizedIdentity(testRoot);
             TestDatabaseExecutableResolutionAndCollisions();
+            TestShortGameNamesCannotFuzzyMatchUnrelatedProcesses();
             TestDatabaseExecutableMissPerformance();
             TestGeneratedDatabaseExecutableCoverage();
             TestActivationPolicyStillAppliesAfterLearning();
@@ -426,6 +427,32 @@ internal static class TrayLearningTests
             "A real game executable was rejected as a generic platform client.");
         Assert(!PlatformClientProcessFilter.IsExcluded("launcher.exe"),
             "A game-specific launcher name was rejected without evidence that it is a platform client.");
+    }
+
+    private static void TestShortGameNamesCannotFuzzyMatchUnrelatedProcesses()
+    {
+        const string json = "{\"games\":[" +
+            "{\"title\":\"Control\",\"normalized\":\"control\"," +
+            "\"adaptiveTriggers\":true,\"hapticFeedback\":false," +
+            "\"profile\":\"standard\",\"steamAppId\":0,\"steamAppIdVerified\":false}," +
+            "{\"title\":\"Alpha Game\",\"normalized\":\"alphagame\"," +
+            "\"adaptiveTriggers\":true,\"hapticFeedback\":true," +
+            "\"profile\":\"standard\",\"steamAppId\":123456,\"steamAppIdVerified\":true}]}";
+        var gameList = CreateGameList(json);
+
+        SupportedGame resolved;
+        Assert(gameList.TryFindExactGame("Control", out resolved) &&
+               resolved != null && resolved.Title == "Control",
+            "The real Control title no longer resolved exactly.");
+        Assert(!gameList.TryFindGame("Controlify", out resolved),
+            "Controlify incorrectly activated the game Control.");
+        Assert(!gameList.TryFindGame("Game Controller Support", out resolved),
+            "A generic controller process incorrectly activated the game Control.");
+        Assert(!gameList.TryFindGame("Flydigi Control Center", out resolved),
+            "A controller utility incorrectly activated the game Control.");
+        Assert(gameList.TryFindGame("Alpha Game Deluxe Edition", out resolved) &&
+               resolved != null && resolved.Title == "Alpha Game",
+            "A sufficiently specific catalogue title lost safe fuzzy matching.");
     }
 
     private static void TestPidTrackingFastPathPerformance()

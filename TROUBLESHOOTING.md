@@ -132,8 +132,19 @@ If a game is not responding, follow this quick diagnostic flow to determine whet
 - If Flydigi Space Station is installed, ApexSenseBridge keeps its installed
   `SpaceStationService.exe` mapping service authorized through HidHide. Rear-button
   keyboard/mouse shortcuts configured in Space Station therefore remain available
-  while the physical gamepad itself stays hidden from the game.
+  while the physical gamepad and Space Station's duplicate DualSense/XInput
+  gamepad proxies stay hidden from the game.
+- Run either the standalone Tray automation or the Playnite automation for a
+  game. ApexSenseBridge prevents two simultaneous engine sessions, but using a
+  single owner avoids duplicate notifications and ambiguous lifecycle events.
 - When the game exits, ApexSenseBridge automatically restores the previous HidHide state.
+
+### `Opening the HidHide control device` / Windows error 5
+
+ApexSenseBridge retries short-lived access conflicts automatically. If access is
+still denied, close the HidHide Configuration Client, restart Windows, and try
+again. If the same error returns immediately after the restart, repair or
+reinstall HidHide 1.5.230 before changing its device list manually.
 
 ### Restoring Controller Visibility After an Unexpected Crash
 If the PC lost power or a game crashed unexpectedly while the controller was hidden:

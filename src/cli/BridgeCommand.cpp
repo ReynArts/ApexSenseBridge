@@ -359,7 +359,7 @@ int commandBridgeTriggers(int argc, char** argv) {
 
     auto globalSessionStop = asb::platform::createGlobalSessionStop(error);
     if (!globalSessionStop) {
-        std::cerr << "Global maintenance stop initialization failed: " << error << '\n';
+        std::cerr << "Bridge session ownership failed: " << error << '\n';
         return 13;
     }
 
