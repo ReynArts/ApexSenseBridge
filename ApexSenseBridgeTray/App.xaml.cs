@@ -40,9 +40,7 @@ namespace ApexSenseBridgeTray
                 {
                     var ex = args.ExceptionObject as Exception;
                     var msg = ex != null ? ex.ToString() : (args.ExceptionObject != null ? args.ExceptionObject.ToString() : "Unknown error");
-                    File.AppendAllText(
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
-                        DateTime.Now.ToString("s") + " [UNHANDLED] " + msg + "\r\n\r\n");
+                    AppLog.WriteLine("tray_crash.log", "[UNHANDLED] " + msg);
                 }
                 catch { }
             };
@@ -51,9 +49,8 @@ namespace ApexSenseBridgeTray
             {
                 try
                 {
-                    File.AppendAllText(
-                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
-                        DateTime.Now.ToString("s") + " [DISPATCHER] " + args.Exception.ToString() + "\r\n\r\n");
+                    AppLog.WriteLine(
+                        "tray_crash.log", "[DISPATCHER] " + args.Exception.ToString());
                 }
                 catch { }
                 args.Handled = true;
@@ -82,6 +79,7 @@ namespace ApexSenseBridgeTray
                 learningService = new ExecutableLearningService();
                 monitorService = new ProcessMonitorService(
                     gameListService, sessionManager, learningService, settings);
+                gameListService.GamesUpdated += monitorService.ForceCheck;
                 updateChecker = new UpdateCheckerService();
 
                 mainWindow = new MainWindow(
@@ -178,9 +176,7 @@ namespace ApexSenseBridgeTray
                 {
                     try
                     {
-                        File.AppendAllText(
-                            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_bridge.log"),
-                            DateTime.Now.ToString("s") + " " + msg + "\r\n");
+                        AppLog.WriteLine("tray_bridge.log", msg);
                     }
                     catch { }
                 };
@@ -218,7 +214,7 @@ namespace ApexSenseBridgeTray
             {
                 try
                 {
-                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_startup_error.log"), ex.ToString());
+                    AppLog.WriteLine("tray_startup_error.log", ex.ToString());
                 }
                 catch { }
                 MessageBox.Show(LocalizationManager.Get("Loc_StartupError") + ex.Message, "ApexSenseBridge Tray", MessageBoxButton.OK, MessageBoxImage.Error);

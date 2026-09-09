@@ -98,6 +98,26 @@ ApexSenseBridge's automatic game detection hooks into games as soon as their exe
 Some games have known bugs with controller detection on PC.
 - *Example:* *007 First Light* has a documented upstream issue where controller input is not recognized on the title/start screen (see [IO Interactive 007 Known Issues](https://007firstlight-support.zendesk.com/hc/en-us/articles/36203682496413-007-First-Light-Known-Issues)).
 
+### Issue D: A game executable is not being learned
+
+Executable learning starts only after the Tray automatically identifies a
+supported game and the bridge remains healthy for 30 seconds. **Force continuous
+activation** cannot create a learned association by itself because that mode
+does not identify a specific game.
+
+Version 0.6.2 tracks concurrent child/render processes independently, does not
+restart the stability timer for repeated sightings of the same process, and can
+resolve most elevated game paths using limited process-query rights. Keep the
+game open beyond the validation window, then check **Learned executables** in
+the Tray dashboard. Detection diagnostics are stored in:
+
+```text
+%LocalAppData%\ApexSenseBridge\logs\tray_detection.log
+```
+
+The log and exported learned-executable list omit local absolute paths when
+shared through the dashboard export workflow.
+
 ---
 
 ## 3. Step-by-Step Hardware & Virtual Controller Validation (`joy.cpl`)
@@ -138,6 +158,34 @@ If a game is not responding, follow this quick diagnostic flow to determine whet
   game. ApexSenseBridge prevents two simultaneous engine sessions, but using a
   single owner avoids duplicate notifications and ambiguous lifecycle events.
 - When the game exits, ApexSenseBridge automatically restores the previous HidHide state.
+
+### Why M1–M4 do not appear as separate buttons in a game
+
+The virtual controller is a standard DualSense, whose input report has no four
+independent Flydigi rear-button fields. HidHide whitelisting lets Space Station
+continue reading the physical APEX, but it does not add new controls to the
+virtual DualSense descriptor.
+
+Assign M1–M4 in Flydigi Space Station to standard controller buttons or
+keyboard/mouse inputs. Those configured mappings remain usable in game while
+ApexSenseBridge is active. Leaving them as unassigned independent "extra
+buttons" will not make them appear in a game's binding menu.
+
+### Minecraft/Controlify shows duplicate or frozen controllers
+
+Version 0.6.2 isolates Space Station's verified GeniTech gamepad root together
+with its DualSense and XInput children, including proxies created after the
+bridge starts. It also prevents the Tray and Playnite extension from replacing
+each other's running engine session.
+
+1. Restart Windows after installing USBip 0.9.8.0.
+2. Use either the standalone Tray or Playnite as the automation owner, not both.
+3. Enable **Force continuous activation** before starting CurseForge or
+   ATLauncher, then wait for **Bridge active**.
+4. In `joy.cpl`, verify that **Wireless Controller** responds before Minecraft
+   starts. Controlify should receive only the ApexSenseBridge virtual DualSense.
+5. If input still freezes, preserve the ApexSenseBridge log and record the
+   controller list shown by Controlify before and after Minecraft loads.
 
 ### `Opening the HidHide control device` / Windows error 5
 

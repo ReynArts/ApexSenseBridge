@@ -72,12 +72,19 @@ namespace ApexSenseBridgeTray.Common
             GetWindowThreadProcessId(hwnd, out processId);
             if (processId == 0) return null;
 
+            return GetProcessPath(processId);
+        }
+
+        public static string GetProcessPath(uint processId)
+        {
+            if (processId == 0) return null;
+
             var hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
             if (hProcess == IntPtr.Zero) return null;
 
             try
             {
-                var sb = new StringBuilder(1024);
+                var sb = new StringBuilder(32768);
                 uint size = (uint)sb.Capacity;
                 if (QueryFullProcessImageName(hProcess, 0, sb, ref size))
                 {

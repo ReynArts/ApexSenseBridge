@@ -106,7 +106,7 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_SyncSuccessGamesPlural", "compatible games loaded" },
             { "Loc_SyncFailed", "Unable to download the latest list.\nPlease check your Internet connection." },
             { "Loc_LearnedWindowTitle", "Learned executables" },
-            { "Loc_LearnedWindowHint", "Validated after 30 seconds of a stable bridge session. Exports never include local paths." },
+            { "Loc_LearnedWindowHint", "Validated after the game process remains stable for 30 seconds, including passive identification during a forced manual bridge. Exports never include local paths." },
             { "Loc_LearnedGame", "Game" },
             { "Loc_LearnedExecutable", "Executable" },
             { "Loc_LearnedMethod", "Detection method" },
@@ -115,6 +115,8 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_LearnedEmpty", "No executable has been learned yet." },
             { "Loc_LearnedCountSingular", "{0} learned executable" },
             { "Loc_LearnedCountPlural", "{0} learned executables" },
+            { "Loc_LearningPendingSingular", "{0} validation in progress" },
+            { "Loc_LearningPendingPlural", "{0} validations in progress" },
             { "Loc_BtnSelectAll", "Select all" },
             { "Loc_BtnDeleteLearned", "Delete" },
             { "Loc_BtnExportLearned", "Export" },
@@ -154,6 +156,8 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_LearnedSubtitle", "Executables associated with compatible games on this PC" },
             { "Loc_LearnedSearchPlaceholder", "Search executable or game..." },
             { "Loc_LearnedEmptySubtitle", "When a game runs with a stable session, it will appear here for instant startup." },
+            { "Loc_LearnedEmptyPendingSingular", "A game was detected. Keep playing while its executable is validated." },
+            { "Loc_LearnedEmptyPendingPlural", "{0} game processes were detected. Keep playing while their executables are validated." },
             { "Loc_BtnDeleteSingle", "Delete" }
         };
 
@@ -244,7 +248,7 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_SyncSuccessGamesPlural", "jeux compatibles chargés" },
             { "Loc_SyncFailed", "Impossible de télécharger la dernière liste.\nVérifiez votre connexion Internet." },
             { "Loc_LearnedWindowTitle", "Exécutables appris" },
-            { "Loc_LearnedWindowHint", "Validés après 30 secondes de session stable. Les exports ne contiennent jamais les chemins locaux." },
+            { "Loc_LearnedWindowHint", "Validés lorsque le processus du jeu reste stable pendant 30 secondes, y compris passivement avec le pont manuel forcé. Les exports ne contiennent jamais les chemins locaux." },
             { "Loc_LearnedGame", "Jeu" },
             { "Loc_LearnedExecutable", "Exécutable" },
             { "Loc_LearnedMethod", "Méthode de détection" },
@@ -253,6 +257,8 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_LearnedEmpty", "Aucun exécutable n'a encore été appris." },
             { "Loc_LearnedCountSingular", "{0} exécutable appris" },
             { "Loc_LearnedCountPlural", "{0} exécutables appris" },
+            { "Loc_LearningPendingSingular", "{0} validation en cours" },
+            { "Loc_LearningPendingPlural", "{0} validations en cours" },
             { "Loc_BtnSelectAll", "Tout sélectionner" },
             { "Loc_BtnDeleteLearned", "Supprimer" },
             { "Loc_BtnExportLearned", "Exporter" },
@@ -291,6 +297,8 @@ namespace ApexSenseBridgeTray.Common
             { "Loc_LearnedSubtitle", "Exécutables associés aux jeux compatibles sur ce PC" },
             { "Loc_LearnedSearchPlaceholder", "Rechercher un exécutable ou un jeu..." },
             { "Loc_LearnedEmptySubtitle", "Lorsqu'un jeu tourne en session stable, son association apparaîtra ici." },
+            { "Loc_LearnedEmptyPendingSingular", "Un jeu a été détecté. Continue à jouer pendant la validation de son exécutable." },
+            { "Loc_LearnedEmptyPendingPlural", "{0} processus de jeu ont été détectés. Continue à jouer pendant la validation de leurs exécutables." },
             { "Loc_BtnDeleteSingle", "Supprimer" }
         };
 

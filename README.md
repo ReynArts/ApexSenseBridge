@@ -14,9 +14,16 @@
 
 - **🛡️ New USBip 0.9.8.0 Kernel Driver:** Upgraded from the vulnerable 0.9.7.7 to the official Microsoft-attestation-signed `OSSign 0.9.8.0 x64` build (upstream commit `83bd1f78`). Fixes the infamous send-spinlock freeze (`DPC_WATCHDOG_VIOLATION 0x133`) and memory corruption bug (`4139f44`).
 - **🎛️ Onboard APEX 5 Profiles (1–4) per Game:** Configure a specific onboard hardware profile (1 to 4) automatically per game in Playnite and the Standalone Tray App. The previous profile is cleanly restored upon exit.
-- **✨ Flydigi Space Station Macro Whitelisting:** Keyboard & mouse shortcuts configured in Flydigi Space Station stay 100% functional during gameplay while the physical gamepad remains safely isolated to prevent double input.
-- **🎮 Ghost DualSense Filter:** Automatically hides Space Station's legacy A-0356 proxy while ApexSenseBridge is running to prevent dual-controller conflicts with native games and Sony's *PlayStation Accessories* app.
+- **✨ Flydigi Space Station Macro Whitelisting:** Keyboard/mouse shortcuts and standard-button remaps configured in Flydigi Space Station remain available while the physical gamepad is isolated. Rear buttons M1–M4 must be assigned in Space Station; a standard virtual DualSense cannot expose them as four independent buttons.
+- **🎮 Space Station Proxy Isolation:** Temporarily hides the verified GeniTech gamepad bus and any existing or late-created DualSense/XInput proxies while ApexSenseBridge is active, preventing duplicate or frozen controllers in games such as Minecraft with Controlify.
+- **🔒 Safe Tray/Playnite Coexistence:** A session-ownership lock prevents the Tray and Playnite extension from terminating or replacing each other's bridge process. Run one automation owner per game for predictable notifications and lifecycle handling.
+- **🔎 Detection and Touchpad Fixes:** Short titles such as `Control` no longer match utilities such as Controlify, and the standard `View` → touchpad-click path remains immediate during rapid consecutive presses.
+- **📚 More Reliable Executable Learning:** Concurrent game processes are tracked independently, repeated sightings no longer restart the 30-second stability window, elevated executable paths use a restricted Windows query fallback, and validated bindings are flushed during Tray shutdown.
+- **🧰 Installer Verification Fix:** Corrects the registry-key escaping bug that could report a successful USBip installation as failed, then misclassify it as unregistered driver remnants on the next setup run.
 - **🏎️ Blazing Fast Initialization (0.28s):** Built-in in-process `libVIIPER v0.7.0-asb7` backend with sub-millisecond USB attachment and loopback-only communication.
+
+See the [complete 0.6.2 release notes](RELEASE_NOTES_0.6.2.md) for upgrade
+instructions, compatibility notes and validation details.
 
 ---
 
@@ -79,6 +86,11 @@ APEX Controller ──► ApexSenseBridge (C++20 Engine) ──► Virtual DualS
 
 > [!IMPORTANT]
 > **Upgrading from 0.9.7.x:** If you have an older USBip package installed, uninstall it in Windows Settings (*Installed Apps*), restart Windows, and then run setup. This avoids the known upstream installer hang on *"Uninstalling USBip..."*.
+>
+> Versions 0.6.0 and 0.6.1 could falsely report that USBip failed even when
+> `usbip-install.log` recorded success. This verification bug is fixed in
+> 0.6.2. Do not repeatedly run the older installer or remove driver packages
+> manually with `pnputil`.
 
 ### Option B: Portable Package
 1. Download **`ApexSenseBridge-Portable.zip`**.
@@ -94,13 +106,14 @@ APEX Controller ──► ApexSenseBridge (C++20 Engine) ──► Virtual DualS
 - Launch **`ApexSenseBridgeTray.exe`** (or enable *Launch at Windows startup*).
 - Sits silently in the System Tray.
 - **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 206+ supported games start.
-- **Dynamic Executable Learning:** Detects renamed, modded, or custom game exes after 30 seconds of active play while filtering out game launchers (Steam, Epic, EA, Ubisoft).
+- **Dynamic Executable Learning:** Detects renamed, modded, elevated or multi-process game executables after 30 seconds of a stable automatically detected session while filtering out game launchers (Steam, Epic, EA, Ubisoft). Force Continuous Activation alone cannot identify which game should own an executable.
 - **Dashboard & Per-Game Profiles:** Right-click the Tray icon to open the game list, force a specific profile, or assign a dedicated APEX 5 hardware slot (1–4) for each game.
 
 ### 2. Playnite Integration
 - Seamlessly integrated with Playnite Desktop and Fullscreen modes.
 - Game launches automatically initiate the bridge, isolate the physical pad, and apply profile mappings.
 - Right-click any game in Playnite > **ApexSenseBridge** to customize trigger remapping, touchpad gesture profiles, or onboard APEX 5 hardware slots.
+- Do not run the Tray and Playnite automation for the same game. Version 0.6.2 protects the active session from being killed, but selecting one owner avoids duplicate notifications and ambiguous start/stop events.
 
 ---
 
@@ -115,6 +128,11 @@ For games that use DualSense touchpad swipes for in-game mechanics, ApexSenseBri
 | **Ghost of Tsushima** | Hold `D-pad Right` + Flick Right Stick | Directional Wind Swipe in flick direction |
 | **Warframe** | Hold `RB` + Press `A/B/X/Y` | Ability Swipes (Up / Down / Left / Right) |
 | **Standard DualSense** | Press `View` | Touchpad Click (no directional swipe) |
+
+Rear buttons M1–M4 are not independent controls in a standard DualSense input
+report. Assign them to standard controller buttons or keyboard/mouse inputs in
+Flydigi Space Station; ApexSenseBridge keeps the verified mapping service
+authorized through HidHide during an active session.
 
 ---
 

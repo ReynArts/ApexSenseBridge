@@ -2,6 +2,9 @@
 
 ## 0.6.2
 
+Full upgrade instructions, issue references and validation notes are available
+in [`RELEASE_NOTES_0.6.2.md`](RELEASE_NOTES_0.6.2.md).
+
 - Adds native usbip-win2 0.9.8.0 attach-ABI support to both integrated VIIPER
   and its sidecar, while retaining the two older ABI fallbacks. The command
   fallback now also resolves the standard USBip installation directory instead
@@ -33,6 +36,11 @@
   utilities such as Controlify or controller-control panels from repeatedly
   activating the bridge. Exact title, executable and Steam AppID matches remain
   supported.
+- Improves game detection and executable learning with independent concurrent
+  process tracking, a stable 30-second observation window that is not restarted
+  by repeated sightings, limited-rights path resolution for most elevated game
+  processes, reliable persistence on shutdown, and detection diagnostics under
+  `%LocalAppData%\ApexSenseBridge\logs`.
 - Retries transient HidHide control-device access failures and reads the final
   active/device/application lists back before reporting `Ready`. Windows error
   5 now includes an actionable restart/repair message instead of a raw failure.

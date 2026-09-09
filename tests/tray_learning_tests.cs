@@ -1,3 +1,4 @@
+using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using ApexSenseBridgeTray.Services;
 using System;
@@ -24,6 +25,10 @@ internal static class TrayLearningTests
         {
             TestStableLearningResolutionExportAndDeletion(testRoot);
             TestCancelledAndUnstableSessionsAreNotLearned(testRoot);
+            TestConcurrentObservationsAreIndependent(testRoot);
+            TestRepeatedObservationDoesNotRestartStabilityWindow(testRoot);
+            TestImmediateShutdownFlushesValidatedBinding(testRoot);
+            TestLimitedInformationProcessPathLookup();
             TestCorruptAndOversizedCaches(testRoot);
             TestAmbiguousSteamAppIdFallsBackToNormalizedIdentity(testRoot);
             TestDatabaseExecutableResolutionAndCollisions();
@@ -76,6 +81,10 @@ internal static class TrayLearningTests
 
             Assert(service.TryResolve(executablePath, gameList, out resolved),
                 "The learned exact path did not resolve.");
+            Assert(service.TryResolve(
+                    @"C:\Users\PrivateName\Games\Alpha\..\Alpha\AlphaGame.exe",
+                    gameList, out resolved),
+                "A semantically identical path was not normalized for learned resolution.");
             Assert(resolved != null && resolved.SteamAppId == 123456,
                 "Steam AppID resolution did not select the expected game.");
 
@@ -135,7 +144,131 @@ internal static class TrayLearningTests
                 (pid, path) => pid == 999);
             Thread.Sleep(100);
             Assert(service.Count == 0, "A session with a changed PID was learned.");
+
+            service.BeginObservation(
+                52, @"D:\Games\Alpha\CancelledOne.exe", game, "exact title",
+                (pid, path) => true);
+            service.BeginObservation(
+                53, @"D:\Games\Alpha\CancelledTwo.exe", game, "exact title",
+                (pid, path) => true);
+            Assert(service.PendingCount == 2,
+                "The cancel-all setup did not retain both pending observations.");
+            service.CancelObservation(0);
+            Assert(service.PendingCount == 0,
+                "Cancelling all observations left a pending executable.");
+            Thread.Sleep(100);
+            Assert(service.Count == 0, "A cancel-all observation was learned.");
             Assert(!File.Exists(cachePath), "An unstable session wrote a cache file.");
+        }
+    }
+
+    private static void TestConcurrentObservationsAreIndependent(string root)
+    {
+        var gameList = CreateGameList();
+        var game = FindGame(gameList, "Alpha Game");
+        var cachePath = Path.Combine(root, "concurrent.json");
+
+        using (var service = new ExecutableLearningService(
+            cachePath, TimeSpan.FromMilliseconds(60)))
+        {
+            int stateChanges = 0;
+            int bindingChanges = 0;
+            service.StateChanged += () => Interlocked.Increment(ref stateChanges);
+            service.BindingsChanged += () => Interlocked.Increment(ref bindingChanges);
+
+            service.BeginObservation(
+                60, @"D:\Games\Alpha\AlphaMain.exe", game, "database executable",
+                (pid, path) => true);
+            service.BeginObservation(
+                61, @"D:\Games\Alpha\AlphaWorker.exe", game, "product name",
+                (pid, path) => true);
+            service.BeginObservation(
+                62, @"D:\Games\Alpha\AlphaRender.exe", game, "file description",
+                (pid, path) => true);
+
+            Assert(service.PendingCount == 3,
+                "Concurrent game processes did not retain independent learning observations.");
+
+            service.CancelObservation(61);
+            Assert(service.PendingCount == 2,
+                "Cancelling one process also cancelled another process observation.");
+
+            WaitUntil(() => service.Count == 2, TimeSpan.FromSeconds(2),
+                "Independent stable observations were not both learned.");
+            WaitUntil(() => Volatile.Read(ref stateChanges) >= 6,
+                TimeSpan.FromSeconds(2),
+                "Pending/validated state changes were not published to the UI.");
+            Assert(Volatile.Read(ref bindingChanges) == 2,
+                "Validated bindings did not each publish a binding change.");
+            var learned = service.GetBindings();
+            Assert(learned.Any(x => x.Executable == "AlphaMain.exe") &&
+                   learned.Any(x => x.Executable == "AlphaRender.exe"),
+                "The wrong concurrent executable observations were retained.");
+            Assert(!learned.Any(x => x.Executable == "AlphaWorker.exe"),
+                "A specifically cancelled executable observation was learned.");
+        }
+    }
+
+    private static void TestRepeatedObservationDoesNotRestartStabilityWindow(string root)
+    {
+        var gameList = CreateGameList();
+        var game = FindGame(gameList, "Alpha Game");
+        var cachePath = Path.Combine(root, "repeated.json");
+        var path = @"D:\Games\Alpha\AlphaRepeated.exe";
+
+        using (var service = new ExecutableLearningService(
+            cachePath, TimeSpan.FromMilliseconds(300)))
+        {
+            var started = Stopwatch.StartNew();
+            service.BeginObservation(70, path, game, "database executable", (pid, exe) => true);
+            Thread.Sleep(220);
+            service.BeginObservation(70, path, game, "database executable", (pid, exe) => true);
+
+            WaitUntil(() => service.Count == 1, TimeSpan.FromSeconds(2),
+                "A repeated sighting never reached the stable state.");
+            Assert(started.Elapsed < TimeSpan.FromMilliseconds(470),
+                "A repeated sighting restarted the executable stability window.");
+            Assert(service.PendingCount == 0,
+                "A validated executable remained in the pending observation set.");
+        }
+    }
+
+    private static void TestImmediateShutdownFlushesValidatedBinding(string root)
+    {
+        var gameList = CreateGameList();
+        var game = FindGame(gameList, "Alpha Game");
+        var cachePath = Path.Combine(root, "shutdown-flush.json");
+        var service = new ExecutableLearningService(cachePath, TimeSpan.Zero);
+
+        service.BeginObservation(
+            71, @"D:\Games\Alpha\ShutdownFlush.exe", game, "database executable",
+            (pid, path) => true);
+        WaitUntil(() => service.Count == 1, TimeSpan.FromSeconds(2),
+            "The shutdown-flush observation was not validated.");
+        service.Dispose();
+
+        Assert(File.Exists(cachePath),
+            "Disposing immediately after validation lost the learned cache.");
+        using (var reloaded = new ExecutableLearningService(cachePath, TimeSpan.Zero))
+        {
+            reloaded.InitializeAsync();
+            WaitUntil(() => reloaded.Count == 1, TimeSpan.FromSeconds(2),
+                "The synchronously flushed learned binding could not be reloaded.");
+        }
+    }
+
+    private static void TestLimitedInformationProcessPathLookup()
+    {
+        using (var process = Process.GetCurrentProcess())
+        {
+            var path = NativeMethods.GetProcessPath((uint)process.Id);
+            Assert(!string.IsNullOrWhiteSpace(path) && Path.IsPathRooted(path),
+                "PROCESS_QUERY_LIMITED_INFORMATION did not return an absolute executable path.");
+            Assert(string.Equals(
+                    Path.GetFileName(path),
+                    "ApexSenseBridgeTray.LearningTests.exe",
+                    StringComparison.OrdinalIgnoreCase),
+                "The limited-information process lookup returned the wrong executable.");
         }
     }
 

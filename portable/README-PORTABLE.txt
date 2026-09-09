@@ -24,5 +24,12 @@ The portable build is intended for the standalone tray application. Use the
 regular ApexSenseBridge-Setup.exe when you want automatic Playnite integration,
 Start-menu shortcuts, startup registration, or normal Windows uninstallation.
 
+When Flydigi Space Station is installed, ApexSenseBridge keeps its verified
+mapping service authorized while hiding its duplicate virtual gamepad proxies.
+M1-M4 must be assigned in Space Station to standard controller buttons or
+keyboard/mouse inputs; they are not independent buttons on a standard virtual
+DualSense. Do not use the portable Tray automation and Playnite automation for
+the same game session.
+
 To remove the prerequisites later, uninstall USBip and HidHide from Windows
 Settings > Apps > Installed apps.

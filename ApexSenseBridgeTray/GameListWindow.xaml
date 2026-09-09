@@ -777,7 +777,7 @@
                                 </Border>
                                 <TextBlock Text="{DynamicResource Loc_LearnedEmpty}" FontSize="14" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                <TextBlock Text="{DynamicResource Loc_LearnedEmptySubtitle}"
+                                <TextBlock x:Name="TxtLearnedEmptySubtitle" Text="{DynamicResource Loc_LearnedEmptySubtitle}"
                                            FontSize="12" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
                                            TextAlignment="Center" MaxWidth="360" HorizontalAlignment="Center"/>
                             </StackPanel>

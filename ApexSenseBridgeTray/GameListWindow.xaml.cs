@@ -21,7 +21,7 @@ namespace ApexSenseBridgeTray
         private readonly CloudGameListService gameListService;
         private readonly TraySettings settings;
         private readonly ExecutableLearningService learningService;
-        private readonly Action bindingsChangedHandler;
+        private readonly Action learningStateChangedHandler;
 
         private readonly List<GameItemViewModel> allGameViewModels = new List<GameItemViewModel>();
         private readonly List<LearnedItemViewModel> allLearnedViewModels = new List<LearnedItemViewModel>();
@@ -38,10 +38,10 @@ namespace ApexSenseBridgeTray
 
             InitializeComponent();
 
-            bindingsChangedHandler = () => Dispatcher.BeginInvoke(new Action(LoadLearnedItems));
+            learningStateChangedHandler = () => Dispatcher.BeginInvoke(new Action(LoadLearnedItems));
             if (learningService != null)
             {
-                learningService.BindingsChanged += bindingsChangedHandler;
+                learningService.StateChanged += learningStateChangedHandler;
             }
 
             LoadGames();
@@ -79,7 +79,7 @@ namespace ApexSenseBridgeTray
         {
             if (learningService != null)
             {
-                learningService.BindingsChanged -= bindingsChangedHandler;
+                learningService.StateChanged -= learningStateChangedHandler;
             }
             base.OnClosed(e);
         }
@@ -297,9 +297,25 @@ namespace ApexSenseBridgeTray
             PnlLearnedEmpty.Visibility = allLearnedViewModels.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             int count = filtered.Count;
-            TxtLearnedStats.Text = LocalizationManager.Format(
+            var countText = LocalizationManager.Format(
                 count > 1 ? "Loc_LearnedCountPlural" : "Loc_LearnedCountSingular",
                 count);
+            int pending = learningService != null ? learningService.PendingCount : 0;
+            if (pending > 0)
+            {
+                var pendingText = LocalizationManager.Format(
+                    pending > 1 ? "Loc_LearningPendingPlural" : "Loc_LearningPendingSingular",
+                    pending);
+                TxtLearnedStats.Text = string.Format("{0} • {1}", countText, pendingText);
+                TxtLearnedEmptySubtitle.Text = LocalizationManager.Format(
+                    pending > 1 ? "Loc_LearnedEmptyPendingPlural" : "Loc_LearnedEmptyPendingSingular",
+                    pending);
+            }
+            else
+            {
+                TxtLearnedStats.Text = countText;
+                TxtLearnedEmptySubtitle.Text = LocalizationManager.Get("Loc_LearnedEmptySubtitle");
+            }
 
             UpdateLearnedButtons();
         }

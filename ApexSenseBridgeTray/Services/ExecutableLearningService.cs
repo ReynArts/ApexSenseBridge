@@ -1,3 +1,4 @@
+using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
 using System.Collections;
@@ -17,6 +18,7 @@ namespace ApexSenseBridgeTray.Services
         private const int MaximumBindings = 2048;
 
         private readonly string storagePath;
+        private readonly string logDirectory;
         private readonly TimeSpan stabilityDelay;
         private readonly object mutationLock = new object();
         private readonly object pendingLock = new object();
@@ -24,12 +26,14 @@ namespace ApexSenseBridgeTray.Services
 
         private Dictionary<string, LearnedExecutableBinding> snapshot =
             new Dictionary<string, LearnedExecutableBinding>(StringComparer.OrdinalIgnoreCase);
-        private PendingObservation pendingObservation;
-        private Timer validationTimer;
+        private readonly Dictionary<uint, PendingObservation> pendingObservations =
+            new Dictionary<uint, PendingObservation>();
         private int initializationStarted;
+        private int persistenceDirty;
         private volatile bool isDisposed;
 
         public event Action BindingsChanged;
+        public event Action StateChanged;
 
         public ExecutableLearningService()
             : this(DefaultStoragePath, TimeSpan.FromSeconds(30))
@@ -48,6 +52,8 @@ namespace ApexSenseBridgeTray.Services
             }
 
             this.storagePath = storagePath;
+            var storageDirectory = Path.GetDirectoryName(Path.GetFullPath(storagePath));
+            logDirectory = Path.Combine(storageDirectory ?? string.Empty, "logs");
             this.stabilityDelay = stabilityDelay;
         }
 
@@ -64,6 +70,17 @@ namespace ApexSenseBridgeTray.Services
         public int Count
         {
             get { return Volatile.Read(ref snapshot).Count; }
+        }
+
+        public int PendingCount
+        {
+            get
+            {
+                lock (pendingLock)
+                {
+                    return pendingObservations.Count;
+                }
+            }
         }
 
         public void InitializeAsync()
@@ -91,9 +108,12 @@ namespace ApexSenseBridgeTray.Services
             game = null;
             if (string.IsNullOrWhiteSpace(executablePath) || gameListService == null) return false;
 
+            var normalizedPath = NormalizeStoredPath(executablePath);
+            if (string.IsNullOrWhiteSpace(normalizedPath)) return false;
+
             LearnedExecutableBinding binding;
             var current = Volatile.Read(ref snapshot);
-            if (!current.TryGetValue(executablePath, out binding) || binding == null) return false;
+            if (!current.TryGetValue(normalizedPath, out binding) || binding == null) return false;
 
             if (binding.SteamAppId > 0 &&
                 gameListService.TryFindBySteamAppId(binding.SteamAppId, out game))
@@ -123,10 +143,25 @@ namespace ApexSenseBridgeTray.Services
             Func<uint, string, bool> isStillActive)
         {
             if (isDisposed || processId == 0 || game == null || isStillActive == null) return;
-            if (string.IsNullOrWhiteSpace(executablePath) || !Path.IsPathRooted(executablePath)) return;
+            if (string.IsNullOrWhiteSpace(executablePath) || !Path.IsPathRooted(executablePath))
+            {
+                Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "learning skipped: PID {0} has no absolute executable path ('{1}')",
+                    processId,
+                    executablePath ?? string.Empty));
+                return;
+            }
 
             var normalizedPath = NormalizeStoredPath(executablePath);
-            if (string.IsNullOrWhiteSpace(normalizedPath)) return;
+            if (string.IsNullOrWhiteSpace(normalizedPath))
+            {
+                Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "learning skipped: PID {0} executable path could not be normalized",
+                    processId));
+                return;
+            }
 
             var observation = new PendingObservation
             {
@@ -141,15 +176,34 @@ namespace ApexSenseBridgeTray.Services
 
             lock (pendingLock)
             {
-                CancelPendingNoLock();
                 if (isDisposed) return;
 
-                pendingObservation = observation;
-                validationTimer = new Timer(
+                PendingObservation existing;
+                if (pendingObservations.TryGetValue(processId, out existing))
+                {
+                    if (!existing.ValidationStarted &&
+                        string.Equals(existing.ExecutablePath, normalizedPath,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(existing.GameNormalized, observation.GameNormalized,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Repeated WMI/poll/foreground sightings must not restart the
+                        // stability window indefinitely.
+                        existing.IsStillActive = isStillActive;
+                        return;
+                    }
+
+                    CancelPendingNoLock(existing);
+                    pendingObservations.Remove(processId);
+                }
+
+                observation.ValidationTimer = new Timer(
                     ValidatePendingObservation,
                     observation,
-                    stabilityDelay,
+                    Timeout.InfiniteTimeSpan,
                     Timeout.InfiniteTimeSpan);
+                pendingObservations[processId] = observation;
+                observation.ValidationTimer.Change(stabilityDelay, Timeout.InfiniteTimeSpan);
             }
 
             Log(string.Format(
@@ -159,18 +213,43 @@ namespace ApexSenseBridgeTray.Services
                 observation.GameTitle,
                 observation.ExecutablePath,
                 observation.DetectionMethod));
+            RaiseStateChanged();
         }
 
-        public void CancelObservation(uint processId)
+        public void CancelObservation(uint processId, string reason = null)
         {
+            bool changed = false;
+            int cancelledCount = 0;
             lock (pendingLock)
             {
-                if (pendingObservation == null ||
-                    (processId != 0 && pendingObservation.ProcessId != processId))
+                if (processId == 0)
                 {
-                    return;
+                    cancelledCount = pendingObservations.Count;
+                    changed = cancelledCount > 0;
+                    CancelAllPendingNoLock();
                 }
-                CancelPendingNoLock();
+                else
+                {
+                    PendingObservation observation;
+                    if (pendingObservations.TryGetValue(processId, out observation))
+                    {
+                        pendingObservations.Remove(processId);
+                        CancelPendingNoLock(observation);
+                        cancelledCount = 1;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed)
+            {
+                Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "learning cancelled: {0} pending observation(s), PID {1}, reason '{2}'",
+                    cancelledCount,
+                    processId == 0 ? "all" : processId.ToString(CultureInfo.InvariantCulture),
+                    string.IsNullOrWhiteSpace(reason) ? "not specified" : reason));
+                RaiseStateChanged();
             }
         }
 
@@ -183,17 +262,26 @@ namespace ApexSenseBridgeTray.Services
                 StringComparer.OrdinalIgnoreCase);
             if (requested.Count == 0) return 0;
 
+            bool pendingChanged = false;
             lock (pendingLock)
             {
-                if (pendingObservation != null && requested.Contains(pendingObservation.ExecutablePath))
+                var cancelledProcessIds = pendingObservations
+                    .Where(x => requested.Contains(x.Value.ExecutablePath))
+                    .Select(x => x.Key)
+                    .ToArray();
+                foreach (var processId in cancelledProcessIds)
                 {
-                    CancelPendingNoLock();
+                    var observation = pendingObservations[processId];
+                    pendingObservations.Remove(processId);
+                    CancelPendingNoLock(observation);
+                    pendingChanged = true;
                 }
             }
 
             int deleted = 0;
             lock (mutationLock)
             {
+                if (isDisposed) return 0;
                 var current = Volatile.Read(ref snapshot);
                 var replacement = new Dictionary<string, LearnedExecutableBinding>(
                     current, StringComparer.OrdinalIgnoreCase);
@@ -213,6 +301,10 @@ namespace ApexSenseBridgeTray.Services
             {
                 SchedulePersistence();
                 RaiseBindingsChanged();
+            }
+            else if (pendingChanged)
+            {
+                RaiseStateChanged();
             }
             return deleted;
         }
@@ -268,12 +360,18 @@ namespace ApexSenseBridgeTray.Services
 
             lock (pendingLock)
             {
-                if (!ReferenceEquals(pendingObservation, observation)) return;
-                pendingObservation = null;
-                if (validationTimer != null)
+                PendingObservation current;
+                if (!pendingObservations.TryGetValue(observation.ProcessId, out current) ||
+                    !ReferenceEquals(current, observation) || observation.IsCancelled)
                 {
-                    validationTimer.Dispose();
-                    validationTimer = null;
+                    return;
+                }
+
+                observation.ValidationStarted = true;
+                if (observation.ValidationTimer != null)
+                {
+                    observation.ValidationTimer.Dispose();
+                    observation.ValidationTimer = null;
                 }
             }
 
@@ -288,8 +386,29 @@ namespace ApexSenseBridgeTray.Services
                 Log("learning validation failed: " + ex.Message);
             }
 
-            if (!stable) return;
-            if (isDisposed) return;
+            lock (pendingLock)
+            {
+                PendingObservation current;
+                if (!pendingObservations.TryGetValue(observation.ProcessId, out current) ||
+                    !ReferenceEquals(current, observation) || observation.IsCancelled)
+                {
+                    return;
+                }
+
+                pendingObservations.Remove(observation.ProcessId);
+            }
+
+            if (!stable || isDisposed)
+            {
+                Log(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "learning rejected: PID {0}, executable '{1}' was no longer the same running process after {2:F1} seconds",
+                    observation.ProcessId,
+                    observation.ExecutablePath,
+                    stabilityDelay.TotalSeconds));
+                RaiseStateChanged();
+                return;
+            }
 
             UpsertValidatedBinding(observation);
         }
@@ -301,6 +420,7 @@ namespace ApexSenseBridgeTray.Services
 
             lock (mutationLock)
             {
+                if (isDisposed) return;
                 var current = Volatile.Read(ref snapshot);
                 var replacement = new Dictionary<string, LearnedExecutableBinding>(
                     current, StringComparer.OrdinalIgnoreCase);
@@ -440,6 +560,7 @@ namespace ApexSenseBridgeTray.Services
 
         private void SchedulePersistence()
         {
+            Interlocked.Increment(ref persistenceDirty);
             ThreadPool.QueueUserWorkItem(_ => PersistCurrentSnapshot());
         }
 
@@ -447,6 +568,7 @@ namespace ApexSenseBridgeTray.Services
         {
             lock (persistenceLock)
             {
+                var dirtyGeneration = Volatile.Read(ref persistenceDirty);
                 var tempPath = storagePath + ".tmp";
                 try
                 {
@@ -467,6 +589,7 @@ namespace ApexSenseBridgeTray.Services
                     {
                         File.Move(tempPath, storagePath);
                     }
+                    Interlocked.CompareExchange(ref persistenceDirty, 0, dirtyGeneration);
                 }
                 catch (Exception ex)
                 {
@@ -627,43 +750,51 @@ namespace ApexSenseBridgeTray.Services
             foreach (var path in oldest) bindings.Remove(path);
         }
 
-        private void CancelPendingNoLock()
+        private static void CancelPendingNoLock(PendingObservation observation)
         {
-            pendingObservation = null;
-            if (validationTimer != null)
+            if (observation == null) return;
+            observation.IsCancelled = true;
+            if (observation.ValidationTimer != null)
             {
-                validationTimer.Dispose();
-                validationTimer = null;
+                observation.ValidationTimer.Dispose();
+                observation.ValidationTimer = null;
             }
+        }
+
+        private void CancelAllPendingNoLock()
+        {
+            foreach (var observation in pendingObservations.Values)
+            {
+                CancelPendingNoLock(observation);
+            }
+            pendingObservations.Clear();
         }
 
         private void RaiseBindingsChanged()
         {
             var handler = BindingsChanged;
+            if (handler != null)
+            {
+                try { handler(); } catch { }
+            }
+            RaiseStateChanged();
+        }
+
+        private void RaiseStateChanged()
+        {
+            var handler = StateChanged;
             if (handler == null) return;
             try { handler(); } catch { }
         }
 
-        private static void Log(string message)
+        private void Log(string message)
         {
             ThreadPool.QueueUserWorkItem(_ => WriteLog(message));
         }
 
-        private static void WriteLog(string message)
+        private void WriteLog(string message)
         {
-            try
-            {
-                var directory = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "ApexSenseBridge", "logs");
-                if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
-                File.AppendAllText(
-                    Path.Combine(directory, "tray_detection.log"),
-                    DateTime.Now.ToString("s", CultureInfo.InvariantCulture) + " " + message + "\r\n");
-            }
-            catch
-            {
-            }
+            AppLog.WriteLine(logDirectory, "tray_detection.log", message);
         }
 
         public void Dispose()
@@ -672,7 +803,20 @@ namespace ApexSenseBridgeTray.Services
             {
                 if (isDisposed) return;
                 isDisposed = true;
-                CancelPendingNoLock();
+                CancelAllPendingNoLock();
+            }
+
+            // Synchronize with a validation that may have passed its final
+            // cancellation check immediately before disposal.
+            lock (mutationLock)
+            {
+            }
+
+            // A validated association must survive an immediate tray shutdown;
+            // queued ThreadPool persistence is only an optimization.
+            if (Volatile.Read(ref persistenceDirty) != 0)
+            {
+                PersistCurrentSnapshot();
             }
         }
 
@@ -685,6 +829,9 @@ namespace ApexSenseBridgeTray.Services
             public int SteamAppId;
             public string DetectionMethod;
             public Func<uint, string, bool> IsStillActive;
+            public Timer ValidationTimer;
+            public bool ValidationStarted;
+            public bool IsCancelled;
         }
 
         private sealed class ExportKey : IEquatable<ExportKey>

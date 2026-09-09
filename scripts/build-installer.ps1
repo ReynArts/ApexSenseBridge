@@ -43,6 +43,11 @@ if ($signingRequested -and $signingIdentityCount -ne 1) {
     Fail "configure exactly one ASB signing identity before requesting signing"
 }
 
+# Windows keeps a running executable locked. Stop the standalone Tray before
+# replacing its public dist copy during a release build.
+Stop-Process -Name "ApexSenseBridgeTray" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 200
+
 # A release build owns these outputs. Remove them up front so an older PEXT or
 # staging directory cannot accidentally be published beside the current build.
 $projectFull = [System.IO.Path]::GetFullPath($projectRoot).TrimEnd('\')
@@ -56,7 +61,11 @@ foreach ($name in @(
     "ApexSenseBridge-Portable.zip",
     "ApexSenseBridgeTray.exe",
     "ApexSenseBridgeTray.exe.config",
-    "SHA256SUMS.txt"
+    "SHA256SUMS.txt",
+    "tray_bridge.log",
+    "tray_crash.log",
+    "tray_detection.log",
+    "tray_startup_error.log"
 )) {
     $ownedOutput = Join-Path $distFull $name
     if (Test-Path -LiteralPath $ownedOutput) {

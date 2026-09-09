@@ -37,6 +37,12 @@
     <Compile Include="..\ApexSenseBridgeTray\Models\TraySettings.cs">
       <Link>Production\TraySettings.cs</Link>
     </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\AppLog.cs">
+      <Link>Production\AppLog.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\NativeMethods.cs">
+      <Link>Production\NativeMethods.cs</Link>
+    </Compile>
     <Compile Include="..\ApexSenseBridgeTray\Services\CloudGameListService.cs">
       <Link>Production\CloudGameListService.cs</Link>
     </Compile>

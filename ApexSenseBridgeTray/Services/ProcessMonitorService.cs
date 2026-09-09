@@ -105,10 +105,11 @@ namespace ApexSenseBridgeTray.Services
                 if (IsSystemOrIgnoredProcess(processName)) return;
 
                 if (settings == null || !settings.AutoDetectGames) return;
-                if (settings.ForcedProfile != null && settings.ForcedProfile != "none") return;
+                bool passiveLearning = IsManualBridgeMode();
 
                 CheckCandidateProcess(
-                    pid, processName, null, detectionStartedAt, processEventUtc, "WMI");
+                    pid, processName, null, detectionStartedAt, processEventUtc, "WMI",
+                    passiveLearning);
             }
             catch (Exception ex)
             {
@@ -128,6 +129,10 @@ namespace ApexSenseBridgeTray.Services
                 uint pid = Convert.ToUInt32(pidObj);
                 if (pid != 0)
                 {
+                    if (learningService != null)
+                    {
+                        learningService.CancelObservation(pid, "process stopped (WMI)");
+                    }
                     HandleProcessStopped(pid, "Process stopped (WMI)");
                 }
             }
@@ -139,6 +144,11 @@ namespace ApexSenseBridgeTray.Services
 
         public void ForceCheck()
         {
+            lock (evaluatedProcesses)
+            {
+                evaluatedProcesses.Clear();
+            }
+            nextProcessSweepUtc = DateTime.MinValue;
             ThreadPool.QueueUserWorkItem(_ => OnPollTick(null));
         }
 
@@ -155,26 +165,34 @@ namespace ApexSenseBridgeTray.Services
             {
                 PruneExitedTrackedProcesses();
 
-                if (settings == null || !settings.AutoDetectGames ||
-                    (settings.ForcedProfile != null && settings.ForcedProfile != "none"))
+                if (settings == null || !settings.AutoDetectGames)
                 {
                     ResetTrackedSessionOnly();
+                    ResetPendingLearning();
                     return;
                 }
 
-                if (HasTrackedSession() && !sessionManager.IsSessionActive)
+                bool passiveLearning = IsManualBridgeMode();
+                if (passiveLearning)
+                {
+                    // A forced bridge already owns the engine session. Continue
+                    // identifying games, but never attempt to start/stop it.
+                    ResetTrackedSessionOnly();
+                }
+
+                if (!passiveLearning && HasTrackedSession() && !sessionManager.IsSessionActive)
                 {
                     ResetTrackedSessionOnly();
                 }
 
-                if ((!HasTrackedSession() || IsAwaitingReplacement()) &&
+                if ((passiveLearning || !HasTrackedSession() || IsAwaitingReplacement()) &&
                     DateTime.UtcNow >= nextProcessSweepUtc)
                 {
                     nextProcessSweepUtc = DateTime.UtcNow.AddMilliseconds(250);
-                    ScanRunningProcesses();
+                    ScanRunningProcesses(passiveLearning);
                 }
 
-                if (TryStopExpiredSession())
+                if (!passiveLearning && TryStopExpiredSession())
                 {
                     return;
                 }
@@ -193,7 +211,8 @@ namespace ApexSenseBridgeTray.Services
                 var fileName = Path.GetFileName(exePath);
                 if (IsSystemOrIgnoredProcess(fileName)) return;
 
-                CheckCandidateProcess(pid, fileName, exePath);
+                CheckCandidateProcess(
+                    pid, fileName, exePath, 0, null, "foreground", passiveLearning);
             }
             catch (Exception ex)
             {
@@ -205,7 +224,7 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
-        private bool ScanRunningProcesses()
+        private bool ScanRunningProcesses(bool passiveLearning = false)
         {
             var processIds = NativeMethods.GetProcessIds();
             if (processIds.Length == 0) return false;
@@ -250,11 +269,13 @@ namespace ApexSenseBridgeTray.Services
                         string exePath = null;
                         try
                         {
-                            if (process.MainModule != null)
-                            {
+                            // PROCESS_QUERY_LIMITED_INFORMATION is enough for most
+                            // elevated games where Process.MainModule is denied.
+                            exePath = NativeMethods.GetProcessPath(pid);
+                            if (string.IsNullOrWhiteSpace(exePath) && process.MainModule != null)
                                 exePath = process.MainModule.FileName;
+                            if (!string.IsNullOrWhiteSpace(exePath))
                                 fileName = Path.GetFileName(exePath);
-                            }
                         }
                         catch
                         {
@@ -262,7 +283,8 @@ namespace ApexSenseBridgeTray.Services
 
                         if (IsSystemOrIgnoredProcess(fileName)) continue;
 
-                        CheckCandidateProcess(pid, fileName, exePath);
+                        CheckCandidateProcess(
+                            pid, fileName, exePath, 0, null, "poll", passiveLearning);
                         if (IsTrackedProcess(pid)) return true;
                     }
                 }
@@ -289,6 +311,10 @@ namespace ApexSenseBridgeTray.Services
                 foreach (var pid in stoppedPids)
                 {
                     evaluatedProcesses.Remove(pid);
+                    if (learningService != null)
+                    {
+                        learningService.CancelObservation(pid, "process no longer enumerated");
+                    }
                 }
             }
             return false;
@@ -300,20 +326,24 @@ namespace ApexSenseBridgeTray.Services
             string fullPath = null,
             long detectionStartedAt = 0,
             DateTime? processEventUtc = null,
-            string detectionSource = "poll")
+            string detectionSource = "poll",
+            bool passiveLearning = false)
         {
             if (detectionStartedAt == 0) detectionStartedAt = Stopwatch.GetTimestamp();
             if (IsTrackedProcess(pid) || IsSystemOrIgnoredProcess(fileName)) return;
 
-            lock (retryCooldowns)
+            if (!passiveLearning)
             {
-                if (retryCooldowns.ContainsKey(pid))
+                lock (retryCooldowns)
                 {
-                    if (DateTime.UtcNow < retryCooldowns[pid])
+                    if (retryCooldowns.ContainsKey(pid))
                     {
-                        return;
+                        if (DateTime.UtcNow < retryCooldowns[pid])
+                        {
+                            return;
+                        }
+                        retryCooldowns.Remove(pid);
                     }
-                    retryCooldowns.Remove(pid);
                 }
             }
 
@@ -322,8 +352,14 @@ namespace ApexSenseBridgeTray.Services
             {
                 try
                 {
-                    var proc = Process.GetProcessById((int)pid);
-                    exePath = proc.MainModule != null ? proc.MainModule.FileName : fileName;
+                    exePath = NativeMethods.GetProcessPath(pid);
+                    if (string.IsNullOrWhiteSpace(exePath))
+                    {
+                        using (var proc = Process.GetProcessById((int)pid))
+                        {
+                            exePath = proc.MainModule != null ? proc.MainModule.FileName : fileName;
+                        }
+                    }
                 }
                 catch
                 {
@@ -343,11 +379,41 @@ namespace ApexSenseBridgeTray.Services
                 if (GameActivationPolicy.ShouldActivate(
                     matchedGame, settings, exeTitle, folderName, fileName))
                 {
-                    HandleGameDetected(
-                        matchedGame, pid, exePath, matchedBy, detectionStartedAt,
-                        processEventUtc, detectionSource);
+                    if (passiveLearning)
+                    {
+                        HandlePassiveLearningDetected(
+                            matchedGame, pid, exePath, matchedBy, detectionSource);
+                    }
+                    else
+                    {
+                        HandleGameDetected(
+                            matchedGame, pid, exePath, matchedBy, detectionStartedAt,
+                            processEventUtc, detectionSource);
+                    }
                 }
             }
+        }
+
+        private void HandlePassiveLearningDetected(
+            SupportedGame game,
+            uint pid,
+            string exePath,
+            string matchedBy,
+            string detectionSource)
+        {
+            if (learningService == null || game == null) return;
+
+            BeginExecutableObservation(pid, exePath, game, matchedBy);
+
+            LogDetection(string.Format(
+                CultureInfo.InvariantCulture,
+                "Passively matched PID {0} to '{1}' using {2}. Path: {3}. Source: {4}. " +
+                "The forced bridge session remains untouched.",
+                pid,
+                game.Title,
+                matchedBy ?? "unknown evidence",
+                exePath,
+                detectionSource ?? "unknown"));
         }
 
         private bool TryResolveGame(
@@ -492,6 +558,10 @@ namespace ApexSenseBridgeTray.Services
                         int apexProfileSlot = settings != null
                             ? settings.GetApexProfileSlot(game.Normalized)
                             : 0;
+                        // Learning is about the stability of the identified game
+                        // process. It must not wait for controller initialization,
+                        // which can legitimately fail or take up to the timeout.
+                        BeginExecutableObservation(pid, exePath, game, matchedBy);
                         if (!sessionManager.StartSession(
                                 game.Title, game.Profile, settings,
                                 apexProfileSlot, out error))
@@ -519,15 +589,7 @@ namespace ApexSenseBridgeTray.Services
                     }
                 }
 
-                if (learningService != null)
-                {
-                    learningService.BeginObservation(
-                        pid,
-                        exePath,
-                        game,
-                        matchedBy,
-                        IsLearningObservationActive);
-                }
+                BeginExecutableObservation(pid, exePath, game, matchedBy);
 
                 if (attachedToExistingSession)
                 {
@@ -590,7 +652,7 @@ namespace ApexSenseBridgeTray.Services
 
                 if (learningService != null)
                 {
-                    learningService.CancelObservation(processId);
+                    learningService.CancelObservation(processId, reason);
                 }
 
                 LogDetection(string.Format(
@@ -646,14 +708,104 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
-        private bool IsLearningObservationActive(uint processId, string executablePath)
+        private void BeginExecutableObservation(
+            uint processId,
+            string executablePath,
+            SupportedGame game,
+            string detectionMethod)
         {
-            lock (sessionStateLock)
+            if (learningService == null) return;
+            var observedStartTicks = TryGetProcessStartTimeTicks(processId);
+            learningService.BeginObservation(
+                processId,
+                executablePath,
+                game,
+                detectionMethod,
+                (pid, path) => IsExecutableObservationActive(
+                    pid, path, observedStartTicks, game));
+        }
+
+        private bool IsExecutableObservationActive(
+            uint processId,
+            string executablePath,
+            long observedStartTicks,
+            SupportedGame game)
+        {
+            if (isDisposed || settings == null || !settings.AutoDetectGames)
             {
-                return !isDisposed &&
-                       processSession.Contains(processId, executablePath) &&
-                       sessionManager.IsSessionHealthy;
+                return false;
             }
+
+            var currentStartTicks = TryGetProcessStartTimeTicks(processId);
+            if (observedStartTicks > 0 && currentStartTicks > 0 &&
+                observedStartTicks != currentStartTicks)
+            {
+                return false;
+            }
+
+            var activePath = NativeMethods.GetProcessPath(processId);
+            if (!string.IsNullOrWhiteSpace(activePath))
+            {
+                if (!string.Equals(
+                    activePath, executablePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                return IsStillEligibleForLearning(game, executablePath);
+            }
+
+            try
+            {
+                using (var process = Process.GetProcessById((int)processId))
+                {
+                    if (process.HasExited ||
+                        !string.Equals(
+                            process.ProcessName,
+                            Path.GetFileNameWithoutExtension(executablePath),
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                    return IsStillEligibleForLearning(game, executablePath);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsStillEligibleForLearning(SupportedGame game, string executablePath)
+        {
+            var fileName = Path.GetFileName(executablePath);
+            return GameActivationPolicy.ShouldActivate(
+                game,
+                settings,
+                Path.GetFileNameWithoutExtension(executablePath),
+                GetParentFolderName(executablePath),
+                fileName);
+        }
+
+        private static long TryGetProcessStartTimeTicks(uint processId)
+        {
+            try
+            {
+                using (var process = Process.GetProcessById((int)processId))
+                {
+                    return process.StartTime.ToUniversalTime().Ticks;
+                }
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private bool IsManualBridgeMode()
+        {
+            return settings != null &&
+                   !string.IsNullOrWhiteSpace(settings.ForcedProfile) &&
+                   !string.Equals(settings.ForcedProfile, "none", StringComparison.OrdinalIgnoreCase);
         }
 
         private void PruneExitedTrackedProcesses()
@@ -728,9 +880,18 @@ namespace ApexSenseBridgeTray.Services
 
             if (!hadSession) return;
 
+            lock (evaluatedProcesses)
+            {
+                evaluatedProcesses.Clear();
+            }
+            nextProcessSweepUtc = DateTime.MinValue;
+        }
+
+        private void ResetPendingLearning()
+        {
             if (learningService != null)
             {
-                learningService.CancelObservation(0);
+                learningService.CancelObservation(0, "automatic detection disabled");
             }
             lock (evaluatedProcesses)
             {
@@ -805,26 +966,12 @@ namespace ApexSenseBridgeTray.Services
 
         private static void LogEvent(string msg)
         {
-            try
-            {
-                File.AppendAllText(
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_crash.log"),
-                    DateTime.Now.ToString("s") + " " + msg + "\r\n");
-            }
-            catch { }
+            AppLog.WriteLine("tray_crash.log", msg);
         }
 
         private static void LogDetection(string message)
         {
-            try
-            {
-                File.AppendAllText(
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tray_detection.log"),
-                    DateTime.Now.ToString("s") + " " + message + "\r\n");
-            }
-            catch
-            {
-            }
+            AppLog.WriteLine("tray_detection.log", message);
         }
 
         public void Dispose()
@@ -866,7 +1013,7 @@ namespace ApexSenseBridgeTray.Services
 
             if (learningService != null)
             {
-                learningService.CancelObservation(0);
+                learningService.CancelObservation(0, "tray app closing");
             }
 
             if (hadTrackedSession)

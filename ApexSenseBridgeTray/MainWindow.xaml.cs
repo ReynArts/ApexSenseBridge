@@ -81,6 +81,13 @@ namespace ApexSenseBridgeTray
             {
                 try { UpdateDatabaseCount(); } catch { }
             }));
+            if (learningService != null)
+            {
+                learningService.BindingsChanged += () => Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { UpdateDatabaseCount(); } catch { }
+                }));
+            }
             ThemeManager.ThemeChanged += () => Dispatcher.BeginInvoke(new Action(() =>
             {
                 try { UpdateSessionStatus(); } catch { }
@@ -278,6 +285,7 @@ namespace ApexSenseBridgeTray
                 sessionManager.StopSession("Switching to manual bridge mode");
                 string error;
                 sessionManager.StartSession(LocalizationManager.Get("Loc_ManualBridgeGameTitle"), "standard", settings, out error);
+                monitorService.ForceCheck();
             }
             else
             {

@@ -14,6 +14,16 @@ Le chemin du moteur est lu automatiquement dans `HKLM\Software\ApexSenseBridge` 
 
 Pendant un profil DualSense, tous les sticks, boutons, gâchettes et directions transitent par le bridge ; HidHide empêche le jeu de voir les interfaces physiques. Si cette isolation ou le proxy intégral échoue, le lancement est annulé.
 
+La version 0.6.2 empêche le Tray et l'extension Playnite de terminer ou de
+remplacer leurs sessions respectives. Il reste recommandé de n'utiliser qu'un
+seul mode d'automatisation pour un jeu afin d'éviter les notifications en double
+et des événements de cycle de vie ambigus.
+
+Si Flydigi Space Station est installé, son service de mapping vérifié reste
+autorisé par HidHide. Les boutons arrière M1–M4 doivent être assignés dans Space
+Station à des boutons standards ou à des entrées clavier/souris ; une DualSense
+virtuelle standard ne peut pas les exposer comme quatre boutons indépendants.
+
 À la fermeture du jeu, l'extension neutralise d'abord la DualSense virtuelle et le moteur attend le relâchement des commandes avant de rendre l'APEX physique visible. Une fenêtre anti-rebond de quatre secondes bloque aussi un faux second lancement du même jeu provoqué par un appui `A/Cross` résiduel dans l'interface Plein écran.
 
 Le profil Spider-Man 2 ajoute uniquement les gestes tactiles vérifiés. Il ne modifie aucun réglage du jeu et fonctionne lorsque Steam est déjà ouvert.
