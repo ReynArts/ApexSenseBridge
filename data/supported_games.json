@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-10T08:41:54.936482+00:00",
-  "totalGames": 207,
-  "discordExecutableGames": 126,
+  "updatedAt": "2026-09-11T08:39:33.786017+00:00",
+  "totalGames": 208,
+  "discordExecutableGames": 127,
   "games": [
     {
       "title": "007 First Light",
@@ -1541,6 +1541,20 @@
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3659280/library_600x900.jpg",
       "executables": [
         "g01client-win64-shipping.exe"
+      ]
+    },
+    {
+      "title": "Onimusha: Way of the Sword",
+      "normalized": "onimushawayofthesword",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 2638890,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2638890/library_600x900.jpg",
+      "executables": [
+        "onimushawots.exe",
+        "onimushawots_demo.exe"
       ]
     },
     {
