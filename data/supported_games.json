@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-11T08:39:33.786017+00:00",
-  "totalGames": 208,
+  "updatedAt": "2026-09-12T08:25:47.613100+00:00",
+  "totalGames": 210,
   "discordExecutableGames": 127,
   "games": [
     {
@@ -876,6 +876,16 @@
       ]
     },
     {
+      "title": "Forza Horizon 4",
+      "normalized": "forzahorizon4",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 0,
+      "steamAppIdVerified": false,
+      "iconUrl": ""
+    },
+    {
       "title": "Forza Horizon 5",
       "normalized": "forzahorizon5",
       "adaptiveTriggers": true,
@@ -1185,6 +1195,16 @@
       "executables": [
         "x6game-win64-shipping.exe"
       ]
+    },
+    {
+      "title": "Jak 3 (OpenGOAL)",
+      "normalized": "jak3opengoal",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 0,
+      "steamAppIdVerified": false,
+      "iconUrl": ""
     },
     {
       "title": "Jak II (OpenGOAL)",
