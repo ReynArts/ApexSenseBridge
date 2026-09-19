@@ -900,6 +900,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     // way a synchronous write failure always did, rather than running on until
     // exit believing the pad holds a state it never received.
     std::string asyncWriteError;
+    // Long enough that no burst of lost reports can trip it, short enough that
+    // a game is not left without a controller for any length of time.
+    constexpr auto kInputSilenceTimeout = std::chrono::seconds(3);
+    auto lastInputDataAt = std::chrono::steady_clock::now();
     MicrosecondLatencyHistogram forwardingLatency;
     std::uint16_t virtualTouchMinimumX = 0xFFFF;
     std::uint16_t virtualTouchMaximumX = 0;
@@ -929,6 +933,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         bool forwardInput = false;
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
+            lastInputDataAt = inputObservedAt;
             ++inputSamples;
             seenButtons = static_cast<std::uint16_t>(seenButtons | input.buttons);
             seenDpad = static_cast<std::uint8_t>(seenDpad | input.dpad);
@@ -954,6 +959,22 @@ int commandBridgeTriggers(int argc, char** argv) {
                            !lastForwardedInput || *lastForwardedInput != input;
             if (!forwardInput) ++coalescedInputReports;
         } else if (inputStatus == asb::platform::PhysicalInputStatus::Timeout) {
+            // A pad that has gone away does not always report an error: hidraw
+            // can keep timing out on a node nobody is writing to any more, and
+            // the loop would wait on it for as long as the game ran, holding a
+            // session that forwards nothing. This pad reports at about 1 kHz,
+            // so seconds of silence is not a quiet moment - it is gone.
+            if (inputSource->eventDriven() &&
+                inputObservedAt - lastInputDataAt >= kInputSilenceTimeout) {
+                inputProxyFailed = true;
+                inputProxyError =
+                    "The mandatory physical APEX input source went silent for " +
+                    std::to_string(
+                        std::chrono::duration_cast<std::chrono::seconds>(
+                            kInputSilenceTimeout).count()) +
+                    "s; treating it as disconnected.";
+                break;
+            }
             if (lastPhysicalInput) {
                 input = *lastPhysicalInput;
                 if (options.touchpadProfile != asb::dualsense::TouchpadGestureProfile::None) {
@@ -1408,7 +1429,8 @@ int commandBridgeTriggers(int argc, char** argv) {
               bridgeStats.lastActiveRightCommand);
     if (!resetOk) {
         std::cerr << "WARNING: LT/RT automatic reset failed: " << resetError
-                  << "\nSet both triggers to Normal in Flydigi Space Station.\n";
+                  << "\nRun 'ApexSenseBridge clear' once the pad is back, or set\n"
+                     "both triggers to Normal in Flydigi Space Station.\n";
         return failSession(5, "LT/RT automatic reset failed: " + resetError);
     }
     if (!rumbleResetOk) {
