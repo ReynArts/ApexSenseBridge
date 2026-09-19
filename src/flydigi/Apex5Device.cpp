@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <ctime>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -352,9 +353,27 @@ namespace {
 // traffic changes; the writes are observable nowhere else because hidraw
 // readers only ever see the input direction.
 void logPadWrite(std::span<const std::uint8_t> report, const char* origin) {
+    // Append, like the effects dump beside it and the session log above it.
+    // This one truncated, so every launch destroyed the previous capture - and
+    // it is the half that says what actually reached the pad. Timestamps are
+    // relative to process start, so each run opens with a line saying where it
+    // begins.
     static std::FILE* sink = [] () -> std::FILE* {
         const char* path = std::getenv("ASB_DUMP_PAD_WRITES");
-        return path ? std::fopen(path, "w") : nullptr;
+        if (!path) {
+            return nullptr;
+        }
+        std::FILE* file = std::fopen(path, "a");
+        if (file) {
+            const auto now = std::time(nullptr);
+            char stamp[32] = "unknown";
+            if (const std::tm* local = std::localtime(&now)) {
+                std::strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", local);
+            }
+            std::fprintf(file, "# session %s\n", stamp);
+            std::fflush(file);
+        }
+        return file;
     }();
     if (!sink) {
         return;
