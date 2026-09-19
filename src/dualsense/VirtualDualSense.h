@@ -15,6 +15,10 @@ enum class VirtualDualSenseBackend {
     Auto,
     Integrated,
     Sidecar,
+    // Linux only, and the reason it exists: Auto prefers libVIIPER when its
+    // prerequisites are present, so without a way to say "the plain one" there
+    // was no way to decline it on a machine set up for haptics.
+    Uhid,
 };
 
 struct VirtualDualSenseOptions {

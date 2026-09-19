@@ -42,6 +42,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <psapi.h>
+#else
+#include <csignal>
 #endif
 
 namespace asb::cli {
@@ -60,11 +62,32 @@ BOOL WINAPI consoleHandler(DWORD event) {
     return FALSE;
 }
 } // namespace
+#else
+namespace {
+// Storing to a lock-free atomic is async-signal-safe, so the handler can stay
+// this small. Every command loop already polls g_stopRequested, which is what
+// runs the trigger/rumble reset guards and the isolation rollback; without
+// this, Ctrl+C on Linux would kill the process mid-session and leave the pad
+// holding its last FORCEADAPT effect.
+extern "C" void requestStop(int) {
+    g_stopRequested.store(true, std::memory_order_relaxed);
+}
+} // namespace
 #endif
 
 void installConsoleHandler() {
 #ifdef _WIN32
     SetConsoleCtrlHandler(consoleHandler, TRUE);
+#else
+    struct sigaction action {};
+    action.sa_handler = requestStop;
+    sigemptyset(&action.sa_mask);
+    // No SA_RESTART: a blocking poll or read must return so the loop can see
+    // the flag instead of resuming and waiting for the next report.
+    action.sa_flags = 0;
+    sigaction(SIGINT, &action, nullptr);
+    sigaction(SIGTERM, &action, nullptr);
+    sigaction(SIGHUP, &action, nullptr);
 #endif
 }
 

@@ -1,3 +1,6 @@
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include "dualsense/DualSenseFeedback.h"
 
 #include <algorithm>
@@ -82,6 +85,65 @@ bool decodeViiperFeedbackFrame(std::uint8_t frameType,
     }
 
     return false;
+}
+
+bool decodeDualSenseOutputReport(std::span<const std::uint8_t> report,
+                                 DualSenseFeedback& feedback) {
+    // A USB output report is one report-ID byte followed by 47 bytes of common
+    // output data. Windows normally writes all 64 bytes to the interrupt
+    // endpoint, but some games submit only the descriptor-declared 48 bytes
+    // through HID SET_REPORT. Bluetooth adds a two-byte sequence/tag prefix.
+    if (report.size() >= 48 && report[0] == kUsbOutputReportId) {
+        report = report.subspan(1);
+    } else if (report.size() >= 78 && report[0] == kBluetoothOutputReportId) {
+        report = report.subspan(3);
+    }
+    if (report.size() < 47) {
+        return false;
+    }
+
+    DualSenseFeedback decoded{};
+    decoded.kind = FeedbackKind::HidOutput;
+    decoded.enableBits1 = report[0];
+    decoded.enableBits2 = report[1];
+    decoded.rumbleRight = report[2];
+    decoded.rumbleLeft = report[3];
+    std::copy_n(report.begin() + 10, decoded.rightTriggerEffect.size(),
+                decoded.rightTriggerEffect.begin());
+    std::copy_n(report.begin() + 21, decoded.leftTriggerEffect.size(),
+                decoded.leftTriggerEffect.begin());
+    decoded.enableBits3 = report[38];
+    feedback = decoded;
+    return true;
+}
+
+void appendFeedbackDump(const std::string& path,
+                        std::uint64_t microseconds,
+                        const DualSenseFeedback& feedback) {
+    if (path.empty()) {
+        return;
+    }
+    std::ofstream dump(path, std::ios::app);
+    if (!dump) {
+        return;
+    }
+    const auto hex = [&dump](std::span<const std::uint8_t> bytes) {
+        for (const auto byte : bytes) {
+            dump << ' ' << std::hex << std::setw(2) << std::setfill('0')
+                 << static_cast<unsigned int>(byte) << std::dec;
+        }
+    };
+    dump << microseconds
+         << " en " << static_cast<unsigned int>(feedback.enableBits1)
+         << ' ' << static_cast<unsigned int>(feedback.enableBits2)
+         << ' ' << static_cast<unsigned int>(feedback.enableBits3)
+         << " rumble " << static_cast<unsigned int>(feedback.rumbleLeft)
+         << ' ' << static_cast<unsigned int>(feedback.rumbleRight)
+         << " rt";
+    hex(feedback.rightTriggerEffect);
+    dump << " lt";
+    hex(feedback.leftTriggerEffect);
+    dump << '\n';
 }
 
 } // namespace asb::dualsense

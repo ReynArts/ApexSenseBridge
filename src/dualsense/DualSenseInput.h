@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace asb::dualsense {
@@ -46,5 +47,30 @@ struct DualSenseInputState {
 
 std::array<std::uint8_t, 33> buildViiperInput(const DualSenseInputState& state);
 std::array<std::uint8_t, 33> buildNeutralViiperInput();
+
+inline constexpr std::size_t kUsbInputReportSize = 64;
+inline constexpr std::uint8_t kUsbInputReportId = 0x01;
+
+// Per-report counters a real DualSense advances on its own. Kept out of
+// DualSenseInputState so the report builder stays a pure function of the pad
+// state plus these counters, which makes it exactly testable.
+struct DualSenseUsbReportCounters {
+    std::uint8_t sequence = 0;
+    std::uint32_t packetSequence = 0;
+    std::uint32_t sensorTimestamp = 0;
+    std::uint8_t touch1Tracking = 0;
+    std::uint8_t touch2Tracking = 0;
+
+    // One report tick. sensorTicks is added to the 32-bit sensor timestamp;
+    // every field wraps naturally, exactly as the hardware counters do.
+    void advance(std::uint32_t sensorTicks) noexcept;
+};
+
+// Builds the 64-byte USB input report 0x01, including its report-ID byte, for
+// backends that publish a real HID device (uhid, usbip) rather than VIIPER's
+// compact wire format.
+std::array<std::uint8_t, kUsbInputReportSize> buildDualSenseUsbInputReport(
+    const DualSenseInputState& state,
+    const DualSenseUsbReportCounters& counters);
 
 } // namespace asb::dualsense

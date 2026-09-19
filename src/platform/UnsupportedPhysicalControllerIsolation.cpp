@@ -8,6 +8,12 @@ TemporaryPhysicalControllerIsolation::TemporaryPhysicalControllerIsolation()
     : impl_(std::make_unique<Impl>()) {}
 TemporaryPhysicalControllerIsolation::~TemporaryPhysicalControllerIsolation() = default;
 
+bool TemporaryPhysicalControllerIsolation::suspendConflictingDaemons(
+    std::string& error) noexcept {
+    error = "Controller isolation is not supported on this platform.";
+    return false;
+}
+
 bool TemporaryPhysicalControllerIsolation::activate(
     const HidDeviceInfo&, std::string_view, std::optional<std::uint8_t>,
     std::string& error) {

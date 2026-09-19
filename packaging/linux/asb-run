@@ -1,0 +1,337 @@
+#!/usr/bin/env python3
+"""ApexSenseBridge session glue for Lutris and Steam.
+
+Lutris (per game, System options):
+    Command prefix:      /path/to/asb-run wrap
+    ...or with another wrapper chained after it:
+    Command prefix:      /path/to/asb-run wrap game-performance
+
+Steam (per game, Launch Options):
+    /path/to/asb-run wrap %command%
+
+Launchers offering neither field can use the two-call form instead, waiting for
+the first to finish before the game starts:
+    /path/to/asb-run start "Horizon Forbidden West"
+    /path/to/asb-run stop
+
+The engine itself enforces controller isolation, so a failure here must abort
+the launch rather than let the game start seeing two controllers.
+"""
+
+import json
+import os
+import re
+import select
+import shlex
+import struct
+import subprocess
+import sys
+import time
+
+RUNTIME_DIR = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "apexsensebridge")
+CONFIG_PATH = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+    "apexsensebridge", "settings.json")
+DATA_DIRS = [
+    os.path.join(os.environ.get("XDG_DATA_HOME") or
+                 os.path.expanduser("~/.local/share"), "apexsensebridge"),
+    "/usr/share/apexsensebridge",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data"),
+]
+
+READY_TIMEOUT_SECONDS = 25.0
+STATUS_BLOCK_SIZE = 512
+STATUS_MAGIC = 0x53425341  # "ASBS"
+PHASE_NAMES = {0: "empty", 1: "starting", 2: "ready", 3: "stopping",
+               4: "stopped", 5: "failed"}
+
+TOUCHPAD_PROFILES = {"none", "spider-man-2", "miles-morales",
+                     "ghost-of-tsushima", "warframe"}
+
+
+def log(message):
+    print(f"[asb-run] {message}", file=sys.stderr, flush=True)
+
+
+def find_engine():
+    explicit = os.environ.get("ASB_ENGINE")
+    if explicit:
+        return explicit
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.expanduser("~/.local/bin/ApexSenseBridge"),
+        "/usr/bin/ApexSenseBridge",
+        "/usr/local/bin/ApexSenseBridge",
+        os.path.join(here, "ApexSenseBridge"),
+        os.path.join(here, "..", "..", "build", "ApexSenseBridge"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return os.path.normpath(path)
+    return None
+
+
+def load_settings():
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def load_catalogue():
+    for directory in DATA_DIRS:
+        path = os.path.normpath(os.path.join(directory, "supported_games.json"))
+        try:
+            with open(path, encoding="utf-8") as handle:
+                return json.load(handle).get("games", [])
+        except (OSError, ValueError):
+            continue
+    return []
+
+
+def normalize(value):
+    """Drop every non-alphanumeric character and lowercase, matching the
+    normalization the Windows catalogue and the Tray app already agree on."""
+    return re.sub(r"[^a-z0-9]", "", (value or "").lower())
+
+
+def resolve_game(identifier, catalogue):
+    if not identifier:
+        return None
+    # A Steam AppId is the strongest signal when one is available.
+    if identifier.isdigit():
+        app_id = int(identifier)
+        for game in catalogue:
+            if game.get("steamAppIdVerified") and game.get("steamAppId") == app_id:
+                return game
+    wanted = normalize(identifier)
+    if not wanted:
+        return None
+    for game in catalogue:
+        if normalize(game.get("normalized") or game.get("title")) == wanted:
+            return game
+    # Fall back to the executable names the catalogue lists.
+    for game in catalogue:
+        for executable in game.get("executables") or []:
+            if normalize(executable) == wanted or \
+               normalize(os.path.splitext(executable)[0]) == wanted:
+                return game
+    return None
+
+
+def build_arguments(game, settings, token):
+    profile = "none"
+    if game:
+        candidate = (game.get("profile") or "none").strip().lower()
+        if candidate in TOUCHPAD_PROFILES:
+            profile = candidate
+    arguments = ["bridge-triggers", "--session-token", token,
+                 "--touchpad-profile", profile]
+    if settings.get("enableRumble", True):
+        arguments.append("--rumble")
+        threshold = settings.get("hapticThresholdPercent")
+        if isinstance(threshold, int) and 0 <= threshold <= 95:
+            arguments += ["--haptic-threshold", str(threshold)]
+    slot = (settings.get("apexProfileSlots") or {}).get(
+        normalize(game.get("normalized") or game.get("title")) if game else "")
+    if isinstance(slot, int) and 1 <= slot <= 4:
+        arguments += ["--apex-profile", str(slot)]
+    # Escape hatch for diagnosis: extra engine flags without editing launchers.
+    extra = os.environ.get("ASB_EXTRA_ARGS")
+    if extra:
+        arguments += shlex.split(extra)
+    return arguments
+
+
+def is_excluded(game, identifier, settings):
+    excluded = {normalize(entry) for entry in settings.get("excludedGames") or []}
+    if not excluded:
+        return False
+    keys = {normalize(identifier)}
+    if game:
+        keys |= {normalize(game.get("normalized")), normalize(game.get("title")),
+                 normalize(str(game.get("steamAppId") or ""))}
+    return bool(keys & excluded)
+
+
+def read_status():
+    """Returns (phase_name, exit_code, message) from whichever status block the
+    current session published, or None when there is nothing to read."""
+    try:
+        names = [n for n in os.listdir(RUNTIME_DIR) if n.endswith(".Status")]
+    except OSError:
+        return None
+    for name in names:
+        try:
+            with open(os.path.join(RUNTIME_DIR, name), "rb") as handle:
+                raw = handle.read(STATUS_BLOCK_SIZE)
+        except OSError:
+            continue
+        if len(raw) != STATUS_BLOCK_SIZE:
+            continue
+        magic, version, phase, exit_code, length = struct.unpack_from("<IHHiI", raw)
+        if magic != STATUS_MAGIC or version != 1:
+            continue
+        message = raw[16:16 + min(length, 496)].decode("utf-8", "replace")
+        return PHASE_NAMES.get(phase, str(phase)), exit_code, message
+    return None
+
+
+def wait_for_ready(ready_path, deadline):
+    """Blocks until the engine signals readiness or the deadline passes. The
+    engine opens the write end of this FIFO once its session is live, which is
+    the POSIX stand-in for the Windows ready event."""
+    try:
+        fd = os.open(ready_path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError as error:
+        log(f"could not open the readiness channel: {error}")
+        return False
+    try:
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            readable, _, _ = select.select([fd], [], [], min(remaining, 0.5))
+            if readable and os.read(fd, 1):
+                return True
+            status = read_status()
+            if status and status[0] == "failed":
+                return False
+        return False
+    finally:
+        os.close(fd)
+
+
+def command_start(identifier):
+    engine = find_engine()
+    if not engine:
+        log("ApexSenseBridge engine not found; set ASB_ENGINE to its path")
+        return 1
+
+    settings = load_settings()
+    catalogue = load_catalogue()
+    game = resolve_game(identifier, catalogue)
+
+    if is_excluded(game, identifier, settings):
+        log(f"'{identifier}' is excluded; leaving the controller untouched")
+        return 0
+    if identifier and not game:
+        log(f"'{identifier}' is not in the DualSense catalogue; "
+            "bridging anyway with the standard profile")
+    elif game:
+        log(f"matched '{game['title']}' "
+            f"(adaptive triggers: {'yes' if game.get('adaptiveTriggers') else 'no'}, "
+            f"haptics: {'yes' if game.get('hapticFeedback') else 'no'})")
+
+    os.makedirs(RUNTIME_DIR, exist_ok=True)
+    token = os.urandom(16).hex()
+    arguments = build_arguments(game, settings, token)
+
+    with open(os.path.join(RUNTIME_DIR, "session.token"), "w",
+              encoding="utf-8") as handle:
+        handle.write(token)
+
+    log_path = os.path.join(RUNTIME_DIR, "bridge.log")
+    with open(log_path, "ab") as handle:
+        process = subprocess.Popen([engine] + arguments, stdout=handle,
+                                   stderr=handle, start_new_session=True)
+
+    ready_path = os.path.join(RUNTIME_DIR, f"{token}.Ready")
+    deadline = time.monotonic() + READY_TIMEOUT_SECONDS
+    # The engine creates the FIFO as it connects its session control.
+    while not os.path.exists(ready_path) and time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        time.sleep(0.05)
+
+    if os.path.exists(ready_path) and wait_for_ready(ready_path, deadline):
+        log("bridge is live; the physical pad is hidden for this session")
+        return 0
+
+    status = read_status()
+    if status:
+        log(f"bridge failed in phase '{status[0]}' (exit {status[1]}): {status[2]}")
+    else:
+        log(f"bridge did not become ready; see {log_path}")
+    command_stop()
+    return 1
+
+
+def command_stop():
+    engine = find_engine()
+    if not engine:
+        return 0
+    try:
+        subprocess.run([engine, "stop-active-sessions"], timeout=30,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       check=False)
+    except subprocess.SubprocessError:
+        pass
+    # The engine leaves its status block and ready FIFO behind on purpose: a
+    # failed start is read back from them. Once the session is stopped nothing
+    # will read them again, and one pair per session accumulates in the runtime
+    # directory until the user logs out, so the owner of the token clears them.
+    token = ""
+    token_path = os.path.join(RUNTIME_DIR, "session.token")
+    try:
+        with open(token_path, encoding="utf-8") as handle:
+            token = handle.read().strip()
+    except OSError:
+        pass
+    stale = ["session.token"]
+    if token:
+        stale += [f"{token}.Ready", f"{token}.Status", f"{token}.stop"]
+    for name in stale:
+        try:
+            os.remove(os.path.join(RUNTIME_DIR, name))
+        except OSError:
+            pass
+    return 0
+
+
+def command_env():
+    """Prints the SDL ignore list the active session published, so a launcher
+    can keep the physical pad out of the game's controller enumeration."""
+    try:
+        with open(os.path.join(RUNTIME_DIR, "session.env"), encoding="utf-8") as h:
+            sys.stdout.write(h.read())
+    except OSError:
+        pass
+    return 0
+
+
+def command_wrap(argv):
+    """Steam-style: asb-run wrap %command%"""
+    if not argv:
+        log("wrap needs a command to run")
+        return 1
+    identifier = os.environ.get("ASB_GAME") or os.environ.get("SteamAppId") or ""
+    started = command_start(identifier) == 0
+    try:
+        return subprocess.run(argv, check=False).returncode
+    finally:
+        if started:
+            command_stop()
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 2
+    command = sys.argv[1]
+    if command == "start":
+        identifier = sys.argv[2] if len(sys.argv) > 2 else \
+            os.environ.get("ASB_GAME") or os.environ.get("SteamAppId") or ""
+        return command_start(identifier)
+    if command == "stop":
+        return command_stop()
+    if command == "env":
+        return command_env()
+    if command == "wrap":
+        return command_wrap(sys.argv[2:])
+    log(f"unknown command '{command}'")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -36,6 +36,7 @@ MinSizeRel/
 # Local diagnostics, captures and runtime logs
 diagnose-*.json
 diagnostics-*.json
+/diagnostics/
 Apex4-Diagnostics-Collector/
 Apex4-Port-Tester1/
 Apex4-Full-Session-Tester/

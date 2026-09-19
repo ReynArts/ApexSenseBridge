@@ -1,0 +1,34 @@
+Fix RET_SUBMIT desynchronising the Linux vhci_hcd client.
+
+Applies on top of viiper-v0.7.0-asb.patch.
+
+A USB/IP RET_SUBMIT carries a data payload only for IN transfers. The server
+was appending the handler's response buffer to OUT replies as well. usbip-win2,
+which VIIPER is developed against, tolerates the extra bytes; the Linux kernel
+client does not. It reads them as the beginning of the next PDU, finds a
+command field of zero, logs "vhci_hcd: unknown pdu 0" and tears the device
+down a few seconds into enumeration.
+
+Observed against a DualSense with the ApexSenseBridge composite descriptor: the
+device enumerated, strings and configuration descriptors were read correctly,
+and the teardown began at the first audio-class SET_CUR, which is the first
+OUT control transfer the kernel issues.
+
+--- a/internal/server/usb/server.go
++++ b/internal/server/usb/server.go
+@@
+ 		if isIsoTransfer && dir == usbip.DirOut && len(respIsoPackets) > 0 {
+ 			scheduleIsoOutSubmit(seq, ret, respIsoPackets)
+-		} else if err := writeRetSubmit(ret, respData, respIsoPackets); err != nil {
++		} else if err := writeRetSubmit(ret, respPayload, respIsoPackets); err != nil {
+ 			return err
+ 		}
+@@
++		// RET_SUBMIT carries a data payload only for IN transfers. Appending
++		// one to an OUT reply desynchronises the stream: the Linux vhci_hcd
++		// client reads those bytes as the start of the next PDU, reports
++		// "unknown pdu 0" and tears the device down.
++		respPayload := respData
++		if dir == usbip.DirOut {
++			respPayload = nil
++		}

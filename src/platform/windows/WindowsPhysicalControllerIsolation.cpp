@@ -1320,6 +1320,15 @@ TemporaryPhysicalControllerIsolation::~TemporaryPhysicalControllerIsolation() {
     (void)restore(ignored);
 }
 
+// Windows has no equivalent race: Flydigi Space Station is handled inside
+// activate() through HidHide, and nothing there holds the vendor interface
+// before the identity exchange the way padctl does on Linux.
+bool TemporaryPhysicalControllerIsolation::suspendConflictingDaemons(
+    std::string& error) noexcept {
+    error.clear();
+    return true;
+}
+
 bool TemporaryPhysicalControllerIsolation::activate(
     const HidDeviceInfo& apexInterface,
     std::string_view sessionToken,

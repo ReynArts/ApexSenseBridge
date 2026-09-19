@@ -46,6 +46,7 @@ public:
         if (!silent_ && apex4_ && report.size() >= 2 &&
             report[0] == asb::flydigi::kApex4CommandReportId &&
             report[1] == asb::flydigi::kApex4CmdGetInfo) {
+            identityRequestTimes.push_back(std::chrono::steady_clock::now());
             if (ignoredApex4Requests_ != 0) {
                 --ignoredApex4Requests_;
                 return true;
@@ -136,6 +137,11 @@ private:
     bool silent_ = false;
     bool apex4_ = false;
     std::size_t ignoredApex4Requests_ = 0;
+
+public:
+    std::vector<std::chrono::steady_clock::time_point> identityRequestTimes;
+
+private:
     std::uint8_t activeProfile_ = 0;
     bool controllerData_ = true;
     bool rawData_ = false;
@@ -264,13 +270,30 @@ int main() {
     assert(!apex4.readProfileStatus(profileStatus, error));
     assert(error.find("Apex 5") != std::string::npos);
 
+    // A dropped request is still recovered, but only within the small attempt
+    // budget: the controller falls silent for about thirty seconds after a
+    // burst of vendor queries, so spending more attempts loses sessions rather
+    // than saving them.
     FakeTransport* intermittentApex4Transport = nullptr;
     auto intermittentApex4 = makeDevice(
-        intermittentApex4Transport, 84, false, true, 5);
+        intermittentApex4Transport, 84, false, true,
+        asb::flydigi::kApex4IdentityAttempts - 1);
     error.clear();
     assert(intermittentApex4.verifyIdentity(error));
     assert(intermittentApex4.identity() && intermittentApex4.identity()->isApex4());
-    assert(intermittentApex4Transport->writes.size() == 6);
+    assert(intermittentApex4Transport->writes.size() ==
+           asb::flydigi::kApex4IdentityAttempts);
+
+    // Retries must be spaced. Without this the loop reproduces the burst that
+    // provoked the silence it was trying to recover from.
+    const auto& requestTimes = intermittentApex4Transport->identityRequestTimes;
+    assert(requestTimes.size() == asb::flydigi::kApex4IdentityAttempts);
+    for (std::size_t index = 1; index < requestTimes.size(); ++index) {
+        const auto gap = std::chrono::duration_cast<std::chrono::milliseconds>(
+            requestTimes[index] - requestTimes[index - 1]);
+        assert(gap >= std::chrono::milliseconds(500));
+    }
+
 
     FakeTransport* wrongTransport = nullptr;
     auto wrong = makeDevice(wrongTransport, 130);
@@ -292,9 +315,13 @@ int main() {
     auto silentApex4 = makeDevice(silentApex4Transport, 84, true, true);
     error.clear();
     assert(!silentApex4.verifyIdentity(error));
-    assert(error.find("after 30 attempts") != std::string::npos);
+    assert(error.find("spaced attempts") != std::string::npos);
     assert(error.find("observed_reports=0") != std::string::npos);
-    assert(silentApex4Transport->writes.size() == 30);
+    // A controller that never answers must give up inside the budget instead
+    // of hammering it into the silence the message now explains.
+    assert(error.find("30 seconds") != std::string::npos);
+    assert(silentApex4Transport->writes.size() ==
+           asb::flydigi::kApex4IdentityAttempts);
     assert(!wrongApex4.setTrigger(effect, error));
     assert(wrongApex4Transport->writes.size() == 1);
 

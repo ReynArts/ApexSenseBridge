@@ -125,7 +125,7 @@ void RumbleBridge::writeDesiredLocked(RumbleLevels desired,
     }
 
     std::string writeError;
-    if (!device_.setRumble(desired.lowFrequency, desired.highFrequency, writeError)) {
+    if (!device_.queueRumble(desired.lowFrequency, desired.highFrequency, writeError)) {
         writeFailures_.fetch_add(1, std::memory_order_relaxed);
         {
             std::lock_guard lock(errorMutex_);

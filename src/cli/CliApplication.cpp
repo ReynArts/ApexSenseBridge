@@ -64,7 +64,7 @@ void printUsage() {
         << "                  [--rumble]\n"
         << "                  [--haptic-threshold 0..95]\n"
         << "                  [--verify-virtual-input]\n"
-        << "                  [--virtual-backend auto|integrated|sidecar]\n"
+        << "                  [--virtual-backend auto|integrated|sidecar|uhid]\n"
         << "                  [--touchpad-profile NAME]\n"
         << "                  [--apex-profile 1..4]\n"
         << "                  [--view-hold-swipe-up]\n"

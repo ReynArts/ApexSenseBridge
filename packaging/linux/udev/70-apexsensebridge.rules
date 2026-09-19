@@ -1,0 +1,21 @@
+# ApexSenseBridge — access to the controllers the bridge reads and creates.
+#
+# /dev/hidraw* is root-only by default and systemd's 70-uaccess.rules only
+# covers SUBSYSTEM=="input", so the vendor interfaces the bridge writes
+# adaptive-trigger and rumble commands to need an explicit rule.
+
+# Flydigi APEX 5 family (vendor 0x37D7).
+KERNEL=="hidraw*", ATTRS{idVendor}=="37d7", MODE="0660", GROUP="input", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="37d7", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Flydigi APEX 4 over USB or the 2.4 GHz dongle (Cypress 04B4:2412).
+KERNEL=="hidraw*", ATTRS{idVendor}=="04b4", ATTRS{idProduct}=="2412", MODE="0660", GROUP="input", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="04b4", ATTRS{idProduct}=="2412", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# The virtual DualSense the bridge publishes. Steam's own rules already grant
+# this on machines that have them; this line covers the ones that do not.
+KERNEL=="hidraw*", KERNELS=="*054C:0CE6*", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# /dev/uhid is how the virtual controller is created at all. It is normally
+# root:input 0660 already; static_node keeps that true before the module loads.
+KERNEL=="uhid", MODE="0660", GROUP="input", OPTIONS+="static_node=uhid"
