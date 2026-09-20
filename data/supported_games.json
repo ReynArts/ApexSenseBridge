@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-19T08:36:20.585114+00:00",
+  "updatedAt": "2026-09-20T09:07:08.312183+00:00",
   "totalGames": 211,
   "discordExecutableGames": 127,
   "games": [
@@ -351,7 +351,7 @@
       "title": "Call of Duty: Modern Warfare III",
       "normalized": "callofdutymodernwarfareiii",
       "adaptiveTriggers": true,
-      "hapticFeedback": true,
+      "hapticFeedback": false,
       "profile": "standard",
       "steamAppId": 3595270,
       "steamAppIdVerified": true,
