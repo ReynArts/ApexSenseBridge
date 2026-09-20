@@ -184,6 +184,7 @@ Then set these in the same per-game environment:
 | `SDL_GAMECONTROLLER_IGNORE_DEVICES` | `0x04b4/0x2412` | hides the physical APEX from SDL, which still enumerates it after `EVIOCGRAB` stops its events |
 | `SDL_JOYSTICK_HIDAPI_PS5` | `0` | stops SDL's own PS5 driver opening the virtual pad's `/dev/hidraw*` behind Proton's back |
 | `PROTON_NO_STEAMINPUT` | `0` | see the warning below |
+| `PROTON_USE_PIPEWIRE` | `0` | Proton-CachyOS only, and only for DualSense audio haptics - see below |
 
 Without the two `SDL_*` variables the game sees the pad twice and its button
 prompts flicker between PlayStation and Xbox on every press.
@@ -198,6 +199,29 @@ prompts flicker between PlayStation and Xbox on every press.
 > Do not set `PROTON_PREFER_SDL` or `PROTON_USE_SDL`. They imply
 > `PROTON_DISABLE_HIDRAW=1`, which disables Proton's native DualSense path and
 > with it the adaptive triggers.
+
+> [!IMPORTANT]
+> `PROTON_USE_PIPEWIRE=0` is what makes DualSense **haptics** work on
+> Proton-CachyOS. Its default audio driver, `winepipewire.drv`, does not let Wine
+> set a container id, so a game cannot tell that the controller's audio endpoint
+> belongs to the controller it is already using - and sends no haptics at all.
+> Adaptive triggers are unaffected, which is what makes this easy to miss.
+>
+> Measured on one machine: `audio_haptics_frames` was 0 across seven sessions of
+> Assassin's Creed Shadows on the default driver and 21798-72296 with the switch
+> set; Cyberpunk 2077 behaves the same way. Horizon Forbidden West works either
+> way because it locates the endpoint differently, so a single working game is
+> not evidence that the path is healthy.
+>
+> The one line that identifies this in a `PROTON_LOG=warn+mmdevapi` capture:
+> `warn:mmdevapi:MMDevice_Create Failed to get and set container id` - twelve
+> times on the default driver, zero with the switch, and zero on GE-Proton,
+> which ships no `winepipewire` at all.
+>
+> This is a driver bug rather than anything the bridge can work around: the
+> audio endpoint already carries the right `device.bus`, `device.vendor.id` and
+> `device.product.id`, and `winepulse.drv` reads exactly those three to build
+> the device identity a game matches against.
 
 ### Backends
 
