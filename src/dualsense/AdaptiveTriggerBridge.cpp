@@ -2,6 +2,8 @@
 
 #include "dualsense/AdaptiveTriggerTranslation.h"
 
+#include <algorithm>
+
 namespace asb::dualsense {
 
 AdaptiveTriggerBridge::AdaptiveTriggerBridge(flydigi::Apex5Device& device)
@@ -48,32 +50,44 @@ void AdaptiveTriggerBridge::apply(TriggerSide side,
         }
     }
 
+    writeNow(side, *translated, effect[0]);
+}
+
+bool AdaptiveTriggerBridge::writeNow(TriggerSide side,
+                                     const ForceTriggerCommand& command,
+                                     std::uint8_t dualSenseType) {
     std::string writeError;
-    if (!device_.setTriggerRaw(*translated, writeError)) {
+    if (!device_.queueTriggerRaw(command, writeError)) {
         writeFailures_.fetch_add(1, std::memory_order_relaxed);
         {
             std::lock_guard lock(errorMutex_);
             error_ = std::move(writeError);
         }
         failed_.store(true, std::memory_order_relaxed);
-        return;
+        return false;
     }
     {
         std::lock_guard lock(stateMutex_);
-        (side == TriggerSide::Left ? lastLeft_ : lastRight_) = translated;
-        if (translated->mode != TriggerMode::Normal) {
+        (side == TriggerSide::Left ? lastLeft_ : lastRight_) = command;
+        if (command.mode != TriggerMode::Normal) {
             (side == TriggerSide::Left ? lastActiveLeftType_ : lastActiveRightType_) =
-                effect[0];
-            (side == TriggerSide::Left ? lastActiveLeft_ : lastActiveRight_) =
-                translated;
+                dualSenseType;
+            (side == TriggerSide::Left ? lastActiveLeft_ : lastActiveRight_) = command;
         }
     }
     translated_.fetch_add(1, std::memory_order_relaxed);
-    if (translated->mode == TriggerMode::Normal) {
+    if (command.mode == TriggerMode::Normal) {
         normal_.fetch_add(1, std::memory_order_relaxed);
     } else {
         active_.fetch_add(1, std::memory_order_relaxed);
     }
+    return true;
+}
+
+void AdaptiveTriggerBridge::noteNormalBaseline() {
+    std::lock_guard lock(stateMutex_);
+    lastLeft_ = ForceTriggerCommand{TriggerSide::Left, TriggerMode::Normal, {}};
+    lastRight_ = ForceTriggerCommand{TriggerSide::Right, TriggerMode::Normal, {}};
 }
 
 bool AdaptiveTriggerBridge::failed() const noexcept {

@@ -31,12 +31,18 @@ int main() {
         assert(apex4Identity[index] == 0);
     }
 
+    // Byte 3 is Flydigi's apply flag and the bridge deliberately clears it on
+    // an Apex 4: a report with it cleared engages and releases the same
+    // resistance, while a report with it set stops the pad's whole main loop
+    // for about 1073 ms over the 2.4 GHz dongle. Both halves were confirmed
+    // blind; see docs/APEX4-DONGLE-TRIGGER-STALL.md. These assertions
+    // exist so the flag cannot drift back without someone reading that.
     const auto apex4Normal = buildApex4Normal(TriggerSide::Right);
     assert(apex4Normal.size() == 15);
     assert(apex4Normal[0] == 0x05);
     assert(apex4Normal[1] == 0xA0);
     assert(apex4Normal[2] == 1);
-    assert(apex4Normal[3] == 1);
+    assert(apex4Normal[3] == 0);
     assert(apex4Normal[4] == 2);
     assert(apex4Normal[5] == 0);
 
@@ -69,7 +75,7 @@ int main() {
     assert(apex4Race[0] == 0x05);
     assert(apex4Race[1] == 0xA0);
     assert(apex4Race[2] == 1);
-    assert(apex4Race[3] == 1);
+    assert(apex4Race[3] == 0);   // apply flag cleared, as above
     assert(apex4Race[4] == 2);
     assert(apex4Race[5] == 1);
     assert(apex4Race[6] == 70);
@@ -82,7 +88,7 @@ int main() {
     apex4RawRace.params = {0, 30, 1, 0, 0};
     const auto apex4Raw = buildApex4ForceTriggerRaw(apex4RawRace);
     assert(apex4Raw[2] == 1);
-    assert(apex4Raw[3] == 1);
+    assert(apex4Raw[3] == 0);    // apply flag cleared, as above
     assert(apex4Raw[4] == 2);
     assert(apex4Raw[5] == 1);
     assert(apex4Raw[6] == 0);
@@ -144,7 +150,22 @@ int main() {
     assert(enableRaw[6] == 1);
     assert(enableRaw[7] == 0xFF && enableRaw[8] == 0xFF &&
            enableRaw[9] == 0xFF);
-    assert(enableRaw[10] == 0x0B);
+    // The checksum sums report[3] through report[3 + length - 1]:
+    //   0x11 command + 0x07 length + 0x00 + 0x01 + 0xFF + 0xFF + 0xFF = 0x16.
+    // The read request a few lines above validates the same algorithm
+    // independently, where 0x10 + 0x02 gives the 0x12 asserted there.
+    //
+    // This assertion used to read 0x0B, which matches no variant of that sum.
+    // It is not a captured value despite looking like one: git shows the
+    // assertion, buildSetInputTransport and buildChecksummedCommand all arriving
+    // in the same commit, unchanged since, so the expectation never once agreed
+    // with the code it shipped beside - the test has been red since it was
+    // written. Had 0x0B come from watching Flydigi's own software, the
+    // disagreement would have surfaced on its first run.
+    //
+    // Still worth confirming against an Apex 5, which this project has no access
+    // to; nothing here can tell whether the pad accepts what we send.
+    assert(enableRaw[10] == 0x16);
 
     std::array<std::uint8_t, 32> transportReply{};
     transportReply[0] = kReportIdIn;
@@ -246,6 +267,25 @@ int main() {
     assert((decoded->buttons & dualsense::button::kTriangle) != 0);
     assert((decoded->buttons & dualsense::button::kL1) != 0);
     assert((decoded->buttons & dualsense::button::kL2) != 0);
+
+    // The M1 rear paddle carries Create, which XInput cannot express and which
+    // nothing set before. View/Back is unavailable for it: that button carries
+    // the touchpad click, since XInput has no touchpad either. Paddle bits were
+    // read off the hardware - M1 0x04, M2 0x08, M3 0x10, M4 0x20 in report[7].
+    assert((decoded->buttons & dualsense::button::kCreate) == 0);
+    apex4Input[7] = 0x04;
+    const auto withCreate = decodeApex4InputReport(apex4Input);
+    assert(withCreate);
+    assert((withCreate->buttons & dualsense::button::kCreate) != 0);
+    // Back keeps the touchpad click rather than being traded away for Create.
+    assert((withCreate->buttons & dualsense::button::kTouchpadClick) ==
+           (decoded->buttons & dualsense::button::kTouchpadClick));
+    // The other three paddles stay unmapped on purpose.
+    apex4Input[7] = 0x08 | 0x10 | 0x20;
+    const auto otherPaddles = decodeApex4InputReport(apex4Input);
+    assert(otherPaddles);
+    assert((otherPaddles->buttons & dualsense::button::kCreate) == 0);
+    apex4Input[7] = 0;
 
     apex4Input[1] = 0;
     assert(!decodeApex4InputReport(apex4Input));

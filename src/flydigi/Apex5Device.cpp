@@ -6,13 +6,17 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <ctime>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <iomanip>
 #include <iterator>
 #include <sstream>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace asb::flydigi {
@@ -235,16 +239,27 @@ bool Apex5Device::verifyIdentity(std::string& error) {
         }
     }
 
-    // V1 controllers can occasionally miss a successful command write while
-    // streaming input, especially over the 2.4 GHz receiver. SDL retries this
-    // read-only request up to 30 times; keep the same roughly three-second
-    // retry window so a second process opening the dongle is reliable too.
-    constexpr auto kApex4AttemptTimeout = std::chrono::milliseconds(100);
+    // V1 controllers can occasionally miss a command write while streaming
+    // input, especially over the 2.4 GHz receiver, so a dropped request has to
+    // be retried. Retrying eagerly, however, is what actually breaks the
+    // exchange: measured against an Apex 4 on the dongle, the reply either
+    // arrives within about 8 ms or never arrives at all, and a burst of
+    // back-to-back requests leaves the controller silent for roughly thirty
+    // seconds afterwards. A rested controller answers the first request; a
+    // hammered one answers nothing, which is why a few widely spaced attempts
+    // recover far more sessions than many tightly packed ones.
+    constexpr auto kApex4AttemptTimeout = std::chrono::milliseconds(250);
+    constexpr auto kApex4RetryDelay = std::chrono::milliseconds(900);
     constexpr auto kApex5AttemptTimeout = std::chrono::milliseconds(600);
     constexpr std::size_t kMaximumReplies = 4096;
-    const std::size_t maximumAttempts = apex4 ? 30 : 1;
+    const std::size_t maximumAttempts = apex4 ? kApex4IdentityAttempts : 1;
     Apex4IdentityObservation apex4Observation;
     for (std::size_t attempt = 0; attempt < maximumAttempts; ++attempt) {
+        if (apex4 && attempt != 0) {
+            // Give the controller quiet air before asking again. This costs
+            // nothing in the common case, where the first request is answered.
+            std::this_thread::sleep_for(kApex4RetryDelay);
+        }
         const bool requestWritten = apex4
             ? transport_->writeOutputReport(buildApex4IdentityRequest(), error)
             : transport_->writeOutputReport(Apex5Identity::buildRequest(), error);
@@ -290,9 +305,12 @@ bool Apex5Device::verifyIdentity(std::string& error) {
     }
 
     error = apex4
-        ? "No valid command 0xEC Apex 4 identity reply arrived after 30 attempts;" +
+        ? "No valid command 0xEC Apex 4 identity reply arrived after " +
+          std::to_string(maximumAttempts) + " spaced attempts;" +
           apex4Observation.describe() +
-          "; use USB/dongle DInput mode and close Flydigi Space Station before retrying"
+          "; the controller stops answering vendor queries for about 30 seconds "
+          "after a burst of them, so leave it idle briefly before retrying, and "
+          "use USB/dongle DInput mode with Flydigi Space Station closed"
         : "No valid command 0x01 identity reply arrived within 600 ms; "
           "wake the controller and close Flydigi Space Station before retrying";
     return false;
@@ -328,6 +346,76 @@ bool Apex5Device::mayControlProfiles(std::string& error) const {
     return true;
 }
 
+namespace {
+
+// Diagnostics only: ASB_DUMP_PAD_WRITES=<path> records every vendor command
+// this process sends to the pad, with a monotonic timestamp. Nothing about the
+// traffic changes; the writes are observable nowhere else because hidraw
+// readers only ever see the input direction.
+void logPadWrite(std::span<const std::uint8_t> report, const char* origin) {
+    // Append, like the effects dump beside it and the session log above it.
+    // This one truncated, so every launch destroyed the previous capture - and
+    // it is the half that says what actually reached the pad. Timestamps are
+    // relative to process start, so each run opens with a line saying where it
+    // begins.
+    static std::FILE* sink = [] () -> std::FILE* {
+        const char* path = std::getenv("ASB_DUMP_PAD_WRITES");
+        if (!path) {
+            return nullptr;
+        }
+        std::FILE* file = std::fopen(path, "a");
+        if (file) {
+            const auto now = std::time(nullptr);
+            char stamp[32] = "unknown";
+            if (const std::tm* local = std::localtime(&now)) {
+                std::strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", local);
+            }
+            std::fprintf(file, "# session %s\n", stamp);
+            std::fflush(file);
+        }
+        return file;
+    }();
+    if (!sink) {
+        return;
+    }
+    static const auto start = std::chrono::steady_clock::now();
+    const auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - start).count();
+    std::fprintf(sink, "%lld %s", static_cast<long long>(us), origin);
+    for (const auto byte : report) {
+        std::fprintf(sink, " %02x", byte);
+    }
+    std::fprintf(sink, "\n");
+    std::fflush(sink);
+}
+
+} // namespace
+
+namespace {
+
+// 10 ms was the shortest gap that worked in every round of a blind hardware
+// check; 25 ms keeps a margin. The cost is bounded: a full update is a handful
+// of commands, and it lands well inside the time it takes to raise a weapon.
+constexpr auto kVendorWriteSpacing = std::chrono::milliseconds(25);
+
+} // namespace
+
+bool Apex5Device::writeSpacedOutputReport(std::span<const std::uint8_t> report,
+                                          std::string& error) {
+    const auto now = std::chrono::steady_clock::now();
+    if (lastVendorWriteAt_.time_since_epoch().count() != 0) {
+        const auto since = now - lastVendorWriteAt_;
+        if (since < kVendorWriteSpacing) {
+            // Waiting rather than dropping: the command that would be dropped is
+            // the newest one, which is the one that matters.
+            std::this_thread::sleep_for(kVendorWriteSpacing - since);
+        }
+    }
+    const bool ok = transport_->writeOutputReport(report, error);
+    lastVendorWriteAt_ = std::chrono::steady_clock::now();
+    return ok;
+}
+
 bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     if (!isOpen()) {
         error = "APEX device is not open";
@@ -337,11 +425,13 @@ bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
         return false;
     }
     if (identity_->isApex4()) {
-        return transport_->writeOutputReport(
-            buildApex4ForceTrigger(effect, true), error);
+        const auto report4 = buildApex4ForceTrigger(effect, kApex4ApplyFlag);
+        logPadWrite(report4, "setTrigger");
+        return writeSpacedOutputReport(report4, error);
     }
     const auto report = buildForceTrigger(effect, true);
-    return transport_->writeOutputReport(report, error);
+    logPadWrite(report, "setTrigger");
+    return writeSpacedOutputReport(report, error);
 }
 
 bool Apex5Device::setTriggerRaw(const ForceTriggerCommand& command, std::string& error) {
@@ -352,9 +442,14 @@ bool Apex5Device::setTriggerRaw(const ForceTriggerCommand& command, std::string&
     if (!mayWriteEffects(error)) {
         return false;
     }
-    return identity_->isApex4()
-        ? transport_->writeOutputReport(buildApex4ForceTriggerRaw(command, true), error)
-        : transport_->writeOutputReport(buildForceTriggerRaw(command, true), error);
+    if (identity_->isApex4()) {
+        const auto raw4 = buildApex4ForceTriggerRaw(command, kApex4ApplyFlag);
+        logPadWrite(raw4, "setTriggerRaw");
+        return writeSpacedOutputReport(raw4, error);
+    }
+    const auto raw5 = buildForceTriggerRaw(command, true);
+    logPadWrite(raw5, "setTriggerRaw");
+    return writeSpacedOutputReport(raw5, error);
 }
 
 bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
@@ -365,9 +460,14 @@ bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
     if (!mayWriteEffects(error)) {
         return false;
     }
-    return identity_->isApex4()
-        ? transport_->writeOutputReport(buildApex4Normal(side), error)
-        : transport_->writeOutputReport(buildNormal(side), error);
+    if (identity_->isApex4()) {
+        const auto clr4 = buildApex4Normal(side);
+        logPadWrite(clr4, "clearTrigger");
+        return writeSpacedOutputReport(clr4, error);
+    }
+    const auto clr5 = buildNormal(side);
+    logPadWrite(clr5, "clearTrigger");
+    return writeSpacedOutputReport(clr5, error);
 }
 
 bool Apex5Device::clearAll(std::string& error) {
@@ -402,11 +502,14 @@ bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
     if (!mayWriteEffects(error)) {
         return false;
     }
-    return identity_->isApex4()
-        ? transport_->writeOutputReport(
-              buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor), error)
-        : transport_->writeOutputReport(
-              buildRumble(lowFrequencyMotor, highFrequencyMotor), error);
+    if (identity_->isApex4()) {
+        const auto rmb4 = buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor);
+        logPadWrite(rmb4, "setRumble");
+        return writeSpacedOutputReport(rmb4, error);
+    }
+    const auto rmb5 = buildRumble(lowFrequencyMotor, highFrequencyMotor);
+    logPadWrite(rmb5, "setRumble");
+    return writeSpacedOutputReport(rmb5, error);
 }
 
 bool Apex5Device::stopRumble(std::string& error) {
@@ -471,6 +574,206 @@ bool Apex5Device::setInputTransport(bool controllerData, bool rawData,
         return false;
     }
     return true;
+}
+
+Apex5Device::~Apex5Device() {
+    stopAsyncWrites();
+}
+
+Apex5Device::Apex5Device(Apex5Device&& other) noexcept {
+    other.stopAsyncWrites();
+    transport_ = std::move(other.transport_);
+    identity_ = std::move(other.identity_);
+    lastVendorWriteAt_ = other.lastVendorWriteAt_;
+}
+
+Apex5Device& Apex5Device::operator=(Apex5Device&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+    stopAsyncWrites();
+    other.stopAsyncWrites();
+    transport_ = std::move(other.transport_);
+    identity_ = std::move(other.identity_);
+    lastVendorWriteAt_ = other.lastVendorWriteAt_;
+    return *this;
+}
+
+bool Apex5Device::startAsyncWrites(std::string& error) {
+    if (writer_.joinable()) {
+        return true;
+    }
+    if (!transport_) {
+        error = "APEX device is not open";
+        return false;
+    }
+    {
+        std::lock_guard lock(queueMutex_);
+        writerStopping_ = false;
+        pendingLeftTrigger_.reset();
+        pendingRightTrigger_.reset();
+        pendingRumble_.reset();
+        nextSlot_ = 0;
+    }
+    asyncWriteFailed_.store(false, std::memory_order_relaxed);
+    writer_ = std::thread([this] { writerLoop(); });
+    return true;
+}
+
+void Apex5Device::stopAsyncWrites() noexcept {
+    if (!writer_.joinable()) {
+        return;
+    }
+    {
+        std::lock_guard lock(queueMutex_);
+        writerStopping_ = true;
+    }
+    queueSignal_.notify_all();
+    writer_.join();
+}
+
+bool Apex5Device::queueTriggerRaw(const ForceTriggerCommand& command,
+                                  std::string& error) {
+    if (!writer_.joinable()) {
+        return setTriggerRaw(command, error);
+    }
+    {
+        std::lock_guard lock(queueMutex_);
+        (command.side == TriggerSide::Left ? pendingLeftTrigger_
+                                           : pendingRightTrigger_) = command;
+    }
+    queueSignal_.notify_one();
+    return true;
+}
+
+bool Apex5Device::queueRumble(std::uint8_t lowFrequencyMotor,
+                              std::uint8_t highFrequencyMotor,
+                              std::string& error) {
+    if (!writer_.joinable()) {
+        return setRumble(lowFrequencyMotor, highFrequencyMotor, error);
+    }
+    {
+        std::lock_guard lock(queueMutex_);
+        pendingRumble_ = std::pair{lowFrequencyMotor, highFrequencyMotor};
+    }
+    queueSignal_.notify_one();
+    return true;
+}
+
+bool Apex5Device::takeAsyncWriteError(std::string& error) {
+    if (!asyncWriteFailed_.exchange(false, std::memory_order_acq_rel)) {
+        return false;
+    }
+    std::lock_guard lock(asyncErrorMutex_);
+    error = asyncError_;
+    return true;
+}
+
+std::uint64_t Apex5Device::asyncWriteRetries() const noexcept {
+    return asyncWriteRetries_.load(std::memory_order_relaxed);
+}
+
+void Apex5Device::writerLoop() {
+    // Consecutive, not total: an occasional dropped command is normal, a run of
+    // them is not.
+    constexpr unsigned kMaxConsecutiveWriteFailures = 10;
+    unsigned consecutiveFailures = 0;
+    for (;;) {
+        // Wait for something to send, then spend the pad's spacing *before*
+        // choosing what to send. Choosing first and sleeping afterwards meant a
+        // command could be superseded while it waited and still go out: the
+        // slot held one value at most, but that one value was already committed
+        // and burnt the next transmission window on a state the game had
+        // abandoned. Sleeping first lets every update during the wait land in
+        // the slot, and the newest one is what leaves.
+        {
+            std::unique_lock lock(queueMutex_);
+            queueSignal_.wait(lock, [this] {
+                return writerStopping_ || pendingLeftTrigger_ || pendingRightTrigger_ ||
+                       pendingRumble_;
+            });
+            if (writerStopping_) {
+                return;
+            }
+        }
+
+        if (lastVendorWriteAt_.time_since_epoch().count() != 0) {
+            const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
+            if (since < kVendorWriteSpacing) {
+                std::this_thread::sleep_for(kVendorWriteSpacing - since);
+            }
+        }
+
+        std::optional<ForceTriggerCommand> trigger;
+        std::optional<std::pair<std::uint8_t, std::uint8_t>> rumble;
+        {
+            std::unique_lock lock(queueMutex_);
+            if (writerStopping_) {
+                return;
+            }
+            // Round-robin rather than a fixed order. Writing one slot first
+            // every time is what made the left trigger the command that always
+            // went missing, and starving a slot under a fast game would be the
+            // same bug wearing the spacing as a disguise.
+            for (unsigned attempt = 0; attempt < 3; ++attempt) {
+                const unsigned slot = (nextSlot_ + attempt) % 3;
+                if (slot == 0 && pendingLeftTrigger_) {
+                    trigger = std::exchange(pendingLeftTrigger_, std::nullopt);
+                } else if (slot == 1 && pendingRightTrigger_) {
+                    trigger = std::exchange(pendingRightTrigger_, std::nullopt);
+                } else if (slot == 2 && pendingRumble_) {
+                    rumble = std::exchange(pendingRumble_, std::nullopt);
+                } else {
+                    continue;
+                }
+                nextSlot_ = (slot + 1) % 3;
+                break;
+            }
+        }
+        if (!trigger && !rumble) {
+            continue;   // woken with nothing left to send
+        }
+
+        // The spacing is already satisfied, so these do not wait again.
+        std::string error;
+        const bool ok = trigger ? setTriggerRaw(*trigger, error)
+                                : setRumble(rumble->first, rumble->second, error);
+        if (ok) {
+            consecutiveFailures = 0;
+            continue;
+        }
+
+        // Put it back and let the next cycle send it again. This pad drops a
+        // command now and then - that is the whole reason the spacing exists -
+        // and ending a session mid-game over one of them is a worse failure
+        // than the failure. A value the game has already superseded is not
+        // restored: the newer one is what should go.
+        {
+            std::lock_guard lock(queueMutex_);
+            if (trigger) {
+                auto& slot = trigger->side == TriggerSide::Left ? pendingLeftTrigger_
+                                                                : pendingRightTrigger_;
+                if (!slot) {
+                    slot = trigger;
+                }
+            } else if (!pendingRumble_) {
+                pendingRumble_ = rumble;
+            }
+        }
+        asyncWriteRetries_.fetch_add(1, std::memory_order_relaxed);
+
+        // Retries are spaced like any other write, so this is about a quarter
+        // of a second of an output path that will not take anything at all.
+        if (++consecutiveFailures < kMaxConsecutiveWriteFailures) {
+            continue;
+        }
+        {
+            std::lock_guard lock(asyncErrorMutex_);
+            asyncError_ = std::move(error);
+        }
+        asyncWriteFailed_.store(true, std::memory_order_release);
+        consecutiveFailures = 0;
+    }
 }
 
 } // namespace asb::flydigi

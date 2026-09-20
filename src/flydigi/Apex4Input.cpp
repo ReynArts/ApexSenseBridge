@@ -51,6 +51,23 @@ decodeApex4InputReport(std::span<const std::uint8_t> report) noexcept {
 
     platform::mapXInputButtons(buttons, state.l2, state.r2, state);
     if (report[8] & 0x08) state.buttons |= dualsense::button::kPs;
+
+    // The four rear paddles live in report[7] - M1 0x04, M2 0x08, M3 0x10,
+    // M4 0x20 - and nothing else reads that byte. They are the only buttons on
+    // this pad that XInput cannot express, which is why Create is applied here
+    // directly rather than through mapXInputButtons, the same way the PS button
+    // above is.
+    //
+    // Create needs its own source because View/Back is already spent: XInput has
+    // no touchpad, so Back carries the touchpad click that native PlayStation
+    // titles use as Map. Before this, nothing in the bridge ever set Create, and
+    // a game that wanted it saw a touchpad click instead.
+    //
+    // Confirmed on hardware by pressing each paddle in turn: they set only their
+    // own bit, so they are not mapped to duplicate another button on the pad.
+    // M2 to M4 stay unmapped deliberately - their bits are written down here so
+    // binding one later is a one-line change.
+    if (report[7] & 0x04) state.buttons |= dualsense::button::kCreate;
     return state;
 }
 

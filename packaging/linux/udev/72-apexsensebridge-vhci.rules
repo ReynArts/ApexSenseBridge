@@ -1,0 +1,9 @@
+# Let the 'input' group attach and detach USB/IP devices, so the bridge does not
+# need root for the libVIIPER backend.
+#
+# MODE= and GROUP= only apply to device nodes and these are sysfs attributes, so
+# the permissions have to be set by running chgrp and chmod. Both files are
+# needed: attach brings the virtual DualSense up, detach tears it down.
+ACTION=="add", SUBSYSTEM=="platform", KERNEL=="vhci_hcd.0", \
+  RUN+="/usr/bin/chgrp input /sys/devices/platform/vhci_hcd.0/attach /sys/devices/platform/vhci_hcd.0/detach", \
+  RUN+="/usr/bin/chmod 0660 /sys/devices/platform/vhci_hcd.0/attach /sys/devices/platform/vhci_hcd.0/detach"

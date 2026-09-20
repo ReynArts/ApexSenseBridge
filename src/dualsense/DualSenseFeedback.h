@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 
 namespace asb::dualsense {
 
@@ -41,5 +42,28 @@ struct DualSenseFeedback {
 bool decodeViiperFeedbackFrame(std::uint8_t frameType,
                                std::span<const std::uint8_t> payload,
                                DualSenseFeedback& feedback);
+
+inline constexpr std::uint8_t kUsbOutputReportId = 0x02;
+inline constexpr std::uint8_t kBluetoothOutputReportId = 0x31;
+
+// Decodes a raw DualSense output report exactly as a game writes it, for
+// backends that expose a real HID device instead of VIIPER's compact framing.
+// Accepts the 48-byte descriptor-sized transfer, the 64-byte padded USB form
+// and the Bluetooth 0x31 form. Only FeedbackKind::HidOutput is produced; audio
+// haptics never travel over HID.
+bool decodeDualSenseOutputReport(std::span<const std::uint8_t> report,
+                                 DualSenseFeedback& feedback);
+
+// Diagnostics: appends one line describing a decoded output report from the
+// game. Writing the decoded form rather than raw bytes keeps the two backends
+// comparable - libVIIPER hands us its own frame layout, where the fields sit one
+// byte earlier than in the HID report uhid sees, and dumping both raw would make
+// every offset in an analysis depend on which backend produced the file.
+//
+// The translation table can only be extended against what games actually send,
+// so this is the file it gets built from.
+void appendFeedbackDump(const std::string& path,
+                        std::uint64_t microseconds,
+                        const DualSenseFeedback& feedback);
 
 } // namespace asb::dualsense

@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "platform/AudioEndpointProtection.h"
 
 #include <cassert>

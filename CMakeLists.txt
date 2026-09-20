@@ -16,6 +16,8 @@ endif()
 add_library(asb_core STATIC
     src/core/ApexProfileRestoreGuard.cpp
     src/diagnostics/HidDiagnostics.cpp
+    src/dualsense/DualSenseDescriptor.cpp
+    src/dualsense/DualSenseFeatureReports.cpp
     src/dualsense/DualSenseFeedback.cpp
     src/dualsense/DualSenseFirmware.cpp
     src/dualsense/DualSenseInput.cpp
@@ -30,6 +32,7 @@ add_library(asb_core STATIC
     src/platform/AudioEndpointProtection.cpp
     src/platform/PhysicalInputSource.h
     src/platform/SessionControl.cpp
+    src/platform/VendorPhysicalInputSource.cpp
     src/platform/XInputMapping.cpp
     src/flydigi/Apex4Input.cpp
     src/flydigi/Apex4Protocol.cpp
@@ -52,6 +55,34 @@ if(WIN32)
         src/platform/windows/WindowsSessionControl.cpp
     )
     target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput9_1_0 ole32)
+elseif(UNIX AND NOT APPLE)
+    # Linux keeps the XInput and audio-endpoint stubs on purpose: neither API
+    # exists here, and their error strings already say exactly that. Every other
+    # stub is replaced by a native implementation as the port progresses.
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(ASB_HIDAPI REQUIRED IMPORTED_TARGET hidapi-hidraw)
+    pkg_check_modules(ASB_UDEV REQUIRED IMPORTED_TARGET libudev)
+    pkg_check_modules(ASB_EVDEV REQUIRED IMPORTED_TARGET libevdev)
+    find_package(Threads REQUIRED)
+    target_sources(asb_core PRIVATE
+        src/platform/linux/LinuxHidReportDescriptor.cpp
+        src/platform/linux/LinuxHidTransport.cpp
+        src/platform/linux/LinuxLibViiperVirtualDualSense.cpp
+        src/platform/linux/LinuxPhysicalControllerIsolation.cpp
+        src/platform/linux/LinuxPhysicalInputSource.cpp
+        src/platform/linux/LinuxSessionControl.cpp
+        src/platform/linux/LinuxUhidVirtualDualSense.cpp
+        src/platform/linux/LinuxVirtualDualSense.cpp
+        src/platform/UnsupportedAudioEndpointProtection.cpp
+        src/platform/UnsupportedXInputGamepad.cpp
+    )
+    target_link_libraries(asb_core PRIVATE
+        PkgConfig::ASB_HIDAPI
+        PkgConfig::ASB_UDEV
+        PkgConfig::ASB_EVDEV
+        Threads::Threads
+        ${CMAKE_DL_LIBS}
+    )
 else()
     target_sources(asb_core PRIVATE
         src/platform/UnsupportedHidTransport.cpp
@@ -78,14 +109,14 @@ add_executable(ApexSenseBridge
     ${ASB_RC_FILE}
 )
 target_link_libraries(ApexSenseBridge PRIVATE asb_core)
+target_compile_definitions(ApexSenseBridge PRIVATE
+    ASB_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    ASB_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
+)
 if(WIN32)
     target_link_libraries(ApexSenseBridge PRIVATE psapi)
-    target_compile_definitions(ApexSenseBridge PRIVATE
-        ASB_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        ASB_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
-    )
 endif()
 
 if(WIN32)
@@ -152,6 +183,8 @@ if(BUILD_TESTING)
 
     add_executable(ApexSenseBridgeVirtualDualSenseTests
         tests/test_virtual_dualsense.cpp
+        src/dualsense/DualSenseDescriptor.cpp
+        src/dualsense/DualSenseFeatureReports.cpp
         src/dualsense/DualSenseFeedback.cpp
         src/dualsense/DualSenseFirmware.cpp
         src/dualsense/DualSenseInput.cpp
@@ -177,6 +210,8 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeTriggerTranslationTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME adaptive_trigger_translation COMMAND ApexSenseBridgeTriggerTranslationTests)
+
+
 
     add_executable(ApexSenseBridgeRumbleTests tests/test_rumble_bridge.cpp)
     target_link_libraries(ApexSenseBridgeRumbleTests PRIVATE asb_core)
@@ -248,6 +283,35 @@ if(BUILD_TESTING)
     add_test(NAME audio_endpoint_identity_guard
              COMMAND ApexSenseBridgeAudioEndpointProtectionTests)
 
+    if(UNIX AND NOT APPLE)
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        add_test(NAME apex4_capture_analysis
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_apex4_capture_analysis.py)
+        add_executable(ApexSenseBridgeHidReportDescriptorTests
+            tests/test_hid_report_descriptor.cpp
+            src/platform/linux/LinuxHidReportDescriptor.cpp
+            src/dualsense/DualSenseDescriptor.cpp
+        )
+        target_include_directories(ApexSenseBridgeHidReportDescriptorTests PRIVATE src)
+        target_compile_options(ApexSenseBridgeHidReportDescriptorTests PRIVATE -Wall -Wextra -Wpedantic)
+        add_test(NAME hid_report_descriptor COMMAND ApexSenseBridgeHidReportDescriptorTests)
+
+        add_executable(ApexSenseBridgeLinuxIsolationTests
+            tests/test_linux_physical_isolation.cpp
+        )
+        target_link_libraries(ApexSenseBridgeLinuxIsolationTests PRIVATE asb_core)
+        target_compile_options(ApexSenseBridgeLinuxIsolationTests PRIVATE -Wall -Wextra -Wpedantic)
+        add_test(NAME linux_physical_isolation COMMAND ApexSenseBridgeLinuxIsolationTests)
+
+        add_executable(ApexSenseBridgeLinuxSessionControlTests
+            tests/test_linux_session_control.cpp
+        )
+        target_link_libraries(ApexSenseBridgeLinuxSessionControlTests PRIVATE asb_core)
+        target_compile_options(ApexSenseBridgeLinuxSessionControlTests PRIVATE -Wall -Wextra -Wpedantic)
+        add_test(NAME linux_session_control COMMAND ApexSenseBridgeLinuxSessionControlTests)
+    endif()
+
     if(WIN32)
         add_executable(ApexSenseBridgeSessionControlWindowsTests
             tests/test_session_control.cpp
@@ -294,4 +358,23 @@ if(BUILD_TESTING)
                          -ExecutionPolicy Bypass
                          -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify-version-consistency.ps1)
     endif()
+
+    # Every test asserts its expectations, and a Release build defines NDEBUG,
+    # which compiles those asserts away and leaves the suite passing without
+    # checking anything. Each test file opens with an #undef, but two had
+    # already drifted without it and went green in Release for months, so the
+    # guarantee is made here as well - once, for every target, including any
+    # added later.
+    get_property(asb_directory_targets
+                 DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                 PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(asb_target IN LISTS asb_directory_targets)
+        if(asb_target MATCHES "^ApexSenseBridge.*Tests$")
+            if(MSVC)
+                target_compile_options(${asb_target} PRIVATE /UNDEBUG)
+            else()
+                target_compile_options(${asb_target} PRIVATE -UNDEBUG)
+            endif()
+        endif()
+    endforeach()
 endif()

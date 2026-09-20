@@ -116,6 +116,137 @@ drivers and data unless `/REMOVEUSERDATA` is explicitly supplied for data only.
 
 ---
 
+## 🐧 Linux (Proton / Wine)
+
+Linux is supported for the **APEX 4** and needs no Windows components: no
+HidHide, no usbip-win2, no installer. The virtual DualSense is created by the
+kernel, the pad is hidden for the session with `EVIOCGRAB`, and the kernel
+releases it again if the bridge ever dies.
+
+Adaptive triggers, PlayStation button prompts and rumble work in Proton titles.
+DualSense **audio haptics** need the libVIIPER backend described below; the
+default uhid backend creates no audio endpoint and reports zero haptic frames,
+which is an honest signal rather than a silent failure.
+
+> [!NOTE]
+> The APEX 5 is untested on Linux. Its code paths compile and are wired up, but
+> nobody has run one. Onboard profiles (`--apex-profile`) are APEX 5 only.
+
+### Build and install
+
+Requirements: a C++20 compiler, CMake 3.20+, and the development packages for
+`hidapi-hidraw`, `libudev` and `libevdev` (Debian/Ubuntu: `libhidapi-dev
+libudev-dev libevdev-dev`; Fedora: `hidapi-devel systemd-devel libevdev-devel`;
+Arch: `hidapi systemd-libs libevdev`).
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+ctest --test-dir build --output-on-failure
+
+./packaging/linux/install.sh          # installs into ~/.local, asks for root only for udev
+ApexSenseBridge list                  # should show the APEX and its vendor interface
+```
+
+`install.sh` is the only step that touches anything outside `$HOME`, and only to
+install udev rules. Your user must be in the `input` group for `/dev/uhid`; the
+script says so if it is not.
+
+### Running a game
+
+`asb-run` starts the bridge, waits until it is actually ready, runs the game and
+stops the bridge afterwards. It fails the launch rather than letting a game start
+while seeing two controllers.
+
+**Lutris** — per game, *System options* → **Command prefix**:
+
+```
+/home/you/.local/bin/asb-run wrap
+```
+
+Chain other wrappers after it if you use them, e.g. `asb-run wrap
+game-performance`. Lutris appends the game's own command line.
+
+**Steam** — per game, *Launch Options*:
+
+```
+/home/you/.local/bin/asb-run wrap %command%
+```
+
+Launchers with neither field can call `asb-run start "<game name>"` before and
+`asb-run stop` after, waiting for the first to finish.
+
+Then set these in the same per-game environment:
+
+| Variable | Value | Why |
+|---|---|---|
+| `ASB_GAME` | the game's name | picks its touchpad profile from [`supported_games.json`](data/supported_games.json). Steam supplies `$SteamAppId` instead |
+| `SDL_GAMECONTROLLER_IGNORE_DEVICES` | `0x04b4/0x2412` | hides the physical APEX from SDL, which still enumerates it after `EVIOCGRAB` stops its events |
+| `SDL_JOYSTICK_HIDAPI_PS5` | `0` | stops SDL's own PS5 driver opening the virtual pad's `/dev/hidraw*` behind Proton's back |
+| `PROTON_NO_STEAMINPUT` | `0` | see the warning below |
+| `PROTON_USE_PIPEWIRE` | `0` | Proton-CachyOS only, and only for DualSense audio haptics - see below |
+
+Without the two `SDL_*` variables the game sees the pad twice and its button
+prompts flicker between PlayStation and Xbox on every press.
+
+> [!WARNING]
+> Set `PROTON_NO_STEAMINPUT=0` **explicitly**, even though 0 is the default.
+> Proton's Wayland branch treats an unset value as a cue to set it to 1 itself
+> and, on the way, deletes `SDL_GAMECONTROLLER_IGNORE_DEVICES` from the
+> environment - which silently undoes the isolation above.
+
+> [!WARNING]
+> Do not set `PROTON_PREFER_SDL` or `PROTON_USE_SDL`. They imply
+> `PROTON_DISABLE_HIDRAW=1`, which disables Proton's native DualSense path and
+> with it the adaptive triggers.
+
+> [!IMPORTANT]
+> `PROTON_USE_PIPEWIRE=0` is what makes DualSense **haptics** work on
+> Proton-CachyOS. Its default audio driver, `winepipewire.drv`, does not let Wine
+> set a container id, so a game cannot tell that the controller's audio endpoint
+> belongs to the controller it is already using - and sends no haptics at all.
+> Adaptive triggers are unaffected, which is what makes this easy to miss.
+>
+> Measured on one machine: `audio_haptics_frames` was 0 across seven sessions of
+> Assassin's Creed Shadows on the default driver and 21798-72296 with the switch
+> set; Cyberpunk 2077 behaves the same way. Horizon Forbidden West works either
+> way because it locates the endpoint differently, so a single working game is
+> not evidence that the path is healthy.
+>
+> The one line that identifies this in a `PROTON_LOG=warn+mmdevapi` capture:
+> `warn:mmdevapi:MMDevice_Create Failed to get and set container id` - twelve
+> times on the default driver, zero with the switch, and zero on GE-Proton,
+> which ships no `winepipewire` at all.
+>
+> This is a driver bug rather than anything the bridge can work around: the
+> audio endpoint already carries the right `device.bus`, `device.vendor.id` and
+> `device.product.id`, and `winepulse.drv` reads exactly those three to build
+> the device identity a game matches against.
+
+### Backends
+
+| Backend | Needs | Gives you |
+|---|---|---|
+| `uhid` (default) | nothing beyond the udev rules | triggers, prompts, rumble |
+| `libVIIPER` over USB/IP | `vhci-hcd`, installed by `install.sh` | the above plus audio haptics |
+
+`--virtual-backend auto` prefers libVIIPER when all of its prerequisites are
+present - the kernel module, write access to its three paths, **and** the library
+itself - and falls back to uhid otherwise. `--virtual-backend uhid` forces the
+plain backend on a machine that would otherwise pick libVIIPER. Neither needs
+root at runtime.
+
+### Manual checks
+
+```sh
+ApexSenseBridge identify                      # confirm the pad and its firmware
+ApexSenseBridge input-status --seconds 10     # confirm reports arrive (~1 kHz on an APEX 4)
+ApexSenseBridge virtual-ds --seconds 20       # confirm the virtual DualSense enumerates
+ApexSenseBridge stop-active-sessions          # clean up a session left behind
+```
+
+---
+
 ## 🖥️ Usage Modes
 
 ### 1. Standalone System Tray App (Steam, Epic, EA, Game Pass, etc.)
@@ -184,6 +315,8 @@ ApexSenseBridge.exe restore-controller-visibility
 - Visual Studio 2022 (Desktop C++ & Windows SDK)
 - CMake 3.25+
 - Inno Setup 6 (for packaging)
+
+For Linux, see [Linux (Proton / Wine)](#-linux-proton--wine) above.
 
 ```powershell
 # 1. Build native engine and tests

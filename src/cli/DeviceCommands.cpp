@@ -342,7 +342,8 @@ int runTestRt(asb::flydigi::Apex5Device& device) {
 
     if (!device.clearAll(error)) {
         std::cerr << "WARNING: automatic reset write failed: " << error << "\n"
-                  << "Open Flydigi Space Station and set both triggers to Normal before continuing.\n";
+                  << "Run 'ApexSenseBridge clear', or open Flydigi Space Station and set\n"
+                     "both triggers to Normal, before continuing.\n";
         return 5;
     }
     resetOnExit.dismiss();

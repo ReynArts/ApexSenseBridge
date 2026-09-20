@@ -1,0 +1,60 @@
+name: Linux build
+
+on:
+  push:
+    branches: [dev, stable]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The three distributions differ only in how they package libudev:
+          # Debian ships it as libudev-dev, Fedora folds it into systemd-devel,
+          # Arch into systemd-libs. Everything else maps one to one.
+          - name: Ubuntu
+            container: ''
+            install: |
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends \
+                cmake g++ pkg-config python3 \
+                libhidapi-dev libudev-dev libevdev-dev
+          - name: Fedora
+            container: fedora:latest
+            install: |
+              dnf -y install --setopt=install_weak_deps=False \
+                cmake gcc-c++ pkgconf-pkg-config python3 git \
+                hidapi-devel systemd-devel libevdev-devel
+          - name: Arch
+            container: archlinux:base-devel
+            install: |
+              pacman -Syu --noconfirm --needed \
+                cmake pkgconf python git \
+                hidapi systemd-libs libevdev
+
+    steps:
+      # Before checkout, so the container images have git and actions/checkout
+      # clones rather than falling back to a tarball without history.
+      - name: Install build dependencies
+        run: ${{ matrix.install }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # Every Linux test is hardware-free and sets its own XDG directories, so
+      # the suite runs unchanged in a container with no seat, no udev and no
+      # controller attached.
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

@@ -43,6 +43,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <psapi.h>
+#elif defined(__linux__)
+#include <fstream>
+#include <unistd.h>
 #endif
 
 namespace asb::cli {
@@ -87,6 +90,26 @@ struct ProcessUsageSnapshot {
     std::uint64_t peakWorkingSetBytes = 0;
 };
 
+#ifdef __linux__
+// /proc/self/status reports VmRSS and VmHWM in kibibytes.
+std::uint64_t procStatusKibibytes(const char* key) noexcept {
+    std::ifstream status("/proc/self/status");
+    std::string line;
+    const std::string prefix(key);
+    while (std::getline(status, line)) {
+        if (line.compare(0, prefix.size(), prefix) != 0) {
+            continue;
+        }
+        const auto digits = line.find_first_of("0123456789");
+        if (digits == std::string::npos) {
+            return 0;
+        }
+        return static_cast<std::uint64_t>(std::strtoull(line.c_str() + digits, nullptr, 10));
+    }
+    return 0;
+}
+#endif
+
 ProcessUsageSnapshot processUsageSnapshot() noexcept {
     ProcessUsageSnapshot snapshot{};
 #ifdef _WIN32
@@ -106,6 +129,38 @@ ProcessUsageSnapshot processUsageSnapshot() noexcept {
         snapshot.workingSetBytes = counters.WorkingSetSize;
         snapshot.peakWorkingSetBytes = counters.PeakWorkingSetSize;
     }
+#elif defined(__linux__)
+    // Field 14 (utime) and 15 (stime) of /proc/self/stat are in clock ticks.
+    // They are converted to the same 100 ns unit Windows reports so the
+    // telemetry JSON schema stays identical across platforms.
+    std::ifstream stat("/proc/self/stat");
+    std::string contents;
+    if (std::getline(stat, contents)) {
+        // The second field is the comm name in parentheses and may itself
+        // contain spaces, so fields are counted from after the closing one.
+        const auto commEnd = contents.rfind(')');
+        if (commEnd != std::string::npos) {
+            std::istringstream fields(contents.substr(commEnd + 1));
+            std::string field;
+            unsigned long long utime = 0;
+            unsigned long long stime = 0;
+            for (int index = 3; index <= 15; ++index) {
+                if (!(fields >> field)) {
+                    break;
+                }
+                if (index == 14) utime = std::strtoull(field.c_str(), nullptr, 10);
+                if (index == 15) stime = std::strtoull(field.c_str(), nullptr, 10);
+            }
+            const long ticksPerSecond = ::sysconf(_SC_CLK_TCK);
+            if (ticksPerSecond > 0) {
+                const auto ticks = utime + stime;
+                snapshot.cpu100ns = static_cast<std::uint64_t>(
+                    (ticks * 10'000'000ULL) / static_cast<unsigned long long>(ticksPerSecond));
+            }
+        }
+    }
+    snapshot.workingSetBytes = procStatusKibibytes("VmRSS:") * 1024;
+    snapshot.peakWorkingSetBytes = procStatusKibibytes("VmHWM:") * 1024;
 #endif
     return snapshot;
 }
@@ -236,12 +291,12 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             options.viiperExecutable = argv[i];
         } else if (value == "--virtual-backend") {
             if (++i >= argc) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                error = "--virtual-backend requires auto, integrated, sidecar, or uhid (uhid is Linux only).";
                 return false;
             }
             const auto backend = parseVirtualDualSenseBackend(argv[i]);
             if (!backend) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                error = "--virtual-backend requires auto, integrated, sidecar, or uhid (uhid is Linux only).";
                 return false;
             }
             options.virtualBackend = *backend;
@@ -354,7 +409,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     BridgeCommandOptions options{};
     std::string error;
     if (!parseBridgeOptions(argc, argv, options, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--apex-profile 1..4] [--isolate-apex] [--session-token 32HEX]\n";
+        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar|uhid] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--apex-profile 1..4] [--isolate-apex] [--session-token 32HEX]\n";
         return 1;
     }
 
@@ -390,6 +445,18 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
         return exitCode;
     };
+
+    // Before touching the pad at all: a controller daemon holding the vendor
+    // interface makes the identity exchange below fail with "no vendor HID
+    // interface found", which reads as a hardware problem rather than a
+    // conflict. Whatever this suspends is restored by restore() or by the
+    // object's destructor, so the early returns between here and activate()
+    // cannot strand it.
+    asb::platform::TemporaryPhysicalControllerIsolation physicalIsolation;
+    if (!physicalIsolation.suspendConflictingDaemons(error)) {
+        std::cerr << "Temporary APEX isolation failed: " << error << '\n';
+        return failSession(11, "Temporary APEX isolation failed: " + error);
+    }
 
     auto device = openSelectedIndex(options.deviceIndex, error);
     if (!device) {
@@ -452,6 +519,18 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
         rumbleResetOnExit = std::make_unique<asb::RumbleResetGuard>(*device);
     }
+
+    // Declared after both reset guards on purpose: destruction runs in reverse,
+    // so this joins the writer before either guard sends its reset. Without it,
+    // every early return below unwound with the writer still running and a
+    // reset could overtake an effect write already in flight, leaving the pad
+    // holding resistance the session believed it had cleared. Harmless while no
+    // writer is running, which is the case on every path that fails before it
+    // starts.
+    struct AsyncWriteStop {
+        asb::flydigi::Apex5Device* device;
+        ~AsyncWriteStop() { if (device) device->stopAsyncWrites(); }
+    } asyncWriteStop{&*device};
 
     auto inputSource = asb::platform::openPhysicalInputSource(
         device->info(), options.xinputIndex, error);
@@ -583,7 +662,6 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
     }
 
-    asb::platform::TemporaryPhysicalControllerIsolation physicalIsolation;
     if (!physicalIsolation.activate(
             device->info(), options.sessionToken.value_or(""),
             profileSwitchRequired
@@ -671,11 +749,26 @@ int commandBridgeTriggers(int argc, char** argv) {
                 4, "Could not establish a Normal trigger baseline after the "
                    "Apex 5 profile switch: " + baselineError);
         }
+        // Selecting a profile reapplies that slot's trigger modes and the
+        // reset above undoes them, so the bridge's idea of what the pad was
+        // last told is stale in both directions until it is told.
+        bridge.noteNormalBaseline();
         if (options.routeRumble && !device->stopRumble(baselineError)) {
             return rollbackFailedProfileStartup(
                 12, "Could not establish a stopped grip-rumble baseline after "
                     "the Apex 5 profile switch: " + baselineError);
         }
+    }
+
+    // Only now, with every synchronous write behind us. Startup does its own
+    // ordered writes - the baseline, an optional profile switch, and the
+    // baseline again after it - and those ran alongside a live writer before,
+    // sharing a transport and a spacing timestamp with no serialisation between
+    // them. Until this point the queue methods write straight through, which
+    // costs a callback the pad's 25 ms during startup and is the safer trade.
+    if (!device->startAsyncWrites(error)) {
+        virtualDualSense->close();
+        return failSession(11, error);
     }
 
     if (sessionControl) {
@@ -801,6 +894,16 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::uint64_t coalescedInputReports = 0;
     std::uint64_t keepaliveInputReports = 0;
     std::uint64_t forwardedPhysicalReports = 1;
+    // A write that failed on the writer thread. The bridges cannot report it:
+    // queueing succeeds, so they mark the effect as sent and their dedup cache
+    // suppresses the retry the game makes. Reading it here ends the session the
+    // way a synchronous write failure always did, rather than running on until
+    // exit believing the pad holds a state it never received.
+    std::string asyncWriteError;
+    // Long enough that no burst of lost reports can trip it, short enough that
+    // a game is not left without a controller for any length of time.
+    constexpr auto kInputSilenceTimeout = std::chrono::seconds(3);
+    auto lastInputDataAt = std::chrono::steady_clock::now();
     MicrosecondLatencyHistogram forwardingLatency;
     std::uint16_t virtualTouchMinimumX = 0xFFFF;
     std::uint16_t virtualTouchMaximumX = 0;
@@ -819,7 +922,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     while (!g_stopRequested.load(std::memory_order_relaxed) &&
            !globalSessionStop->stopRequested() &&
            (!sessionControl || !sessionControl->stopRequested()) &&
-           !bridge.failed() && (!rumbleBridge || !rumbleBridge->failed())) {
+           !bridge.failed() && (!rumbleBridge || !rumbleBridge->failed()) &&
+           !device->takeAsyncWriteError(asyncWriteError)) {
         asb::dualsense::DualSenseInputState input{};
         const auto inputWait = inputSource->eventDriven()
             ? std::chrono::milliseconds(8)
@@ -829,6 +933,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         bool forwardInput = false;
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
+            lastInputDataAt = inputObservedAt;
             ++inputSamples;
             seenButtons = static_cast<std::uint16_t>(seenButtons | input.buttons);
             seenDpad = static_cast<std::uint8_t>(seenDpad | input.dpad);
@@ -854,6 +959,22 @@ int commandBridgeTriggers(int argc, char** argv) {
                            !lastForwardedInput || *lastForwardedInput != input;
             if (!forwardInput) ++coalescedInputReports;
         } else if (inputStatus == asb::platform::PhysicalInputStatus::Timeout) {
+            // A pad that has gone away does not always report an error: hidraw
+            // can keep timing out on a node nobody is writing to any more, and
+            // the loop would wait on it for as long as the game ran, holding a
+            // session that forwards nothing. This pad reports at about 1 kHz,
+            // so seconds of silence is not a quiet moment - it is gone.
+            if (inputSource->eventDriven() &&
+                inputObservedAt - lastInputDataAt >= kInputSilenceTimeout) {
+                inputProxyFailed = true;
+                inputProxyError =
+                    "The mandatory physical APEX input source went silent for " +
+                    std::to_string(
+                        std::chrono::duration_cast<std::chrono::seconds>(
+                            kInputSilenceTimeout).count()) +
+                    "s; treating it as disconnected.";
+                break;
+            }
             if (lastPhysicalInput) {
                 input = *lastPhysicalInput;
                 if (options.touchpadProfile != asb::dualsense::TouchpadGestureProfile::None) {
@@ -982,6 +1103,22 @@ int commandBridgeTriggers(int argc, char** argv) {
                   << neutralizationError << '\n';
     }
     virtualDualSense->close(); // joins the feedback callback before touching the HID device
+    // Nothing can queue a write now that the callback is joined, so the writer
+    // can be drained and joined too. The resets below then take the synchronous
+    // path and report their own failures directly, as they always did.
+    device->stopAsyncWrites();
+    // The loop takes it first and stops; anything here failed during shutdown.
+    std::string queuedWriteError;
+    if (device->takeAsyncWriteError(queuedWriteError)) {
+        asyncWriteError = queuedWriteError;
+    }
+    if (!asyncWriteError.empty()) {
+        std::cerr << "A queued APEX write kept failing: " << asyncWriteError << '\n';
+    }
+    if (const auto retries = device->asyncWriteRetries(); retries != 0) {
+        std::cerr << "Note: " << retries
+                  << " queued APEX write(s) were retried after a failure.\n";
+    }
     const auto virtualStats = virtualDualSense->stats();
     const auto touchpadGestureStats = touchpadGestureMapper.stats();
     const auto bridgeStats = bridge.stats();
@@ -1292,7 +1429,8 @@ int commandBridgeTriggers(int argc, char** argv) {
               bridgeStats.lastActiveRightCommand);
     if (!resetOk) {
         std::cerr << "WARNING: LT/RT automatic reset failed: " << resetError
-                  << "\nSet both triggers to Normal in Flydigi Space Station.\n";
+                  << "\nRun 'ApexSenseBridge clear' once the pad is back, or set\n"
+                     "both triggers to Normal in Flydigi Space Station.\n";
         return failSession(5, "LT/RT automatic reset failed: " + resetError);
     }
     if (!rumbleResetOk) {

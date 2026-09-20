@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dualsense/DualSenseFeedback.h"
+#include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex5Device.h"
 
 #include <atomic>
@@ -33,12 +34,25 @@ class AdaptiveTriggerBridge {
 public:
     explicit AdaptiveTriggerBridge(flydigi::Apex5Device& device);
     void handle(const DualSenseFeedback& feedback);
+
+    // Records that something outside this bridge has just put both triggers
+    // back to Normal - the startup baseline, or the reset that follows an
+    // Apex 5 profile switch. Without it the bridge starts out believing it
+    // knows nothing, and writes Normal over Normal the first time a game
+    // releases a trigger; on the dongle that redundant write costs about a
+    // second of frozen input. It also keeps the cache honest after a reset
+    // the bridge did not perform, which would otherwise suppress a write the
+    // game genuinely needs. Effects already held are kept: a baseline changes
+    // what the pad is doing, not what the game asked for.
+    void noteNormalBaseline();
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
     [[nodiscard]] AdaptiveTriggerBridgeStats stats() const noexcept;
 
 private:
     void apply(TriggerSide side, const std::array<std::uint8_t, 11>& effect);
+    bool writeNow(TriggerSide side, const ForceTriggerCommand& command,
+                  std::uint8_t dualSenseType);
 
     flydigi::Apex5Device& device_;
     std::uint8_t leftMotor_ = 0;

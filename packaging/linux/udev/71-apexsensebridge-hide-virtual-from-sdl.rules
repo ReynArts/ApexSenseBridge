@@ -1,0 +1,23 @@
+# ApexSenseBridge: hide the virtual DualSense from SDL, keep the hidraw path.
+#
+# Without this a game sees the pad twice - once through Proton's SDL backend and
+# once through its hidraw one - and the prompts flicker between PlayStation and
+# Xbox on every press. SDL reaches the pad by two routes and this rule closes
+# only the evdev one; the other, SDL's own HIDAPI PS5 driver reading
+# /dev/hidraw* directly, is closed by SDL_JOYSTICK_HIDAPI_PS5=0 in the game's
+# environment. Both are needed.
+#
+# Clearing ID_INPUT_JOYSTICK alone does not work: when udev says nothing, SDL
+# guesses the device class from the capability bits and finds a joystick anyway.
+# Denying access to the nodes is what actually hides them.
+#
+# The /dev/hidraw* node is deliberately untouched - that is the one Proton's
+# hidraw backend reads, and it carries the DualSense identity and the adaptive
+# triggers.
+#
+# Note this also applies to a real DualSense plugged into the same machine,
+# which will likewise stop appearing as a joystick to SDL clients.
+
+SUBSYSTEM=="input", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", \
+  ENV{ID_INPUT_JOYSTICK}="", ENV{ID_INPUT_ACCELEROMETER}="", \
+  TAG-="uaccess", MODE="0600", OWNER="root", GROUP="root"

@@ -99,7 +99,10 @@ Apex4ForceTriggerReport buildApex4Normal(TriggerSide side) {
     TriggerEffect effect{};
     effect.side = side;
     effect.mode = TriggerMode::Normal;
-    return buildApex4ForceTrigger(effect, true);
+    // Releasing costs the same second as engaging when the flag is set, and
+    // games let triggers go constantly, so this path matters at least as much
+    // as the one that applies an effect.
+    return buildApex4ForceTrigger(effect, kApex4ApplyFlag);
 }
 
 Apex4RumbleReport buildApex4Rumble(std::uint8_t lowFrequencyMotor,

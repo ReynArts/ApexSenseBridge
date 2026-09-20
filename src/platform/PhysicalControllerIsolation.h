@@ -21,6 +21,14 @@ public:
     TemporaryPhysicalControllerIsolation(const TemporaryPhysicalControllerIsolation&) = delete;
     TemporaryPhysicalControllerIsolation& operator=(const TemporaryPhysicalControllerIsolation&) = delete;
 
+    // Stops daemons that hold the pad, ahead of anything that talks to it.
+    // activate() does this too, but it runs late: by then the identity exchange
+    // has already happened, and a daemon holding the vendor interface makes that
+    // fail with "no vendor HID interface found". Calling this first closes that
+    // race. Idempotent, and whatever it suspends is restored by restore() or by
+    // the destructor, so an early return cannot leave a daemon stopped.
+    bool suspendConflictingDaemons(std::string& error) noexcept;
+
     bool activate(const HidDeviceInfo& apexInterface,
                   std::string_view sessionToken,
                   std::optional<std::uint8_t> originalApexProfile,

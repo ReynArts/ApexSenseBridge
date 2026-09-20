@@ -58,6 +58,9 @@ std::optional<asb::dualsense::VirtualDualSenseBackend> parseVirtualDualSenseBack
     if (name == "auto") return asb::dualsense::VirtualDualSenseBackend::Auto;
     if (name == "integrated") return asb::dualsense::VirtualDualSenseBackend::Integrated;
     if (name == "sidecar") return asb::dualsense::VirtualDualSenseBackend::Sidecar;
+#ifdef __linux__
+    if (name == "uhid") return asb::dualsense::VirtualDualSenseBackend::Uhid;
+#endif
     return std::nullopt;
 }
 
@@ -92,12 +95,12 @@ bool parseVirtualDsOptions(int argc,
             options.viiperExecutable = std::filesystem::path(argv[index]);
         } else if (option == "--virtual-backend") {
             if (++index >= argc) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                error = "--virtual-backend requires auto, integrated, sidecar, or uhid (uhid is Linux only).";
                 return false;
             }
             const auto backend = parseVirtualDualSenseBackend(argv[index]);
             if (!backend) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
+                error = "--virtual-backend requires auto, integrated, sidecar, or uhid (uhid is Linux only).";
                 return false;
             }
             options.backend = *backend;
@@ -163,7 +166,7 @@ int commandVirtualDs(int argc, char** argv) {
     VirtualDsCommandOptions commandOptions{};
     std::string error;
     if (!parseVirtualDsOptions(argc, argv, commandOptions, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge virtual-ds [--seconds N] [--json] [--viiper PATH] [--virtual-backend auto|integrated|sidecar]\n";
+        std::cerr << error << "\nUsage: ApexSenseBridge virtual-ds [--seconds N] [--json] [--viiper PATH] [--virtual-backend auto|integrated|sidecar|uhid]\n";
         return 1;
     }
 
