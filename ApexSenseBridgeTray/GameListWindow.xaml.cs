@@ -15,6 +15,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
 namespace ApexSenseBridgeTray
@@ -139,6 +140,7 @@ namespace ApexSenseBridgeTray
                         UpdateSettingsView();
                         UpdateDetailPane();
                         UpdateControllerStatus(lastControllerStatus);
+                        UpdateContextualGamepadHints();
                     }
                     catch { }
                 }));
@@ -160,6 +162,10 @@ namespace ApexSenseBridgeTray
         private int settingsRow1 = 0; // row in Right column
 
         // Learned navigation
+        // section 0 = Toolbar (col 0: SelectAll, col 1: Export, col 2: Delete)
+        // section 1 = Cards list (index 0..N)
+        private int learnedSection = 1;
+        private int learnedToolbarIndex = 0;
         private int learnedNavIndex = -1;
 
         private void OnGamepadModeChanged(bool isGamepad)
@@ -172,8 +178,6 @@ namespace ApexSenseBridgeTray
 
         private void UpdateGamepadHudVisibility(bool isGamepad)
         {
-            if (HintBumperLeft != null) HintBumperLeft.Opacity = isGamepad ? 1.0 : 0.45;
-            if (HintBumperRight != null) HintBumperRight.Opacity = isGamepad ? 1.0 : 0.45;
             if (PnlGamepadHud != null) PnlGamepadHud.Opacity = isGamepad ? 1.0 : 0.6;
         }
 
@@ -186,10 +190,32 @@ namespace ApexSenseBridgeTray
         private void UpdateGamepadConnectionVisibility(bool isConnected)
         {
             Visibility visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
-            if (HintBumperLeft != null) HintBumperLeft.Visibility = visibility;
-            if (HintBumperRight != null) HintBumperRight.Visibility = visibility;
+            if (HintBumperLeft != null) HintBumperLeft.Visibility = Visibility.Collapsed;
+            if (HintBumperRight != null) HintBumperRight.Visibility = Visibility.Collapsed;
             if (PnlGamepadHud != null) PnlGamepadHud.Visibility = visibility;
             SetXboxGlyphVisibility(this, visibility);
+            UpdateContextualGamepadHints();
+        }
+
+        private void UpdateContextualGamepadHints()
+        {
+            bool connected = gamepadNav != null && gamepadNav.IsControllerConnected;
+            Visibility common = connected ? Visibility.Visible : Visibility.Collapsed;
+            Visibility listOnly = connected && (currentTabIndex == 1 || currentTabIndex == 2)
+                ? Visibility.Visible : Visibility.Collapsed;
+            Visibility scrollable = connected ? Visibility.Visible : Visibility.Collapsed;
+
+            if (HudTabs != null) HudTabs.Visibility = common;
+            if (HudSelect != null) HudSelect.Visibility = common;
+            if (HudBack != null) HudBack.Visibility = common;
+            if (HudActionX != null) HudActionX.Visibility = listOnly;
+            if (HudActionY != null) HudActionY.Visibility = listOnly;
+            if (HudScroll != null) HudScroll.Visibility = scrollable;
+            if (TxtHudActionX != null)
+            {
+                TxtHudActionX.Text = LocalizationManager.Get(
+                    currentTabIndex == 2 ? "Loc_BtnDeleteLearned" : "Loc_Gamepad_ToggleExclude");
+            }
         }
 
         private void SetXboxGlyphVisibility(DependencyObject parent, Visibility visibility)
@@ -219,7 +245,11 @@ namespace ApexSenseBridgeTray
         {
             if (currentTabIndex == 0) SetDashboardNav(dashboardNavRow, dashboardNavRow == 1 ? dashboardJumpCol : dashboardShelfIndex);
             else if (currentTabIndex == 1) { if (selectedGameIndex < 0 && filteredGames.Count > 0) SelectGame(0); }
-            else if (currentTabIndex == 2 && filteredLearned.Count > 0) SetLearnedNav(learnedNavIndex >= 0 ? learnedNavIndex : 0);
+            else if (currentTabIndex == 2)
+            {
+                if (filteredLearned.Count > 0) SetLearnedNav(learnedNavIndex >= 0 ? learnedNavIndex : 0);
+                else SetLearnedToolbarNav(0);
+            }
             else if (currentTabIndex == 3) SetSettingsNav(settingsCol, settingsCol == 0 ? settingsRow0 : settingsRow1);
         }
 
@@ -273,13 +303,14 @@ namespace ApexSenseBridgeTray
             {
                 double cardWidth = 157.0; // 145 + 12 margin
                 double targetOffset = index * cardWidth;
-                double viewWidth = ScrollDashboardShelf.ActualWidth > 0 ? ScrollDashboardShelf.ActualWidth : 800.0;
+                double viewWidth = ScrollDashboardShelf.ViewportWidth > 0 ? ScrollDashboardShelf.ViewportWidth : ScrollDashboardShelf.ActualWidth;
+                if (viewWidth <= 0) viewWidth = 800.0;
                 double currentOffset = ScrollDashboardShelf.HorizontalOffset;
 
                 if (targetOffset < currentOffset)
-                    ScrollDashboardShelf.ScrollToHorizontalOffset(targetOffset);
+                    ScrollDashboardShelf.ScrollToHorizontalOffset(Math.Max(0, targetOffset - 16));
                 else if (targetOffset + cardWidth > currentOffset + viewWidth)
-                    ScrollDashboardShelf.ScrollToHorizontalOffset(targetOffset - viewWidth + cardWidth + 24);
+                    ScrollDashboardShelf.ScrollToHorizontalOffset(targetOffset + cardWidth - viewWidth + 24);
             }
         }
 
@@ -308,6 +339,7 @@ namespace ApexSenseBridgeTray
         {
             var items = new List<FrameworkElement>();
             if (TileSettingNotifications != null) items.Add(TileSettingNotifications);
+            if (TileSettingSyncLightbar != null) items.Add(TileSettingSyncLightbar);
             if (TileSettingLanguage != null) items.Add(TileSettingLanguage);
             if (BtnCheckUpdates != null) items.Add(BtnCheckUpdates);
             return items.ToArray();
@@ -337,25 +369,67 @@ namespace ApexSenseBridgeTray
         // --- Learned Navigation ---
         private void SetLearnedNav(int index)
         {
+            ClearLearnedToolbarHighlights();
             if (filteredLearned.Count == 0)
             {
                 learnedNavIndex = -1;
+                learnedSection = 0;
+                SetLearnedToolbarNav(0);
                 return;
             }
+            learnedSection = 1;
             int clamped = Math.Max(0, Math.Min(filteredLearned.Count - 1, index));
             learnedNavIndex = clamped;
+            for (int i = 0; i < filteredLearned.Count; i++)
+                filteredLearned[i].IsGamepadFocused = (i == learnedNavIndex);
 
             if (ScrollLearned != null)
             {
                 double itemHeight = 90.0;
                 double targetOffset = learnedNavIndex * itemHeight;
-                double viewHeight = ScrollLearned.ActualHeight > 0 ? ScrollLearned.ActualHeight : 400.0;
+                double viewHeight = ScrollLearned.ViewportHeight > 0 ? ScrollLearned.ViewportHeight : ScrollLearned.ActualHeight;
+                if (viewHeight <= 0) viewHeight = 400.0;
                 double currentOffset = ScrollLearned.VerticalOffset;
 
                 if (targetOffset < currentOffset)
-                    ScrollLearned.ScrollToVerticalOffset(targetOffset);
+                    ScrollLearned.ScrollToVerticalOffset(Math.Max(0, targetOffset - 8));
                 else if (targetOffset + itemHeight > currentOffset + viewHeight)
                     ScrollLearned.ScrollToVerticalOffset(targetOffset - viewHeight + itemHeight + 16);
+            }
+        }
+
+        private void SetLearnedToolbarNav(int index)
+        {
+            ClearLearnedCardHighlights();
+            ClearLearnedToolbarHighlights();
+            learnedSection = 0;
+            learnedToolbarIndex = Math.Max(0, Math.Min(2, index));
+            Button[] btns = new Button[] { BtnSelectAllLearned, BtnExportLearned, BtnDeleteLearned };
+            if (learnedToolbarIndex < btns.Length && btns[learnedToolbarIndex] != null)
+            {
+                ApplyHighlight(btns[learnedToolbarIndex]);
+            }
+            if (ScrollLearned != null)
+            {
+                ScrollLearned.ScrollToVerticalOffset(0);
+            }
+        }
+
+        private void ClearLearnedToolbarHighlights()
+        {
+            Button[] btns = new Button[] { BtnSelectAllLearned, BtnExportLearned, BtnDeleteLearned };
+            foreach (var b in btns)
+            {
+                if (b != null) ClearElementHighlight(b);
+            }
+        }
+
+        private void ClearLearnedCardHighlights()
+        {
+            learnedNavIndex = -1;
+            foreach (var item in filteredLearned)
+            {
+                item.IsGamepadFocused = false;
             }
         }
 
@@ -365,20 +439,13 @@ namespace ApexSenseBridgeTray
             if (element is Border border)
             {
                 border.BorderBrush = (Brush)FindResource("GamepadFocusBorder");
-                border.BorderThickness = new Thickness(1.8);
-                border.Effect = new DropShadowEffect
-                {
-                    BlurRadius = 14,
-                    ShadowDepth = 0,
-                    Direction = 0,
-                    Color = Color.FromRgb(0x00, 0x70, 0xD1),
-                    Opacity = 0.75
-                };
+                border.BorderThickness = new Thickness(2);
+                border.Effect = null;
             }
             else if (element is Button btn)
             {
                 btn.BorderBrush = (Brush)FindResource("GamepadFocusBorder");
-                btn.BorderThickness = new Thickness(1.8);
+                btn.BorderThickness = new Thickness(2);
             }
         }
 
@@ -387,13 +454,13 @@ namespace ApexSenseBridgeTray
             if (element is Border border)
             {
                 border.BorderBrush = Brushes.Transparent;
-                border.BorderThickness = new Thickness(0);
+                border.BorderThickness = new Thickness(2);
                 border.Effect = null;
             }
             else if (element is Button btn)
             {
                 btn.BorderBrush = Brushes.Transparent;
-                btn.BorderThickness = new Thickness(0);
+                btn.BorderThickness = new Thickness(2);
             }
         }
 
@@ -401,7 +468,8 @@ namespace ApexSenseBridgeTray
         {
             ClearDashboardNavHighlights();
             ClearSettingsNavHighlights();
-            learnedNavIndex = -1;
+            ClearLearnedToolbarHighlights();
+            ClearLearnedCardHighlights();
         }
 
         private void ScrollElementIntoView(ScrollViewer scroll, FrameworkElement element)
@@ -438,7 +506,17 @@ namespace ApexSenseBridgeTray
                 }
                 else if (currentTabIndex == 2)
                 {
-                    if (learnedNavIndex > 0) SetLearnedNav(learnedNavIndex - 1);
+                    if (learnedSection == 1)
+                    {
+                        if (learnedNavIndex > 0)
+                        {
+                            SetLearnedNav(learnedNavIndex - 1);
+                        }
+                        else
+                        {
+                            SetLearnedToolbarNav(learnedToolbarIndex);
+                        }
+                    }
                 }
                 else if (currentTabIndex == 3)
                 {
@@ -460,7 +538,20 @@ namespace ApexSenseBridgeTray
                 }
                 else if (currentTabIndex == 2)
                 {
-                    if (learnedNavIndex < filteredLearned.Count - 1) SetLearnedNav(learnedNavIndex + 1);
+                    if (learnedSection == 0)
+                    {
+                        if (filteredLearned.Count > 0)
+                        {
+                            SetLearnedNav(0);
+                        }
+                    }
+                    else if (learnedSection == 1)
+                    {
+                        if (learnedNavIndex < filteredLearned.Count - 1)
+                        {
+                            SetLearnedNav(learnedNavIndex + 1);
+                        }
+                    }
                 }
                 else if (currentTabIndex == 3)
                 {
@@ -494,6 +585,21 @@ namespace ApexSenseBridgeTray
                         UpdateDetailPane();
                     }
                 }
+                else if (currentTabIndex == 2)
+                {
+                    if (learnedSection == 0)
+                    {
+                        if (learnedToolbarIndex > 0)
+                        {
+                            SetLearnedToolbarNav(learnedToolbarIndex - 1);
+                        }
+                    }
+                    else if (learnedSection == 1)
+                    {
+                        if (learnedNavIndex > 4) SetLearnedNav(learnedNavIndex - 5);
+                        else SetLearnedNav(0);
+                    }
+                }
                 else if (currentTabIndex == 3)
                 {
                     if (settingsCol == 1) SetSettingsNav(0, settingsRow0);
@@ -523,6 +629,21 @@ namespace ApexSenseBridgeTray
                         settings.SetApexProfileSlot(game.Normalized, game.SelectedApexProfileSlot);
                         settings.Save();
                         UpdateDetailPane();
+                    }
+                }
+                else if (currentTabIndex == 2)
+                {
+                    if (learnedSection == 0)
+                    {
+                        if (learnedToolbarIndex < 2)
+                        {
+                            SetLearnedToolbarNav(learnedToolbarIndex + 1);
+                        }
+                    }
+                    else if (learnedSection == 1)
+                    {
+                        if (learnedNavIndex + 5 < filteredLearned.Count) SetLearnedNav(learnedNavIndex + 5);
+                        else SetLearnedNav(filteredLearned.Count - 1);
                     }
                 }
                 else if (currentTabIndex == 3)
@@ -557,11 +678,13 @@ namespace ApexSenseBridgeTray
                         {
                             TxtSearch.Focus();
                             TxtSearch.SelectAll();
+                            VirtualKeyboardService.Show();
                         }
                         else if (currentTabIndex == 2 && TxtSearchLearned != null)
                         {
                             TxtSearchLearned.Focus();
                             TxtSearchLearned.SelectAll();
+                            VirtualKeyboardService.Show();
                         }
                         break;
 
@@ -572,10 +695,14 @@ namespace ApexSenseBridgeTray
                         }
                         else if (currentTabIndex == 2)
                         {
-                            if (learnedNavIndex >= 0 && learnedNavIndex < filteredLearned.Count)
+                            if (learnedSection == 1 && learnedNavIndex >= 0 && learnedNavIndex < filteredLearned.Count)
                             {
                                 var item = filteredLearned[learnedNavIndex];
-                                item.IsSelected = !item.IsSelected;
+                                DeleteLearnedItemPrompt(item);
+                            }
+                            else if (learnedSection == 0 && learnedToolbarIndex == 2)
+                            {
+                                OnDeleteLearnedClick(null, null);
                             }
                         }
                         break;
@@ -621,10 +748,20 @@ namespace ApexSenseBridgeTray
             }
             else if (currentTabIndex == 2)
             {
-                if (learnedNavIndex >= 0 && learnedNavIndex < filteredLearned.Count)
+                if (learnedSection == 0)
                 {
-                    var item = filteredLearned[learnedNavIndex];
-                    item.IsSelected = !item.IsSelected;
+                    if (learnedToolbarIndex == 0) OnSelectAllLearnedClick(null, null);
+                    else if (learnedToolbarIndex == 1) OnExportLearnedClick(null, null);
+                    else if (learnedToolbarIndex == 2) OnDeleteLearnedClick(null, null);
+                }
+                else if (learnedSection == 1)
+                {
+                    if (learnedNavIndex >= 0 && learnedNavIndex < filteredLearned.Count)
+                    {
+                        var item = filteredLearned[learnedNavIndex];
+                        item.IsSelected = !item.IsSelected;
+                        UpdateLearnedButtons();
+                    }
                 }
             }
             else if (currentTabIndex == 3)
@@ -638,22 +775,50 @@ namespace ApexSenseBridgeTray
                 else
                 {
                     if (settingsRow1 == 0) OnSettingNotificationsToggled(null, null);
-                    else if (settingsRow1 == 1)
+                    else if (settingsRow1 == 1) OnSettingSyncLightbarToggled(null, null);
+                    else if (settingsRow1 == 2)
                     {
-                        string nextLang = string.Equals(settings.Language, LocalizationManager.LangFrench, StringComparison.OrdinalIgnoreCase)
-                            ? LocalizationManager.LangEnglish
-                            : LocalizationManager.LangFrench;
-                        SwitchLanguage(nextLang);
-                        if (RadSettingFr != null) RadSettingFr.IsChecked = (nextLang == LocalizationManager.LangFrench);
-                        if (RadSettingEn != null) RadSettingEn.IsChecked = (nextLang == LocalizationManager.LangEnglish);
+                        OpenLanguagePicker();
                     }
-                    else if (settingsRow1 == 2) OnCheckUpdatesClick(null, null);
+                    else if (settingsRow1 == 3) OnCheckUpdatesClick(null, null);
                 }
+            }
+        }
+
+        private void DeleteLearnedItemPrompt(LearnedItemViewModel item)
+        {
+            if (item == null || learningService == null) return;
+            var result = MessageBox.Show(
+                this,
+                LocalizationManager.Format("Loc_LearnedDeleteConfirm", 1),
+                LocalizationManager.Get("Loc_LearnedWindowTitle"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes) return;
+            learningService.DeleteBindings(new[] { item.Path });
+            LoadLearnedItems();
+            if (filteredLearned.Count > 0)
+            {
+                SetLearnedNav(Math.Min(learnedNavIndex, filteredLearned.Count - 1));
+            }
+            else
+            {
+                SetLearnedToolbarNav(0);
             }
         }
 
         private void OnGamepadScroll(double deltaY)
         {
+            if (currentTabIndex == 0)
+            {
+                if (ScrollDashboardShelf != null)
+                {
+                    ScrollDashboardShelf.ScrollToHorizontalOffset(
+                        Math.Max(0, ScrollDashboardShelf.HorizontalOffset + deltaY));
+                }
+            }
+            else
+            {
                 ScrollViewer targetScroll = null;
                 if (currentTabIndex == 1) targetScroll = ScrollCertified;
                 else if (currentTabIndex == 2) targetScroll = ScrollLearned;
@@ -663,6 +828,7 @@ namespace ApexSenseBridgeTray
                 {
                     targetScroll.ScrollToVerticalOffset(targetScroll.VerticalOffset + deltaY);
                 }
+            }
         }
 
         #endregion
@@ -681,6 +847,7 @@ namespace ApexSenseBridgeTray
             if (PanelCertifiedGames != null) PanelCertifiedGames.Visibility = (index == 1) ? Visibility.Visible : Visibility.Collapsed;
             if (PanelLearnedExecutables != null) PanelLearnedExecutables.Visibility = (index == 2) ? Visibility.Visible : Visibility.Collapsed;
             if (ScrollSettings != null) ScrollSettings.Visibility = (index == 3) ? Visibility.Visible : Visibility.Collapsed;
+            UpdateContextualGamepadHints();
 
             if (index == 0)
             {
@@ -693,6 +860,7 @@ namespace ApexSenseBridgeTray
                     SelectGame(0);
                 }
             }
+            if (isGamepadMode) InitTabNavigation();
         }
 
         private void OnNavTabChanged(object sender, RoutedEventArgs e)
@@ -744,12 +912,12 @@ namespace ApexSenseBridgeTray
             else if (string.Equals(status, "unsupported", StringComparison.OrdinalIgnoreCase))
             {
                 fullLabel = LocalizationManager.Get("Loc_ControllerUnsupported");
-                shortLabel = "Inconnu";
+                shortLabel = LocalizationManager.Get("Loc_StatusUnknown");
             }
             else if (string.Equals(status, "unavailable", StringComparison.OrdinalIgnoreCase))
             {
                 fullLabel = LocalizationManager.Get("Loc_ControllerUnavailable");
-                shortLabel = "Indisponible";
+                shortLabel = LocalizationManager.Get("Loc_StatusUnavailable");
             }
             else
             {
@@ -761,32 +929,18 @@ namespace ApexSenseBridgeTray
             Brush mutedStroke = (Brush)FindResource("TextMuted");
             Brush activeText = (Brush)FindResource("TextPrimary");
 
-            // 1. Hero banner on Dashboard
-            if (TxtDashboardController != null)
+            // 1. Hero banner on Dashboard (controller image)
+            if (ImgDashboardController != null)
             {
-                TxtDashboardController.Text = fullLabel;
-                TxtDashboardController.Foreground = isConnected ? activeText : mutedStroke;
-            }
-            if (IconDashboardController != null)
-            {
-                IconDashboardController.Stroke = isConnected ? activeStroke : mutedStroke;
-            }
-            if (BadgeDashboardController != null)
-            {
-                BadgeDashboardController.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
+                ImgDashboardController.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
                 if (isConnected)
                 {
-                    BadgeDashboardController.Background = new SolidColorBrush(Color.FromArgb(0x28, 0x00, 0x70, 0xD1));
-                    BadgeDashboardController.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0x70, 0xD1));
-                }
-                else
-                {
-                    BadgeDashboardController.Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
-                    BadgeDashboardController.BorderBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+                    string asset = isApex4 ? "Resources/controller-apex4.png" : "Resources/controller-apex5.png";
+                    ImgDashboardController.Source = new BitmapImage(new Uri(asset, UriKind.Relative));
                 }
             }
 
-            // 2. Persistent Header Indicator (visible on all tabs)
+            // 2. Persistent Header Indicator (visible on all tabs, flat with no outline)
             if (TxtHeaderController != null)
             {
                 TxtHeaderController.Text = shortLabel;
@@ -799,15 +953,15 @@ namespace ApexSenseBridgeTray
             if (BadgeHeaderController != null)
             {
                 BadgeHeaderController.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
+                BadgeHeaderController.BorderThickness = new Thickness(0);
+                BadgeHeaderController.BorderBrush = Brushes.Transparent;
                 if (isConnected)
                 {
                     BadgeHeaderController.Background = new SolidColorBrush(Color.FromArgb(0x28, 0x00, 0x70, 0xD1));
-                    BadgeHeaderController.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0x00, 0x70, 0xD1));
                 }
                 else
                 {
                     BadgeHeaderController.Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
-                    BadgeHeaderController.BorderBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
                 }
             }
         }
@@ -828,7 +982,7 @@ namespace ApexSenseBridgeTray
             if (isActive && sessionManager != null)
             {
                 if (TxtDashboardGameTitle != null) TxtDashboardGameTitle.Text = sessionManager.ActiveGameTitle ?? LocalizationManager.Get("Loc_NotificationGame");
-                if (TxtDashboardHint != null) TxtDashboardHint.Text = string.Format("Profil APEX : {0}", sessionManager.ActiveProfile ?? LocalizationManager.Get("Loc_ProfileStandard"));
+                if (TxtDashboardHint != null) TxtDashboardHint.Text = LocalizationManager.Format("Loc_DashboardProfileHint", sessionManager.ActiveProfile ?? LocalizationManager.Get("Loc_ProfileStandard"));
 
                 var activeGame = allGameViewModels.FirstOrDefault(g => string.Equals(g.Title, sessionManager.ActiveGameTitle, StringComparison.OrdinalIgnoreCase));
                 if (activeGame != null && activeGame.HasCoverImage && ImgDashboardActiveCover != null)
@@ -887,27 +1041,29 @@ namespace ApexSenseBridgeTray
         {
             if (settings == null) return;
             bool enable = settings.ForcedProfile != "standard";
-            settings.ForcedProfile = enable ? "standard" : "none";
-            settings.Save();
 
             if (enable)
             {
+                settings.ForcedProfile = "standard";
+                settings.Save();
                 if (sessionManager != null && !sessionManager.IsSessionActive)
                 {
                     string error;
-                    sessionManager.StartSession(LocalizationManager.Get("Loc_ManualBridgeGameTitle"), "standard", settings, out error);
+                    if (!sessionManager.StartSession(LocalizationManager.Get("Loc_ManualBridgeGameTitle"), "standard", settings, out error))
+                    {
+                        settings.ForcedProfile = "none";
+                        settings.Save();
+                        MessageBox.Show(error, "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
                 }
             }
             else
             {
-                if (sessionManager != null && sessionManager.IsSessionActive && !settings.AutoDetectGames)
-                {
+                settings.ForcedProfile = "none";
+                settings.Save();
+                if (sessionManager != null && sessionManager.IsSessionActive)
                     sessionManager.StopSession("Manual bridge disabled");
-                }
-                else if (monitorService != null)
-                {
-                    monitorService.ForceCheck();
-                }
+                monitorService?.ForceCheck();
             }
 
             UpdateManualBridgeTile();
@@ -1367,6 +1523,7 @@ namespace ApexSenseBridgeTray
             UpdateSettingToggle(BadgeSettingAdaptive, DotSettingAdaptive, settings.TriggerOnAdaptiveTriggers);
             UpdateSettingToggle(BadgeSettingHaptic, DotSettingHaptic, settings.TriggerOnHapticFeedback);
             UpdateSettingToggle(BadgeSettingNotifications, DotSettingNotifications, settings.EnableNotifications);
+            UpdateSettingToggle(BadgeSettingSyncLightbar, DotSettingSyncLightbar, settings.SyncLightbar);
 
             if (PnlSettingCriteria != null)
             {
@@ -1374,13 +1531,53 @@ namespace ApexSenseBridgeTray
                 PnlSettingCriteria.Opacity = settings.AutoDetectGames ? 1.0 : 0.45;
             }
 
-            bool isFr = LocalizationManager.CurrentLanguage == LocalizationManager.LangFrench;
-            if (RadSettingFr != null) RadSettingFr.IsChecked = isFr;
-            if (RadSettingEn != null) RadSettingEn.IsChecked = !isFr;
+            UpdateLanguageDisplay();
 
             if (updateChecker != null && TxtVersionInfo != null)
             {
                 TxtVersionInfo.Text = string.Format("ApexSenseBridge v{0}", updateChecker.GetCurrentVersion());
+            }
+        }
+
+        private void UpdateLanguageDisplay()
+        {
+            if (TxtCurrentLanguage != null)
+            {
+                string cur = LocalizationManager.CurrentLanguage;
+                if (cur == LocalizationManager.LangFrench) TxtCurrentLanguage.Text = "Français";
+                else if (cur == LocalizationManager.LangSpanish) TxtCurrentLanguage.Text = "Español";
+                else if (cur == LocalizationManager.LangChinese) TxtCurrentLanguage.Text = "中文";
+                else TxtCurrentLanguage.Text = "English";
+            }
+        }
+
+        private void OnLanguagePickerClick(object sender, MouseButtonEventArgs e)
+        {
+            OpenLanguagePicker();
+        }
+
+        private void OpenLanguagePicker()
+        {
+            gamepadNav?.Stop();
+            try
+            {
+                var picker = new LanguagePickerWindow(LocalizationManager.CurrentLanguage) { Owner = this };
+                if (picker.ShowDialog() == true && !string.IsNullOrWhiteSpace(picker.SelectedLanguage))
+                    SwitchLanguage(picker.SelectedLanguage);
+            }
+            finally { gamepadNav?.Start(); }
+        }
+
+        private void OnLearnedItemClicked(object sender, MouseButtonEventArgs e)
+        {
+            var element = sender as FrameworkElement;
+            var item = element != null ? element.DataContext as LearnedItemViewModel : null;
+            if (item != null)
+            {
+                int index = filteredLearned.IndexOf(item);
+                if (index >= 0) SetLearnedNav(index);
+                item.IsSelected = !item.IsSelected;
+                UpdateLearnedButtons();
             }
         }
 
@@ -1437,14 +1634,32 @@ namespace ApexSenseBridgeTray
             UpdateSettingsView();
         }
 
-        private void OnSettingLanguageFrChecked(object sender, RoutedEventArgs e)
+        private void OnSettingSyncLightbarToggled(object sender, MouseButtonEventArgs e)
         {
-            SwitchLanguage(LocalizationManager.LangFrench);
+            if (settings == null) return;
+            settings.SyncLightbar = !settings.SyncLightbar;
+            settings.Save();
+            UpdateSettingsView();
         }
 
         private void OnSettingLanguageEnChecked(object sender, RoutedEventArgs e)
         {
             SwitchLanguage(LocalizationManager.LangEnglish);
+        }
+
+        private void OnSettingLanguageFrChecked(object sender, RoutedEventArgs e)
+        {
+            SwitchLanguage(LocalizationManager.LangFrench);
+        }
+
+        private void OnSettingLanguageEsChecked(object sender, RoutedEventArgs e)
+        {
+            SwitchLanguage(LocalizationManager.LangSpanish);
+        }
+
+        private void OnSettingLanguageZhChecked(object sender, RoutedEventArgs e)
+        {
+            SwitchLanguage(LocalizationManager.LangChinese);
         }
 
         private void SwitchLanguage(string lang)
@@ -1455,7 +1670,15 @@ namespace ApexSenseBridgeTray
                 settings.Save();
             }
             LocalizationManager.SetLanguage(lang);
+            UpdateLanguageDisplay();
             UpdateControllerStatus(lastControllerStatus);
+        }
+
+        private void OnOpenControllerTestClick(object sender, RoutedEventArgs e)
+        {
+            var win = new ControllerTestWindow(settings);
+            win.Owner = this;
+            win.ShowDialog();
         }
 
         private async void OnCheckUpdatesClick(object sender, RoutedEventArgs e)
@@ -1471,7 +1694,7 @@ namespace ApexSenseBridgeTray
                 {
                     if (TxtUpdateStatus != null)
                     {
-                        TxtUpdateStatus.Text = string.Format("v{0} disponible !", info.LatestVersion);
+                        TxtUpdateStatus.Text = LocalizationManager.Format("Loc_UpdateAvailableBadge", info.LatestVersion);
                         TxtUpdateStatus.Foreground = (Brush)FindResource("BadgeActiveFg");
                     }
                 }
@@ -1542,8 +1765,8 @@ namespace ApexSenseBridgeTray
         public string GameTitle => !string.IsNullOrWhiteSpace(Binding.GameTitle) ? Binding.GameTitle : Binding.GameNormalized;
         public string Executable => Binding.Executable;
         public string Path => Binding.Path;
-        public string DetectionMethod => !string.IsNullOrWhiteSpace(Binding.DetectionMethod) ? Binding.DetectionMethod : "Automatique";
-        public string SessionsDisplay => string.Format("{0} session{1}", Binding.SuccessfulSessions, Binding.SuccessfulSessions > 1 ? "s" : "");
+        public string DetectionMethod => !string.IsNullOrWhiteSpace(Binding.DetectionMethod) ? Binding.DetectionMethod : LocalizationManager.Get("Loc_DetectionMethodAuto");
+        public string SessionsDisplay => LocalizationManager.Format(Binding.SuccessfulSessions > 1 ? "Loc_SessionCountPlural" : "Loc_SessionCountSingular", Binding.SuccessfulSessions);
         public string LastSeenDisplay { get; private set; }
 
         private bool isSelected;
@@ -1556,6 +1779,20 @@ namespace ApexSenseBridgeTray
                 {
                     isSelected = value;
                     OnPropertyChanged("IsSelected");
+                }
+            }
+        }
+
+        private bool isGamepadFocused;
+        public bool IsGamepadFocused
+        {
+            get => isGamepadFocused;
+            set
+            {
+                if (isGamepadFocused != value)
+                {
+                    isGamepadFocused = value;
+                    OnPropertyChanged("IsGamepadFocused");
                 }
             }
         }

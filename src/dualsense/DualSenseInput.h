@@ -21,7 +21,13 @@ inline constexpr std::uint16_t kCreate = 0x1000;
 inline constexpr std::uint16_t kOptions = 0x2000;
 inline constexpr std::uint16_t kL3 = 0x4000;
 inline constexpr std::uint16_t kR3 = 0x8000;
-} // namespace button
+}
+
+namespace chargeStatus {
+inline constexpr std::uint8_t kDischarging = 0;
+inline constexpr std::uint8_t kCharging = 2;
+inline constexpr std::uint8_t kFull = 4;
+}
 
 struct DualSenseInputState {
     std::uint8_t lx = 0x80;
@@ -38,6 +44,12 @@ struct DualSenseInputState {
     std::uint16_t touch2X = 0;
     std::uint16_t touch2Y = 0;
     bool touch2Active = false;
+    std::int16_t gyroX = 0;
+    std::int16_t gyroY = 0;
+    std::int16_t gyroZ = 0;
+    std::int16_t accelX = 0;
+    std::int16_t accelY = 0;
+    std::int16_t accelZ = 0;
     std::uint8_t batteryPercent = 100;
     std::uint8_t chargeState = 0;
 
@@ -46,5 +58,8 @@ struct DualSenseInputState {
 
 std::array<std::uint8_t, 33> buildViiperInput(const DualSenseInputState& state);
 std::array<std::uint8_t, 33> buildNeutralViiperInput();
+
+[[nodiscard]] std::uint8_t toBatteryPercent(std::uint8_t rawLevel) noexcept;
+[[nodiscard]] std::uint8_t toChargeState(bool charging, bool wired, std::uint8_t batteryPercent) noexcept;
 
 } // namespace asb::dualsense

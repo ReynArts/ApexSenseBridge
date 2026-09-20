@@ -42,7 +42,11 @@ function Assert-Version([string]$RelativePath, [string]$Pattern, [string]$Label)
 
 function Get-CoreVersion([string]$Value) {
     try {
-        $parsed = [Version]::Parse($Value.Trim().TrimStart('v', 'V'))
+        $cleaned = $Value.Trim().TrimStart('v', 'V')
+        if ($cleaned -match '^(\d+\.\d+\.\d+)') {
+            return $matches[1]
+        }
+        $parsed = [Version]::Parse($cleaned)
         if ($parsed.Build -lt 0) {
             Fail "version '$Value' does not contain major.minor.patch"
         }

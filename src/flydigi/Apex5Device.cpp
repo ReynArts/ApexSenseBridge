@@ -13,6 +13,7 @@
 #include <sstream>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace asb::flydigi {
@@ -328,6 +329,10 @@ bool Apex5Device::mayControlProfiles(std::string& error) const {
     return true;
 }
 
+std::unique_lock<std::recursive_mutex> Apex5Device::acquireWriteLock() const noexcept {
+    return writeMutex_ ? std::unique_lock(*writeMutex_) : std::unique_lock<std::recursive_mutex>();
+}
+
 bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     if (!isOpen()) {
         error = "APEX device is not open";
@@ -336,6 +341,7 @@ bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     if (!mayWriteEffects(error)) {
         return false;
     }
+    const auto lock = acquireWriteLock();
     if (identity_->isApex4()) {
         return transport_->writeOutputReport(
             buildApex4ForceTrigger(effect, true), error);
@@ -352,6 +358,7 @@ bool Apex5Device::setTriggerRaw(const ForceTriggerCommand& command, std::string&
     if (!mayWriteEffects(error)) {
         return false;
     }
+    const auto lock = acquireWriteLock();
     return identity_->isApex4()
         ? transport_->writeOutputReport(buildApex4ForceTriggerRaw(command, true), error)
         : transport_->writeOutputReport(buildForceTriggerRaw(command, true), error);
@@ -365,6 +372,7 @@ bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
     if (!mayWriteEffects(error)) {
         return false;
     }
+    const auto lock = acquireWriteLock();
     return identity_->isApex4()
         ? transport_->writeOutputReport(buildApex4Normal(side), error)
         : transport_->writeOutputReport(buildNormal(side), error);
@@ -374,6 +382,7 @@ bool Apex5Device::clearAll(std::string& error) {
     if (!mayWriteEffects(error)) {
         return false;
     }
+    const auto lock = acquireWriteLock();
     std::string leftError;
     std::string rightError;
     const bool leftOk = clearTrigger(TriggerSide::Left, leftError);
@@ -402,6 +411,7 @@ bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
     if (!mayWriteEffects(error)) {
         return false;
     }
+    const auto lock = acquireWriteLock();
     return identity_->isApex4()
         ? transport_->writeOutputReport(
               buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor), error)
@@ -471,6 +481,144 @@ bool Apex5Device::setInputTransport(bool controllerData, bool rawData,
         return false;
     }
     return true;
+}
+
+bool Apex5Device::readRgbConfig(
+    std::uint8_t slot,
+    std::array<std::uint8_t, kRgbConfigSize>& outConfig,
+    std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!mayControlProfiles(error)) {
+        return false;
+    }
+
+    const auto lock = acquireWriteLock();
+    const auto bufferSize = std::max<std::size_t>(
+        kReportSize, transport_->info().inputReportLength);
+    std::vector<std::uint8_t> input(bufferSize, 0);
+
+    constexpr std::size_t kMaximumDrainReports = 64;
+    for (std::size_t count = 0; count < kMaximumDrainReports; ++count) {
+        std::size_t bytesRead = 0;
+        std::string drainError;
+        const auto status = transport_->readInputReport(
+            input, std::chrono::milliseconds(0), bytesRead, drainError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not drain stale input before reading RGB: " + drainError;
+            return false;
+        }
+    }
+
+    if (!transport_->writeOutputReport(buildReadRgbConfig(slot, kRgbPacketSize), error)) {
+        return false;
+    }
+
+    std::size_t packetsReceived = 0;
+    std::vector<bool> received(kRgbPacketCount, false);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1500);
+
+    while (packetsReceived < kRgbPacketCount) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) break;
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+        if (remaining.count() <= 0) remaining = std::chrono::milliseconds(1);
+
+        std::size_t bytesRead = 0;
+        std::string readErr;
+        const auto status = transport_->readInputReport(input, remaining, bytesRead, readErr);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Error reading RGB config packet: " + readErr;
+            return false;
+        }
+
+        const auto bytes = std::span<const std::uint8_t>(input.data(), bytesRead);
+        std::size_t headerOffset = 0;
+        bool foundHeader = false;
+        for (std::size_t i = 0; i + 3 < bytes.size(); ++i) {
+            if (bytes[i] == kMagic0 && bytes[i + 1] == kMagic1 && bytes[i + 2] == kCmdReadRgbConfig) {
+                headerOffset = i;
+                foundHeader = true;
+                break;
+            }
+        }
+        if (!foundHeader || headerOffset + 6 + kRgbPacketSize > bytes.size()) continue;
+
+        const auto packIndex = bytes[headerOffset + 4];
+        if (packIndex < kRgbPacketCount && !received[packIndex]) {
+            received[packIndex] = true;
+            ++packetsReceived;
+            const auto destOffset = static_cast<std::size_t>(packIndex) * kRgbPacketSize;
+            std::copy_n(bytes.begin() + headerOffset + 6, kRgbPacketSize, outConfig.begin() + destOffset);
+        }
+    }
+
+    if (packetsReceived < kRgbPacketCount) {
+        error = "Timed out waiting for RGB config packets (received " +
+                std::to_string(packetsReceived) + "/" + std::to_string(kRgbPacketCount) + ")";
+        return false;
+    }
+    return true;
+}
+
+bool Apex5Device::writeRgbConfig(
+    std::uint8_t slot,
+    std::span<const std::uint8_t> payload,
+    std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!mayWriteEffects(error)) {
+        return false;
+    }
+    if (payload.size() < kRgbConfigSize) {
+        error = "RGB payload too small";
+        return false;
+    }
+
+    const auto lock = acquireWriteLock();
+    const auto startReport = buildWriteRgbStart(slot, 0, kRgbPacketCount, kRgbPacketSize);
+    if (!transport_->writeOutputReport(startReport, error)) {
+        return false;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+    for (std::uint8_t packIndex = 0; packIndex < kRgbPacketCount; ++packIndex) {
+        const auto offset = static_cast<std::size_t>(packIndex) * kRgbPacketSize;
+        const auto chunk = std::span<const std::uint8_t>(payload.data() + offset, kRgbPacketSize);
+        const auto packReport = buildWriteRgbPack(packIndex, chunk);
+        if (!transport_->writeOutputReport(packReport, error)) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    return true;
+}
+
+bool Apex5Device::setRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                         std::string& error, std::uint8_t slot,
+                         std::uint8_t brightness) {
+    const auto payload = buildStaticRgbPayload(r, g, b, brightness);
+    return writeRgbConfig(slot, payload, error);
+}
+
+bool Apex5Device::requestBatteryRefresh(std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex5()) {
+        error = "Battery refresh is supported on a verified Apex 5 only";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    return transport_->writeOutputReport(Apex5Identity::buildRequest(), error);
 }
 
 } // namespace asb::flydigi

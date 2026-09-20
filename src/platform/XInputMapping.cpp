@@ -43,8 +43,12 @@ void mapXInputButtons(std::uint16_t raw,
 }
 
 dualsense::DualSenseInputState mapXInputState(
-    const XInputSnapshot& snapshot) noexcept {
+    const XInputSnapshot& snapshot,
+    std::uint8_t batteryPercent,
+    std::uint8_t chargeState) noexcept {
     dualsense::DualSenseInputState converted{};
+    converted.batteryPercent = batteryPercent;
+    converted.chargeState = chargeState;
     converted.lx = axisToByte(snapshot.leftX, false);
     converted.ly = axisToByte(snapshot.leftY, true);
     converted.rx = axisToByte(snapshot.rightX, false);

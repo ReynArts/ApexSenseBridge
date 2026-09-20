@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using ApexSenseBridge.Common;
 
 namespace ApexSenseBridge
 {
@@ -147,7 +148,8 @@ namespace ApexSenseBridge
                     bridgeExecutable,
                     arguments,
                     TimeSpan.FromSeconds(settings.Settings.InitializationTimeoutSeconds),
-                    logger,
+                    msg => logger.Info(msg),
+                    msg => logger.Error(msg),
                     out error);
                 if (session == null)
                 {
@@ -376,6 +378,11 @@ namespace ApexSenseBridge
                 arguments.Add("--rumble");
                 arguments.Add("--haptic-threshold");
                 arguments.Add(settings.Settings.HapticThresholdPercent.ToString());
+            }
+
+            if (settings.Settings.SyncLightbar)
+            {
+                arguments.Add("--sync-lightbar");
             }
 
             return string.Join(" ", arguments);

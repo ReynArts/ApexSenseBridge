@@ -1,7 +1,5 @@
 #include "cli/Commands.h"
 #include "cli/CommandSupport.h"
-#include "core/TriggerResetGuard.h"
-#include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"
@@ -78,9 +76,7 @@ std::string narrowAscii(const std::wstring& value) {
 }
 
 std::string hex16(std::uint16_t value) {
-    std::ostringstream oss;
-    oss << "0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << value;
-    return oss.str();
+    return asb::diagnostics::hex16(value);
 }
 
 bool isDualSenseGamepadInterface(const asb::HidDeviceInfo& info) {
@@ -159,10 +155,11 @@ bool waitForNewVirtualDualSenseRemoval(
     return false;
 }
 
-std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirmware(
+std::optional<VirtualDualSenseDiscovery> readNewVirtualDualSenseFirmware(
     const std::vector<std::wstring>& preexistingPaths,
     std::chrono::milliseconds timeout,
-    std::string& error) {
+    std::string& error,
+    const asb::dualsense::DualSenseInputState* expectedInitialInput) {
     using TransportPtr = std::unique_ptr<asb::platform::HidTransport,
                                          void (*)(asb::platform::HidTransport*)>;
     const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -192,10 +189,49 @@ std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirm
                 lastError = std::move(featureError);
                 continue;
             }
-            if (auto firmware = asb::dualsense::decodeFirmwareFeatureReport(report)) {
-                return firmware;
+            auto firmware = asb::dualsense::decodeFirmwareFeatureReport(report);
+            if (!firmware) {
+                lastError = "The virtual DualSense returned a malformed firmware feature report.";
+                continue;
             }
-            lastError = "The virtual DualSense returned a malformed firmware feature report.";
+
+            std::size_t verifiedInitialReports = 0;
+            if (expectedInitialInput) {
+                std::vector<std::uint8_t> inputBuffer(64, 0);
+                const auto inputDeadline =
+                    std::chrono::steady_clock::now() + std::chrono::milliseconds(1200);
+                while (verifiedInitialReports < 3 &&
+                       std::chrono::steady_clock::now() < inputDeadline) {
+                    std::size_t bytesRead = 0;
+                    std::string inputError;
+                    const auto status = transport->readInputReport(
+                        inputBuffer, std::chrono::milliseconds(40), bytesRead, inputError);
+                    if (status == asb::platform::HidReadStatus::Data &&
+                        bytesRead >= 11 && inputBuffer[0] == 0x01) {
+                        const bool axesMatch =
+                            inputBuffer[1] == expectedInitialInput->lx &&
+                            inputBuffer[2] == expectedInitialInput->ly &&
+                            inputBuffer[3] == expectedInitialInput->rx &&
+                            inputBuffer[4] == expectedInitialInput->ry &&
+                            inputBuffer[5] == expectedInitialInput->l2 &&
+                            inputBuffer[6] == expectedInitialInput->r2;
+                        if (axesMatch) {
+                            ++verifiedInitialReports;
+                        }
+                    } else if (status == asb::platform::HidReadStatus::Error) {
+                        lastError = "Initial HID input report read failed: " + inputError;
+                        break;
+                    }
+                }
+                if (verifiedInitialReports < 3) {
+                    lastError = "The virtual DualSense HID interface did not produce verified initial input reports.";
+                    continue;
+                }
+            }
+
+            VirtualDualSenseDiscovery discovery(*firmware, info, verifiedInitialReports);
+            error.clear();
+            return discovery;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     } while (std::chrono::steady_clock::now() < deadline);

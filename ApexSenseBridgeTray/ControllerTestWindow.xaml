@@ -1,0 +1,793 @@
+<Window x:Class="ApexSenseBridgeTray.ControllerTestWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Loc_ControllerTestTitle}"
+        Icon="Resources/app.ico"
+        Height="660" Width="980"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        FontFamily="Segoe UI Variable Display, Segoe UI, sans-serif">
+
+    <Window.Resources>
+        <!-- Test Tab Radio Button Style -->
+        <Style x:Key="TestTabButton" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="TabBorder" CornerRadius="6" Padding="12,7" Margin="0,0,6,0"
+                                Background="{DynamicResource ControlBackground}"
+                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
+                            <TextBlock x:Name="TabTxt" Text="{TemplateBinding Content}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       FontWeight="{TemplateBinding FontWeight}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
+                                <Setter TargetName="TabTxt" Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Segment Option Radio Button Style -->
+        <Style x:Key="SegmentButton" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="SegBorder" CornerRadius="5" Padding="10,5" Margin="0,0,4,4"
+                                Background="{DynamicResource ControlBackground}"
+                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
+                            <TextBlock x:Name="SegTxt" Text="{TemplateBinding Content}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="SegBorder" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
+                                <Setter TargetName="SegBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
+                                <Setter TargetName="SegTxt" Property="Foreground" Value="White"/>
+                                <Setter TargetName="SegTxt" Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SegBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Buttons -->
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource PlayStationBlue}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBluePressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBlueActive}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BtnSecondary" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource PlayStationBlue}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ColorCircleButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Margin" Value="0,0,8,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="circle" Background="{TemplateBinding Background}"
+                                CornerRadius="17" BorderThickness="2" BorderBrush="#55FFFFFF">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="circle" Property="BorderBrush" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border CornerRadius="12" Background="{DynamicResource WindowBackground}"
+            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+            MouseLeftButtonDown="OnWindowDrag">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="26" ShadowDepth="4" Opacity="0.65" Color="#000000"/>
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- HEADER -->
+            <Border Grid.Row="0" Padding="20,14,18,12" Background="Transparent"
+                    BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="BadgeControllerStatus" CornerRadius="6" Padding="10,4" Margin="0,0,12,0"
+                                Background="{DynamicResource BadgeStandbyBg}">
+                            <TextBlock x:Name="TxtControllerStatus" Text="{DynamicResource Loc_ControllerChecking}"
+                                       FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource BadgeStandbyFg}"/>
+                        </Border>
+                        <Button Content="✕" Style="{StaticResource BtnSecondary}" Padding="8,4" FontSize="11"
+                                BorderThickness="0" Click="OnCloseClick"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border CornerRadius="6" ClipToBounds="True" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <Image Source="Resources/logo.png" Height="28" Width="28" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{DynamicResource Loc_ControllerTestTitle}" FontSize="15" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="{DynamicResource Loc_ControllerTestSubtitle}" FontSize="11"
+                                       Foreground="{DynamicResource TextMuted}" Margin="0,1,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- MAIN BODY (2 COLONNES) -->
+            <Grid Grid.Row="1" Margin="18,14,18,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="460"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ═════════════ GAUCHE : VISUALISATION MANETTE DUALSENSE ═════════════ -->
+                <Border Grid.Column="0" CornerRadius="10" Background="{DynamicResource CardBackground}"
+                        BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" Padding="14">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- En-tête DualSense Info -->
+                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                            <TextBlock Text="{DynamicResource Loc_VirtualDualSensePreview}" FontSize="13" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock x:Name="TxtMappingSummary" DockPanel.Dock="Right" Text="XInput → DualSense" FontSize="11"
+                                       Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Right"/>
+                        </DockPanel>
+
+                        <!-- Manette Vectorielle Interactive DualSense (Style PlayStation Accessories) -->
+                        <Viewbox Grid.Row="1" Stretch="Uniform" Margin="0,4,0,4">
+                            <Grid Width="896" Height="512">
+                                <!-- Base Vector Lineart DualSense officiel -->
+                                <Image Source="Resources/dualsense/controller_front.png"
+                                       Width="896" Height="512"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                                <!-- Bandeau Lumineux RGB (Lightbar Touchpad) -->
+                                <Image x:Name="OverlayTouchpad" Source="Resources/dualsense/focus_touchpad.png"
+                                       Width="896" Height="512"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Opacity="0.85" Visibility="Visible">
+                                    <Image.Effect>
+                                        <DropShadowEffect x:Name="GlowLightbar" BlurRadius="25" ShadowDepth="0" Color="#0070D1" Opacity="0.95"/>
+                                    </Image.Effect>
+                                </Image>
+
+                                <!-- Overlays Boutons & Actions (exact 896x512) -->
+                                <!-- D-PAD -->
+                                <Image x:Name="OverlayUp" Source="Resources/dualsense/focus_up.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayDown" Source="Resources/dualsense/focus_down.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayLeft" Source="Resources/dualsense/focus_left.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayRight" Source="Resources/dualsense/focus_right.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+
+                                <!-- TOUCHES D'ACTION (△, ◯, ✕, ▢) -->
+                                <Image x:Name="OverlayTriangle" Source="Resources/dualsense/focus_triangle.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#00E676" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayCircle" Source="Resources/dualsense/focus_circle.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#FF5252" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayCross" Source="Resources/dualsense/focus_cross.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#2979FF" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlaySquare" Source="Resources/dualsense/focus_square.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#FF4081" Opacity="1"/></Image.Effect>
+                                </Image>
+
+                                <!-- BUMPERS & TRIGGERS (L1, R1, L2, R2) -->
+                                <Image x:Name="OverlayL1" Source="Resources/dualsense/focus_L1.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayR1" Source="Resources/dualsense/focus_R1.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayL2" Source="Resources/dualsense/focus_L2.png" Width="896" Height="512" Stretch="Uniform" Opacity="0">
+                                    <Image.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayR2" Source="Resources/dualsense/focus_R2.png" Width="896" Height="512" Stretch="Uniform" Opacity="0">
+                                    <Image.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+
+                                <!-- SYSTEM (Create, Options, PS) -->
+                                <Image x:Name="OverlayCreate" Source="Resources/dualsense/focus_create.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="12" ShadowDepth="0" Color="#FFFFFF" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayOptions" Source="Resources/dualsense/focus_options.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="12" ShadowDepth="0" Color="#FFFFFF" Opacity="1"/></Image.Effect>
+                                </Image>
+                                <Image x:Name="OverlayPS" Source="Resources/dualsense/focus_PS.png" Width="896" Height="512" Stretch="Uniform" Visibility="Collapsed">
+                                    <Image.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#0070D1" Opacity="1"/></Image.Effect>
+                                </Image>
+
+                                <!-- THUMBSTICKS L3 / R3 (Cuvettes fixes et Chapeaux mobiles haute fidélité) -->
+                                <Canvas Width="896" Height="512" IsHitTestVisible="False">
+                                    <!-- Cuvette fixe gauche (centrée en 302, 376) -->
+                                    <Grid Canvas.Left="235" Canvas.Top="309" Width="134" Height="134">
+                                        <Ellipse Width="134" Height="134" Fill="#0E121A"/>
+                                        <Ellipse Width="36" Height="36" Stroke="#1E2535" StrokeThickness="1" StrokeDashArray="2 2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Ellipse Width="4" Height="4" Fill="#354258" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                                        <!-- Chapeau mobile L3 -->
+                                        <Grid x:Name="StickCapL" Width="88" Height="88" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Grid.RenderTransform>
+                                                <TranslateTransform x:Name="TransStickL" X="0" Y="0"/>
+                                            </Grid.RenderTransform>
+                                            <Border x:Name="BorderStickL" CornerRadius="44" Background="#1C2230" BorderBrush="#404D68" BorderThickness="1.5">
+                                                <Border.Effect>
+                                                    <DropShadowEffect x:Name="GlowStickL" BlurRadius="16" ShadowDepth="0" Color="#0070D1" Opacity="0"/>
+                                                </Border.Effect>
+                                                <Grid>
+                                                    <Border Width="48" Height="48" CornerRadius="24" Background="#121622" BorderBrush="#262F42" BorderThickness="1.2"
+                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStickL" Text="L3" FontSize="11" FontWeight="Bold" Foreground="#7E90A8"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+
+                                    <!-- Cuvette fixe droite (centrée en 593, 376) -->
+                                    <Grid Canvas.Left="526" Canvas.Top="309" Width="134" Height="134">
+                                        <Ellipse Width="134" Height="134" Fill="#0E121A"/>
+                                        <Ellipse Width="36" Height="36" Stroke="#1E2535" StrokeThickness="1" StrokeDashArray="2 2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Ellipse Width="4" Height="4" Fill="#354258" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                                        <!-- Chapeau mobile R3 -->
+                                        <Grid x:Name="StickCapR" Width="88" Height="88" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Grid.RenderTransform>
+                                                <TranslateTransform x:Name="TransStickR" X="0" Y="0"/>
+                                            </Grid.RenderTransform>
+                                            <Border x:Name="BorderStickR" CornerRadius="44" Background="#1C2230" BorderBrush="#404D68" BorderThickness="1.5">
+                                                <Border.Effect>
+                                                    <DropShadowEffect x:Name="GlowStickR" BlurRadius="16" ShadowDepth="0" Color="#0070D1" Opacity="0"/>
+                                                </Border.Effect>
+                                                <Grid>
+                                                    <Border Width="48" Height="48" CornerRadius="24" Background="#121622" BorderBrush="#262F42" BorderThickness="1.2"
+                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStickR" Text="R3" FontSize="11" FontWeight="Bold" Foreground="#7E90A8"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                </Canvas>
+
+                                <!-- Badges d'enfoncement précis L2 / R2 (en haut à gauche et à droite) -->
+                                <Border Width="76" Height="26" Margin="40,20,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                        CornerRadius="6" Background="#181B24" BorderBrush="#323848" BorderThickness="1.2">
+                                    <TextBlock x:Name="TxtL2Val" Text="L2 0%" FontSize="11" FontWeight="Bold" Foreground="#9EACBF"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <Border Width="76" Height="26" Margin="0,20,40,0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        CornerRadius="6" Background="#181B24" BorderBrush="#323848" BorderThickness="1.2">
+                                    <TextBlock x:Name="TxtR2Val" Text="R2 0%" FontSize="11" FontWeight="Bold" Foreground="#9EACBF"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Viewbox>
+
+                        <!-- Télémétrie inférieure des Sticks -->
+                        <Grid Grid.Row="2" Margin="4,4,4,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="TxtTelemetryStickL" Grid.Column="0" Text="Stick G : X=0 Y=0" FontSize="11"
+                                       Foreground="{DynamicResource TextMuted}"/>
+                            <TextBlock x:Name="TxtTelemetryStickR" Grid.Column="1" Text="Stick D : X=0 Y=0" FontSize="11"
+                                       Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Right"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- ═════════════ DROITE : PANNEAU DE CONTRÔLE DES TESTS ═════════════ -->
+                <Border Grid.Column="2" CornerRadius="10" Background="{DynamicResource CardBackground}"
+                        BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" Padding="16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Onglets de sélection du banc de test -->
+                        <WrapPanel Grid.Row="0" Margin="0,0,0,14">
+                            <RadioButton x:Name="TabTriggers" Content="{DynamicResource Loc_TestTabTriggers}" Style="{StaticResource TestTabButton}"
+                                         IsChecked="True" Checked="OnTestSubTabChanged"/>
+                            <RadioButton x:Name="TabVibration" Content="{DynamicResource Loc_TestTabVibration}" Style="{StaticResource TestTabButton}"
+                                         Checked="OnTestSubTabChanged"/>
+                            <RadioButton x:Name="TabRgb" Content="{DynamicResource Loc_TestTabRgb}" Style="{StaticResource TestTabButton}"
+                                         Checked="OnTestSubTabChanged"/>
+                            <RadioButton x:Name="TabMapping" Content="{DynamicResource Loc_TestTabMapping}" Style="{StaticResource TestTabButton}"
+                                         Checked="OnTestSubTabChanged"/>
+                            <RadioButton x:Name="TabGyro" Content="{DynamicResource Loc_TestTabGyro}" Style="{StaticResource TestTabButton}"
+                                         Checked="OnTestSubTabChanged"/>
+                        </WrapPanel>
+
+                        <!-- ══ SOUS-PANNEAU 1 : GÂCHETTES ADAPTATIVES ══ -->
+                        <ScrollViewer x:Name="PanelTriggers" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Loc_AdaptiveTriggerTestDesc}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                                <!-- Cible Gâchette (LT, RT, Deux) -->
+                                <TextBlock Text="{DynamicResource Loc_TriggerSideTarget}" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6"/>
+                                <WrapPanel Margin="0,0,0,12">
+                                    <RadioButton x:Name="RadSideRt" Content="{DynamicResource Loc_TriggerSideRT}" Style="{StaticResource SegmentButton}" IsChecked="True"/>
+                                    <RadioButton x:Name="RadSideLt" Content="{DynamicResource Loc_TriggerSideLT}" Style="{StaticResource SegmentButton}"/>
+                                    <RadioButton x:Name="RadSideBoth" Content="{DynamicResource Loc_TriggerSideBoth}" Style="{StaticResource SegmentButton}"/>
+                                </WrapPanel>
+
+                                <!-- Mode de gâchette -->
+                                <TextBlock Text="{DynamicResource Loc_TriggerEffectMode}" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6"/>
+                                <WrapPanel Margin="0,0,0,6">
+                                    <RadioButton x:Name="RadModeResistance" Content="{DynamicResource Loc_TriggerModeResistance}" Style="{StaticResource SegmentButton}" IsChecked="True" Checked="OnTriggerModeChanged"/>
+                                    <RadioButton x:Name="RadModeWeapon" Content="{DynamicResource Loc_TriggerModeWeapon}" Style="{StaticResource SegmentButton}" Checked="OnTriggerModeChanged"/>
+                                    <RadioButton x:Name="RadModeVibration" Content="{DynamicResource Loc_TriggerModeVibration}" Style="{StaticResource SegmentButton}" Checked="OnTriggerModeChanged"/>
+                                    <RadioButton x:Name="RadModeBow" Content="{DynamicResource Loc_TriggerModeBow}" Style="{StaticResource SegmentButton}" Checked="OnTriggerModeChanged"/>
+                                </WrapPanel>
+                                <TextBlock x:Name="TxtTriggerModeExpl" Text="{DynamicResource Loc_TriggerExplResistance}" FontSize="11"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                                <!-- Niveaux d'intensité (1 à 4) -->
+                                <TextBlock Text="{DynamicResource Loc_TriggerIntensityLevel}" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6"/>
+                                <WrapPanel Margin="0,0,0,14">
+                                    <RadioButton x:Name="RadLevel1" Content="{DynamicResource Loc_Level1Soft}" Style="{StaticResource SegmentButton}"/>
+                                    <RadioButton x:Name="RadLevel2" Content="{DynamicResource Loc_Level2Medium}" Style="{StaticResource SegmentButton}" IsChecked="True"/>
+                                    <RadioButton x:Name="RadLevel3" Content="{DynamicResource Loc_Level3Strong}" Style="{StaticResource SegmentButton}"/>
+                                    <RadioButton x:Name="RadLevel4" Content="{DynamicResource Loc_Level4Rigid}" Style="{StaticResource SegmentButton}"/>
+                                </WrapPanel>
+
+                                <!-- Boutons de commande -->
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <Button x:Name="BtnApplyTrigger" Content="{DynamicResource Loc_BtnArmTrigger}" Style="{StaticResource BtnPrimary}"
+                                            Margin="0,0,10,0" Click="OnApplyTriggerClick"/>
+                                    <Button x:Name="BtnResetTrigger" Content="{DynamicResource Loc_BtnResetTrigger}" Style="{StaticResource BtnSecondary}"
+                                            Click="OnResetTriggerClick"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- ══ SOUS-PANNEAU 2 : VIBRATION (RUMBLE) ══ -->
+                        <ScrollViewer x:Name="PanelVibration" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Loc_VibrationTestDesc}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+                                <!-- Moteur Gauche (Bass) -->
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock Text="{DynamicResource Loc_VibrationMotorLeft}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock x:Name="TxtValMotorL" Text="50%" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PlayStationBlue}" HorizontalAlignment="Right"/>
+                                </DockPanel>
+                                <Slider x:Name="SliderMotorL" Minimum="0" Maximum="255" Value="128" Margin="0,0,0,14" ValueChanged="OnMotorSliderChanged"/>
+
+                                <!-- Moteur Droit (High) -->
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock Text="{DynamicResource Loc_VibrationMotorRight}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock x:Name="TxtValMotorR" Text="50%" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PlayStationBlue}" HorizontalAlignment="Right"/>
+                                </DockPanel>
+                                <Slider x:Name="SliderMotorR" Minimum="0" Maximum="255" Value="128" Margin="0,0,0,14" ValueChanged="OnMotorSliderChanged"/>
+
+                                <!-- Présélections rapides -->
+                                <TextBlock Text="{DynamicResource Loc_Presets}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6"/>
+                                <WrapPanel Margin="0,0,0,16">
+                                    <Button Content="{DynamicResource Loc_PresetLight}" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Click="OnPresetVibeLightClick"/>
+                                    <Button Content="{DynamicResource Loc_PresetMedium}" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Click="OnPresetVibeMedClick"/>
+                                    <Button Content="{DynamicResource Loc_PresetFull}" Style="{StaticResource BtnSecondary}" Click="OnPresetVibeFullClick"/>
+                                </WrapPanel>
+
+                                <!-- Commandes de vibration -->
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="BtnTestVibePulse" Content="{DynamicResource Loc_BtnVibratePulse}" Style="{StaticResource BtnPrimary}"
+                                            Margin="0,0,10,0" Click="OnTestVibePulseClick"/>
+                                    <Button x:Name="BtnStopVibe" Content="{DynamicResource Loc_BtnStopVibration}" Style="{StaticResource BtnSecondary}"
+                                            Click="OnStopVibeClick"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- ══ SOUS-PANNEAU 3 : LIGHTSYNC RGB DUALSENSE ══ -->
+                        <ScrollViewer x:Name="PanelRgb" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Loc_RgbTestDesc}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                                <!-- Palette Couleurs Prédéfinies -->
+                                <TextBlock Text="{DynamicResource Loc_RgbPresetsTitle}" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"/>
+                                <WrapPanel Margin="0,0,0,16">
+                                    <Button Tag="#003791" Style="{StaticResource ColorCircleButton}" Background="#003791" Click="OnColorPresetClick"/>
+                                    <Button Tag="#00A2FF" Style="{StaticResource ColorCircleButton}" Background="#00A2FF" Click="OnColorPresetClick"/>
+                                    <Button Tag="#FF2222" Style="{StaticResource ColorCircleButton}" Background="#FF2222" Click="OnColorPresetClick"/>
+                                    <Button Tag="#00E676" Style="{StaticResource ColorCircleButton}" Background="#00E676" Click="OnColorPresetClick"/>
+                                    <Button Tag="#FFB300" Style="{StaticResource ColorCircleButton}" Background="#FFB300" Click="OnColorPresetClick"/>
+                                    <Button Tag="#9D4EDD" Style="{StaticResource ColorCircleButton}" Background="#9D4EDD" Click="OnColorPresetClick"/>
+                                    <Button Tag="#FFFFFF" Style="{StaticResource ColorCircleButton}" Background="#FFFFFF" Click="OnColorPresetClick"/>
+                                </WrapPanel>
+
+                                <!-- Sliders RVB Manuels -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <DockPanel Margin="0,0,0,2">
+                                            <TextBlock Text="R (Rouge)" FontSize="11.5" Foreground="#FF5252" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="TxtRgbR" Text="0" FontSize="11.5" Foreground="#FF5252" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SliderR" Minimum="0" Maximum="255" Value="0" ValueChanged="OnRgbSliderChanged" Margin="0,0,0,6"/>
+
+                                        <DockPanel Margin="0,0,0,2">
+                                            <TextBlock Text="V (Vert)" FontSize="11.5" Foreground="#69F0AE" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="TxtRgbG" Text="55" FontSize="11.5" Foreground="#69F0AE" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SliderG" Minimum="0" Maximum="255" Value="55" ValueChanged="OnRgbSliderChanged" Margin="0,0,0,6"/>
+
+                                        <DockPanel Margin="0,0,0,2">
+                                            <TextBlock Text="B (Bleu)" FontSize="11.5" Foreground="#448AFF" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="TxtRgbB" Text="145" FontSize="11.5" Foreground="#448AFF" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SliderB" Minimum="0" Maximum="255" Value="145" ValueChanged="OnRgbSliderChanged"/>
+                                    </StackPanel>
+
+                                    <!-- Bloc d'aperçu de la couleur -->
+                                    <Border x:Name="BoxColorPreview" Grid.Column="1" Margin="14,0,0,0" CornerRadius="6"
+                                            Background="#003791" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1.5"/>
+                                </Grid>
+
+                                <!-- Commandes RVB -->
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button x:Name="BtnApplyRgb" Content="{DynamicResource Loc_BtnApplyRgb}" Style="{StaticResource BtnPrimary}"
+                                            Margin="0,0,10,0" Click="OnApplyRgbClick"/>
+                                    <Button x:Name="BtnRestoreRgb" Content="{DynamicResource Loc_BtnRestoreRgb}" Style="{StaticResource BtnSecondary}"
+                                            Click="OnRestoreRgbClick"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- ══ SOUS-PANNEAU 4 : MAPPING & PERSISTANCE ══ -->
+                        <ScrollViewer x:Name="PanelMapping" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Loc_MappingTestDesc}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+                                <!-- Carte Récapitulative du Profil Actif -->
+                                <Border CornerRadius="8" Background="{DynamicResource ControlBackground}" Padding="14,12" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,6">
+                                            <TextBlock Text="{DynamicResource Loc_ActiveRemappingProfile}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                            <TextBlock x:Name="TxtCurrentProfileBadge" Text="Standard" FontSize="12" FontWeight="Bold"
+                                                       Foreground="{DynamicResource PlayStationBlue}" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <DockPanel Margin="0,0,0,6">
+                                            <TextBlock Text="{DynamicResource Loc_ActiveApexSlot}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                            <TextBlock x:Name="TxtCurrentApexSlotBadge" Text="{DynamicResource Loc_ApexProfileKeep}" FontSize="12" FontWeight="Bold"
+                                                       Foreground="{DynamicResource PlayStationBlue}" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                        <DockPanel>
+                                            <TextBlock Text="{DynamicResource Loc_StorageFile}" FontSize="12" Foreground="{DynamicResource TextMuted}"/>
+                                            <TextBlock Text="tray_settings.json" FontSize="11.5" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Right"/>
+                                        </DockPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Validation de la persistance -->
+                                <Border CornerRadius="8" Background="#14261C" BorderBrush="#22543D" BorderThickness="1" Padding="14,10" Margin="0,0,0,14">
+                                    <DockPanel LastChildFill="True">
+                                        <TextBlock Text="✓" FontSize="16" FontWeight="Bold" Foreground="#48BB78" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Loc_PersistenceVerifiedTitle}" FontSize="12.5" FontWeight="Bold" Foreground="#48BB78"/>
+                                            <TextBlock x:Name="TxtPersistenceTimestamp" Text="{DynamicResource Loc_PersistenceVerifiedDesc}" FontSize="11" Foreground="#9AE6B4"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+
+                                <!-- Bouton Vérification Persistance -->
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="BtnVerifyPersistence" Content="{DynamicResource Loc_BtnCheckPersistence}" Style="{StaticResource BtnPrimary}"
+                                            Click="OnVerifyPersistenceClick"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+ 
+                        <!-- ══ SOUS-PANNEAU 5 : GYROSCOPE & ACCÉLÉROMÈTRE 6-AXES ══ -->
+                        <ScrollViewer x:Name="PanelGyro" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Loc_GyroTestDesc}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                                <!-- Carte Horizon Artificiel & Angles Pitch/Roll -->
+                                <Border CornerRadius="8" Background="{DynamicResource ControlBackground}" Padding="14,12" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="16"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Horizon Artificiel Circulaire -->
+                                        <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Border CornerRadius="55" Width="110" Height="110"
+                                                    BorderBrush="{DynamicResource ControlBorder}" BorderThickness="2"
+                                                    ClipToBounds="True" Background="#0F172A">
+                                                <Grid Width="110" Height="110">
+                                                    <!-- Plan incliné/orienté (Ciel en haut, Terre en bas) -->
+                                                    <Canvas Width="200" Height="200" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Canvas.RenderTransform>
+                                                            <TransformGroup>
+                                                                <TranslateTransform x:Name="TransHorizonPitch" X="0" Y="0"/>
+                                                                <RotateTransform x:Name="RotHorizonRoll" Angle="0" CenterX="100" CenterY="100"/>
+                                                            </TransformGroup>
+                                                        </Canvas.RenderTransform>
+
+                                                        <!-- Ciel (Bleu PlayStation / Nuit) -->
+                                                        <Rectangle Canvas.Left="0" Canvas.Top="0" Width="200" Height="100" Fill="#1E3A8A"/>
+                                                        <!-- Terre (Gris foncé ardoise) -->
+                                                        <Rectangle Canvas.Left="0" Canvas.Top="100" Width="200" Height="100" Fill="#334155"/>
+                                                        <!-- Ligne d'horizon blanche -->
+                                                        <Line X1="0" Y1="100" X2="200" Y2="100" Stroke="White" StrokeThickness="2"/>
+
+                                                        <!-- Échelons de tangage (+/- 15° et +/- 30°) -->
+                                                        <Line X1="75" Y1="70" X2="125" Y2="70" Stroke="#93C5FD" StrokeThickness="1.5"/>
+                                                        <Line X1="85" Y1="85" X2="115" Y2="85" Stroke="#93C5FD" StrokeThickness="1"/>
+                                                        <Line X1="85" Y1="115" X2="115" Y2="115" Stroke="#CBD5E1" StrokeThickness="1"/>
+                                                        <Line X1="75" Y1="130" X2="125" Y2="130" Stroke="#CBD5E1" StrokeThickness="1.5"/>
+                                                    </Canvas>
+
+                                                    <!-- Réticule central fixe (Avion / Repère) -->
+                                                    <Rectangle Width="26" Height="2" Fill="#F59E0B" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                                                    <Rectangle Width="26" Height="2" Fill="#F59E0B" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                                    <Ellipse Width="8" Height="8" Fill="#F59E0B" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                            <TextBlock Text="HORIZON ARTIFICIEL" FontSize="9" FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- Données d'orientation (Pitch, Roll, Statut) -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <!-- Tangage (Pitch) -->
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock Text="{DynamicResource Loc_GyroPitch}" FontSize="12" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtGyroPitch" Text="0.0°" FontSize="16" FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                            </DockPanel>
+
+                                            <!-- Roulis (Roll) -->
+                                            <DockPanel Margin="0,0,0,8">
+                                                <TextBlock Text="{DynamicResource Loc_GyroRoll}" FontSize="12" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtGyroRoll" Text="0.0°" FontSize="16" FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                            </DockPanel>
+
+                                            <!-- Badge état mouvement -->
+                                            <Border x:Name="BadgeGyroMotion" CornerRadius="5" Background="#1E293B" Padding="10,5" Margin="0,0,0,4">
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock x:Name="TxtGyroMotionIcon" Text="●" FontSize="11" Foreground="#48BB78" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtGyroMotion" Text="{DynamicResource Loc_GyroStatusStill}"
+                                                               FontSize="11.5" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                                </DockPanel>
+                                            </Border>
+
+                                            <!-- Taux échantillonnage -->
+                                            <DockPanel>
+                                                <TextBlock Text="{DynamicResource Loc_GyroRate}" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                                                <TextBlock x:Name="TxtGyroRate" Text="~300 Hz" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Right"/>
+                                            </DockPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Carte Données Brutes 6-Axes (Gyroscope DPS + Accéléromètre G) -->
+                                <Border CornerRadius="8" Background="{DynamicResource ControlBackground}" Padding="14,12" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Loc_GyroSensorsData}" FontSize="12.5" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,10"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="14"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Colonne Gyroscope (DPS) -->
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{DynamicResource Loc_GyroAngularVelocity}" FontSize="11" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource PlayStationBlue}" Margin="0,0,0,6"/>
+
+                                                <!-- Gyro X -->
+                                                <DockPanel Margin="0,0,0,2">
+                                                    <TextBlock Text="X (Pitch):" FontSize="10.5" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock x:Name="TxtGyroX" Text="0 °/s" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                                </DockPanel>
+                                                <ProgressBar x:Name="ProgGyroX" Height="4" Minimum="-500" Maximum="500" Value="0"
+                                                             Foreground="{DynamicResource PlayStationBlue}" Background="#1E293B" BorderThickness="0" Margin="0,0,0,6"/>
+
+                                                <!-- Gyro Y -->
+                                                <DockPanel Margin="0,0,0,2">
+                                                    <TextBlock Text="Y (Roll):" FontSize="10.5" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock x:Name="TxtGyroY" Text="0 °/s" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                                </DockPanel>
+                                                <ProgressBar x:Name="ProgGyroY" Height="4" Minimum="-500" Maximum="500" Value="0"
+                                                             Foreground="{DynamicResource PlayStationBlue}" Background="#1E293B" BorderThickness="0" Margin="0,0,0,6"/>
+
+                                                <!-- Gyro Z -->
+                                                <DockPanel Margin="0,0,0,2">
+                                                    <TextBlock Text="Z (Yaw):" FontSize="10.5" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock x:Name="TxtGyroZ" Text="0 °/s" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                                </DockPanel>
+                                                <ProgressBar x:Name="ProgGyroZ" Height="4" Minimum="-500" Maximum="500" Value="0"
+                                                             Foreground="{DynamicResource PlayStationBlue}" Background="#1E293B" BorderThickness="0"/>
+                                            </StackPanel>
+
+                                            <!-- Colonne Accéléromètre (G) -->
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="{DynamicResource Loc_GyroAcceleration}" FontSize="11" FontWeight="SemiBold"
+                                                           Foreground="#38BDF8" Margin="0,0,0,6"/>
+
+                                                <!-- Accel X -->
+                                                <DockPanel Margin="0,0,0,2">
+                                                    <TextBlock Text="X (Latéral):" FontSize="10.5" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock x:Name="TxtAccelX" Text="0.00 G" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                                </DockPanel>
+                                                <ProgressBar x:Name="ProgAccelX" Height="4" Minimum="-200" Maximum="200" Value="0"
+                                                             Foreground="#38BDF8" Background="#1E293B" BorderThickness="0" Margin="0,0,0,6"/>
+
+                                                <!-- Accel Y -->
+                                                <DockPanel Margin="0,0,0,2">
+                                                    <TextBlock Text="Y (Long.):" FontSize="10.5" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock x:Name="TxtAccelY" Text="0.00 G" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                                </DockPanel>
+                                                <ProgressBar x:Name="ProgAccelY" Height="4" Minimum="-200" Maximum="200" Value="0"
+                                                             Foreground="#38BDF8" Background="#1E293B" BorderThickness="0" Margin="0,0,0,6"/>
+
+                                                <!-- Accel Z -->
+                                                <DockPanel Margin="0,0,0,2">
+                                                    <TextBlock Text="Z (Gravité):" FontSize="10.5" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock x:Name="TxtAccelZ" Text="1.00 G" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right"/>
+                                                </DockPanel>
+                                                <ProgressBar x:Name="ProgAccelZ" Height="4" Minimum="-200" Maximum="200" Value="100"
+                                                             Foreground="#38BDF8" Background="#1E293B" BorderThickness="0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Boutons de Test et Calibration -->
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <Button x:Name="BtnTestGyro" Content="{DynamicResource Loc_GyroBtnTest}" Style="{StaticResource BtnPrimary}"
+                                            Margin="0,0,8,0" Click="OnTestGyroClick"/>
+                                    <Button x:Name="BtnCalibrateGyro" Content="{DynamicResource Loc_GyroBtnCalibrate}" Style="{StaticResource BtnSecondary}"
+                                            Click="OnCalibrateGyroClick"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Barre d'état inférieure du banc de test -->
+                        <Border Grid.Row="2" Margin="0,10,0,0" Padding="0,8,0,0" BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,1,0,0">
+                            <TextBlock x:Name="TxtTestFeedback" Text="{DynamicResource Loc_ReadyForTesting}" FontSize="11.5"
+                                       Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"/>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- FOOTER -->
+            <Border Grid.Row="2" CornerRadius="0,0,12,12" Padding="18,10,18,12"
+                    Background="{DynamicResource FooterBackground}">
+                <DockPanel LastChildFill="True">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{DynamicResource Loc_TrayZeroCostHint}" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                    </StackPanel>
+                    <Button Content="{DynamicResource Loc_BtnClose}" Style="{StaticResource BtnSecondary}"
+                            Padding="14,6" FontSize="12" HorizontalAlignment="Right" Click="OnCloseClick"/>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

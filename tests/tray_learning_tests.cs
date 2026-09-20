@@ -1,6 +1,7 @@
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using ApexSenseBridgeTray.Services;
+using ApexSenseBridge.Common;
 using ApexSenseBridge.Security;
 using System;
 using System.Diagnostics;
@@ -25,6 +26,7 @@ internal static class TrayLearningTests
         try
         {
             TestReleaseAssetPolicy();
+            TestColocatedEngineTakesPriority();
             TestStableLearningResolutionExportAndDeletion(testRoot);
             TestCancelledAndUnstableSessionsAreNotLearned(testRoot);
             TestConcurrentObservationsAreIndependent(testRoot);
@@ -79,6 +81,32 @@ internal static class TrayLearningTests
             "ApexSenseBridge-Setup.exe",
             "https://github.com.evil.example/ReynArts/ApexSenseBridge/releases/download/v0.6.3/ApexSenseBridge-Setup.exe"),
             "a lookalike GitHub host must be rejected");
+    }
+
+    private static void TestColocatedEngineTakesPriority()
+    {
+        var colocatedEngine = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "ApexSenseBridge.exe");
+        var existed = File.Exists(colocatedEngine);
+        byte[] original = null;
+        if (existed) original = File.ReadAllBytes(colocatedEngine);
+
+        try
+        {
+            File.WriteAllBytes(colocatedEngine, new byte[] { 0x41, 0x53, 0x42 });
+            Assert(string.Equals(
+                       InstallLocator.ResolveEngine(),
+                       Path.GetFullPath(colocatedEngine),
+                       StringComparison.OrdinalIgnoreCase),
+                "A portable Tray must prefer its colocated engine over an installed or registered copy.");
+        }
+        finally
+        {
+            if (existed)
+                File.WriteAllBytes(colocatedEngine, original);
+            else
+                File.Delete(colocatedEngine);
+        }
     }
 
     private static void TestStableLearningResolutionExportAndDeletion(string root)

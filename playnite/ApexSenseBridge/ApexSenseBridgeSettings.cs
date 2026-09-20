@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using ApexSenseBridge.Common;
 
 namespace ApexSenseBridge
 {
@@ -159,6 +160,7 @@ namespace ApexSenseBridge
     {
         private string bridgeExecutablePath = string.Empty;
         private bool enableRumble = true;
+        private bool syncLightbar = false;
         private int hapticThresholdPercent = 12;
         private int initializationTimeoutSeconds = 20;
         private string xinputIndex = string.Empty;
@@ -171,6 +173,7 @@ namespace ApexSenseBridge
         // When empty, the extension uses machine-wide discovery.
         public string BridgeExecutablePath { get => bridgeExecutablePath; set => SetValue(ref bridgeExecutablePath, value); }
         public bool EnableRumble { get => enableRumble; set => SetValue(ref enableRumble, value); }
+        public bool SyncLightbar { get => syncLightbar; set => SetValue(ref syncLightbar, value); }
         public int HapticThresholdPercent { get => hapticThresholdPercent; set => SetValue(ref hapticThresholdPercent, value); }
         public int InitializationTimeoutSeconds { get => initializationTimeoutSeconds; set => SetValue(ref initializationTimeoutSeconds, value); }
         public string XInputIndex { get => xinputIndex; set => SetValue(ref xinputIndex, value); }

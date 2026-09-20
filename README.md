@@ -1,4 +1,4 @@
-# ApexSenseBridge 0.6.3
+# ApexSenseBridge 1.0.0
 
 > **Bridge your Flydigi APEX 4 & APEX 5 controller into a native virtual PlayStation 5 DualSense on Windows.**  
 > Experience authentic in-game Adaptive Triggers (FORCEADAPT), rich Haptic Feedback, motion gestures, and verified touchpad shortcuts with sub-2 ms latency.

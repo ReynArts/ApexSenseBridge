@@ -21,7 +21,9 @@ MinSizeRel/
 # Compiled binaries and debug symbols generated outside a build directory
 *.exe
 !third_party/prerequisites/*.exe
+*.exe.config
 *.dll
+*.dll.config
 *.lib
 *.exp
 *.pdb
@@ -77,6 +79,7 @@ env/
 # Test/runtime generated results (test source code remains versioned)
 Testing/
 test-results/
+TestResults/
 coverage/
 *.coverage
 *.gcda
@@ -147,9 +150,7 @@ scratch/
 work/
 tools/research/
 TODO.local*
-*.local.json
-*.local.ps1
-*.local.config
+*.local.*
 .agent/
 .agents/
 .gemini/

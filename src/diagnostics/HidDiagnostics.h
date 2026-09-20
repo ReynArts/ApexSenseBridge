@@ -17,4 +17,6 @@ namespace asb::diagnostics {
 [[nodiscard]] std::string formatHidDevicesText(std::span<const HidDeviceInfo> devices);
 [[nodiscard]] std::string formatHidDevicesJson(std::span<const HidDeviceInfo> devices);
 
+[[nodiscard]] std::string hex16(std::uint16_t value);
+
 } // namespace asb::diagnostics

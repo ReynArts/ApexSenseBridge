@@ -1,3 +1,4 @@
+using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using System;
 using System.Diagnostics;

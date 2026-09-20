@@ -56,12 +56,16 @@
     <Compile Include="ApexSenseBridge.cs" />
     <Compile Include="ApexSenseBridgeSettings.cs" />
     <Compile Include="AutomaticProfileDetector.cs" />
-    <Compile Include="BridgeSession.cs" />
-    <Compile Include="InstallLocator.cs" />
     <Compile Include="SupportedGameCatalog.cs" />
     <Compile Include="UpdateManager.cs" />
     <Compile Include="..\..\shared\ReleaseSecurity.cs">
       <Link>ReleaseSecurity.cs</Link>
+    </Compile>
+    <Compile Include="..\..\shared\InstallLocator.cs">
+      <Link>InstallLocator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\shared\BridgeSession.cs">
+      <Link>BridgeSession.cs</Link>
     </Compile>
     <Compile Include="ApexSenseBridgeSettingsView.xaml.cs">
       <DependentUpon>ApexSenseBridgeSettingsView.xaml</DependentUpon>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/DeviceInfo.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/DualSenseInput.h"
 #include "dualsense/VirtualDualSense.h"
@@ -20,8 +21,23 @@ enum class VirtualDualSenseStartupFailure {
     DeviceRemoval,
 };
 
+struct VirtualDualSenseReadiness : public DualSenseFirmwareInfo {
+    std::optional<HidDeviceInfo> deviceInfo{};
+    std::size_t initialReportsValidated = 0;
+
+    VirtualDualSenseReadiness() = default;
+    VirtualDualSenseReadiness(const DualSenseFirmwareInfo& fw)
+        : DualSenseFirmwareInfo(fw) {}
+    VirtualDualSenseReadiness(const DualSenseFirmwareInfo& fw,
+                              std::optional<HidDeviceInfo> dev,
+                              std::size_t validated = 0)
+        : DualSenseFirmwareInfo(fw), deviceInfo(std::move(dev)), initialReportsValidated(validated) {}
+};
+
 struct VirtualDualSenseStartupResult {
     std::optional<DualSenseFirmwareInfo> firmware;
+    std::optional<HidDeviceInfo> deviceInfo;
+    std::size_t initialReportsValidated = 0;
     std::size_t attempts = 0;
     VirtualDualSenseStartupFailure failure = VirtualDualSenseStartupFailure::None;
     std::chrono::steady_clock::time_point inputReadyAt{};
@@ -29,7 +45,7 @@ struct VirtualDualSenseStartupResult {
 };
 
 using VirtualDualSenseFirmwareProbe =
-    std::function<std::optional<DualSenseFirmwareInfo>(std::string& error)>;
+    std::function<std::optional<VirtualDualSenseReadiness>(std::string& error)>;
 using VirtualDualSenseRemovalWait = std::function<bool(std::string& error)>;
 
 // Opens and seeds a virtual DualSense, then requires the independently

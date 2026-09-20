@@ -72,6 +72,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="ControllerTestWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -88,11 +92,16 @@
       <DependentUpon>LearnedExecutablesWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="ControllerTestWindow.xaml.cs">
+      <DependentUpon>ControllerTestWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Models\LearnedExecutableBinding.cs" />
     <Compile Include="Models\SupportedGame.cs" />
     <Compile Include="Models\TraySettings.cs" />
     <Compile Include="Services\CloudGameListService.cs" />
     <Compile Include="Services\ControllerDetectionService.cs" />
+    <Compile Include="Services\ControllerTestService.cs" />
     <Compile Include="Services\ExecutableLearningService.cs" />
     <Compile Include="Services\GameProcessSessionTracker.cs" />
     <Compile Include="Services\GameActivationPolicy.cs" />
@@ -103,25 +112,42 @@
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Common\ReleaseSecurity.cs</Link>
     </Compile>
+    <Compile Include="..\shared\InstallLocator.cs">
+      <Link>Common\InstallLocator.cs</Link>
+    </Compile>
+    <Compile Include="..\shared\BridgeSession.cs">
+      <Link>Common\BridgeSession.cs</Link>
+    </Compile>
     <Compile Include="Common\NativeMethods.cs" />
     <Compile Include="Common\AppLog.cs" />
-    <Compile Include="Common\BridgeSession.cs" />
-    <Compile Include="Common\InstallLocator.cs" />
     <Compile Include="Common\ThemeManager.cs" />
     <Compile Include="Common\GamepadNavigationService.cs" />
     <Compile Include="Common\LocalizationManager.cs" />
+    <Compile Include="Common\VirtualKeyboardService.cs" />
     <Compile Include="Common\CoverCacheService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="LanguagePickerWindow.xaml.cs">
+      <DependentUpon>LanguagePickerWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <Page Include="LanguagePickerWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\data\supported_games.json">
       <Link>supported_games.json</Link>
     </EmbeddedResource>
+    <EmbeddedResource Include="Resources\Languages\en.json" />
+    <EmbeddedResource Include="Resources\Languages\es.json" />
+    <EmbeddedResource Include="Resources\Languages\fr.json" />
+    <EmbeddedResource Include="Resources\Languages\zh.json" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="..\assets\logo.png">
@@ -129,6 +155,84 @@
     </Resource>
     <Resource Include="..\assets\app.ico">
       <Link>Resources\app.ico</Link>
+    </Resource>
+    <Resource Include="..\assets\controller-apex4.png">
+      <Link>Resources\controller-apex4.png</Link>
+    </Resource>
+    <Resource Include="..\assets\controller-apex5.png">
+      <Link>Resources\controller-apex5.png</Link>
+    </Resource>
+    <Resource Include="..\assets\controller-dualsense.png">
+      <Link>Resources\controller-dualsense.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\controller_front.png">
+      <Link>Resources\dualsense\controller_front.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_circle.png">
+      <Link>Resources\dualsense\focus_circle.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_create.png">
+      <Link>Resources\dualsense\focus_create.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_cross.png">
+      <Link>Resources\dualsense\focus_cross.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_down.png">
+      <Link>Resources\dualsense\focus_down.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_L1.png">
+      <Link>Resources\dualsense\focus_L1.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_L2.png">
+      <Link>Resources\dualsense\focus_L2.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_left.png">
+      <Link>Resources\dualsense\focus_left.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_Lstick.png">
+      <Link>Resources\dualsense\focus_Lstick.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_options.png">
+      <Link>Resources\dualsense\focus_options.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_PS.png">
+      <Link>Resources\dualsense\focus_PS.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_R1.png">
+      <Link>Resources\dualsense\focus_R1.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_R2.png">
+      <Link>Resources\dualsense\focus_R2.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_right.png">
+      <Link>Resources\dualsense\focus_right.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_Rstick.png">
+      <Link>Resources\dualsense\focus_Rstick.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_square.png">
+      <Link>Resources\dualsense\focus_square.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_touchpad.png">
+      <Link>Resources\dualsense\focus_touchpad.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_triangle.png">
+      <Link>Resources\dualsense\focus_triangle.png</Link>
+    </Resource>
+    <Resource Include="..\assets\dualsense\focus_up.png">
+      <Link>Resources\dualsense\focus_up.png</Link>
+    </Resource>
+    <Resource Include="..\assets\xbox-button-a.png">
+      <Link>Resources\xbox-button-a.png</Link>
+    </Resource>
+    <Resource Include="..\assets\xbox-button-b.png">
+      <Link>Resources\xbox-button-b.png</Link>
+    </Resource>
+    <Resource Include="..\assets\xbox-button-x.png">
+      <Link>Resources\xbox-button-x.png</Link>
+    </Resource>
+    <Resource Include="..\assets\xbox-button-y.png">
+      <Link>Resources\xbox-button-y.png</Link>
     </Resource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

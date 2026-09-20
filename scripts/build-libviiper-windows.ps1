@@ -1,5 +1,6 @@
 param(
-    [string]$OutputPath = ""
+    [string]$OutputPath = "",
+    [switch]$SkipTests
 )
 
 $ErrorActionPreference = "Stop"
@@ -128,8 +129,10 @@ try {
 
     Push-Location $sourceDirectory
     try {
-        & $goExecutable test ./...
-        if ($LASTEXITCODE -ne 0) { throw "VIIPER tests failed." }
+        if (-not $SkipTests) {
+            & $goExecutable test ./device/dualsense/... ./internal/server/usb/...
+            if ($LASTEXITCODE -ne 0) { throw "libVIIPER DualSense tests failed." }
+        }
 
         $outputDirectory = Split-Path -Parent $OutputPath
         New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null

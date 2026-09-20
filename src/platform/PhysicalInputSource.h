@@ -40,6 +40,10 @@ public:
     [[nodiscard]] virtual std::string_view backendName() const noexcept = 0;
     [[nodiscard]] virtual bool eventDriven() const noexcept = 0;
     [[nodiscard]] virtual PhysicalInputSourceStats stats() const noexcept = 0;
+    virtual void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept {
+        (void)batteryPercent;
+        (void)chargeState;
+    }
 };
 
 // Uses the game-controller HID collection belonging to the same Windows

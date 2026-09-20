@@ -12,6 +12,7 @@ namespace ApexSenseBridgeTray.Models
         public bool TriggerOnHapticFeedback { get; set; }
         public bool EnableNotifications { get; set; }
         public bool EnableRumble { get; set; }
+        public bool SyncLightbar { get; set; }
         public int HapticThresholdPercent { get; set; }
         public int InitializationTimeoutSeconds { get; set; }
         public string ForcedProfile { get; set; }
@@ -26,6 +27,7 @@ namespace ApexSenseBridgeTray.Models
             TriggerOnHapticFeedback = true;
             EnableNotifications = true;
             EnableRumble = true;
+            SyncLightbar = false;
             HapticThresholdPercent = 12;
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";

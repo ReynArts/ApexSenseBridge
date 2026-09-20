@@ -20,6 +20,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="190" />
@@ -95,32 +96,39 @@
             <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,4,12,10"
                        VerticalAlignment="Center" Text="Vibrations" />
             <CheckBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10"
-                       IsChecked="{Binding Settings.EnableRumble}"
-                       Content="Activer les vibrations des poignées et l'haptique audio" />
+                      IsChecked="{Binding Settings.EnableRumble}"
+                      Content="Activer les vibrations des poignées et l'haptique audio" />
+
+            <!-- Lightbar Settings -->
+            <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,4,12,10"
+                       VerticalAlignment="Center" Text="Barre lumineuse" />
+            <CheckBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10"
+                      IsChecked="{Binding Settings.SyncLightbar}"
+                      Content="Synchroniser les LED avec la barre lumineuse DualSense (RVB)" />
 
             <!-- Haptic Threshold -->
-            <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,4,12,10"
+            <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,4,12,10"
                        VerticalAlignment="Center" Text="Seuil haptique (%)" />
-            <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10"
+            <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10"
                      MaxWidth="100" HorizontalAlignment="Left"
                      Text="{Binding Settings.HapticThresholdPercent, UpdateSourceTrigger=PropertyChanged}" />
 
             <!-- Init Timeout -->
-            <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,4,12,10"
+            <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,4,12,10"
                        VerticalAlignment="Center" Text="Délai d'initialisation (s)" />
-            <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10"
+            <TextBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10"
                      MaxWidth="100" HorizontalAlignment="Left"
                      Text="{Binding Settings.InitializationTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
 
             <!-- Enabled Profiles Header -->
-            <StackPanel Grid.Row="7" Grid.ColumnSpan="3" Margin="0,12,0,8">
+            <StackPanel Grid.Row="8" Grid.ColumnSpan="3" Margin="0,12,0,8">
                 <TextBlock FontWeight="SemiBold" Text="Overrides manuels" />
                 <TextBlock Margin="0,4,0,0" Opacity="0.75" TextWrapping="Wrap"
                            Text="La liste reste vide quand tout est automatique. Clic droit sur un jeu → ApexSenseBridge pour régler séparément l’activation, le remapping tactile et le profil matériel APEX." />
             </StackPanel>
 
             <!-- Profiles Grid -->
-            <DataGrid Grid.Row="8" Grid.ColumnSpan="3" MinHeight="180"
+            <DataGrid Grid.Row="9" Grid.ColumnSpan="3" MinHeight="180"
                       AutoGenerateColumns="False" CanUserAddRows="False"
                       CanUserDeleteRows="False" IsReadOnly="True"
                       ItemsSource="{Binding Settings.Profiles}">

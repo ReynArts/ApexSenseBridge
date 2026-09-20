@@ -27,6 +27,14 @@ constexpr std::uint8_t kCmdOperatorData = 0xEF;
 constexpr std::uint8_t kCmdSetForceTrigger = 81;
 constexpr std::uint8_t kCmdProfileStatus = 0xA1;
 constexpr std::uint8_t kCmdApplyProfile = 0xA2;
+constexpr std::uint8_t kCmdSetRgb = 245;
+constexpr std::uint8_t kCmdReadRgbConfig = 0xA7;
+constexpr std::uint8_t kCmdWriteRgbStart = 0xA8;
+constexpr std::uint8_t kCmdWriteRgbPack = 0xA9;
+constexpr std::uint8_t kRgbPacketSize = 20;
+constexpr std::uint8_t kRgbPacketCount = 19;
+constexpr std::size_t kRgbConfigSize = 380;
+constexpr std::size_t kApex5LedCount = 12;
 constexpr std::uint8_t kProfileSlotCount = 4;
 constexpr std::size_t kReportSize = 32;
 
@@ -52,6 +60,12 @@ struct InputTransportStatus {
 [[nodiscard]] Report buildNormal(TriggerSide side);
 [[nodiscard]] Report buildRumble(std::uint8_t lowFrequencyMotor,
                                  std::uint8_t highFrequencyMotor);
+[[nodiscard]] Report buildSetRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b);
+[[nodiscard]] Report buildReadRgbConfig(std::uint8_t slot = 0, std::uint8_t packetSize = kRgbPacketSize);
+[[nodiscard]] Report buildWriteRgbStart(std::uint8_t slot, std::uint8_t startIndex, std::uint8_t packetCount, std::uint8_t packetSize = kRgbPacketSize);
+[[nodiscard]] Report buildWriteRgbPack(std::uint8_t packetIndex, std::span<const std::uint8_t> data);
+[[nodiscard]] std::array<std::uint8_t, kRgbConfigSize> buildStaticRgbPayload(
+    std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t brightness = 100);
 [[nodiscard]] Report buildProfileStatusRequest();
 [[nodiscard]] std::optional<Report> buildApplyProfile(std::uint8_t slot);
 [[nodiscard]] Report buildInputTransportStatusRequest();

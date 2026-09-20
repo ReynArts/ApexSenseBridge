@@ -44,6 +44,8 @@ void mapXInputButtons(std::uint16_t xinputButtons,
 // Complete, allocation-free translation used by the fallback proxy and by
 // capture-replay tests. Y axes are inverted to DualSense USB coordinates.
 dualsense::DualSenseInputState mapXInputState(
-    const XInputSnapshot& snapshot) noexcept;
+    const XInputSnapshot& snapshot,
+    std::uint8_t batteryPercent = 100,
+    std::uint8_t chargeState = 0) noexcept;
 
 } // namespace asb::platform

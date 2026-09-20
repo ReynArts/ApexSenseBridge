@@ -40,6 +40,10 @@ bool DualSenseFeedback::hasTriggerEffect() const {
            std::any_of(rightTriggerEffect.begin(), rightTriggerEffect.end(), nonZero);
 }
 
+bool DualSenseFeedback::hasLightbarColor() const noexcept {
+    return kind == FeedbackKind::HidOutput && hasLightbar;
+}
+
 bool decodeViiperFeedbackFrame(std::uint8_t frameType,
                                std::span<const std::uint8_t> payload,
                                DualSenseFeedback& feedback) {

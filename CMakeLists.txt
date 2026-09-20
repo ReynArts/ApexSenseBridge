@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 0.6.3 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,7 @@ add_library(asb_core STATIC
     src/dualsense/AdaptiveTriggerTranslation.cpp
     src/dualsense/AdaptiveTriggerBridge.cpp
     src/dualsense/RumbleBridge.cpp
+    src/dualsense/LightbarBridge.cpp
     src/dualsense/ViiperProtocol.cpp
     src/haptics/HapticProcessor.cpp
     src/platform/AudioEndpointProtection.cpp
@@ -51,7 +52,7 @@ if(WIN32)
         src/platform/windows/WindowsPhysicalInputSource.cpp
         src/platform/windows/WindowsSessionControl.cpp
     )
-    target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput9_1_0 ole32)
+    target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput ole32)
 else()
     target_sources(asb_core PRIVATE
         src/platform/UnsupportedHidTransport.cpp

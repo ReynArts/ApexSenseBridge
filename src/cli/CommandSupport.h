@@ -2,7 +2,8 @@
 
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
-#include "dualsense/VirtualDualSense.h"
+#include "dualsense/DualSenseInput.h"
+#include "dualsense/VirtualDualSenseStartup.h"
 #include "flydigi/Apex5Device.h"
 
 #include <atomic>
@@ -27,10 +28,14 @@ bool waitForNewVirtualDualSenseRemoval(
     const std::vector<std::wstring>& preexistingPaths,
     std::chrono::milliseconds timeout,
     std::string& error);
-std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirmware(
+
+using VirtualDualSenseDiscovery = asb::dualsense::VirtualDualSenseReadiness;
+
+std::optional<VirtualDualSenseDiscovery> readNewVirtualDualSenseFirmware(
     const std::vector<std::wstring>& preexistingPaths,
     std::chrono::milliseconds timeout,
-    std::string& error);
+    std::string& error,
+    const asb::dualsense::DualSenseInputState* expectedInitialInput = nullptr);
 std::optional<asb::dualsense::VirtualDualSenseBackend> parseVirtualDualSenseBackend(
     std::string_view name);
 std::string jsonEscape(std::string_view value);

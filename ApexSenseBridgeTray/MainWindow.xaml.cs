@@ -63,8 +63,10 @@ namespace ApexSenseBridgeTray
             navItems.Add(NavCriteriaAdaptive);
             navItems.Add(NavCriteriaHaptic);
             navItems.Add(NavNotifications);
+            navItems.Add(NavSyncLightbar);
             navItems.Add(NavManualBridge);
             navItems.Add(NavLanguage);
+            navItems.Add(NavTestController);
             navItems.Add(NavDatabase);
             navItems.Add(NavUpdate);
 
@@ -75,6 +77,7 @@ namespace ApexSenseBridgeTray
             ChkTriggerHaptic.IsChecked = settings.TriggerOnHapticFeedback;
             UpdateCriteriaState();
             ChkNotifications.IsChecked = settings.EnableNotifications;
+            ChkSyncLightbar.IsChecked = settings.SyncLightbar;
             ChkManualBridge.IsChecked = settings.ForcedProfile == "standard";
 
             if (updateChecker != null)
@@ -146,15 +149,21 @@ namespace ApexSenseBridgeTray
 
         private void UpdateLanguageRadios()
         {
-            bool isFr = LocalizationManager.CurrentLanguage == LocalizationManager.LangFrench;
-            RadLangFr.IsChecked = isFr;
-            RadLangEn.IsChecked = !isFr;
+            string lang = LocalizationManager.CurrentLanguage;
+            if (RadLangEn != null) RadLangEn.IsChecked = (lang == LocalizationManager.LangEnglish);
+            if (RadLangFr != null) RadLangFr.IsChecked = (lang == LocalizationManager.LangFrench);
+            if (RadLangEs != null) RadLangEs.IsChecked = (lang == LocalizationManager.LangSpanish);
+            if (RadLangZh != null) RadLangZh.IsChecked = (lang == LocalizationManager.LangChinese);
         }
 
         private void OnLanguageOptionChecked(object sender, RoutedEventArgs e)
         {
             if (!isInitialized) return;
-            string newLang = RadLangFr.IsChecked == true ? LocalizationManager.LangFrench : LocalizationManager.LangEnglish;
+            string newLang = LocalizationManager.LangEnglish;
+            if (RadLangFr != null && RadLangFr.IsChecked == true) newLang = LocalizationManager.LangFrench;
+            else if (RadLangEs != null && RadLangEs.IsChecked == true) newLang = LocalizationManager.LangSpanish;
+            else if (RadLangZh != null && RadLangZh.IsChecked == true) newLang = LocalizationManager.LangChinese;
+
             if (newLang != LocalizationManager.CurrentLanguage)
             {
                 settings.Language = newLang;
@@ -305,6 +314,13 @@ namespace ApexSenseBridgeTray
             settings.Save();
         }
 
+        private void OnSyncLightbarChanged(object sender, RoutedEventArgs e)
+        {
+            if (!isInitialized) return;
+            settings.SyncLightbar = ChkSyncLightbar.IsChecked == true;
+            settings.Save();
+        }
+
         private void OnManualBridgeChanged(object sender, RoutedEventArgs e)
         {
             if (!isInitialized) return;
@@ -350,6 +366,11 @@ namespace ApexSenseBridgeTray
         private void OnNavItemNotificationsClick(object sender, MouseButtonEventArgs e)
         {
             ChkNotifications.IsChecked = !ChkNotifications.IsChecked;
+        }
+
+        private void OnNavItemSyncLightbarClick(object sender, MouseButtonEventArgs e)
+        {
+            ChkSyncLightbar.IsChecked = !ChkSyncLightbar.IsChecked;
         }
 
         private void OnNavItemManualBridgeClick(object sender, MouseButtonEventArgs e)
@@ -420,6 +441,13 @@ namespace ApexSenseBridgeTray
             win.Owner = this;
             win.ShowDialog();
             UpdateDatabaseCount();
+        }
+
+        private void OnOpenControllerTestClick(object sender, RoutedEventArgs e)
+        {
+            var win = new ControllerTestWindow(settings);
+            win.Owner = this;
+            win.ShowDialog();
         }
 
         private void OnHideWindowClick(object sender, RoutedEventArgs e)
@@ -582,6 +610,10 @@ namespace ApexSenseBridgeTray
             else if (item == NavNotifications)
             {
                 ChkNotifications.IsChecked = !ChkNotifications.IsChecked;
+            }
+            else if (item == NavSyncLightbar)
+            {
+                ChkSyncLightbar.IsChecked = !ChkSyncLightbar.IsChecked;
             }
             else if (item == NavManualBridge)
             {

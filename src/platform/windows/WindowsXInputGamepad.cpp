@@ -35,6 +35,49 @@ public:
         return true;
     }
 
+    bool queryBattery(std::uint8_t& batteryPercent, std::uint8_t& chargeState) override {
+        using FnGetBattery = DWORD(WINAPI*)(DWORD, BYTE, XINPUT_BATTERY_INFORMATION*);
+        static const auto fnXInputGetBatteryInformation = []() -> FnGetBattery {
+            HMODULE mod = GetModuleHandleW(L"xinput1_4.dll");
+            if (!mod) mod = LoadLibraryW(L"xinput1_4.dll");
+            if (!mod) mod = LoadLibraryW(L"xinput1_3.dll");
+            if (!mod) return nullptr;
+            return reinterpret_cast<FnGetBattery>(GetProcAddress(mod, "XInputGetBatteryInformation"));
+        }();
+        if (!fnXInputGetBatteryInformation) {
+            return false;
+        }
+        XINPUT_BATTERY_INFORMATION info{};
+        if (fnXInputGetBatteryInformation(index_, BATTERY_DEVTYPE_GAMEPAD, &info) != ERROR_SUCCESS) {
+            return false;
+        }
+        if (info.BatteryType == BATTERY_TYPE_DISCONNECTED) {
+            return false;
+        }
+        if (info.BatteryType == BATTERY_TYPE_WIRED) {
+            batteryPercent = 100;
+            chargeState = dualsense::chargeStatus::kFull;
+            return true;
+        }
+        switch (info.BatteryLevel) {
+        case BATTERY_LEVEL_FULL:
+            batteryPercent = 100;
+            break;
+        case BATTERY_LEVEL_MEDIUM:
+            batteryPercent = 65;
+            break;
+        case BATTERY_LEVEL_LOW:
+            batteryPercent = 30;
+            break;
+        case BATTERY_LEVEL_EMPTY:
+        default:
+            batteryPercent = 10;
+            break;
+        }
+        chargeState = dualsense::chargeStatus::kDischarging;
+        return true;
+    }
+
     unsigned int index() const noexcept override { return index_; }
 
 private:

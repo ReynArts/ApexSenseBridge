@@ -4,6 +4,7 @@
 
 #include "flydigi/Apex5Device.h"
 #include "core/ApexProfileRestoreGuard.h"
+#include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Protocol.h"
@@ -163,7 +164,7 @@ int main() {
     assert(request[2] == 0xA5);
     assert(request[3] == 0x01);
     assert(request[4] == 2);
-    assert(request[5] == 3); // 8-bit sum of command + length.
+    assert(request[5] == 3);
 
     std::vector<std::uint8_t> reply(32, 0);
     reply[0] = kReportIdIn;
@@ -178,6 +179,32 @@ int main() {
     assert(parsed->isApex5());
     assert(!parsed->isWired());
     assert(parsed->batteryLevel() == 5);
+    assert(parsed->batteryPercent() == 100);
+    assert(parsed->chargeState() == 0);
+
+    reply[12] = 0x15;
+    const auto parsedCharging = Apex5Identity::parseReply(reply);
+    assert(parsedCharging);
+    assert(parsedCharging->isCharging());
+    assert(parsedCharging->batteryLevel() == 5);
+    assert(parsedCharging->batteryPercent() == 100);
+    assert(parsedCharging->chargeState() == 4);
+
+    reply[12] = 0x13;
+    const auto parsedChargingMid = Apex5Identity::parseReply(reply);
+    assert(parsedChargingMid);
+    assert(parsedChargingMid->isCharging());
+    assert(parsedChargingMid->batteryLevel() == 3);
+    assert(parsedChargingMid->batteryPercent() == 60);
+    assert(parsedChargingMid->chargeState() == 2);
+
+    reply[12] = 0;
+    const auto parsedEmpty = Apex5Identity::parseReply(reply);
+    assert(parsedEmpty);
+    assert(!parsedEmpty->isCharging());
+    assert(parsedEmpty->batteryLevel() == 0);
+    assert(parsedEmpty->batteryPercent() == 10);
+    assert(parsedEmpty->chargeState() == 0);
 
     for (const auto deviceType : {128, 129, 133, 134, 135, 136}) {
         assert(Apex5Identity::isApex5DeviceType(static_cast<std::uint8_t>(deviceType)));
@@ -203,6 +230,13 @@ int main() {
     assert(parsedApex4->isWired());
     assert(parsedApex4->firmwareVersion() == 0x1234);
     assert(!parsedApex4->hasBatteryLevel());
+    assert(parsedApex4->batteryPercent() == 100);
+    assert(parsedApex4->chargeState() == dualsense::chargeStatus::kFull);
+
+    apex4Reply[13] = 2;
+    const auto parsedWirelessApex4 = Apex5Identity::parseApex4Reply(apex4Reply);
+    assert(parsedWirelessApex4 && !parsedWirelessApex4->isWired());
+    assert(parsedWirelessApex4->chargeState() == dualsense::chargeStatus::kDischarging);
 
     FakeTransport* acceptedTransport = nullptr;
     auto accepted = makeDevice(acceptedTransport, 128);
@@ -217,6 +251,9 @@ int main() {
     assert(accepted.setTrigger(effect, error));
     assert(acceptedTransport->writes.size() == 2);
     assert(acceptedTransport->writes[1][3] == kCmdSetForceTrigger);
+    assert(accepted.requestBatteryRefresh(error));
+    assert(acceptedTransport->writes.size() == 3);
+    assert(acceptedTransport->writes[2][3] == kCmdGetInfo);
 
     InputTransportStatus transportStatus{};
     assert(accepted.readInputTransportStatus(transportStatus, error));

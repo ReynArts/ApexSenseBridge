@@ -229,14 +229,29 @@ namespace ApexSenseBridgeTray.Common
             if (pollTimer.IsEnabled) pollTimer.Stop();
         }
 
+        public static bool IsNavigationSuspended { get; set; }
+
         private bool IsApplicationForeground()
         {
-            if (!targetWindow.IsVisible) return false;
+            if (IsNavigationSuspended) return false;
+            if (!targetWindow.IsVisible || !targetWindow.IsActive) return false;
 
             IntPtr fg = GetForegroundWindow();
             if (fg == IntPtr.Zero) return false;
 
             if (windowHandle != IntPtr.Zero && fg == windowHandle) return true;
+
+            if (Application.Current != null)
+            {
+                foreach (Window w in Application.Current.Windows)
+                {
+                    if (w != targetWindow && w.IsVisible)
+                    {
+                        var h = new WindowInteropHelper(w).Handle;
+                        if (h != IntPtr.Zero && h == fg) return false;
+                    }
+                }
+            }
 
             uint fgPid;
             GetWindowThreadProcessId(fg, out fgPid);
@@ -319,14 +334,17 @@ namespace ApexSenseBridgeTray.Common
             ushort buttons = pad.wButtons;
             short thumbLX = pad.sThumbLX;
             short thumbLY = pad.sThumbLY;
+            short thumbRX = pad.sThumbRX;
             short thumbRY = pad.sThumbRY;
 
             int absLX = Math.Abs((int)thumbLX);
             int absLY = Math.Abs((int)thumbLY);
+            int absRX = Math.Abs((int)thumbRX);
             int absRY = Math.Abs((int)thumbRY);
             bool hasActivity = (buttons != 0) ||
                                absLX > LEFT_STICK_DEADZONE ||
                                absLY > LEFT_STICK_DEADZONE ||
+                               absRX > RIGHT_STICK_DEADZONE ||
                                absRY > RIGHT_STICK_DEADZONE;
 
             if (hasActivity)
@@ -416,11 +434,20 @@ namespace ApexSenseBridgeTray.Common
             CheckButtonEdge(buttons, lastButtons, XINPUT_GAMEPAD_START, GamepadButtonAction.Menu);
             CheckButtonEdge(buttons, lastButtons, XINPUT_GAMEPAD_BACK, GamepadButtonAction.View);
 
-            // Right thumbstick smooth scrolling
-            if (absRY > RIGHT_STICK_DEADZONE)
+            // Right thumbstick smooth scrolling (vertical or horizontal)
+            if (absRY > RIGHT_STICK_DEADZONE || absRX > RIGHT_STICK_DEADZONE)
             {
-                double normalized = (double)thumbRY / 32767.0;
-                double scrollDelta = -normalized * 26.0;
+                double scrollDelta = 0;
+                if (absRY >= absRX)
+                {
+                    double normalized = (double)thumbRY / 32767.0;
+                    scrollDelta = -normalized * 26.0;
+                }
+                else
+                {
+                    double normalized = (double)thumbRX / 32767.0;
+                    scrollDelta = normalized * 26.0;
+                }
                 var handler = ScrollRequested;
                 if (handler != null) handler(scrollDelta);
             }

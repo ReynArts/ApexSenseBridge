@@ -31,9 +31,15 @@ struct DualSenseFeedback {
     std::uint16_t leftTransient = 0;
     std::uint16_t rightTransient = 0;
 
+    std::uint8_t lightbarRed = 0;
+    std::uint8_t lightbarGreen = 0;
+    std::uint8_t lightbarBlue = 0;
+    bool hasLightbar = false;
+
     bool hasRumble() const;
     bool requestsRumbleUpdate() const;
     bool hasTriggerEffect() const;
+    bool hasLightbarColor() const noexcept;
 };
 
 // Decodes the compact server-to-client framing exposed by the patched VIIPER

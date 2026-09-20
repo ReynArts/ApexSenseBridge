@@ -137,6 +137,54 @@ Report buildRumble(std::uint8_t lowFrequencyMotor,
     return report;
 }
 
+Report buildSetRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    const std::array<std::uint8_t, 3> payload{r, g, b};
+    return buildChecksummedCommand(kCmdSetRgb, payload);
+}
+
+Report buildReadRgbConfig(std::uint8_t slot, std::uint8_t packetSize) {
+    const std::array<std::uint8_t, 2> payload{slot, packetSize};
+    return buildChecksummedCommand(kCmdReadRgbConfig, payload);
+}
+
+Report buildWriteRgbStart(std::uint8_t slot, std::uint8_t startIndex,
+                          std::uint8_t packetCount, std::uint8_t packetSize) {
+    const std::array<std::uint8_t, 4> payload{slot, startIndex, packetCount, packetSize};
+    return buildChecksummedCommand(kCmdWriteRgbStart, payload);
+}
+
+Report buildWriteRgbPack(std::uint8_t packetIndex, std::span<const std::uint8_t> data) {
+    std::array<std::uint8_t, 1 + kRgbPacketSize> payload{};
+    payload[0] = packetIndex;
+    const auto copyLen = std::min<std::size_t>(data.size(), kRgbPacketSize);
+    std::copy_n(data.begin(), copyLen, payload.begin() + 1);
+    return buildChecksummedCommand(
+        kCmdWriteRgbPack,
+        std::span<const std::uint8_t>(payload.data(), 1 + copyLen));
+}
+
+std::array<std::uint8_t, kRgbConfigSize> buildStaticRgbPayload(
+    std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t brightness) {
+    std::array<std::uint8_t, kRgbConfigSize> payload{};
+    payload[0] = 0x00;
+    payload[1] = 0x03;
+    payload[2] = 0x00;
+    payload[3] = 0x00;
+    payload[4] = 0x00;
+    payload[5] = 0x00;
+    payload[6] = brightness;
+    payload[7] = static_cast<std::uint8_t>(kApex5LedCount);
+    payload[8] = 0x01;
+    payload[9] = 0x00;
+    std::fill_n(payload.begin() + 10, 10, std::uint8_t{0xFF});
+    for (std::size_t offset = 20; offset + 2 < kRgbConfigSize; offset += 3) {
+        payload[offset] = r;
+        payload[offset + 1] = g;
+        payload[offset + 2] = b;
+    }
+    return payload;
+}
+
 Report buildProfileStatusRequest() {
     return buildChecksummedCommand(kCmdProfileStatus, {});
 }

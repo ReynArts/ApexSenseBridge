@@ -1,9 +1,11 @@
+using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using ApexSenseBridgeTray.Services;
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Threading;
 using System.Windows;
@@ -28,7 +30,6 @@ namespace ApexSenseBridgeTray
         private ExecutableLearningService learningService;
         private ProcessMonitorService monitorService;
         private UpdateCheckerService updateChecker;
-        private MainWindow mainWindow;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -81,10 +82,6 @@ namespace ApexSenseBridgeTray
                     gameListService, sessionManager, learningService, settings);
                 gameListService.GamesUpdated += monitorService.ForceCheck;
                 updateChecker = new UpdateCheckerService();
-
-                mainWindow = new MainWindow(
-                    gameListService, sessionManager, learningService,
-                    monitorService, updateChecker, settings);
 
                 learningService.InitializeAsync();
 
@@ -223,11 +220,17 @@ namespace ApexSenseBridgeTray
         {
             contextMenu = new ContextMenuStrip();
             contextMenu.Renderer = new DarkTrayMenuRenderer();
-            contextMenu.Font = new Font("Segoe UI", 9.25f, System.Drawing.FontStyle.Regular);
+            contextMenu.Font = new Font("Segoe UI Variable Text", 9.5f, System.Drawing.FontStyle.Regular);
+            if (contextMenu.Font.Name != "Segoe UI Variable Text")
+            {
+                contextMenu.Font = new Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Regular);
+            }
             contextMenu.ShowImageMargin = false;
             contextMenu.ShowCheckMargin = false;
-            contextMenu.BackColor = Color.FromArgb(14, 16, 22);
-            contextMenu.ForeColor = Color.FromArgb(235, 238, 245);
+            contextMenu.BackColor = Color.FromArgb(36, 36, 36);
+            contextMenu.ForeColor = Color.FromArgb(245, 245, 245);
+            contextMenu.Padding = new System.Windows.Forms.Padding(4, 6, 4, 6);
+            contextMenu.Opened += (s, e) => ModernizeMenuWindow(contextMenu);
             BuildContextMenu();
 
             Icon appIcon = SystemIcons.Application;
@@ -270,7 +273,14 @@ namespace ApexSenseBridgeTray
                     ShowMainWindow();
                 }
             };
-            notifyIcon.DoubleClick += (s, e) => ShowMainWindow();
+            notifyIcon.DoubleClick += (s, e) =>
+            {
+                var me = e as MouseEventArgs;
+                if (me == null || me.Button == MouseButtons.Left)
+                {
+                    ShowMainWindow();
+                }
+            };
         }
 
         private void BuildContextMenu()
@@ -284,13 +294,26 @@ namespace ApexSenseBridgeTray
 
             statusMenuItem = new ToolStripMenuItem(statusText);
             statusMenuItem.Enabled = false;
-            statusMenuItem.Font = new Font(contextMenu.Font, System.Drawing.FontStyle.Bold);
+            statusMenuItem.Tag = "statusHeader";
+            statusMenuItem.ForeColor = (sessionManager != null && sessionManager.IsSessionActive)
+                ? Color.FromArgb(52, 211, 153)
+                : Color.FromArgb(160, 165, 175);
+            statusMenuItem.Font = new Font("Segoe UI Variable Text", 9f, System.Drawing.FontStyle.Regular);
+            if (statusMenuItem.Font.Name != "Segoe UI Variable Text")
+            {
+                statusMenuItem.Font = new Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular);
+            }
+            statusMenuItem.Padding = new System.Windows.Forms.Padding(12, 6, 12, 6);
             contextMenu.Items.Add(statusMenuItem);
             contextMenu.Items.Add(new ToolStripSeparator());
 
             var openItem = new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayOpen"), null, (s, e) => ShowMainWindow());
-            openItem.Font = new Font(contextMenu.Font, System.Drawing.FontStyle.Bold);
+            openItem.Padding = new System.Windows.Forms.Padding(8, 7, 8, 7);
             contextMenu.Items.Add(openItem);
+
+            var testControllerItem = new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayTestController"), null, (s, e) => ShowControllerTestWindow());
+            testControllerItem.Padding = new System.Windows.Forms.Padding(8, 7, 8, 7);
+            contextMenu.Items.Add(testControllerItem);
 
             autoDetectMenuItem = new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayAutoDetect"), null, (s, e) =>
             {
@@ -305,29 +328,34 @@ namespace ApexSenseBridgeTray
                 {
                     sessionManager.StopSession("Auto-detect disabled from tray");
                 }
-                mainWindow.UpdateSessionStatus();
             });
             autoDetectMenuItem.Checked = settings != null && settings.AutoDetectGames;
+            autoDetectMenuItem.Padding = new System.Windows.Forms.Padding(8, 7, 8, 7);
             contextMenu.Items.Add(autoDetectMenuItem);
 
-            contextMenu.Items.Add(new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayCheckUpdates"), null, async (s, e) =>
+            var checkUpdatesItem = new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayCheckUpdates"), null, async (s, e) =>
             {
                 if (updateChecker != null)
                 {
                     await updateChecker.CheckForUpdatesAsync(false);
                 }
-            }));
+            });
+            checkUpdatesItem.Padding = new System.Windows.Forms.Padding(8, 7, 8, 7);
+            contextMenu.Items.Add(checkUpdatesItem);
 
-            contextMenu.Items.Add(new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayControlPanel"), null, (s, e) =>
+            var controlPanelItem = new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayControlPanel"), null, (s, e) =>
             {
                 var controlPath = InstallLocator.ResolveControlPanel();
                 if (!string.IsNullOrWhiteSpace(controlPath) && File.Exists(controlPath))
                 {
                     try { Process.Start(new ProcessStartInfo(controlPath) { UseShellExecute = true }); } catch { }
                 }
-            }));
+            });
+            controlPanelItem.Padding = new System.Windows.Forms.Padding(8, 7, 8, 7);
+            contextMenu.Items.Add(controlPanelItem);
 
             var langMenu = new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayLanguage"));
+            langMenu.Padding = new System.Windows.Forms.Padding(8, 7, 8, 7);
             langMenu.DropDown.Renderer = new DarkTrayMenuRenderer();
             var dropDownMenu = langMenu.DropDown as ToolStripDropDownMenu;
             if (dropDownMenu != null)
@@ -335,19 +363,33 @@ namespace ApexSenseBridgeTray
                 dropDownMenu.ShowImageMargin = false;
                 dropDownMenu.ShowCheckMargin = false;
             }
-            langMenu.DropDown.BackColor = Color.FromArgb(14, 16, 22);
-            langMenu.DropDown.ForeColor = Color.FromArgb(235, 238, 245);
+            langMenu.DropDown.BackColor = Color.FromArgb(36, 36, 36);
+            langMenu.DropDown.ForeColor = Color.FromArgb(245, 245, 245);
+            langMenu.DropDown.Padding = new System.Windows.Forms.Padding(4, 6, 4, 6);
+            langMenu.DropDown.Opened += (s, e) => ModernizeMenuWindow(langMenu.DropDown);
             var langEnglish = new ToolStripMenuItem("English", null, (s, e) => SwitchLanguage(LocalizationManager.LangEnglish));
             var langFrench = new ToolStripMenuItem("Français", null, (s, e) => SwitchLanguage(LocalizationManager.LangFrench));
+            var langSpanish = new ToolStripMenuItem("Español", null, (s, e) => SwitchLanguage(LocalizationManager.LangSpanish));
+            var langChinese = new ToolStripMenuItem("简体中文", null, (s, e) => SwitchLanguage(LocalizationManager.LangChinese));
+            langEnglish.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            langFrench.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            langSpanish.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            langChinese.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
             langEnglish.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
             langFrench.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangFrench;
+            langSpanish.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangSpanish;
+            langChinese.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangChinese;
             langMenu.DropDownItems.Add(langEnglish);
             langMenu.DropDownItems.Add(langFrench);
+            langMenu.DropDownItems.Add(langSpanish);
+            langMenu.DropDownItems.Add(langChinese);
             contextMenu.Items.Add(langMenu);
 
             contextMenu.Items.Add(new ToolStripSeparator());
 
-            contextMenu.Items.Add(new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayExit"), null, (s, e) => ExitApplication()));
+            var exitItem = new ToolStripMenuItem(LocalizationManager.Get("Loc_TrayExit"), null, (s, e) => ExitApplication());
+            exitItem.Padding = new System.Windows.Forms.Padding(8, 7, 8, 7);
+            contextMenu.Items.Add(exitItem);
         }
 
         private void SwitchLanguage(string lang)
@@ -388,24 +430,116 @@ namespace ApexSenseBridgeTray
         }
 
         private GameListWindow dashboardWindow;
+        private readonly object windowLock = new object();
+        private bool isOpeningDashboard;
 
         private void ShowMainWindow()
         {
             try
             {
-                if (dashboardWindow == null || !dashboardWindow.IsLoaded)
+                lock (windowLock)
                 {
-                    dashboardWindow = new GameListWindow(
-                        gameListService, settings, learningService,
-                        sessionManager, monitorService, updateChecker,
-                        initialTab: "dashboard");
-                    dashboardWindow.Closed += (s, e) => dashboardWindow = null;
+                    if (isOpeningDashboard) return;
+
+                    if (dashboardWindow != null)
+                    {
+                        if (dashboardWindow.WindowState == WindowState.Minimized)
+                        {
+                            dashboardWindow.WindowState = WindowState.Normal;
+                        }
+                        dashboardWindow.Show();
+                        dashboardWindow.Activate();
+                        dashboardWindow.Focus();
+                        return;
+                    }
+
+                    isOpeningDashboard = true;
                 }
-                dashboardWindow.Show();
-                dashboardWindow.WindowState = WindowState.Normal;
-                dashboardWindow.Activate();
+
+                Dispatcher.Invoke(() =>
+                {
+                    lock (windowLock)
+                    {
+                        if (dashboardWindow == null)
+                        {
+                            dashboardWindow = new GameListWindow(
+                                gameListService, settings, learningService,
+                                sessionManager, monitorService, updateChecker,
+                                initialTab: "dashboard");
+
+                            dashboardWindow.Closed += (s, e) =>
+                            {
+                                lock (windowLock)
+                                {
+                                    dashboardWindow = null;
+                                }
+                            };
+                        }
+
+                        if (dashboardWindow.WindowState == WindowState.Minimized)
+                        {
+                            dashboardWindow.WindowState = WindowState.Normal;
+                        }
+                        dashboardWindow.Show();
+                        dashboardWindow.Activate();
+                        dashboardWindow.Focus();
+                    }
+                });
             }
-            catch { }
+            catch (Exception ex)
+            {
+                try { AppLog.WriteLine("tray_crash.log", "[ShowMainWindow] " + ex); } catch { }
+            }
+            finally
+            {
+                lock (windowLock)
+                {
+                    isOpeningDashboard = false;
+                }
+            }
+        }
+
+        private ControllerTestWindow controllerTestWindow;
+
+        private void ShowControllerTestWindow()
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    lock (windowLock)
+                    {
+                        if (controllerTestWindow != null)
+                        {
+                            if (controllerTestWindow.WindowState == WindowState.Minimized)
+                            {
+                                controllerTestWindow.WindowState = WindowState.Normal;
+                            }
+                            controllerTestWindow.Show();
+                            controllerTestWindow.Activate();
+                            controllerTestWindow.Focus();
+                            return;
+                        }
+
+                        controllerTestWindow = new ControllerTestWindow(settings);
+                        controllerTestWindow.Closed += (s, e) =>
+                        {
+                            lock (windowLock)
+                            {
+                                controllerTestWindow = null;
+                            }
+                        };
+
+                        controllerTestWindow.Show();
+                        controllerTestWindow.Activate();
+                        controllerTestWindow.Focus();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                try { AppLog.WriteLine("tray_crash.log", "[ShowControllerTestWindow] " + ex); } catch { }
+            }
         }
 
         private void ExitApplication()
@@ -437,26 +571,36 @@ namespace ApexSenseBridgeTray
             if (singleInstanceMutex != null) singleInstanceMutex.Dispose();
             base.OnExit(e);
         }
+        private static void ModernizeMenuWindow(ToolStripDropDown menu)
+        {
+            if (menu == null || !menu.IsHandleCreated) return;
+            try
+            {
+                int cornerPreference = NativeMethods.DWMWCP_ROUND;
+                NativeMethods.DwmSetWindowAttribute(menu.Handle, NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerPreference, sizeof(int));
+            }
+            catch { }
+        }
     }
 
     internal sealed class DarkTrayColorTable : ProfessionalColorTable
     {
-        public override Color ToolStripDropDownBackground => Color.FromArgb(14, 16, 22);
-        public override Color MenuBorder => Color.FromArgb(36, 40, 52);
+        public override Color ToolStripDropDownBackground => Color.FromArgb(36, 36, 36);
+        public override Color MenuBorder => Color.FromArgb(36, 36, 36);
         public override Color MenuItemBorder => Color.Transparent;
-        public override Color MenuItemSelected => Color.FromArgb(0, 112, 209);
-        public override Color MenuItemSelectedGradientBegin => Color.FromArgb(0, 112, 209);
-        public override Color MenuItemSelectedGradientEnd => Color.FromArgb(0, 112, 209);
-        public override Color MenuItemPressedGradientBegin => Color.FromArgb(0, 91, 181);
-        public override Color MenuItemPressedGradientEnd => Color.FromArgb(0, 91, 181);
-        public override Color ImageMarginGradientBegin => Color.FromArgb(14, 16, 22);
-        public override Color ImageMarginGradientMiddle => Color.FromArgb(14, 16, 22);
-        public override Color ImageMarginGradientEnd => Color.FromArgb(14, 16, 22);
-        public override Color SeparatorDark => Color.FromArgb(36, 40, 52);
+        public override Color MenuItemSelected => Color.FromArgb(255, 255, 255);
+        public override Color MenuItemSelectedGradientBegin => Color.Transparent;
+        public override Color MenuItemSelectedGradientEnd => Color.Transparent;
+        public override Color MenuItemPressedGradientBegin => Color.Transparent;
+        public override Color MenuItemPressedGradientEnd => Color.Transparent;
+        public override Color ImageMarginGradientBegin => Color.FromArgb(36, 36, 36);
+        public override Color ImageMarginGradientMiddle => Color.FromArgb(36, 36, 36);
+        public override Color ImageMarginGradientEnd => Color.FromArgb(36, 36, 36);
+        public override Color SeparatorDark => Color.FromArgb(56, 56, 56);
         public override Color SeparatorLight => Color.Transparent;
-        public override Color CheckBackground => Color.FromArgb(0, 112, 209);
-        public override Color CheckSelectedBackground => Color.FromArgb(0, 120, 220);
-        public override Color CheckPressedBackground => Color.FromArgb(0, 91, 181);
+        public override Color CheckBackground => Color.Transparent;
+        public override Color CheckSelectedBackground => Color.Transparent;
+        public override Color CheckPressedBackground => Color.Transparent;
     }
 
     internal sealed class DarkTrayMenuRenderer : ToolStripProfessionalRenderer
@@ -466,19 +610,36 @@ namespace ApexSenseBridgeTray
             RoundedEdges = true;
         }
 
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+        {
+        }
+
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            int y = e.Item.Height / 2;
+            int startX = 14;
+            int endX = e.Item.Width - 14;
+            using (var pen = new Pen(Color.FromArgb(56, 56, 56), 1f))
+            {
+                e.Graphics.DrawLine(pen, startX, y, endX, y);
+            }
+        }
+
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
         {
-            if (!e.Item.Enabled)
+            if (e.Item.Tag as string == "statusHeader")
             {
-                e.TextColor = Color.FromArgb(100, 108, 126);
+                e.TextColor = e.Item.ForeColor.IsEmpty || e.Item.ForeColor == System.Drawing.SystemColors.ControlText
+                    ? Color.FromArgb(160, 165, 175)
+                    : e.Item.ForeColor;
             }
-            else if (e.Item.Selected)
+            else if (!e.Item.Enabled)
             {
-                e.TextColor = Color.White;
+                e.TextColor = Color.FromArgb(130, 130, 130);
             }
             else
             {
-                e.TextColor = Color.FromArgb(235, 238, 245);
+                e.TextColor = Color.FromArgb(250, 250, 250);
             }
             base.OnRenderItemText(e);
         }
@@ -487,16 +648,35 @@ namespace ApexSenseBridgeTray
         {
             if (e.Item.Selected && e.Item.Enabled)
             {
-                var rect = new Rectangle(3, 1, e.Item.Width - 6, e.Item.Height - 2);
-                using (var brush = new SolidBrush(Color.FromArgb(0, 112, 209)))
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                var rect = new Rectangle(4, 1, e.Item.Width - 8, e.Item.Height - 2);
+                using (var path = CreateRoundedPath(rect, 4))
+                using (var brush = new SolidBrush(Color.FromArgb(20, 255, 255, 255)))
                 {
-                    e.Graphics.FillRectangle(brush, rect);
+                    e.Graphics.FillPath(brush, path);
                 }
             }
             else
             {
                 base.OnRenderMenuItemBackground(e);
             }
+        }
+
+        private static GraphicsPath CreateRoundedPath(Rectangle rect, int radius)
+        {
+            var path = new GraphicsPath();
+            int diameter = radius * 2;
+            var arc = new Rectangle(rect.Location, new System.Drawing.Size(diameter, diameter));
+
+            path.AddArc(arc, 180, 90);
+            arc.X = rect.Right - diameter;
+            path.AddArc(arc, 270, 90);
+            arc.Y = rect.Bottom - diameter;
+            path.AddArc(arc, 0, 90);
+            arc.X = rect.Left;
+            path.AddArc(arc, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 }

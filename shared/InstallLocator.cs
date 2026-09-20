@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace ApexSenseBridgeTray.Common
+namespace ApexSenseBridge.Common
 {
     internal static class InstallLocator
     {
@@ -13,6 +13,10 @@ namespace ApexSenseBridgeTray.Common
 
         public static string ResolveEngine(string legacyPath = null)
         {
+            if (IsEngine(legacyPath))
+            {
+                return Path.GetFullPath(legacyPath);
+            }
             return ResolveFile(EngineFileName, legacyPath);
         }
 
@@ -21,8 +25,26 @@ namespace ApexSenseBridgeTray.Common
             return ResolveFile(ControlFileName, null);
         }
 
+        public static bool IsEngine(string path)
+        {
+            return !string.IsNullOrWhiteSpace(path) &&
+                   string.Equals(Path.GetFileName(path), EngineFileName,
+                                 StringComparison.OrdinalIgnoreCase) &&
+                   File.Exists(path);
+        }
+
         private static string ResolveFile(string fileName, string legacyPath)
         {
+            var appDir = AppDomain.CurrentDomain.BaseDirectory;
+            if (!string.IsNullOrWhiteSpace(appDir))
+            {
+                var colocated = Path.Combine(appDir, fileName);
+                if (File.Exists(colocated))
+                {
+                    return Path.GetFullPath(colocated);
+                }
+            }
+
             foreach (var view in RegistryViews())
             {
                 try
@@ -69,16 +91,6 @@ namespace ApexSenseBridgeTray.Common
             if (!string.IsNullOrWhiteSpace(programFiles))
             {
                 var target = Path.Combine(programFiles, "ApexSenseBridge", fileName);
-                if (File.Exists(target))
-                {
-                    return Path.GetFullPath(target);
-                }
-            }
-
-            var appDir = AppDomain.CurrentDomain.BaseDirectory;
-            if (!string.IsNullOrWhiteSpace(appDir))
-            {
-                var target = Path.Combine(appDir, fileName);
                 if (File.Exists(target))
                 {
                     return Path.GetFullPath(target);

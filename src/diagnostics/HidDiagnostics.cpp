@@ -69,12 +69,6 @@ std::string display(std::wstring_view value) {
     return value.empty() ? "<not available>" : toUtf8(value);
 }
 
-std::string hex16(std::uint16_t value) {
-    std::ostringstream output;
-    output << "0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << value;
-    return output.str();
-}
-
 void appendTextList(std::ostringstream& output,
                     std::string_view label,
                     const std::vector<std::wstring>& values) {
@@ -135,6 +129,12 @@ void appendJsonStringArray(std::ostringstream& output,
 }
 
 } // namespace
+
+std::string hex16(std::uint16_t value) {
+    std::ostringstream output;
+    output << "0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << value;
+    return output.str();
+}
 
 bool isRelevantHidDevice(const HidDeviceInfo& info) {
     const bool vendorUsagePage = info.usagePage >= 0xFF00;

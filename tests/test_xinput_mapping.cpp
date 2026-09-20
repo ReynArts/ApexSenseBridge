@@ -52,6 +52,11 @@ int main() {
     assert(neutral.lx == 128 && neutral.ly == 127);
     assert(neutral.rx == 128 && neutral.ry == 127);
     assert(neutral.l2 == 0 && neutral.r2 == 0);
+    assert(neutral.batteryPercent == 100);
+    assert(neutral.chargeState == 0);
+    const auto customBattery = platform::mapXInputState({}, 60, 2);
+    assert(customBattery.batteryPercent == 60);
+    assert(customBattery.chargeState == 2);
 
     platform::XInputSnapshot endpoints{};
     endpoints.leftX = -32768;

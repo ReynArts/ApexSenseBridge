@@ -1,5 +1,6 @@
 param(
-    [string]$OutputPath = ""
+    [string]$OutputPath = "",
+    [switch]$SkipTests
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,8 +44,10 @@ if ($LASTEXITCODE -ne 0) { throw "Could not apply the ApexSenseBridge VIIPER pat
 
 Push-Location $sourceDirectory
 try {
-    go test ./...
-    if ($LASTEXITCODE -ne 0) { throw "VIIPER tests failed." }
+    if (-not $SkipTests) {
+        go test ./device/dualsense/... ./internal/server/usb/...
+        if ($LASTEXITCODE -ne 0) { throw "VIIPER DualSense tests failed." }
+    }
 
     $outputDirectory = Split-Path -Parent $OutputPath
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null

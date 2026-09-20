@@ -1,3 +1,4 @@
+using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
@@ -255,6 +256,11 @@ namespace ApexSenseBridgeTray.Services
                 args.Add("--rumble");
                 args.Add("--haptic-threshold");
                 args.Add(settings.HapticThresholdPercent.ToString());
+            }
+
+            if (settings != null && settings.SyncLightbar)
+            {
+                args.Add("--sync-lightbar");
             }
 
             if (apexProfileSlot >= 1 && apexProfileSlot <= 4)

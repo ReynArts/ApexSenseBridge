@@ -42,6 +42,8 @@ public:
     }
     [[nodiscard]] std::uint8_t batteryLevel() const noexcept { return batteryLevel_; }
     [[nodiscard]] bool isCharging() const noexcept { return charging_; }
+    [[nodiscard]] std::uint8_t batteryPercent() const noexcept;
+    [[nodiscard]] std::uint8_t chargeState() const noexcept;
     [[nodiscard]] std::uint16_t firmwareVersion() const noexcept { return firmwareVersion_; }
     [[nodiscard]] std::string describe() const;
 

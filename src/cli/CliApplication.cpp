@@ -1,7 +1,5 @@
 #include "cli/Commands.h"
 #include "cli/CommandSupport.h"
-#include "core/TriggerResetGuard.h"
-#include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"
@@ -47,7 +45,7 @@ namespace asb::cli {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 0.6.3\n\n"
+        << "ApexSenseBridge 1.0.0\n\n"
         << "Commands:\n"
         << "  list                         List APEX 4/5 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
@@ -62,6 +60,7 @@ void printUsage() {
         << "                  [--telemetry-json PATH]\n"
         << "                  [--proxy-xinput] [--xinput-index 0..3]\n"
         << "                  [--rumble]\n"
+        << "                  [--sync-lightbar]\n"
         << "                  [--haptic-threshold 0..95]\n"
         << "                  [--verify-virtual-input]\n"
         << "                  [--virtual-backend auto|integrated|sidecar]\n"
@@ -72,9 +71,17 @@ void printUsage() {
         << "                  [--session-token 32HEX]\n"
         << "                               Route adaptive triggers and optional grip/audio haptics\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
-        << "  test-rumble [index]          Gentle grip-motor vibration test (~1 s)\n"
+        << "  test-trigger [index] [--side lt|rt|both] [--mode resistance|weapon|vibration|bow|normal]\n"
+        << "                       [--level 1..4] [--seconds N]\n"
+        << "                               Test adaptive triggers on Flydigi APEX controllers\n"
+        << "  test-rumble [index] [--left 0..255] [--right 0..255] [--seconds N]\n"
+        << "                               Grip-motor vibration test\n"
         << "  test-profile-switch [index] [--target 1..4]\n"
         << "                               Temporarily switch an Apex 5 profile, then restore it\n"
+        << "  test-rgb [index] [R G B | #RRGGBB]\n"
+        << "                               Test direct Apex 5 RGB lighting with backup/restore\n"
+        << "  test-gyro [index] [--seconds N] [--stream] [--json]\n"
+        << "                               Test 6-axis motion sensor (gyroscope & accelerometer)\n"
         << "  apex4-port-test [index] [--seconds N] [--rumble] [--forceadapt]\n"
         << "                               Validate APEX 4 input/effects with one identity exchange\n"
         << "  xinput-view-test [index] [--seconds N]\n"
@@ -179,11 +186,20 @@ int run(int argc, char** argv) {
     if (command == "test-rt") {
         return commandTestRt(argc, argv);
     }
+    if (command == "test-trigger") {
+        return commandTestTrigger(argc, argv);
+    }
     if (command == "test-rumble") {
         return commandTestRumble(argc, argv);
     }
     if (command == "test-profile-switch") {
         return commandTestProfileSwitch(argc, argv);
+    }
+    if (command == "test-rgb") {
+        return commandTestRgb(argc, argv);
+    }
+    if (command == "test-gyro") {
+        return commandTestGyro(argc, argv);
     }
     if (command == "apex4-port-test") {
         return commandApex4PortTest(argc, argv);

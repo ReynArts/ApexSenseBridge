@@ -10,6 +10,7 @@
 
 #include "flydigi/Apex4Input.h"
 #include "flydigi/Apex4Protocol.h"
+#include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Input.h"
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
@@ -18,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <limits>
@@ -432,8 +434,15 @@ private:
 
         mapXInputButtons(xinputButtons, decoded.l2, decoded.r2, decoded);
         if (buttonPressed(11)) decoded.buttons |= dualsense::button::kPs;
+        decoded.batteryPercent = currentBatteryPercent_.load(std::memory_order_relaxed);
+        decoded.chargeState = currentChargeState_.load(std::memory_order_relaxed);
         state = decoded;
         return true;
+    }
+
+    void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept override {
+        currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
+        currentChargeState_.store(chargeState, std::memory_order_relaxed);
     }
 
     HidDeviceInfo info_;
@@ -447,6 +456,8 @@ private:
     std::vector<HIDP_VALUE_CAPS> valueCaps_;
     std::vector<HIDP_BUTTON_CAPS> buttonCaps_;
     PhysicalInputSourceStats stats_{};
+    std::atomic<std::uint8_t> currentBatteryPercent_{100};
+    std::atomic<std::uint8_t> currentChargeState_{0};
 };
 
 class Apex4PhysicalInputSource final : public PhysicalInputSource {
@@ -541,7 +552,9 @@ public:
             ++stats_.reports;
 
             const auto decoded = flydigi::decodeApex4InputReport(
-                std::span<const std::uint8_t>(report_.data(), bytesRead));
+                std::span<const std::uint8_t>(report_.data(), bytesRead),
+                currentBatteryPercent_.load(std::memory_order_relaxed),
+                currentChargeState_.load(std::memory_order_relaxed));
             if (!decoded) {
                 // Identity replies and other vendor notifications share this
                 // stream. They are valid traffic, just not controller state.
@@ -557,6 +570,10 @@ public:
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override { return stats_; }
+    void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept override {
+        currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
+        currentChargeState_.store(chargeState, std::memory_order_relaxed);
+    }
 
 private:
     Apex4PhysicalInputSource(const HidDeviceInfo& info, HANDLE handle)
@@ -591,6 +608,8 @@ private:
     bool readPending_ = false;
     std::vector<std::uint8_t> report_;
     PhysicalInputSourceStats stats_{};
+    std::atomic<std::uint8_t> currentBatteryPercent_{100};
+    std::atomic<std::uint8_t> currentChargeState_{0};
 };
 
 class Apex5VendorPhysicalInputSource final : public PhysicalInputSource {
@@ -684,11 +703,25 @@ public:
             }
             ++stats_.reports;
 
+            if (bytesRead >= 14 &&
+                report_[0] == flydigi::kReportIdIn &&
+                report_[1] == flydigi::kMagic0 &&
+                report_[2] == flydigi::kMagic1 &&
+                report_[3] == flydigi::kCmdGetInfo) {
+                const auto parsed = flydigi::Apex5Identity::parseReply(
+                    std::span<const std::uint8_t>(report_.data(), bytesRead));
+                if (parsed) {
+                    currentBatteryPercent_.store(parsed->batteryPercent(), std::memory_order_relaxed);
+                    currentChargeState_.store(parsed->chargeState(), std::memory_order_relaxed);
+                }
+                continue;
+            }
+
             const auto decoded = flydigi::decodeApex5InputReport(
-                std::span<const std::uint8_t>(report_.data(), bytesRead));
+                std::span<const std::uint8_t>(report_.data(), bytesRead),
+                currentBatteryPercent_.load(std::memory_order_relaxed),
+                currentChargeState_.load(std::memory_order_relaxed));
             if (!decoded) {
-                // Command acknowledgements and status notifications share the
-                // vendor stream; only 0xEF carries a complete controller state.
                 continue;
             }
             state = *decoded;
@@ -701,6 +734,10 @@ public:
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override { return stats_; }
+    void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept override {
+        currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
+        currentChargeState_.store(chargeState, std::memory_order_relaxed);
+    }
 
 private:
     Apex5VendorPhysicalInputSource(const HidDeviceInfo& info, HANDLE handle)
@@ -735,15 +772,14 @@ private:
     bool readPending_ = false;
     std::vector<std::uint8_t> report_;
     PhysicalInputSourceStats stats_{};
+    std::atomic<std::uint8_t> currentBatteryPercent_{100};
+    std::atomic<std::uint8_t> currentChargeState_{0};
 };
 
 class XInputPhysicalInputSource final : public PhysicalInputSource {
 public:
     explicit XInputPhysicalInputSource(std::unique_ptr<XInputGamepad> gamepad)
         : gamepad_(std::move(gamepad)) {
-        // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION is supported on all Windows
-        // builds targeted by the installer. Fall back to a regular waitable
-        // timer if a compatibility layer rejects the flag.
         constexpr DWORD kHighResolution = 0x00000002;
         timer_ = CreateWaitableTimerExW(
             nullptr, nullptr, kHighResolution, TIMER_MODIFY_STATE | SYNCHRONIZE);
@@ -771,17 +807,36 @@ public:
             }
         }
         if (!gamepad_->poll(state, error)) return PhysicalInputStatus::Disconnected;
+        const auto now = std::chrono::steady_clock::now();
+        if (now - lastBatteryQuery_ >= std::chrono::seconds(15)) {
+            lastBatteryQuery_ = now;
+            std::uint8_t percent = 100;
+            std::uint8_t charge = 0;
+            if (gamepad_->queryBattery(percent, charge)) {
+                currentBatteryPercent_.store(percent, std::memory_order_relaxed);
+                currentChargeState_.store(charge, std::memory_order_relaxed);
+            }
+        }
+        state.batteryPercent = currentBatteryPercent_.load(std::memory_order_relaxed);
+        state.chargeState = currentChargeState_.load(std::memory_order_relaxed);
         ++stats_.reports;
         return PhysicalInputStatus::State;
     }
     std::string_view backendName() const noexcept override { return "xinput-fallback"; }
     bool eventDriven() const noexcept override { return false; }
     PhysicalInputSourceStats stats() const noexcept override { return stats_; }
+    void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept override {
+        currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
+        currentChargeState_.store(chargeState, std::memory_order_relaxed);
+    }
 
 private:
     std::unique_ptr<XInputGamepad> gamepad_;
     HANDLE timer_ = nullptr;
     PhysicalInputSourceStats stats_{};
+    std::atomic<std::uint8_t> currentBatteryPercent_{100};
+    std::atomic<std::uint8_t> currentChargeState_{0};
+    std::chrono::steady_clock::time_point lastBatteryQuery_{};
 };
 
 } // namespace

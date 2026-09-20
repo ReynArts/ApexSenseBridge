@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -53,7 +54,19 @@ using SetDualSenseASBRawOutputCallbackFn = ViiperBool(__cdecl*)(
     ViiperHandle,
     RawOutputCallback,
     std::uintptr_t);
+using DSOutputCallback = void(__cdecl*)(ViiperHandle,
+                                        std::uint8_t,
+                                        std::uint8_t,
+                                        std::uint8_t,
+                                        std::uint8_t,
+                                        std::uint8_t,
+                                        std::uint8_t);
+using SetDualSenseOutputCallbackFn = ViiperBool(__cdecl*)(ViiperHandle, DSOutputCallback);
 using RemoveDualSenseDeviceFn = ViiperBool(__cdecl*)(ViiperHandle);
+
+class LibViiperVirtualDualSense;
+std::mutex g_instanceMutex;
+std::unordered_map<ViiperHandle, LibViiperVirtualDualSense*> g_instances;
 
 std::filesystem::path executableDirectory() {
     std::vector<wchar_t> buffer(32768);
@@ -173,6 +186,13 @@ public:
 
         const auto feedbackStartedAt = std::chrono::steady_clock::now();
         callbacksEnabled_.store(true, std::memory_order_release);
+        {
+            std::lock_guard lock(g_instanceMutex);
+            g_instances[deviceHandle_] = this;
+        }
+        if (setOutputCallback_) {
+            (void)setOutputCallback_(deviceHandle_, &LibViiperVirtualDualSense::outputThunk);
+        }
         if (!setRawOutputCallback_(deviceHandle_,
                                    &LibViiperVirtualDualSense::rawOutputThunk,
                                    reinterpret_cast<std::uintptr_t>(this))) {
@@ -211,6 +231,13 @@ public:
         connected_.store(false, std::memory_order_release);
         callbacksEnabled_.store(false, std::memory_order_release);
 
+        if (deviceHandle_ != 0) {
+            if (setOutputCallback_) {
+                (void)setOutputCallback_(deviceHandle_, nullptr);
+            }
+            std::lock_guard lock(g_instanceMutex);
+            g_instances.erase(deviceHandle_);
+        }
         if (deviceHandle_ != 0 && setRawOutputCallback_) {
             (void)setRawOutputCallback_(deviceHandle_, nullptr, 0);
         }
@@ -263,10 +290,22 @@ public:
         }
         const auto input = buildViiperInput(state);
         std::lock_guard inputLock(inputMutex_);
+        const auto updateStartedAt = std::chrono::steady_clock::now();
         if (!setInputState_(deviceHandle_, input.data(),
                             static_cast<std::uint32_t>(input.size()))) {
             error = "Integrated libVIIPER could not update controller input.";
             return false;
+        }
+        const auto elapsedUs = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - updateStartedAt).count());
+        auto currentMax = maxInputUpdateDurationUs_.load(std::memory_order_relaxed);
+        while (elapsedUs > currentMax &&
+               !maxInputUpdateDurationUs_.compare_exchange_weak(
+                   currentMax, elapsedUs, std::memory_order_relaxed)) {
+        }
+        if (elapsedUs >= 10000) {
+            inputUpdateBlockEvents_.fetch_add(1, std::memory_order_relaxed);
         }
         inputUpdates_.fetch_add(1, std::memory_order_relaxed);
         error.clear();
@@ -297,11 +336,68 @@ public:
         result.initializationDeviceUs = initializationDeviceUs_;
         result.initializationFeedbackUs = initializationFeedbackUs_;
         result.initializationInputUs = initializationInputUs_;
+        result.maxInputUpdateDurationUs =
+            maxInputUpdateDurationUs_.load(std::memory_order_relaxed);
+        result.inputUpdateBlockEvents =
+            inputUpdateBlockEvents_.load(std::memory_order_relaxed);
         result.backendVersion = backendVersion_;
         return result;
     }
 
 private:
+    static void __cdecl outputThunk(ViiperHandle handle,
+                                    std::uint8_t rumbleSmall,
+                                    std::uint8_t rumbleLarge,
+                                    std::uint8_t ledRed,
+                                    std::uint8_t ledGreen,
+                                    std::uint8_t ledBlue,
+                                    std::uint8_t playerLeds) noexcept {
+        LibViiperVirtualDualSense* instance = nullptr;
+        {
+            std::lock_guard lock(g_instanceMutex);
+            const auto it = g_instances.find(handle);
+            if (it != g_instances.end()) {
+                instance = it->second;
+            }
+        }
+        if (instance) {
+            instance->onStandardOutput(rumbleSmall, rumbleLarge, ledRed, ledGreen,
+                                       ledBlue, playerLeds);
+        }
+    }
+
+    void onStandardOutput(std::uint8_t /*rumbleSmall*/,
+                          std::uint8_t /*rumbleLarge*/,
+                          std::uint8_t ledRed,
+                          std::uint8_t ledGreen,
+                          std::uint8_t ledBlue,
+                          std::uint8_t /*playerLeds*/) noexcept {
+        if (!callbacksEnabled_.load(std::memory_order_acquire)) return;
+
+        bool ledChanged = false;
+        {
+            std::lock_guard lock(ledMutex_);
+            if (!hasDeliveredLed_ || lastLedRed_ != ledRed ||
+                lastLedGreen_ != ledGreen || lastLedBlue_ != ledBlue) {
+                hasDeliveredLed_ = true;
+                lastLedRed_ = ledRed;
+                lastLedGreen_ = ledGreen;
+                lastLedBlue_ = ledBlue;
+                ledChanged = true;
+            }
+        }
+
+        if (ledChanged) {
+            DualSenseFeedback feedback{};
+            feedback.kind = FeedbackKind::HidOutput;
+            feedback.lightbarRed = ledRed;
+            feedback.lightbarGreen = ledGreen;
+            feedback.lightbarBlue = ledBlue;
+            feedback.hasLightbar = true;
+            deliver(feedback);
+        }
+    }
+
     static void __cdecl rawOutputThunk(std::uintptr_t context,
                                        const std::uint8_t* frame,
                                        std::uint32_t frameLength) noexcept {
@@ -432,6 +528,8 @@ private:
     }
 
     bool resolveFunctions(std::string& error) {
+        setOutputCallback_ = reinterpret_cast<SetDualSenseOutputCallbackFn>(
+            GetProcAddress(library_, "SetDualSenseOutputCallback"));
         return resolve(library_, "NewUSBServerASBLoopback",
                        newUSBServerASBLoopback_, error) &&
                resolve(library_, "CloseUSBServer", closeUSBServer_, error) &&
@@ -452,6 +550,7 @@ private:
         createDualSenseDevice_ = nullptr;
         setInputState_ = nullptr;
         setRawOutputCallback_ = nullptr;
+        setOutputCallback_ = nullptr;
         removeDualSenseDevice_ = nullptr;
     }
 
@@ -472,7 +571,16 @@ private:
         initializationDeviceUs_ = 0;
         initializationFeedbackUs_ = 0;
         initializationInputUs_ = 0;
+        maxInputUpdateDurationUs_.store(0, std::memory_order_relaxed);
+        inputUpdateBlockEvents_.store(0, std::memory_order_relaxed);
         backendVersion_.clear();
+        {
+            std::lock_guard lock(ledMutex_);
+            lastLedRed_ = 0xFF;
+            lastLedGreen_ = 0xFF;
+            lastLedBlue_ = 0xFF;
+            hasDeliveredLed_ = false;
+        }
     }
 
     VirtualDualSenseOptions options_;
@@ -488,6 +596,7 @@ private:
     CreateDualSenseDeviceFn createDualSenseDevice_ = nullptr;
     SetDualSenseASBInputStateFn setInputState_ = nullptr;
     SetDualSenseASBRawOutputCallbackFn setRawOutputCallback_ = nullptr;
+    SetDualSenseOutputCallbackFn setOutputCallback_ = nullptr;
     RemoveDualSenseDeviceFn removeDualSenseDevice_ = nullptr;
 
     FeedbackHandler handler_;
@@ -502,6 +611,12 @@ private:
     std::optional<DualSenseFeedback> pendingAudio_;
     std::chrono::steady_clock::time_point audioWindowStarted_{};
 
+    std::mutex ledMutex_;
+    std::uint8_t lastLedRed_ = 0xFF;
+    std::uint8_t lastLedGreen_ = 0xFF;
+    std::uint8_t lastLedBlue_ = 0xFF;
+    bool hasDeliveredLed_ = false;
+
     std::atomic_bool callbacksEnabled_{false};
     std::atomic_bool connected_{false};
     std::atomic_uint64_t inputUpdates_{0};
@@ -513,6 +628,8 @@ private:
     std::atomic_uint64_t audioHapticsCoalesced_{0};
     std::atomic_uint64_t malformedFrames_{0};
     std::atomic_uint64_t unknownFrames_{0};
+    std::atomic_uint64_t maxInputUpdateDurationUs_{0};
+    std::atomic_uint64_t inputUpdateBlockEvents_{0};
     std::uint64_t initializationBootstrapUs_ = 0;
     std::uint64_t initializationServerUs_ = 0;
     std::uint64_t initializationBusUs_ = 0;

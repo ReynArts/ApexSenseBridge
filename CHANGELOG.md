@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0-beta.1
+
+- **Interactive Controller Diagnostic & Test suite (`ControllerTestWindow`)**:
+  - **6-axis Gyroscope & Accelerometer Suite (`TabGyro`)**: Real-time Artificial Horizon flight instrument with dynamic pitch elevation and roll banking; six telemetry gauges tracking angular velocity (DPS X/Y/Z) and gravitational acceleration (G-force X/Y/Z) at ~300 Hz; dynamic motion state detection (Stationary vs Moving) and interactive zero-calibration centering.
+  - **Adaptive Triggers Testing**: Real-time excitation of force feedback motors across multiple modes (Progressive Resistance, Weapon Break/Snap, Haptic Vibration, Elastic Bow Tension) and 4 resistance levels (Soft, Medium, Strong, Rigid/Ultra) with instant zero-reset.
+  - **Dual Rumble Motors Testing**: Independent and combined testing of heavy low-frequency and light high-frequency motors with 0-255 sliders, presets (20%, 50%, 100%), and 1-second pulse triggers.
+  - **LightSync RGB LED Testing**: Direct color customization and preset testing (#0070D1 PlayStation Blue, #FF4500 Crimson, #00FF88 Emerald, #9D00FF Cyber Purple, #FFFFFF White) with instant profile restoration.
+  - **Virtual DualSense Visualizer & Persistence Verifier**: Interactive real-time vector visualizer of a PlayStation 5 DualSense controller with pixel-perfect focus highlight overlays and verification of hardware NVRAM persistence and disk configuration integrity.
+  - **Zero-Cost Idle Architecture**: In tray/background mode, polling timers and test execution sub-processes are completely shut down (strictly 0% CPU and HID bus overhead).
+- **APEX 5 End-to-End Motion Support**: Decodes all three gyroscope and accelerometer axes from the event-driven vendor stream, converts accelerometer scale to virtual DualSense calibration, and forwards all six signed axes through VIIPER.
+- **Real Physical Battery & Charge Reporting**: Reports physical controller battery percentage and charging state via VIIPER report byte 53 (`kDischarging = 0`, `kCharging = 2`, `kFull = 4`), with periodic 15-second non-blocking refresh.
+- **Dynamic DualSense Lightbar (RGB) Synchronization**: Intercepts virtual DualSense RGB lightbar packets and translates them in real time to the Flydigi APEX 5 onboard LED strips using volatile single-report RAM commands (0xF5 TestLed) with zero NVRAM wear. Configurable via `--sync-lightbar` CLI switch, Tray dashboard, and Playnite extension.
+- **Gamepad-First Console UI**: Full 2D D-Pad / thumbstick navigation across Tray library and settings window (`GameListWindow`), featuring analog stick deadzone hysteresis, debounce protection, contextual HUD actions, and official Xbox Game Bar button glyphs (A, B, X, Y).
+- **Live Controller Hot-Plug Detection**: Polling connected Flydigi hardware every 2 seconds (`ControllerDetectionService`) to dynamically distinguish APEX 4, APEX 5, unsupported devices, or disconnected states with live status badges.
+- **Modernized Localization Architecture**: Embedded UTF-8 JSON language files (`en.json`, `fr.json`, `es.json`, `zh.json`) with strict key parity, supporting optional local folder overrides and automated English fallback.
+- **Dedicated Modal Language Picker (`LanguagePickerWindow`)**: Controller-friendly grid navigation replacing inline radio selectors.
+- **Hardened Virtual DualSense Startup & Recovery**: Preserves and concatenates pending recovery errors instead of overwriting diagnostic traces.
+- **Playnite Extension 1.0.0 Alignment**: Updated extension manifest, assembly metadata, settings view with Lightbar sync toggle, and streamlined session launching.
+
 ## 0.6.3
 
 Full validation and uninstall-policy details are available in
@@ -26,9 +45,6 @@ Full validation and uninstall-policy details are available in
   marked for synchronous persistence before it becomes visible to readers.
 
 ## 0.6.2
-
-Full upgrade instructions, issue references and validation notes are available
-in [`RELEASE_NOTES_0.6.2.md`](RELEASE_NOTES_0.6.2.md).
 
 - Adds native usbip-win2 0.9.8.0 attach-ABI support to both integrated VIIPER
   and its sidecar, while retaining the two older ABI fallbacks. The command

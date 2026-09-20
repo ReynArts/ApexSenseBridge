@@ -1,5 +1,6 @@
 #include "flydigi/Apex5Identity.h"
 
+#include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex4Protocol.h"
 
 #include <algorithm>
@@ -65,11 +66,24 @@ std::optional<Apex5Identity> Apex5Identity::parseReply(
     }
 
     const auto rawBattery = report[12];
-    const bool charging = (rawBattery >> 4U) == 1;
-    const auto level = static_cast<std::uint8_t>(
-        charging ? 6 : std::min<std::uint8_t>(rawBattery & 0x0F, 6));
+    const bool charging = (rawBattery >> 4U) != 0;
+    const auto rawLevel = static_cast<std::uint8_t>(rawBattery & 0x0F);
+    const auto level = rawLevel != 0
+        ? (rawLevel > 6 ? static_cast<std::uint8_t>(6) : rawLevel)
+        : (charging ? static_cast<std::uint8_t>(5) : static_cast<std::uint8_t>(0));
     return Apex5Identity(ApexProtocol::CurrentV2, report[6], report[7],
                          level, charging, 0);
+}
+
+std::uint8_t Apex5Identity::batteryPercent() const noexcept {
+    if (hasBatteryLevel()) {
+        return dualsense::toBatteryPercent(batteryLevel_);
+    }
+    return 100;
+}
+
+std::uint8_t Apex5Identity::chargeState() const noexcept {
+    return dualsense::toChargeState(charging_, isWired(), batteryPercent());
 }
 
 std::optional<Apex5Identity> Apex5Identity::parseApex4Reply(

@@ -21,7 +21,12 @@ function Fail($message) {
 $gamesJson = Join-Path $root "data\supported_games.json"
 if (-not (Test-Path $gamesJson)) {
     Write-Host "Generating supported_games.json from PCGamingWiki..."
-    & (Join-Path $PSScriptRoot "update-pcgw-list.ps1")
+    $python = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($python) {
+        & $python.Source (Join-Path $PSScriptRoot "update_pcgw_list.py")
+    } else {
+        Write-Warning "data\supported_games.json is missing and python.exe was not found to regenerate it."
+    }
 }
 
 $msbuild = ""
@@ -66,8 +71,12 @@ if (-not (Test-Path $trayExe)) {
     Fail "ApexSenseBridgeTray.exe was not created."
 }
 
-Stop-Process -Name "ApexSenseBridgeTray" -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 200
+$running = Get-Process -Name "ApexSenseBridgeTray" -ErrorAction SilentlyContinue
+if ($running) {
+    $running | Stop-Process -Force -ErrorAction SilentlyContinue
+    $running | Wait-Process -Timeout 3 -ErrorAction SilentlyContinue
+}
+Start-Sleep -Milliseconds 300
 
 # Copy to build-win\Release for Inno Setup packaging
 if (-not (Test-Path $buildWinRelease)) {
@@ -81,7 +90,17 @@ if (-not (Test-Path $dist)) {
 }
 Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $dist -Force
 
+# Copy to root workspace
+Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $root -Force
+
+# Copy to portable distribution if it exists
+$portableDir = Join-Path $dist "ApexSenseBridge-Portable"
+if (Test-Path $portableDir) {
+    Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $portableDir -Force
+}
+
 Write-Host ""
 Write-Host "ApexSenseBridgeTray built successfully:" -ForegroundColor Green
+Write-Host "  Root:    $(Join-Path $root 'ApexSenseBridgeTray.exe')"
 Write-Host "  Dist:    $(Join-Path $dist 'ApexSenseBridgeTray.exe')"
 Write-Host "  Release: $trayExe"

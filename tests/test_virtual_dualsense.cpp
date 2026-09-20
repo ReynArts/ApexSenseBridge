@@ -346,6 +346,34 @@ int main() {
     assert(compatibleVibrationV2.hasRumble());
     assert(compatibleVibrationV2.requestsRumbleUpdate());
 
+    DualSenseFeedback feedbackNoLed{};
+    assert(!feedbackNoLed.hasLightbarColor());
+
+    DualSenseFeedback feedbackLed{};
+    feedbackLed.kind = FeedbackKind::HidOutput;
+    feedbackLed.hasLightbar = true;
+    feedbackLed.lightbarRed = 0xFF;
+    feedbackLed.lightbarGreen = 0x80;
+    feedbackLed.lightbarBlue = 0x00;
+    assert(feedbackLed.hasLightbarColor());
+    assert(feedbackLed.lightbarRed == 255);
+    assert(feedbackLed.lightbarGreen == 128);
+    assert(feedbackLed.lightbarBlue == 0);
+
+    assert(toBatteryPercent(0) == 10);
+    assert(toBatteryPercent(1) == 20);
+    assert(toBatteryPercent(2) == 40);
+    assert(toBatteryPercent(3) == 60);
+    assert(toBatteryPercent(4) == 80);
+    assert(toBatteryPercent(5) == 100);
+    assert(toBatteryPercent(6) == 100);
+
+    assert(toChargeState(false, false, 80) == chargeStatus::kDischarging);
+    assert(toChargeState(true, false, 80) == chargeStatus::kCharging);
+    assert(toChargeState(true, false, 100) == chargeStatus::kFull);
+    assert(toChargeState(false, true, 80) == chargeStatus::kCharging);
+    assert(toChargeState(false, true, 100) == chargeStatus::kFull);
+
     const std::string request = viiper::buildRequest("bus/create", "0");
     assert(request.size() == 13);
     assert(request.substr(0, 12) == "bus/create 0");

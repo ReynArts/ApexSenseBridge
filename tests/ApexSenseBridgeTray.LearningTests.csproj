@@ -46,6 +46,9 @@
     <Compile Include="..\ApexSenseBridgeTray\Common\NativeMethods.cs">
       <Link>Production\NativeMethods.cs</Link>
     </Compile>
+    <Compile Include="..\shared\InstallLocator.cs">
+      <Link>Production\InstallLocator.cs</Link>
+    </Compile>
     <Compile Include="..\ApexSenseBridgeTray\Services\CloudGameListService.cs">
       <Link>Production\CloudGameListService.cs</Link>
     </Compile>

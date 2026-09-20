@@ -1,7 +1,5 @@
 #include "cli/Commands.h"
 #include "cli/CommandSupport.h"
-#include "core/TriggerResetGuard.h"
-#include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"

@@ -49,8 +49,10 @@ bool startVerifiedVirtualDualSense(
         result.inputReadyAt = std::chrono::steady_clock::now();
 
         stageError.clear();
-        if (auto firmware = probeFirmware(stageError)) {
-            result.firmware = std::move(firmware);
+        if (auto readiness = probeFirmware(stageError)) {
+            result.firmware = static_cast<const DualSenseFirmwareInfo&>(*readiness);
+            result.deviceInfo = std::move(readiness->deviceInfo);
+            result.initialReportsValidated = readiness->initialReportsValidated;
             result.verifiedAt = std::chrono::steady_clock::now();
             result.failure = VirtualDualSenseStartupFailure::None;
             error.clear();
@@ -66,6 +68,8 @@ bool startVerifiedVirtualDualSense(
         stageError.clear();
         if (!waitForRemoval(stageError)) {
             result.inputReadyAt = {};
+            result.deviceInfo.reset();
+            result.initialReportsValidated = 0;
             result.failure = VirtualDualSenseStartupFailure::DeviceRemoval;
             error = "The failed virtual DualSense could not be removed before retry";
             if (!stageError.empty()) error += ": " + stageError;
@@ -75,6 +79,8 @@ bool startVerifiedVirtualDualSense(
 
     result.inputReadyAt = {};
     result.verifiedAt = {};
+    result.deviceInfo.reset();
+    result.initialReportsValidated = 0;
     result.failure = VirtualDualSenseStartupFailure::ReadinessVerification;
     error = "Virtual DualSense HID readiness verification failed after " +
             std::to_string(result.attempts) +

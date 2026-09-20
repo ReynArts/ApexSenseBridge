@@ -233,55 +233,46 @@
         <Style x:Key="XboxBtnA" TargetType="Border">
             <Setter Property="Width" Value="19"/>
             <Setter Property="Height" Value="19"/>
-            <Setter Property="CornerRadius" Value="9.5"/>
+            <Setter Property="CornerRadius" Value="0"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background" Value="#107C10"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
-        <Style x:Key="XboxTextA" TargetType="TextBlock">
-            <Setter Property="Text" Value="A"/>
-            <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
+        <Style x:Key="XboxTextA" TargetType="Rectangle">
+            <Setter Property="Fill" Value="#2EBB4F"/>
+            <Setter Property="OpacityMask">
+                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-a.png"/></Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="XboxBtnB" TargetType="Border">
             <Setter Property="Width" Value="19"/>
             <Setter Property="Height" Value="19"/>
-            <Setter Property="CornerRadius" Value="9.5"/>
+            <Setter Property="CornerRadius" Value="0"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background" Value="#D13438"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
-        <Style x:Key="XboxTextB" TargetType="TextBlock">
-            <Setter Property="Text" Value="B"/>
-            <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
+        <Style x:Key="XboxTextB" TargetType="Rectangle">
+            <Setter Property="Fill" Value="#F05252"/>
+            <Setter Property="OpacityMask">
+                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-b.png"/></Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="XboxBtnY" TargetType="Border">
             <Setter Property="Width" Value="19"/>
             <Setter Property="Height" Value="19"/>
-            <Setter Property="CornerRadius" Value="9.5"/>
+            <Setter Property="CornerRadius" Value="0"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background" Value="#FFB900"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
-        <Style x:Key="XboxTextY" TargetType="TextBlock">
-            <Setter Property="Text" Value="Y"/>
-            <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#111111"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
+        <Style x:Key="XboxTextY" TargetType="Rectangle">
+            <Setter Property="Fill" Value="#F5C542"/>
+            <Setter Property="OpacityMask">
+                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-y.png"/></Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -417,6 +408,19 @@
                         </DockPanel>
                     </Border>
 
+                    <Border x:Name="NavSyncLightbar" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,12" Margin="0,0,0,6" Cursor="Hand"
+                            MouseLeftButtonDown="OnNavItemSyncLightbarClick">
+                        <DockPanel>
+                            <CheckBox x:Name="ChkSyncLightbar" Style="{StaticResource ToggleSwitch}"
+                                      DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Checked="OnSyncLightbarChanged" Unchecked="OnSyncLightbarChanged"/>
+                            <TextBlock Text="{DynamicResource Loc_SyncLightbar}" FontSize="13" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
+
                     <Border x:Name="NavManualBridge" CornerRadius="8" Background="{DynamicResource CardBackground}"
                             BorderBrush="Transparent" BorderThickness="1.6"
                             Padding="18,12" Margin="0,0,0,6" Cursor="Hand"
@@ -434,12 +438,16 @@
                             BorderBrush="Transparent" BorderThickness="1.6"
                             Padding="18,12" Margin="0,0,0,6">
                         <DockPanel>
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                            <WrapPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
                                 <RadioButton x:Name="RadLangEn" Content="English" Style="{StaticResource LangOptionButton}"
                                              Checked="OnLanguageOptionChecked"/>
                                 <RadioButton x:Name="RadLangFr" Content="Français" Style="{StaticResource LangOptionButton}"
                                              Checked="OnLanguageOptionChecked"/>
-                            </StackPanel>
+                                <RadioButton x:Name="RadLangEs" Content="Español" Style="{StaticResource LangOptionButton}"
+                                             Checked="OnLanguageOptionChecked"/>
+                                <RadioButton x:Name="RadLangZh" Content="简体中文" Style="{StaticResource LangOptionButton}"
+                                             Checked="OnLanguageOptionChecked"/>
+                            </WrapPanel>
                             <TextBlock Text="{DynamicResource Loc_Language}" FontSize="13" FontWeight="Medium"
                                        Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                         </DockPanel>
@@ -457,6 +465,22 @@
                                            Foreground="White"/>
                                 <TextBlock x:Name="TxtUpdateSubtitle" Text="{DynamicResource Loc_UpdateBannerSubtitle}"
                                            FontSize="11" Foreground="#E0F2FE" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Border x:Name="NavTestController" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="16,12" Margin="0,0,0,6" Cursor="Hand"
+                            MouseLeftButtonDown="OnOpenControllerTestClick">
+                        <DockPanel>
+                            <Button Content="{DynamicResource Loc_BtnTestController}" Style="{StaticResource BtnPrimary}"
+                                    DockPanel.Dock="Right" Padding="12,5" FontSize="11" Click="OnOpenControllerTestClick"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{DynamicResource Loc_NavTestControllerTitle}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                                <TextBlock Text="{DynamicResource Loc_NavTestControllerSubtitle}" FontSize="11"
+                                           Foreground="{DynamicResource TextMuted}" Margin="0,1,0,0"/>
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -490,7 +514,7 @@
                         <DockPanel>
                             <Button Content="{DynamicResource Loc_BtnCheck}" Style="{StaticResource BtnSmall}" DockPanel.Dock="Right"
                                     VerticalAlignment="Center" Click="OnCheckUpdatesClick"/>
-                            <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v0.6.3"
+                            <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v1.0.0"
                                        FontSize="12" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
                         </DockPanel>
                     </Border>
@@ -503,21 +527,21 @@
                 <StackPanel x:Name="PnlGamepadHudMain" Orientation="Horizontal" VerticalAlignment="Center">
                     <StackPanel Style="{StaticResource GamepadActionItem}">
                         <Border Style="{StaticResource XboxBtnA}">
-                            <TextBlock Style="{StaticResource XboxTextA}"/>
+                            <Rectangle Style="{StaticResource XboxTextA}"/>
                         </Border>
                         <TextBlock Text="{DynamicResource Loc_Gamepad_Select}" Style="{StaticResource GamepadActionLabel}"/>
                     </StackPanel>
 
                     <StackPanel Style="{StaticResource GamepadActionItem}">
                         <Border Style="{StaticResource XboxBtnB}">
-                            <TextBlock Style="{StaticResource XboxTextB}"/>
+                            <Rectangle Style="{StaticResource XboxTextB}"/>
                         </Border>
                         <TextBlock Text="{DynamicResource Loc_Hide}" Style="{StaticResource GamepadActionLabel}"/>
                     </StackPanel>
 
                     <StackPanel Style="{StaticResource GamepadActionItem}">
                         <Border Style="{StaticResource XboxBtnY}">
-                            <TextBlock Style="{StaticResource XboxTextY}"/>
+                            <Rectangle Style="{StaticResource XboxTextY}"/>
                         </Border>
                         <TextBlock Text="{DynamicResource Loc_BtnGameList}" Style="{StaticResource GamepadActionLabel}"/>
                     </StackPanel>

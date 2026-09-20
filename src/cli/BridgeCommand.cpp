@@ -10,6 +10,7 @@
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/AdaptiveTriggerTranslation.h"
 #include "dualsense/RumbleBridge.h"
+#include "dualsense/LightbarBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
 #include "flydigi/Apex5Device.h"
 #include "flydigi/Apex5Protocol.h"
@@ -207,6 +208,7 @@ struct BridgeCommandOptions {
         asb::dualsense::VirtualDualSenseBackend::Auto;
     bool proxyXInput = true;
     bool routeRumble = false;
+    bool syncLightbar = false;
     bool verifyVirtualInput = false;
     bool isolateApex = true;
     asb::dualsense::TouchpadGestureProfile touchpadProfile =
@@ -252,6 +254,8 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             options.proxyXInput = true;
         } else if (value == "--rumble") {
             options.routeRumble = true;
+        } else if (value == "--sync-lightbar") {
+            options.syncLightbar = true;
         } else if (value == "--haptic-threshold") {
             if (++i >= argc) {
                 error = "--haptic-threshold requires an integer percentage from 0 to 95.";
@@ -354,7 +358,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     BridgeCommandOptions options{};
     std::string error;
     if (!parseBridgeOptions(argc, argv, options, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--apex-profile 1..4] [--isolate-apex] [--session-token 32HEX]\n";
+        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--sync-lightbar] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--apex-profile 1..4] [--isolate-apex] [--session-token 32HEX]\n";
         return 1;
     }
 
@@ -460,7 +464,16 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(8, "Mandatory physical-input proxy creation failed: " + error);
     }
     const std::string inputBackend(inputSource->backendName());
+    if (device->identity()) {
+        inputSource->setBatteryState(
+            device->identity()->batteryPercent(),
+            device->identity()->chargeState());
+    }
     asb::dualsense::DualSenseInputState initialInput{};
+    if (device->identity()) {
+        initialInput.batteryPercent = device->identity()->batteryPercent();
+        initialInput.chargeState = device->identity()->chargeState();
+    }
     const auto initialStatus = inputSource->waitForState(
         initialInput,
         inputSource->eventDriven() ? std::chrono::milliseconds(1000)
@@ -490,14 +503,18 @@ int commandBridgeTriggers(int argc, char** argv) {
     auto rumbleBridge = options.routeRumble
         ? std::make_unique<asb::dualsense::RumbleBridge>(*device, hapticConfig)
         : std::unique_ptr<asb::dualsense::RumbleBridge>{};
+    auto lightbarBridge = options.syncLightbar
+        ? std::make_unique<asb::dualsense::LightbarBridge>(*device, options.apexProfileSlot.value_or(0))
+        : std::unique_ptr<asb::dualsense::LightbarBridge>{};
     asb::dualsense::VirtualDualSenseOptions backendOptions{};
     backendOptions.viiperExecutable = std::move(options.viiperExecutable);
     backendOptions.backend = options.virtualBackend;
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(std::move(backendOptions));
     const asb::dualsense::VirtualDualSense::FeedbackHandler feedbackHandler =
-        [&bridge, rumble = rumbleBridge.get()](const auto& feedback) {
+        [&bridge, rumble = rumbleBridge.get(), lightbar = lightbarBridge.get()](const auto& feedback) {
             bridge.handle(feedback);
             if (rumble) rumble->handle(feedback);
+            if (lightbar) lightbar->handle(feedback);
         };
     std::future<bool> audioProtectionFuture;
     const auto probeFirmware = [&preexistingDualSensePaths, &audioProtection,
@@ -732,6 +749,9 @@ int commandBridgeTriggers(int argc, char** argv) {
               << (rumbleBridge
                       ? "Grip-rumble and DualSense audio-haptics routing enabled.\n"
                       : "Grip-rumble and audio haptics routing remain disabled.\n")
+              << (lightbarBridge
+                      ? "DualSense lightbar RGB synchronization enabled.\n"
+                      : "")
               << "All APEX controls are proxied through " << inputBackend
               << " into the virtual DualSense.\n"
               << "Virtual DualSense backend: "
@@ -816,10 +836,19 @@ int commandBridgeTriggers(int argc, char** argv) {
         options.touchpadProfile);
     auto lastInputForwardedAt = std::chrono::steady_clock::now();
     constexpr auto kInputKeepalive = std::chrono::milliseconds(100);
+    auto lastBatteryRefreshAt = std::chrono::steady_clock::now();
+    constexpr auto kBatteryRefreshInterval = std::chrono::seconds(15);
     while (!g_stopRequested.load(std::memory_order_relaxed) &&
            !globalSessionStop->stopRequested() &&
            (!sessionControl || !sessionControl->stopRequested()) &&
            !bridge.failed() && (!rumbleBridge || !rumbleBridge->failed())) {
+        const auto loopNow = std::chrono::steady_clock::now();
+        if (device->identity() && device->identity()->isApex5() &&
+            loopNow - lastBatteryRefreshAt >= kBatteryRefreshInterval) {
+            lastBatteryRefreshAt = loopNow;
+            std::string refreshError;
+            (void)device->requestBatteryRefresh(refreshError);
+        }
         asb::dualsense::DualSenseInputState input{};
         const auto inputWait = inputSource->eventDriven()
             ? std::chrono::milliseconds(8)
@@ -988,6 +1017,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     const auto rumbleStats = rumbleBridge
         ? rumbleBridge->stats()
         : asb::dualsense::RumbleBridgeStats{};
+    const auto lightbarStats = lightbarBridge
+        ? lightbarBridge->stats()
+        : asb::dualsense::LightbarBridgeStats{};
+    if (lightbarBridge) lightbarBridge->restore();
     std::string rumbleResetError;
     const bool rumbleResetOk = !rumbleBridge || device->stopRumble(rumbleResetError);
     if (rumbleResetOk && rumbleResetOnExit) rumbleResetOnExit->dismiss();
@@ -1086,6 +1119,10 @@ int commandBridgeTriggers(int argc, char** argv) {
                       << "  \"keepalive_reports\": " << keepaliveInputReports << ",\n"
                       << "  \"lost_reports\": " << lostInputReports << ",\n"
                       << "  \"coalesced_reports\": " << coalescedInputReports << ",\n"
+                      << "  \"battery_percent\": "
+                      << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent) << ",\n"
+                      << "  \"charge_state\": "
+                      << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->chargeState : initialInput.chargeState) << ",\n"
                       << "  \"cpu_percent_total\": " << cpuPercent << ",\n"
                       << "  \"working_set_mib\": "
                       << static_cast<double>(processUsageFinished.workingSetBytes) / (1024.0 * 1024.0) << ",\n"
@@ -1159,7 +1196,11 @@ int commandBridgeTriggers(int argc, char** argv) {
               << (virtualFirmware ? hex16(virtualFirmware->updateVersion) : "unavailable")
               << '\n'
               << "dualsense_firmware_current="
-              << (virtualFirmware && virtualFirmware->updateVersion >= 0x0630 ? "yes" : "no")
+              << (virtualFirmware && virtualFirmware->updateVersion >= 0x0630 ? "yes" : "no") << '\n'
+              << "battery_percent="
+              << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent) << '\n'
+              << "charge_state="
+              << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->chargeState : initialInput.chargeState)
               << '\n'
               << "dualsense_output_reports=" << virtualStats.outputReports << '\n'
               << "dualsense_rumble_reports=" << virtualStats.rumbleReports << '\n'
@@ -1270,6 +1311,13 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(rumbleStats.lastAudioLowFrequency) << '\n'
               << "last_audio_high="
               << static_cast<unsigned>(rumbleStats.lastAudioHighFrequency) << '\n';
+    std::cout << "lightbar_routing=" << (lightbarBridge ? "enabled" : "disabled") << '\n';
+    if (lightbarBridge) {
+        std::cout << "lightbar_updates=" << lightbarStats.updates << '\n'
+                  << "lightbar_writes=" << lightbarStats.writes << '\n'
+                  << "lightbar_deduplicated=" << lightbarStats.deduplicated << '\n'
+                  << "lightbar_write_failures=" << lightbarStats.writeFailures << '\n';
+    }
     std::cout << "apex_original_restored="
               << (isolationRestored ? "yes" : "no") << '\n';
     const auto printLast = [](std::string_view side, std::uint8_t dsType,

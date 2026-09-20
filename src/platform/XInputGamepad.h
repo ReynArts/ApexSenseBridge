@@ -14,6 +14,11 @@ class XInputGamepad {
 public:
     virtual ~XInputGamepad() = default;
     virtual bool poll(dualsense::DualSenseInputState& state, std::string& error) = 0;
+    virtual bool queryBattery(std::uint8_t& batteryPercent, std::uint8_t& chargeState) {
+        (void)batteryPercent;
+        (void)chargeState;
+        return false;
+    }
     [[nodiscard]] virtual unsigned int index() const noexcept = 0;
 };
 

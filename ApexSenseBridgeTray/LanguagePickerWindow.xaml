@@ -1,0 +1,69 @@
+<Window x:Class="ApexSenseBridgeTray.LanguagePickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Language" Height="390" Width="660"
+        WindowStartupLocation="CenterOwner" WindowStyle="None"
+        ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" FontFamily="Segoe UI">
+    <Window.Resources>
+        <Style x:Key="LanguageButton" TargetType="Button">
+            <Setter Property="Background" Value="#171A22"/>
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="BorderBrush" Value="#2A2F3B"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Frame" CornerRadius="12" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="20,18">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Frame" Property="Background" Value="#202632"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Frame" Property="Background" Value="#123C65"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Border CornerRadius="18" Background="#0C0E13" BorderBrush="#343B49" BorderThickness="1" Padding="28">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <DockPanel Margin="0,0,0,22">
+                <Button DockPanel.Dock="Right" Content="✕" Width="38" Height="34" Click="OnCloseClick"
+                        Background="Transparent" Foreground="#94A3B8" BorderThickness="0" FontSize="14"/>
+                <StackPanel>
+                    <TextBlock Text="Langue" Foreground="#F8FAFC" FontSize="24" FontWeight="SemiBold"/>
+                    <TextBlock Text="Choisissez directement votre langue" Foreground="#94A3B8" FontSize="13" Margin="0,5,0,0"/>
+                </StackPanel>
+            </DockPanel>
+            <Grid Grid.Row="1">
+                <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <Button x:Name="BtnEnglish" Grid.Row="0" Grid.Column="0" Tag="en" Content="English"
+                        Style="{StaticResource LanguageButton}" Margin="0,0,7,7" Click="OnLanguageClick"/>
+                <Button x:Name="BtnFrench" Grid.Row="0" Grid.Column="1" Tag="fr" Content="Français"
+                        Style="{StaticResource LanguageButton}" Margin="7,0,0,7" Click="OnLanguageClick"/>
+                <Button x:Name="BtnSpanish" Grid.Row="1" Grid.Column="0" Tag="es" Content="Español"
+                        Style="{StaticResource LanguageButton}" Margin="0,7,7,0" Click="OnLanguageClick"/>
+                <Button x:Name="BtnChinese" Grid.Row="1" Grid.Column="1" Tag="zh" Content="简体中文"
+                        Style="{StaticResource LanguageButton}" Margin="7,7,0,0" Click="OnLanguageClick"/>
+            </Grid>
+            <TextBlock Grid.Row="2" Text="Stick gauche / croix directionnelle · A valider · B retour"
+                       Foreground="#64748B" FontSize="12" HorizontalAlignment="Center" Margin="0,20,0,0"/>
+        </Grid>
+    </Border>
+</Window>

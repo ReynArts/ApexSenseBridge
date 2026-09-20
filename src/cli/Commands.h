@@ -12,8 +12,11 @@ int commandDryRun();
 int commandIdentify(int argc, char** argv);
 int commandClear(int argc, char** argv);
 int commandTestRt(int argc, char** argv);
+int commandTestTrigger(int argc, char** argv);
 int commandTestRumble(int argc, char** argv);
 int commandTestProfileSwitch(int argc, char** argv);
+int commandTestRgb(int argc, char** argv);
+int commandTestGyro(int argc, char** argv);
 int commandApex4PortTest(int argc, char** argv);
 int commandXInputViewTest(int argc, char** argv);
 

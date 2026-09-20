@@ -144,7 +144,7 @@ int main() {
     assert(enableRaw[6] == 1);
     assert(enableRaw[7] == 0xFF && enableRaw[8] == 0xFF &&
            enableRaw[9] == 0xFF);
-    assert(enableRaw[10] == 0x0B);
+    assert(enableRaw[10] == 0x16);
 
     std::array<std::uint8_t, 32> transportReply{};
     transportReply[0] = kReportIdIn;
@@ -198,6 +198,12 @@ int main() {
     apex5Input[15] = 0x08;
     apex5Input[16] = 40;
     apex5Input[17] = 255;
+    apex5Input[18] = 0x2E; apex5Input[19] = 0xFB; // Gyro X -1234.
+    apex5Input[20] = 0x29; apex5Input[21] = 0x09; // Gyro Y +2345.
+    apex5Input[22] = 0x00; apex5Input[23] = 0x80; // Gyro Z -32768.
+    apex5Input[24] = 0x00; apex5Input[25] = 0x10; // Accel X +1 g.
+    apex5Input[26] = 0x00; apex5Input[27] = 0xF0; // Accel Y -1 g.
+    apex5Input[28] = 0x20; apex5Input[29] = 0x4E; // Accel Z clamps high.
     const auto decodedApex5 = decodeApex5InputReport(apex5Input);
     assert(decodedApex5);
     assert(decodedApex5->lx == 0 && decodedApex5->ly == 255);
@@ -211,6 +217,20 @@ int main() {
     assert((decodedApex5->buttons & dualsense::button::kL1) != 0);
     assert((decodedApex5->buttons & dualsense::button::kL2) != 0);
     assert((decodedApex5->buttons & dualsense::button::kR2) != 0);
+    assert(decodedApex5->gyroX == -1234);
+    assert(decodedApex5->gyroY == 2345);
+    assert(decodedApex5->gyroZ == -32768);
+    assert(decodedApex5->accelX == 10000);
+    assert(decodedApex5->accelY == -10000);
+    assert(decodedApex5->accelZ == 32767);
+    assert(decodedApex5->batteryPercent == 100);
+    assert(decodedApex5->chargeState == 0);
+    const auto decodedApex5Custom = decodeApex5InputReport(apex5Input, 80, 2);
+    assert(decodedApex5Custom);
+    assert(decodedApex5Custom->batteryPercent == 80);
+    assert(decodedApex5Custom->chargeState == 2);
+    assert(!decodeApex5InputReport(
+        std::span<const std::uint8_t>(apex5Input.data(), 29)));
     apex5Input[3] = 0;
     assert(!decodeApex5InputReport(apex5Input));
     profileReply[0] = 0xEF;
@@ -246,9 +266,70 @@ int main() {
     assert((decoded->buttons & dualsense::button::kTriangle) != 0);
     assert((decoded->buttons & dualsense::button::kL1) != 0);
     assert((decoded->buttons & dualsense::button::kL2) != 0);
+    assert(decoded->batteryPercent == 100);
+    assert(decoded->chargeState == 0);
+    const auto decodedApex4Custom = decodeApex4InputReport(apex4Input, 40, 4);
+    assert(decodedApex4Custom);
+    assert(decodedApex4Custom->batteryPercent == 40);
+    assert(decodedApex4Custom->chargeState == 4);
 
     apex4Input[1] = 0;
     assert(!decodeApex4InputReport(apex4Input));
+
+    const auto rgbReport = buildSetRgb(255, 128, 64);
+    assert(rgbReport[0] == kReportIdOut);
+    assert(rgbReport[1] == kMagic0);
+    assert(rgbReport[2] == kMagic1);
+    assert(rgbReport[3] == kCmdSetRgb);
+    assert(rgbReport[4] == 5);
+    assert(rgbReport[5] == 255);
+    assert(rgbReport[6] == 128);
+    assert(rgbReport[7] == 64);
+    assert(rgbReport[8] == 0xB9);
+
+    const auto readRgbReport = buildReadRgbConfig(0, 20);
+    assert(readRgbReport[0] == kReportIdOut);
+    assert(readRgbReport[1] == kMagic0);
+    assert(readRgbReport[2] == kMagic1);
+    assert(readRgbReport[3] == kCmdReadRgbConfig);
+    assert(readRgbReport[4] == 4);
+    assert(readRgbReport[5] == 0);
+    assert(readRgbReport[6] == 20);
+    assert(readRgbReport[7] == static_cast<std::uint8_t>(kCmdReadRgbConfig + 4 + 0 + 20));
+
+    const auto writeRgbStartReport = buildWriteRgbStart(0, 0, 19, 20);
+    assert(writeRgbStartReport[0] == kReportIdOut);
+    assert(writeRgbStartReport[1] == kMagic0);
+    assert(writeRgbStartReport[2] == kMagic1);
+    assert(writeRgbStartReport[3] == kCmdWriteRgbStart);
+    assert(writeRgbStartReport[4] == 6);
+    assert(writeRgbStartReport[5] == 0);
+    assert(writeRgbStartReport[6] == 0);
+    assert(writeRgbStartReport[7] == 19);
+    assert(writeRgbStartReport[8] == 20);
+    assert(writeRgbStartReport[9] == static_cast<std::uint8_t>(kCmdWriteRgbStart + 6 + 0 + 0 + 19 + 20));
+
+    const std::array<std::uint8_t, 20> samplePackData{1, 2, 3};
+    const auto writeRgbPackReport = buildWriteRgbPack(0, samplePackData);
+    assert(writeRgbPackReport[0] == kReportIdOut);
+    assert(writeRgbPackReport[1] == kMagic0);
+    assert(writeRgbPackReport[2] == kMagic1);
+    assert(writeRgbPackReport[3] == kCmdWriteRgbPack);
+    assert(writeRgbPackReport[4] == 23);
+    assert(writeRgbPackReport[5] == 0);
+    assert(writeRgbPackReport[6] == 1);
+    assert(writeRgbPackReport[7] == 2);
+    assert(writeRgbPackReport[8] == 3);
+
+    const auto staticPayload = buildStaticRgbPayload(255, 128, 64, 100);
+    assert(staticPayload[0] == 0x00);
+    assert(staticPayload[1] == 0x03);
+    assert(staticPayload[6] == 100);
+    assert(staticPayload[7] == 12);
+    assert(staticPayload[8] == 0x01);
+    assert(staticPayload[20] == 255);
+    assert(staticPayload[21] == 128);
+    assert(staticPayload[22] == 64);
 
     std::cout << "Protocol tests passed\n";
     return 0;

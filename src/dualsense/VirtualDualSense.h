@@ -41,6 +41,8 @@ struct VirtualDualSenseStats {
     std::uint64_t initializationDeviceUs = 0;
     std::uint64_t initializationFeedbackUs = 0;
     std::uint64_t initializationInputUs = 0;
+    std::uint64_t maxInputUpdateDurationUs = 0;
+    std::uint64_t inputUpdateBlockEvents = 0;
     std::string backendVersion;
 };
 

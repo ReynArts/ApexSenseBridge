@@ -17,13 +17,17 @@ std::uint8_t normalizeStick(std::uint8_t value) noexcept {
 } // namespace
 
 std::optional<dualsense::DualSenseInputState>
-decodeApex4InputReport(std::span<const std::uint8_t> report) noexcept {
+decodeApex4InputReport(std::span<const std::uint8_t> report,
+                       std::uint8_t batteryPercent,
+                       std::uint8_t chargeState) noexcept {
     if (report.size() < 32 || report[0] != kApex4InputReportId ||
         report[1] != kApex4StateMarker) {
         return std::nullopt;
     }
 
     dualsense::DualSenseInputState state{};
+    state.batteryPercent = batteryPercent;
+    state.chargeState = chargeState;
     state.lx = normalizeStick(report[17]);
     state.ly = normalizeStick(report[19]);
     state.rx = normalizeStick(report[21]);
