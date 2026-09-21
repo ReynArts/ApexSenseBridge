@@ -93,7 +93,9 @@ namespace ApexSenseBridge.Common
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = executablePath,
-                    Arguments = bridgeArguments + " --session-token " + token,
+                    Arguments = bridgeArguments + " --session-token " + token +
+                                " --session-owner-pid " +
+                                Process.GetCurrentProcess().Id.ToString(),
                     WorkingDirectory = Path.GetDirectoryName(executablePath),
                     UseShellExecute = false,
                     CreateNoWindow = true,

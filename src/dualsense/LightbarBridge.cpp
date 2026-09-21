@@ -67,8 +67,7 @@ void LightbarBridge::workerLoop() noexcept {
 
         {
             std::unique_lock lock(mutex_);
-            const auto nextSend = lastSend + kMinInterval;
-            cv_.wait_until(lock, nextSend, [this] {
+            cv_.wait(lock, [this] {
                 return !running_.load(std::memory_order_relaxed) ||
                        (hasTarget_ && (!hasWritten_ ||
                                        targetRed_ != writtenRed_ ||
@@ -80,15 +79,21 @@ void LightbarBridge::workerLoop() noexcept {
                 break;
             }
 
-            const auto now = std::chrono::steady_clock::now();
-            if (now >= nextSend && hasTarget_ &&
-                (!hasWritten_ || targetRed_ != writtenRed_ ||
-                 targetGreen_ != writtenGreen_ || targetBlue_ != writtenBlue_)) {
-                r = targetRed_;
-                g = targetGreen_;
-                b = targetBlue_;
-                shouldWrite = true;
+            const auto nextSend = lastSend + kMinInterval;
+            if (std::chrono::steady_clock::now() < nextSend) {
+                cv_.wait_until(lock, nextSend, [this] {
+                    return !running_.load(std::memory_order_relaxed);
+                });
+                if (!running_.load(std::memory_order_relaxed)) {
+                    break;
+                }
             }
+
+            r = targetRed_;
+            g = targetGreen_;
+            b = targetBlue_;
+            shouldWrite = !hasWritten_ || r != writtenRed_ ||
+                          g != writtenGreen_ || b != writtenBlue_;
         }
 
         if (shouldWrite) {

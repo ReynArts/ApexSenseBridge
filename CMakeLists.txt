@@ -212,6 +212,18 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME xinput_mapping COMMAND ApexSenseBridgeXInputMappingTests)
 
+    add_executable(ApexSenseBridgePhysicalInputFreshnessTests
+        tests/test_physical_input_freshness.cpp
+    )
+    target_include_directories(ApexSenseBridgePhysicalInputFreshnessTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgePhysicalInputFreshnessTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgePhysicalInputFreshnessTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME physical_input_freshness
+             COMMAND ApexSenseBridgePhysicalInputFreshnessTests)
+
     add_executable(ApexSenseBridgeViewTouchpadGestureTests
         tests/test_view_touchpad_gesture.cpp
         src/dualsense/ViewTouchpadGesture.cpp

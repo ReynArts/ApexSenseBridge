@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -65,8 +66,12 @@ public:
     std::chrono::milliseconds timeout, std::string& error) noexcept;
 
 // The Playnite-side owner creates all three named objects before launching the
-// bridge. The bridge only opens and signals them; it never widens access rights.
+// bridge. When an owner PID is supplied, the bridge also watches that process
+// so an abrupt Playnite exit cannot leave an orphan virtual controller or an
+// active HidHide configuration behind.
 [[nodiscard]] std::unique_ptr<SessionControl> connectSessionControl(
-    std::string_view token, std::string& error);
+    std::string_view token,
+    std::optional<std::uint32_t> ownerProcessId,
+    std::string& error);
 
 } // namespace asb::platform

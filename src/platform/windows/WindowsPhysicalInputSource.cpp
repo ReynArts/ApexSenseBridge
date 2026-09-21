@@ -615,12 +615,23 @@ private:
 class Apex5VendorPhysicalInputSource final : public PhysicalInputSource {
 public:
     static std::unique_ptr<Apex5VendorPhysicalInputSource> open(
-        const HidDeviceInfo& vendorInterface, std::string& error) {
+        const HidDeviceInfo& vendorInterface,
+        std::optional<unsigned int> requestedXInputIndex,
+        std::string& error) {
         if (vendorInterface.vendorId != flydigi::kVendorId ||
             !flydigi::isControllerProduct(vendorInterface.productId) ||
             vendorInterface.usagePage != flydigi::kVendorUsagePage ||
             vendorInterface.inputReportLength < 18) {
             error = "The selected interface is not a complete Apex 5 vendor input stream.";
+            return {};
+        }
+
+        std::string xinputError;
+        auto gamepad = openXInputGamepadForDevice(
+            vendorInterface.vendorId, vendorInterface.productId,
+            requestedXInputIndex, xinputError);
+        if (!gamepad) {
+            error = "XInput gamepad for Apex 5 unavailable (" + xinputError + ").";
             return {};
         }
 
@@ -636,7 +647,7 @@ public:
         }
 
         auto source = std::unique_ptr<Apex5VendorPhysicalInputSource>(
-            new Apex5VendorPhysicalInputSource(vendorInterface, handle));
+            new Apex5VendorPhysicalInputSource(vendorInterface, handle, std::move(gamepad)));
         if (!source->event_) {
             error = "Could not create the Apex 5 vendor input event.";
             return {};
@@ -725,12 +736,31 @@ public:
                 continue;
             }
             state = *decoded;
+            if (gamepad_) {
+                dualsense::DualSenseInputState xinputState{};
+                std::string xinputError;
+                if (gamepad_->poll(xinputState, xinputError)) {
+                    state.lx = xinputState.lx;
+                    state.ly = xinputState.ly;
+                    state.rx = xinputState.rx;
+                    state.ry = xinputState.ry;
+                    state.l2 = xinputState.l2;
+                    state.r2 = xinputState.r2;
+                    state.dpad = xinputState.dpad;
+                    const auto psButton = state.buttons & dualsense::button::kPs;
+                    state.buttons = static_cast<std::uint16_t>(xinputState.buttons | psButton);
+                } else {
+                    error = "The physical Apex 5 XInput controller disconnected (" +
+                            xinputError + ").";
+                    return PhysicalInputStatus::Disconnected;
+                }
+            }
             return PhysicalInputStatus::State;
         }
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex5-v2-hid-event";
+        return "apex5-v2-hybrid-event";
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override { return stats_; }
@@ -740,8 +770,11 @@ public:
     }
 
 private:
-    Apex5VendorPhysicalInputSource(const HidDeviceInfo& info, HANDLE handle)
-        : handle_(handle), report_(info.inputReportLength, 0) {
+    Apex5VendorPhysicalInputSource(
+        const HidDeviceInfo& info, HANDLE handle,
+        std::unique_ptr<XInputGamepad> gamepad)
+        : handle_(handle), report_(info.inputReportLength, 0),
+          gamepad_(std::move(gamepad)) {
         event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         overlapped_.hEvent = event_;
     }
@@ -774,6 +807,7 @@ private:
     PhysicalInputSourceStats stats_{};
     std::atomic<std::uint8_t> currentBatteryPercent_{100};
     std::atomic<std::uint8_t> currentChargeState_{0};
+    std::unique_ptr<XInputGamepad> gamepad_;
 };
 
 class XInputPhysicalInputSource final : public PhysicalInputSource {
@@ -850,7 +884,7 @@ std::unique_ptr<PhysicalInputSource> openPhysicalInputSource(
             flydigi::isControllerProduct(apexVendorInterface.productId)) {
             std::string apex5Error;
             auto apex5 = Apex5VendorPhysicalInputSource::open(
-                apexVendorInterface, apex5Error);
+                apexVendorInterface, requestedXInputIndex, apex5Error);
             if (apex5) {
                 error.clear();
                 return apex5;

@@ -18,7 +18,7 @@ bool requestGlobalSessionStop(std::chrono::milliseconds, std::string&) noexcept 
 }
 
 std::unique_ptr<SessionControl> connectSessionControl(
-    std::string_view, std::string& error) {
+    std::string_view, std::optional<std::uint32_t>, std::string& error) {
     error = "Playnite session control is only available on Windows.";
     return {};
 }

@@ -21,6 +21,9 @@ constexpr std::uint8_t kApex4CmdSetForceTriggerDInput = 0xA0;
 constexpr std::uint8_t kApex4ForceTriggerEffectFamily = 0x01;
 constexpr std::size_t kApex4IdentityRequestSize = 12;
 constexpr std::size_t kApex4ForceTriggerReportSize = 15;
+// Setting this flag stalls the Apex 4 main loop for about one second over the
+// 2.4 GHz receiver. The command is still applied (and released) when cleared.
+constexpr bool kApex4ApplyFlag = false;
 
 using Apex4IdentityRequest =
     std::array<std::uint8_t, kApex4IdentityRequestSize>;
@@ -32,9 +35,9 @@ using Apex4RumbleReport = std::array<std::uint8_t, 4>;
                                   std::uint16_t productId) noexcept;
 [[nodiscard]] Apex4IdentityRequest buildApex4IdentityRequest();
 [[nodiscard]] Apex4ForceTriggerReport buildApex4ForceTrigger(
-    const TriggerEffect& effect, bool apply = true);
+    const TriggerEffect& effect, bool apply = kApex4ApplyFlag);
 [[nodiscard]] Apex4ForceTriggerReport buildApex4ForceTriggerRaw(
-    const ForceTriggerCommand& command, bool apply = true);
+    const ForceTriggerCommand& command, bool apply = kApex4ApplyFlag);
 [[nodiscard]] Apex4ForceTriggerReport buildApex4Normal(TriggerSide side);
 [[nodiscard]] Apex4RumbleReport buildApex4Rumble(
     std::uint8_t lowFrequencyMotor,

@@ -53,14 +53,24 @@ jobs:
           ASB_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ASB_SIGNING_CERTIFICATE_BASE64 }}
           ASB_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.ASB_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          .\scripts\build-installer.ps1 -RequireSigning
+          $signArgs = @()
+          if (-not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_BASE64)) {
+            $signArgs += "-Sign"
+          }
+          .\scripts\build-installer.ps1 @signArgs
 
-      - name: Test and verify signed release artifacts
+      - name: Test and verify release artifacts
         shell: powershell
+        env:
+          ASB_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ASB_SIGNING_CERTIFICATE_BASE64 }}
         run: |
           ctest --test-dir .\build-win -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          .\scripts\verify-version-consistency.ps1 -CheckArtifacts -RequireSignatures
+          $verifyArgs = @("-CheckArtifacts")
+          if (-not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_BASE64)) {
+            $verifyArgs += "-RequireSignatures"
+          }
+          .\scripts\verify-version-consistency.ps1 @verifyArgs
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

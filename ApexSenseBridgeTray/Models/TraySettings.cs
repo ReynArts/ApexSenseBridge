@@ -75,6 +75,12 @@ namespace ApexSenseBridgeTray.Models
             }
         }
 
+        public void SetGameExcludedAliases(string normalized, string title, bool excluded)
+        {
+            SetGameExcluded(normalized, excluded);
+            SetGameExcluded(title, excluded);
+        }
+
         public int GetApexProfileSlot(string normalizedOrTitle)
         {
             if (string.IsNullOrWhiteSpace(normalizedOrTitle) || ApexProfileSlots == null)

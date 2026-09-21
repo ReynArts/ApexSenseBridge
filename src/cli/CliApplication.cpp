@@ -68,7 +68,7 @@ void printUsage() {
         << "                  [--apex-profile 1..4]\n"
         << "                  [--view-hold-swipe-up]\n"
         << "                  [--isolate-apex]\n"
-        << "                  [--session-token 32HEX]\n"
+        << "                  [--session-token 32HEX] [--session-owner-pid PID]\n"
         << "                               Route adaptive triggers and optional grip/audio haptics\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
         << "  test-trigger [index] [--side lt|rt|both] [--mode resistance|weapon|vibration|bow|normal]\n"

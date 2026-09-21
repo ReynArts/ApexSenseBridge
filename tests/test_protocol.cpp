@@ -36,7 +36,7 @@ int main() {
     assert(apex4Normal[0] == 0x05);
     assert(apex4Normal[1] == 0xA0);
     assert(apex4Normal[2] == 1);
-    assert(apex4Normal[3] == 1);
+    assert(apex4Normal[3] == 0);
     assert(apex4Normal[4] == 2);
     assert(apex4Normal[5] == 0);
 
@@ -69,7 +69,7 @@ int main() {
     assert(apex4Race[0] == 0x05);
     assert(apex4Race[1] == 0xA0);
     assert(apex4Race[2] == 1);
-    assert(apex4Race[3] == 1);
+    assert(apex4Race[3] == 0);
     assert(apex4Race[4] == 2);
     assert(apex4Race[5] == 1);
     assert(apex4Race[6] == 70);
@@ -82,7 +82,7 @@ int main() {
     apex4RawRace.params = {0, 30, 1, 0, 0};
     const auto apex4Raw = buildApex4ForceTriggerRaw(apex4RawRace);
     assert(apex4Raw[2] == 1);
-    assert(apex4Raw[3] == 1);
+    assert(apex4Raw[3] == 0);
     assert(apex4Raw[4] == 2);
     assert(apex4Raw[5] == 1);
     assert(apex4Raw[6] == 0);

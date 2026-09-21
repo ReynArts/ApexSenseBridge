@@ -1,7 +1,13 @@
 # Changelog
 
-## 1.0.0-beta.1
+## 1.0.0-beta.2
 
+- **APEX 4 wireless stability**: avoids the trigger apply flag that stalls the
+  controller over its 2.4 GHz receiver, and paces/coalesces trigger and rumble
+  writes on a background writer so game input and haptics no longer queue
+  behind vendor commands.
+- **Game detection exclusions**: a removed game can be added again; both its
+  normalized identifier and display-title alias are now cleared together.
 - **Interactive Controller Diagnostic & Test suite (`ControllerTestWindow`)**:
   - **6-axis Gyroscope & Accelerometer Suite (`TabGyro`)**: Real-time Artificial Horizon flight instrument with dynamic pitch elevation and roll banking; six telemetry gauges tracking angular velocity (DPS X/Y/Z) and gravitational acceleration (G-force X/Y/Z) at ~300 Hz; dynamic motion state detection (Stationary vs Moving) and interactive zero-calibration centering.
   - **Adaptive Triggers Testing**: Real-time excitation of force feedback motors across multiple modes (Progressive Resistance, Weapon Break/Snap, Haptic Vibration, Elastic Bow Tension) and 4 resistance levels (Soft, Medium, Strong, Rigid/Ultra) with instant zero-reset.
@@ -12,6 +18,9 @@
 - **APEX 5 End-to-End Motion Support**: Decodes all three gyroscope and accelerometer axes from the event-driven vendor stream, converts accelerometer scale to virtual DualSense calibration, and forwards all six signed axes through VIIPER.
 - **Real Physical Battery & Charge Reporting**: Reports physical controller battery percentage and charging state via VIIPER report byte 53 (`kDischarging = 0`, `kCharging = 2`, `kFull = 4`), with periodic 15-second non-blocking refresh.
 - **Dynamic DualSense Lightbar (RGB) Synchronization**: Intercepts virtual DualSense RGB lightbar packets and translates them in real time to the Flydigi APEX 5 onboard LED strips using volatile single-report RAM commands (0xF5 TestLed) with zero NVRAM wear. Configurable via `--sync-lightbar` CLI switch, Tray dashboard, and Playnite extension.
+- **Call of Duty / Playnite Input Reliability**: Uses the APEX 5 vendor HID stream for motion and its matching XInput slot for sticks, triggers, D-Pad, and buttons, then forwards the merged state through the isolated virtual DualSense. Automatic onboard profile switching remains enabled; after every switch the stale pre-switch reader is closed, the hybrid input backend is reopened, three fresh reports are required, and the virtual controller is resynchronized before Playnite may launch the game.
+- **Physical Input Stall Protection**: Stops a bridge session after one second without a fresh event-driven physical report instead of indefinitely replaying a frozen neutral or cached state through an apparently connected virtual DualSense.
+- **LightSync RGB CPU Fix**: Replaces the RGB rate limiter's active wait with a blocking condition-variable wait. Enabled synchronization remains capped at 12.5 Hz without consuming a CPU core between writes; disabling RGB now creates no RGB worker, performs no RGB HID writes, and installs no RGB feedback branch.
 - **Gamepad-First Console UI**: Full 2D D-Pad / thumbstick navigation across Tray library and settings window (`GameListWindow`), featuring analog stick deadzone hysteresis, debounce protection, contextual HUD actions, and official Xbox Game Bar button glyphs (A, B, X, Y).
 - **Live Controller Hot-Plug Detection**: Polling connected Flydigi hardware every 2 seconds (`ControllerDetectionService`) to dynamically distinguish APEX 4, APEX 5, unsupported devices, or disconnected states with live status badges.
 - **Modernized Localization Architecture**: Embedded UTF-8 JSON language files (`en.json`, `fr.json`, `es.json`, `zh.json`) with strict key parity, supporting optional local folder overrides and automated English fallback.

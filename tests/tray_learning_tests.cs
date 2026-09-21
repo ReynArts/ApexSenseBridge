@@ -425,12 +425,17 @@ internal static class TrayLearningTests
                 game, settings, "AlphaGame", "Alpha", "AlphaGame.exe"),
             "An eligible learned game was rejected by the shared activation policy.");
 
-        settings.SetGameExcluded(game.Normalized, true);
+        settings.SetGameExcludedAliases(game.Normalized, game.Title, true);
         Assert(!GameActivationPolicy.ShouldActivate(
                 game, settings, "AlphaGame", "Alpha", "AlphaGame.exe"),
             "A learned association bypassed the game exclusion policy.");
+        Assert(settings.IsGameExcluded(game.Title),
+            "The display-title exclusion alias was not recorded.");
 
-        settings.SetGameExcluded(game.Normalized, false);
+        settings.SetGameExcludedAliases(game.Normalized, game.Title, false);
+        Assert(!settings.IsGameExcluded(game.Normalized) &&
+               !settings.IsGameExcluded(game.Title),
+            "Re-adding a game left one of its exclusion aliases behind.");
         settings.TriggerOnAdaptiveTriggers = false;
         settings.TriggerOnHapticFeedback = false;
         Assert(!GameActivationPolicy.ShouldActivate(

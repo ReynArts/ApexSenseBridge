@@ -160,6 +160,31 @@ void TransportDeleter::operator()(platform::HidTransport* transport) const noexc
 Apex5Device::Apex5Device(TransportPtr transport)
     : transport_(std::move(transport)) {}
 
+Apex5Device::~Apex5Device() {
+    stopAsyncWrites();
+}
+
+Apex5Device::Apex5Device(Apex5Device&& other) noexcept {
+    other.stopAsyncWrites();
+    transport_ = std::move(other.transport_);
+    identity_ = std::move(other.identity_);
+    writeMutex_ = std::move(other.writeMutex_);
+    if (!writeMutex_) writeMutex_ = std::make_unique<std::recursive_mutex>();
+    lastVendorWriteAt_ = other.lastVendorWriteAt_;
+}
+
+Apex5Device& Apex5Device::operator=(Apex5Device&& other) noexcept {
+    if (this == &other) return *this;
+    stopAsyncWrites();
+    other.stopAsyncWrites();
+    transport_ = std::move(other.transport_);
+    identity_ = std::move(other.identity_);
+    writeMutex_ = std::move(other.writeMutex_);
+    if (!writeMutex_) writeMutex_ = std::make_unique<std::recursive_mutex>();
+    lastVendorWriteAt_ = other.lastVendorWriteAt_;
+    return *this;
+}
+
 std::vector<HidDeviceInfo> Apex5Device::findCandidates(std::string& error) {
     auto all = platform::enumerateHidDevices(error);
     std::vector<HidDeviceInfo> candidates;
@@ -333,6 +358,21 @@ std::unique_lock<std::recursive_mutex> Apex5Device::acquireWriteLock() const noe
     return writeMutex_ ? std::unique_lock(*writeMutex_) : std::unique_lock<std::recursive_mutex>();
 }
 
+bool Apex5Device::writeSpacedOutputReport(
+    std::span<const std::uint8_t> report, std::string& error) {
+    constexpr auto kVendorWriteSpacing = std::chrono::milliseconds(25);
+    const auto lock = acquireWriteLock();
+    if (lastVendorWriteAt_.time_since_epoch().count() != 0) {
+        const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
+        if (since < kVendorWriteSpacing) {
+            std::this_thread::sleep_for(kVendorWriteSpacing - since);
+        }
+    }
+    const bool ok = transport_->writeOutputReport(report, error);
+    lastVendorWriteAt_ = std::chrono::steady_clock::now();
+    return ok;
+}
+
 bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     if (!isOpen()) {
         error = "APEX device is not open";
@@ -343,8 +383,7 @@ bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     }
     const auto lock = acquireWriteLock();
     if (identity_->isApex4()) {
-        return transport_->writeOutputReport(
-            buildApex4ForceTrigger(effect, true), error);
+        return writeSpacedOutputReport(buildApex4ForceTrigger(effect), error);
     }
     const auto report = buildForceTrigger(effect, true);
     return transport_->writeOutputReport(report, error);
@@ -360,7 +399,7 @@ bool Apex5Device::setTriggerRaw(const ForceTriggerCommand& command, std::string&
     }
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
-        ? transport_->writeOutputReport(buildApex4ForceTriggerRaw(command, true), error)
+        ? writeSpacedOutputReport(buildApex4ForceTriggerRaw(command), error)
         : transport_->writeOutputReport(buildForceTriggerRaw(command, true), error);
 }
 
@@ -374,7 +413,7 @@ bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
     }
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
-        ? transport_->writeOutputReport(buildApex4Normal(side), error)
+        ? writeSpacedOutputReport(buildApex4Normal(side), error)
         : transport_->writeOutputReport(buildNormal(side), error);
 }
 
@@ -413,7 +452,7 @@ bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
     }
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
-        ? transport_->writeOutputReport(
+        ? writeSpacedOutputReport(
               buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor), error)
         : transport_->writeOutputReport(
               buildRumble(lowFrequencyMotor, highFrequencyMotor), error);
@@ -602,10 +641,22 @@ bool Apex5Device::writeRgbConfig(
 }
 
 bool Apex5Device::setRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                         std::string& error, std::uint8_t slot,
-                         std::uint8_t brightness) {
-    const auto payload = buildStaticRgbPayload(r, g, b, brightness);
-    return writeRgbConfig(slot, payload, error);
+                         std::string& error, std::uint8_t /*slot*/,
+                         std::uint8_t /*brightness*/) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!mayWriteEffects(error)) {
+        return false;
+    }
+
+    // 0xF5 is the volatile, single-report LED command.  Do not use the
+    // multi-packet profile writer here: lightbar feedback can arrive many
+    // times per second, and repeatedly rewriting the profile interrupts the
+    // controller's physical input stream.
+    const auto lock = acquireWriteLock();
+    return transport_->writeOutputReport(buildSetRgb(r, g, b), error);
 }
 
 bool Apex5Device::requestBatteryRefresh(std::string& error) {
@@ -619,6 +670,144 @@ bool Apex5Device::requestBatteryRefresh(std::string& error) {
     }
     const auto lock = acquireWriteLock();
     return transport_->writeOutputReport(Apex5Identity::buildRequest(), error);
+}
+
+bool Apex5Device::startAsyncWrites(std::string& error) {
+    if (writer_.joinable() || (identity_ && !identity_->isApex4())) return true;
+    if (!isOpen() || !mayWriteEffects(error)) return false;
+    {
+        std::lock_guard lock(queueMutex_);
+        writerStopping_ = false;
+        pendingLeftTrigger_.reset();
+        pendingRightTrigger_.reset();
+        pendingRumble_.reset();
+        nextSlot_ = 0;
+    }
+    asyncWriteFailed_.store(false, std::memory_order_relaxed);
+    asyncWriteRetries_.store(0, std::memory_order_relaxed);
+    writer_ = std::thread([this] { writerLoop(); });
+    return true;
+}
+
+void Apex5Device::stopAsyncWrites() noexcept {
+    if (!writer_.joinable()) return;
+    {
+        std::lock_guard lock(queueMutex_);
+        writerStopping_ = true;
+    }
+    queueSignal_.notify_all();
+    writer_.join();
+}
+
+bool Apex5Device::queueTriggerRaw(const ForceTriggerCommand& command,
+                                  std::string& error) {
+    if (!writer_.joinable()) return setTriggerRaw(command, error);
+    {
+        std::lock_guard lock(queueMutex_);
+        (command.side == TriggerSide::Left ? pendingLeftTrigger_
+                                           : pendingRightTrigger_) = command;
+    }
+    queueSignal_.notify_one();
+    return true;
+}
+
+bool Apex5Device::queueRumble(std::uint8_t lowFrequencyMotor,
+                              std::uint8_t highFrequencyMotor,
+                              std::string& error) {
+    if (!writer_.joinable()) {
+        return setRumble(lowFrequencyMotor, highFrequencyMotor, error);
+    }
+    {
+        std::lock_guard lock(queueMutex_);
+        pendingRumble_ = std::pair{lowFrequencyMotor, highFrequencyMotor};
+    }
+    queueSignal_.notify_one();
+    return true;
+}
+
+std::uint64_t Apex5Device::asyncWriteRetries() const noexcept {
+    return asyncWriteRetries_.load(std::memory_order_relaxed);
+}
+
+bool Apex5Device::takeAsyncWriteError(std::string& error) {
+    if (!asyncWriteFailed_.exchange(false, std::memory_order_acq_rel)) return false;
+    std::lock_guard lock(asyncErrorMutex_);
+    error = asyncError_;
+    return true;
+}
+
+void Apex5Device::writerLoop() {
+    constexpr unsigned kMaximumConsecutiveFailures = 10;
+    unsigned consecutiveFailures = 0;
+    for (;;) {
+        {
+            std::unique_lock lock(queueMutex_);
+            queueSignal_.wait(lock, [this] {
+                return writerStopping_ || pendingLeftTrigger_ ||
+                       pendingRightTrigger_ || pendingRumble_;
+            });
+            if (writerStopping_) return;
+        }
+
+        // Coalesce updates that arrive while the receiver's pacing window is
+        // open, then choose the newest value rather than an obsolete one.
+        constexpr auto kVendorWriteSpacing = std::chrono::milliseconds(25);
+        if (lastVendorWriteAt_.time_since_epoch().count() != 0) {
+            const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
+            if (since < kVendorWriteSpacing) {
+                std::this_thread::sleep_for(kVendorWriteSpacing - since);
+            }
+        }
+
+        std::optional<ForceTriggerCommand> trigger;
+        std::optional<std::pair<std::uint8_t, std::uint8_t>> rumble;
+        {
+            std::lock_guard lock(queueMutex_);
+            if (writerStopping_) return;
+            for (unsigned attempt = 0; attempt < 3; ++attempt) {
+                const unsigned slot = (nextSlot_ + attempt) % 3;
+                if (slot == 0 && pendingLeftTrigger_) {
+                    trigger = std::exchange(pendingLeftTrigger_, std::nullopt);
+                } else if (slot == 1 && pendingRightTrigger_) {
+                    trigger = std::exchange(pendingRightTrigger_, std::nullopt);
+                } else if (slot == 2 && pendingRumble_) {
+                    rumble = std::exchange(pendingRumble_, std::nullopt);
+                } else {
+                    continue;
+                }
+                nextSlot_ = (slot + 1) % 3;
+                break;
+            }
+        }
+        if (!trigger && !rumble) continue;
+
+        std::string error;
+        const bool ok = trigger ? setTriggerRaw(*trigger, error)
+                                : setRumble(rumble->first, rumble->second, error);
+        if (ok) {
+            consecutiveFailures = 0;
+            continue;
+        }
+
+        {
+            std::lock_guard lock(queueMutex_);
+            if (trigger) {
+                auto& pending = trigger->side == TriggerSide::Left
+                    ? pendingLeftTrigger_ : pendingRightTrigger_;
+                if (!pending) pending = trigger;
+            } else if (!pendingRumble_) {
+                pendingRumble_ = rumble;
+            }
+        }
+        asyncWriteRetries_.fetch_add(1, std::memory_order_relaxed);
+        if (++consecutiveFailures < kMaximumConsecutiveFailures) continue;
+        {
+            std::lock_guard lock(asyncErrorMutex_);
+            asyncError_ = std::move(error);
+        }
+        asyncWriteFailed_.store(true, std::memory_order_release);
+        consecutiveFailures = 0;
+    }
 }
 
 } // namespace asb::flydigi

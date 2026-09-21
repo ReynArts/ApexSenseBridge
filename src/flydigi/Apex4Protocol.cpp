@@ -99,7 +99,7 @@ Apex4ForceTriggerReport buildApex4Normal(TriggerSide side) {
     TriggerEffect effect{};
     effect.side = side;
     effect.mode = TriggerMode::Normal;
-    return buildApex4ForceTrigger(effect, true);
+    return buildApex4ForceTrigger(effect, kApex4ApplyFlag);
 }
 
 Apex4RumbleReport buildApex4Rumble(std::uint8_t lowFrequencyMotor,

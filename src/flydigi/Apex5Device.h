@@ -5,10 +5,17 @@
 #include "flydigi/Apex5Identity.h"
 #include "platform/HidTransport.h"
 
+#include <array>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace asb::flydigi {
@@ -27,8 +34,9 @@ public:
 
     Apex5Device(const Apex5Device&) = delete;
     Apex5Device& operator=(const Apex5Device&) = delete;
-    Apex5Device(Apex5Device&&) noexcept = default;
-    Apex5Device& operator=(Apex5Device&&) noexcept = default;
+    ~Apex5Device();
+    Apex5Device(Apex5Device&& other) noexcept;
+    Apex5Device& operator=(Apex5Device&& other) noexcept;
 
     [[nodiscard]] static std::vector<HidDeviceInfo> findCandidates(std::string& error);
     [[nodiscard]] static std::optional<Apex5Device> open(const HidDeviceInfo& info, std::string& error);
@@ -64,15 +72,43 @@ public:
                            std::string& error);
     bool requestBatteryRefresh(std::string& error);
 
+    // The Apex 4 receiver needs paced vendor writes. The bridge queues the
+    // newest value per output so its feedback callback never blocks and stale
+    // effects are coalesced instead of replayed later.
+    bool startAsyncWrites(std::string& error);
+    void stopAsyncWrites() noexcept;
+    bool queueTriggerRaw(const ForceTriggerCommand& command, std::string& error);
+    bool queueRumble(std::uint8_t lowFrequencyMotor,
+                     std::uint8_t highFrequencyMotor,
+                     std::string& error);
+    [[nodiscard]] std::uint64_t asyncWriteRetries() const noexcept;
+    bool takeAsyncWriteError(std::string& error);
+
 private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
     [[nodiscard]] bool mayControlProfiles(std::string& error) const;
     [[nodiscard]] bool usesApex4Protocol() const noexcept;
     [[nodiscard]] std::unique_lock<std::recursive_mutex> acquireWriteLock() const noexcept;
+    [[nodiscard]] bool writeSpacedOutputReport(std::span<const std::uint8_t> report,
+                                               std::string& error);
+    void writerLoop();
 
     TransportPtr transport_{};
     std::optional<Apex5Identity> identity_{};
     mutable std::unique_ptr<std::recursive_mutex> writeMutex_{std::make_unique<std::recursive_mutex>()};
+    std::chrono::steady_clock::time_point lastVendorWriteAt_{};
+    std::thread writer_{};
+    std::mutex queueMutex_{};
+    std::condition_variable queueSignal_{};
+    std::optional<ForceTriggerCommand> pendingLeftTrigger_{};
+    std::optional<ForceTriggerCommand> pendingRightTrigger_{};
+    std::optional<std::pair<std::uint8_t, std::uint8_t>> pendingRumble_{};
+    unsigned nextSlot_ = 0;
+    bool writerStopping_ = false;
+    std::atomic<bool> asyncWriteFailed_{false};
+    std::atomic<std::uint64_t> asyncWriteRetries_{0};
+    std::mutex asyncErrorMutex_{};
+    std::string asyncError_{};
 };
 
 } // namespace asb::flydigi

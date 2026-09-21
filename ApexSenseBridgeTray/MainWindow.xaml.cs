@@ -244,8 +244,7 @@ namespace ApexSenseBridgeTray
             SupportedGame game;
             if (gameListService.TryFindGame(gameTitle, out game) && game != null)
             {
-                settings.SetGameExcluded(game.Normalized, true);
-                settings.SetGameExcluded(game.Title, true);
+                settings.SetGameExcludedAliases(game.Normalized, game.Title, true);
             }
             else
             {

@@ -117,6 +117,12 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
     asb::dualsense::DualSenseInputState lastState{};
     std::uint64_t stateChanges = 0;
     std::uint8_t seenDpad = 0;
+    std::uint32_t seenButtons = 0;
+    std::uint8_t minLx = 255, maxLx = 0;
+    std::uint8_t minLy = 255, maxLy = 0;
+    std::uint8_t minRx = 255, maxRx = 0;
+    std::uint8_t minRy = 255, maxRy = 0;
+    std::uint8_t maxL2 = 0, maxR2 = 0;
     bool receivedState = false;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
     while (std::chrono::steady_clock::now() < deadline &&
@@ -127,6 +133,17 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
         if (status == asb::platform::PhysicalInputStatus::State) {
             if (!receivedState || state != lastState) ++stateChanges;
             seenDpad = static_cast<std::uint8_t>(seenDpad | state.dpad);
+            seenButtons |= state.buttons;
+            minLx = (std::min)(minLx, state.lx);
+            maxLx = (std::max)(maxLx, state.lx);
+            minLy = (std::min)(minLy, state.ly);
+            maxLy = (std::max)(maxLy, state.ly);
+            minRx = (std::min)(minRx, state.rx);
+            maxRx = (std::max)(maxRx, state.rx);
+            minRy = (std::min)(minRy, state.ry);
+            maxRy = (std::max)(maxRy, state.ry);
+            maxL2 = (std::max)(maxL2, state.l2);
+            maxR2 = (std::max)(maxR2, state.r2);
             lastState = state;
             receivedState = true;
         } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
@@ -151,13 +168,24 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
             << "  \"ly\": " << static_cast<unsigned int>(lastState.ly) << ",\n"
             << "  \"rx\": " << static_cast<unsigned int>(lastState.rx) << ",\n"
             << "  \"ry\": " << static_cast<unsigned int>(lastState.ry) << ",\n"
+            << "  \"min_lx\": " << static_cast<unsigned int>(minLx) << ",\n"
+            << "  \"max_lx\": " << static_cast<unsigned int>(maxLx) << ",\n"
+            << "  \"min_ly\": " << static_cast<unsigned int>(minLy) << ",\n"
+            << "  \"max_ly\": " << static_cast<unsigned int>(maxLy) << ",\n"
+            << "  \"min_rx\": " << static_cast<unsigned int>(minRx) << ",\n"
+            << "  \"max_rx\": " << static_cast<unsigned int>(maxRx) << ",\n"
+            << "  \"min_ry\": " << static_cast<unsigned int>(minRy) << ",\n"
+            << "  \"max_ry\": " << static_cast<unsigned int>(maxRy) << ",\n"
             << "  \"l2\": " << static_cast<unsigned int>(lastState.l2) << ",\n"
             << "  \"r2\": " << static_cast<unsigned int>(lastState.r2) << ",\n"
+            << "  \"max_l2\": " << static_cast<unsigned int>(maxL2) << ",\n"
+            << "  \"max_r2\": " << static_cast<unsigned int>(maxR2) << ",\n"
             << "  \"dpad\": " << static_cast<unsigned int>(lastState.dpad) << ",\n"
             << "  \"dpad_name\": \"" << dpadDescription(lastState.dpad) << "\",\n"
             << "  \"seen_dpad\": " << static_cast<unsigned int>(seenDpad) << ",\n"
             << "  \"seen_dpad_directions\": \"" << dpadDescription(seenDpad) << "\",\n"
             << "  \"buttons\": " << lastState.buttons << ",\n"
+            << "  \"seen_buttons\": " << seenButtons << ",\n"
             << "  \"gyro_x\": " << lastState.gyroX << ",\n"
             << "  \"gyro_y\": " << lastState.gyroY << ",\n"
             << "  \"gyro_z\": " << lastState.gyroZ << ",\n"
@@ -178,13 +206,24 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
                   << static_cast<unsigned int>(lastState.ly) << ','
                   << static_cast<unsigned int>(lastState.rx) << ','
                   << static_cast<unsigned int>(lastState.ry) << '\n'
+                  << "min_sticks=" << static_cast<unsigned int>(minLx) << ','
+                  << static_cast<unsigned int>(minLy) << ','
+                  << static_cast<unsigned int>(minRx) << ','
+                  << static_cast<unsigned int>(minRy) << '\n'
+                  << "max_sticks=" << static_cast<unsigned int>(maxLx) << ','
+                  << static_cast<unsigned int>(maxLy) << ','
+                  << static_cast<unsigned int>(maxRx) << ','
+                  << static_cast<unsigned int>(maxRy) << '\n'
                   << "triggers=" << static_cast<unsigned int>(lastState.l2) << ','
                   << static_cast<unsigned int>(lastState.r2) << '\n'
+                  << "max_triggers=" << static_cast<unsigned int>(maxL2) << ','
+                  << static_cast<unsigned int>(maxR2) << '\n'
                   << "dpad=" << static_cast<unsigned int>(lastState.dpad)
                   << " (" << dpadDescription(lastState.dpad) << ")\n"
                   << "seen_dpad=" << static_cast<unsigned int>(seenDpad)
                   << " (" << dpadDescription(seenDpad) << ")\n"
                   << "buttons=" << lastState.buttons << '\n'
+                  << "seen_buttons=" << seenButtons << '\n'
                   << "gyro=" << lastState.gyroX << ',' << lastState.gyroY << ',' << lastState.gyroZ << '\n'
                   << "accel=" << lastState.accelX << ',' << lastState.accelY << ',' << lastState.accelZ << '\n';
         if (!warning.empty()) std::cout << "warning=" << warning << '\n';

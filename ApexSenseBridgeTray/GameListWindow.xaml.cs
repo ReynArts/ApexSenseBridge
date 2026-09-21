@@ -1331,7 +1331,10 @@ namespace ApexSenseBridgeTray
             if (game == null) return;
 
             game.IsExcluded = !game.IsExcluded;
-            settings.SetGameExcluded(game.Normalized, game.IsExcluded);
+            // Exclusion stores both aliases. Remove/add both together,
+            // otherwise the title alias keeps a game excluded forever.
+            settings.SetGameExcludedAliases(
+                game.Normalized, game.Title, game.IsExcluded);
             settings.Save();
 
             UpdateDetailPane();
