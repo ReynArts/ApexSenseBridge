@@ -52,6 +52,7 @@ public:
         info_.usagePage = asb::flydigi::kVendorUsagePage;
         info_.inputReportLength = 32;
         info_.outputReportLength = 32;
+        rgbConfig_ = asb::flydigi::buildStaticRgbPayload(32, 48, 64, 70);
     }
 
     [[nodiscard]] bool isOpen() const noexcept override { return true; }
@@ -75,6 +76,54 @@ public:
             reply[6] = 128;
             reply[7] = 2;
             replies_.push_back(std::move(reply));
+        } else if (report.size() > 3 &&
+                   report[3] == asb::flydigi::kCmdReadRgbConfig) {
+            for (std::uint8_t packet = 0;
+                 packet < asb::flydigi::kRgbPacketCount; ++packet) {
+                std::vector<std::uint8_t> reply(32, 0);
+                reply[0] = asb::flydigi::kReportIdIn;
+                reply[1] = asb::flydigi::kMagic0;
+                reply[2] = asb::flydigi::kMagic1;
+                reply[3] = asb::flydigi::kCmdReadRgbConfig;
+                reply[4] = 23;
+                reply[5] = packet;
+                const auto offset = static_cast<std::size_t>(packet) *
+                                    asb::flydigi::kRgbPacketSize;
+                std::copy_n(rgbConfig_.begin() + offset,
+                            asb::flydigi::kRgbPacketSize, reply.begin() + 7);
+                replies_.push_back(std::move(reply));
+            }
+        } else if (report.size() > 5 &&
+                   report[3] == asb::flydigi::kCmdWriteRgbStart) {
+            rgbWriteStart_ = report[6];
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdWriteRgbStart;
+            replies_.push_back(std::move(reply));
+        } else if (report.size() > 5 &&
+                   report[3] == asb::flydigi::kCmdWriteRgbPack) {
+            const auto packet = static_cast<std::size_t>(rgbWriteStart_) + report[5];
+            if (packet < asb::flydigi::kRgbPacketCount) {
+                const auto offset = packet * asb::flydigi::kRgbPacketSize;
+                std::copy_n(report.begin() + 6, asb::flydigi::kRgbPacketSize,
+                            rgbConfig_.begin() + offset);
+            }
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdWriteRgbPack;
+            replies_.push_back(std::move(reply));
+        } else if (report.size() > 3 &&
+                   report[3] == asb::flydigi::kCmdApplyProfile) {
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdApplyProfile;
+            replies_.push_back(std::move(reply));
         }
         return true;
     }
@@ -97,8 +146,12 @@ public:
     bool failWrites = false;
     std::vector<std::vector<std::uint8_t>> writes;
 
+    [[nodiscard]] const auto& rgbConfig() const noexcept { return rgbConfig_; }
+
 private:
     asb::HidDeviceInfo info_{};
+    std::array<std::uint8_t, asb::flydigi::kRgbConfigSize> rgbConfig_{};
+    std::uint8_t rgbWriteStart_ = 0;
     std::deque<std::vector<std::uint8_t>> replies_;
 };
 
@@ -187,16 +240,10 @@ int main() {
     assert(audioStats.writes == 4);
     assert(audioStats.stops == 2);
 
-    const auto writesBeforeRgb = transport->writes.size();
-    assert(device.setRgb(255, 128, 64, error));
-    assert(transport->writes.size() == writesBeforeRgb + 1);
-    assert(transport->writes.back()[3] == asb::flydigi::kCmdSetRgb);
-    assert(transport->writes.back()[5] == 255);
-    assert(transport->writes.back()[6] == 128);
-    assert(transport->writes.back()[7] == 64);
-
     {
         LightbarBridge lightbar(device);
+        assert(!lightbar.failed());
+        const auto writesBeforeLightbarUpdate = transport->writes.size();
         DualSenseFeedback lightbarFeedback{};
         lightbarFeedback.hasLightbar = true;
         lightbarFeedback.lightbarRed = 10;
@@ -210,7 +257,45 @@ int main() {
                std::chrono::steady_clock::now() < firstWriteDeadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        assert(lightbar.stats().writes == 1);
+        const auto firstLightbarStats = lightbar.stats();
+        assert(firstLightbarStats.writes == 1);
+        std::array<std::uint8_t, asb::flydigi::kRgbConfigSize> writtenConfig{};
+        std::array<bool, asb::flydigi::kRgbPacketCount> packetsSeen{};
+        std::vector<std::uint8_t> latchValues;
+        std::uint8_t rangeStart = 0;
+        for (auto it = transport->writes.begin() + writesBeforeLightbarUpdate;
+             it != transport->writes.end(); ++it) {
+            const auto& report = *it;
+            if (report.size() > 6 &&
+                report[3] == asb::flydigi::kCmdWriteRgbStart) {
+                rangeStart = report[6];
+                continue;
+            }
+            if (report.size() <= 5 ||
+                report[3] != asb::flydigi::kCmdWriteRgbPack) {
+                continue;
+            }
+            const auto packet = static_cast<std::size_t>(rangeStart) + report[5];
+            assert(packet < asb::flydigi::kRgbPacketCount);
+            const auto offset = static_cast<std::size_t>(packet) *
+                                asb::flydigi::kRgbPacketSize;
+            std::copy_n(report.begin() + 6, asb::flydigi::kRgbPacketSize,
+                        writtenConfig.begin() + offset);
+            packetsSeen[packet] = true;
+            if (packet == 0) latchValues.push_back(report[8]);
+        }
+        assert(std::all_of(packetsSeen.begin(), packetsSeen.end(),
+                           [](bool seen) { return seen; }));
+        assert((latchValues == std::vector<std::uint8_t>{1, 0}));
+        assert(writtenConfig[3] == 0);
+        assert(writtenConfig[4] == 9);
+        assert(writtenConfig[8] == 4);
+        for (std::size_t offset = 20; offset + 2 < writtenConfig.size();
+             offset += 3) {
+            assert(writtenConfig[offset] == 10);
+            assert(writtenConfig[offset + 1] == 20);
+            assert(writtenConfig[offset + 2] == 30);
+        }
 
         const auto cpuStartedAt = processCpuMilliseconds();
         const auto stressDeadline = std::chrono::steady_clock::now() +
@@ -230,6 +315,35 @@ int main() {
         assert(lightbarStats.writes <= 5);
         assert(lightbarStats.writeFailures == 0);
         assert(cpuMilliseconds < 150.0);
+
+        const auto writesBeforeRestore = transport->writes.size();
+        lightbar.restore();
+        assert(!lightbar.failed());
+        const auto expectedBackup =
+            asb::flydigi::buildStaticRgbPayload(32, 48, 64, 70);
+        assert(transport->rgbConfig() == expectedBackup);
+
+        std::vector<std::pair<std::uint8_t, std::uint8_t>> restoreRanges;
+        std::vector<std::uint8_t> restoreLatchValues;
+        std::uint8_t restoreRangeStart = 0;
+        for (auto it = transport->writes.begin() + writesBeforeRestore;
+             it != transport->writes.end(); ++it) {
+            const auto& report = *it;
+            if (report.size() > 7 &&
+                report[3] == asb::flydigi::kCmdWriteRgbStart) {
+                restoreRangeStart = report[6];
+                restoreRanges.emplace_back(report[6], report[7]);
+            } else if (report.size() > 8 &&
+                       report[3] == asb::flydigi::kCmdWriteRgbPack &&
+                       restoreRangeStart == 0 && report[5] == 0) {
+                restoreLatchValues.push_back(report[8]);
+            }
+        }
+        assert((restoreRanges ==
+                std::vector<std::pair<std::uint8_t, std::uint8_t>>{
+                    {std::uint8_t{0}, std::uint8_t{19}},
+                    {std::uint8_t{0}, std::uint8_t{1}}}));
+        assert((restoreLatchValues == std::vector<std::uint8_t>{1, 0}));
     }
 
     transport->failWrites = true;

@@ -10,6 +10,7 @@ $learningTestExe = Join-Path $root "tests\bin\Release\ApexSenseBridgeTray.Learni
 $outputDir = Join-Path $projectDir "bin\Release"
 $buildWinRelease = Join-Path $root "build-win\Release"
 $dist = Join-Path $root "dist"
+$runtimeDependencies = @("libVIIPER.dll", "viiper.exe")
 
 function Fail($message) {
     Write-Host ""
@@ -93,10 +94,29 @@ Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $dist -Force
 # Copy to root workspace
 Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $root -Force
 
+# Keep every runnable development output self-contained. ResolveEngine prefers
+# a colocated ApexSenseBridge.exe, so its virtual-controller backends must be
+# colocated as well or bridge diagnostics will fail before measurement starts.
+foreach ($dependency in $runtimeDependencies) {
+    $source = Join-Path $buildWinRelease $dependency
+    if (-not (Test-Path -LiteralPath $source)) {
+        Write-Warning "$dependency was not found in build-win\Release; standalone root/dist bridge tests will be unavailable."
+        continue
+    }
+    Copy-Item -LiteralPath $source -Destination (Join-Path $root $dependency) -Force
+    Copy-Item -LiteralPath $source -Destination (Join-Path $dist $dependency) -Force
+}
+
 # Copy to portable distribution if it exists
 $portableDir = Join-Path $dist "ApexSenseBridge-Portable"
 if (Test-Path $portableDir) {
     Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $portableDir -Force
+    foreach ($dependency in $runtimeDependencies) {
+        $source = Join-Path $buildWinRelease $dependency
+        if (Test-Path -LiteralPath $source) {
+            Copy-Item -LiteralPath $source -Destination (Join-Path $portableDir $dependency) -Force
+        }
+    }
 }
 
 Write-Host ""

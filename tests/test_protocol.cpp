@@ -276,17 +276,6 @@ int main() {
     apex4Input[1] = 0;
     assert(!decodeApex4InputReport(apex4Input));
 
-    const auto rgbReport = buildSetRgb(255, 128, 64);
-    assert(rgbReport[0] == kReportIdOut);
-    assert(rgbReport[1] == kMagic0);
-    assert(rgbReport[2] == kMagic1);
-    assert(rgbReport[3] == kCmdSetRgb);
-    assert(rgbReport[4] == 5);
-    assert(rgbReport[5] == 255);
-    assert(rgbReport[6] == 128);
-    assert(rgbReport[7] == 64);
-    assert(rgbReport[8] == 0xB9);
-
     const auto readRgbReport = buildReadRgbConfig(0, 20);
     assert(readRgbReport[0] == kReportIdOut);
     assert(readRgbReport[1] == kMagic0);
@@ -326,7 +315,7 @@ int main() {
     assert(staticPayload[1] == 0x03);
     assert(staticPayload[6] == 100);
     assert(staticPayload[7] == 12);
-    assert(staticPayload[8] == 0x01);
+    assert(staticPayload[8] == 0x04);
     assert(staticPayload[20] == 255);
     assert(staticPayload[21] == 128);
     assert(staticPayload[22] == 64);

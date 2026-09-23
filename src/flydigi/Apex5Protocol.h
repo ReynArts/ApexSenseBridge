@@ -27,7 +27,6 @@ constexpr std::uint8_t kCmdOperatorData = 0xEF;
 constexpr std::uint8_t kCmdSetForceTrigger = 81;
 constexpr std::uint8_t kCmdProfileStatus = 0xA1;
 constexpr std::uint8_t kCmdApplyProfile = 0xA2;
-constexpr std::uint8_t kCmdSetRgb = 245;
 constexpr std::uint8_t kCmdReadRgbConfig = 0xA7;
 constexpr std::uint8_t kCmdWriteRgbStart = 0xA8;
 constexpr std::uint8_t kCmdWriteRgbPack = 0xA9;
@@ -60,7 +59,6 @@ struct InputTransportStatus {
 [[nodiscard]] Report buildNormal(TriggerSide side);
 [[nodiscard]] Report buildRumble(std::uint8_t lowFrequencyMotor,
                                  std::uint8_t highFrequencyMotor);
-[[nodiscard]] Report buildSetRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b);
 [[nodiscard]] Report buildReadRgbConfig(std::uint8_t slot = 0, std::uint8_t packetSize = kRgbPacketSize);
 [[nodiscard]] Report buildWriteRgbStart(std::uint8_t slot, std::uint8_t startIndex, std::uint8_t packetCount, std::uint8_t packetSize = kRgbPacketSize);
 [[nodiscard]] Report buildWriteRgbPack(std::uint8_t packetIndex, std::span<const std::uint8_t> data);

@@ -252,12 +252,16 @@ int main() {
     assert(encodedLive[18] == 1);
     assert(encodedLive[31] == 87 && encodedLive[32] == 4);
 
-    std::array<std::uint8_t, 27> hidPayload{};
+    std::array<std::uint8_t, 30> hidPayload{};
     hidPayload[0] = 0x0F;
+    hidPayload[1] = 0x04;
     hidPayload[2] = 17;
     hidPayload[3] = 42;
     hidPayload[5] = 0x21;
     hidPayload[16] = 0x05;
+    hidPayload[27] = 12;
+    hidPayload[28] = 34;
+    hidPayload[29] = 56;
 
     DualSenseFeedback feedback{};
     assert(decodeViiperFeedbackFrame(0x01, hidPayload, feedback));
@@ -269,6 +273,14 @@ int main() {
     assert(feedback.hasRumble());
     assert(feedback.requestsRumbleUpdate());
     assert(feedback.hasTriggerEffect());
+    assert(feedback.hasLightbarColor());
+    assert(feedback.lightbarRed == 12);
+    assert(feedback.lightbarGreen == 34);
+    assert(feedback.lightbarBlue == 56);
+
+    hidPayload[1] = 0;
+    assert(decodeViiperFeedbackFrame(0x01, hidPayload, feedback));
+    assert(!feedback.hasLightbarColor());
 
     std::array<std::uint8_t, 26> shortHid{};
     assert(!decodeViiperFeedbackFrame(0x01, shortHid, feedback));

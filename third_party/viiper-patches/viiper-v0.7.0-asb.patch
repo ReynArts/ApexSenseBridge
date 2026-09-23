@@ -156,7 +156,7 @@ new file mode 100644
 index 0000000..11e75ac
 --- /dev/null
 +++ b/device/dualsense/asb_extensions.go
-@@ -0,0 +1,343 @@
+@@ -0,0 +1,352 @@
 +package dualsense
 +
 +import (
@@ -180,10 +180,13 @@ index 0000000..11e75ac
 +	EnableBits3        uint8
 +	RightTriggerEffect [11]uint8
 +	LeftTriggerEffect  [11]uint8
++	LightbarRed        uint8
++	LightbarGreen      uint8
++	LightbarBlue       uint8
 +}
 +
 +func (f *ASBOutputState) MarshalBinary() ([]byte, error) {
-+	b := make([]byte, 27)
++	b := make([]byte, 30)
 +	b[0] = f.EnableBits1
 +	b[1] = f.EnableBits2
 +	b[2] = f.RumbleRight
@@ -191,6 +194,9 @@ index 0000000..11e75ac
 +	b[4] = f.EnableBits3
 +	copy(b[5:16], f.RightTriggerEffect[:])
 +	copy(b[16:27], f.LeftTriggerEffect[:])
++	b[27] = f.LightbarRed
++	b[28] = f.LightbarGreen
++	b[29] = f.LightbarBlue
 +	return b, nil
 +}
 +
@@ -263,6 +269,9 @@ index 0000000..11e75ac
 +	copy(feedback.RightTriggerEffect[:], data[10:21])
 +	copy(feedback.LeftTriggerEffect[:], data[21:32])
 +	feedback.EnableBits3 = data[38]
++	feedback.LightbarRed = data[44]
++	feedback.LightbarGreen = data[45]
++	feedback.LightbarBlue = data[46]
 +	return feedback, true
 +}
 +
@@ -505,7 +514,7 @@ new file mode 100644
 index 0000000..2bfd9a1
 --- /dev/null
 +++ b/device/dualsense/asb_extensions_test.go
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,185 @@
 +package dualsense
 +
 +import (
@@ -569,6 +578,7 @@ index 0000000..2bfd9a1
 +	report[0] = ReportIDOutput
 +	report[1], report[2], report[3], report[4] = 0x0F, 0x04, 77, 155
 +	report[11], report[22], report[39] = 0x21, 0x22, 0x08
++	report[45], report[46], report[47] = 12, 34, 56
 +	ds.HandleTransfer(3, usbip.DirOut, report)
 +
 +	if official.RumbleSmall != 77 || official.RumbleLarge != 155 {
@@ -576,14 +586,15 @@ index 0000000..2bfd9a1
 +	}
 +	if extended.Type != FeedbackFrameHIDOutput || extended.HID.EnableBits1 != 0x0F ||
 +		extended.HID.EnableBits2 != 0x04 || extended.HID.EnableBits3 != 0x08 ||
-+		extended.HID.RightTriggerEffect[0] != 0x21 || extended.HID.LeftTriggerEffect[0] != 0x22 {
++		extended.HID.RightTriggerEffect[0] != 0x21 || extended.HID.LeftTriggerEffect[0] != 0x22 ||
++		extended.HID.LightbarRed != 12 || extended.HID.LightbarGreen != 34 || extended.HID.LightbarBlue != 56 {
 +		t.Fatalf("extended callback lost output fields: %+v", extended)
 +	}
 +	encoded, err := extended.MarshalBinary()
 +	if err != nil {
 +		t.Fatal(err)
 +	}
-+	if len(encoded) != 30 || encoded[0] != FeedbackFrameHIDOutput || binary.LittleEndian.Uint16(encoded[1:3]) != 27 {
++	if len(encoded) != 33 || encoded[0] != FeedbackFrameHIDOutput || binary.LittleEndian.Uint16(encoded[1:3]) != 30 {
 +		t.Fatalf("unexpected framed output: %x", encoded)
 +	}
 +}
@@ -602,6 +613,7 @@ index 0000000..2bfd9a1
 +	report[22] = 0x05
 +	report[32] = 0xBB
 +	report[39] = 0x04
++	report[45], report[46], report[47] = 21, 43, 65
 +
 +	feedback, ok := parseASBOutputReport(report)
 +	if !ok {
@@ -611,7 +623,8 @@ index 0000000..2bfd9a1
 +		feedback.RumbleRight != 68 || feedback.RumbleLeft != 215 ||
 +		feedback.RightTriggerEffect[0] != 0x21 || feedback.RightTriggerEffect[10] != 0xAA ||
 +		feedback.LeftTriggerEffect[0] != 0x05 || feedback.LeftTriggerEffect[10] != 0xBB ||
-+		feedback.EnableBits3 != 0x04 {
++		feedback.EnableBits3 != 0x04 || feedback.LightbarRed != 21 ||
++		feedback.LightbarGreen != 43 || feedback.LightbarBlue != 65 {
 +		t.Fatalf("48-byte USB output fields were shifted: %+v", feedback)
 +	}
 +}

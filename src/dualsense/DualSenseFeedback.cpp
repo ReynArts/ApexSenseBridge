@@ -63,6 +63,14 @@ bool decodeViiperFeedbackFrame(std::uint8_t frameType,
                     decoded.rightTriggerEffect.begin());
         std::copy_n(payload.begin() + 16, decoded.leftTriggerEffect.size(),
                     decoded.leftTriggerEffect.begin());
+        constexpr std::uint8_t kLightbarControlEnable = 0x04;
+        if (payload.size() >= 30 &&
+            (decoded.enableBits2 & kLightbarControlEnable) != 0) {
+            decoded.lightbarRed = payload[27];
+            decoded.lightbarGreen = payload[28];
+            decoded.lightbarBlue = payload[29];
+            decoded.hasLightbar = true;
+        }
         feedback = decoded;
         return true;
     }

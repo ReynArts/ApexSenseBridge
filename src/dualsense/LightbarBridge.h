@@ -3,6 +3,7 @@
 #include "dualsense/DualSenseFeedback.h"
 #include "flydigi/Apex5Device.h"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -18,9 +19,6 @@ struct LightbarBridgeStats {
     std::uint64_t writes = 0;
     std::uint64_t deduplicated = 0;
     std::uint64_t writeFailures = 0;
-    std::uint8_t lastRed = 0;
-    std::uint8_t lastGreen = 0;
-    std::uint8_t lastBlue = 0;
 };
 
 class LightbarBridge {
@@ -40,6 +38,9 @@ public:
 
 private:
     void workerLoop() noexcept;
+    bool writeWorkingColor(std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                           std::string& error);
+    void recordFailure(std::string error) noexcept;
 
     flydigi::Apex5Device& device_;
     std::uint8_t slot_ = 0;
@@ -47,7 +48,12 @@ private:
     mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::thread worker_;
-    std::atomic_bool running_{true};
+    std::atomic_bool running_{false};
+
+    std::array<std::uint8_t, flydigi::kRgbConfigSize> backupConfig_{};
+    std::array<std::uint8_t, flydigi::kRgbConfigSize> workingConfig_{};
+    bool hasBackup_ = false;
+    bool restored_ = false;
 
     bool hasTarget_ = false;
     std::uint8_t targetRed_ = 0;

@@ -137,11 +137,6 @@ Report buildRumble(std::uint8_t lowFrequencyMotor,
     return report;
 }
 
-Report buildSetRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
-    const std::array<std::uint8_t, 3> payload{r, g, b};
-    return buildChecksummedCommand(kCmdSetRgb, payload);
-}
-
 Report buildReadRgbConfig(std::uint8_t slot, std::uint8_t packetSize) {
     const std::array<std::uint8_t, 2> payload{slot, packetSize};
     return buildChecksummedCommand(kCmdReadRgbConfig, payload);
@@ -174,7 +169,7 @@ std::array<std::uint8_t, kRgbConfigSize> buildStaticRgbPayload(
     payload[5] = 0x00;
     payload[6] = brightness;
     payload[7] = static_cast<std::uint8_t>(kApex5LedCount);
-    payload[8] = 0x01;
+    payload[8] = 0x04;
     payload[9] = 0x00;
     std::fill_n(payload.begin() + 10, 10, std::uint8_t{0xFF});
     for (std::size_t offset = 20; offset + 2 < kRgbConfigSize; offset += 3) {

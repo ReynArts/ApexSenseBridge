@@ -79,10 +79,7 @@ jobs:
           files: |
             dist/ApexSenseBridge-Setup.exe
             dist/ApexSenseBridge-Portable.zip
-            dist/ApexSenseBridgeTray.exe
-            dist/ApexSenseBridgeTray.exe.config
             dist/*.pext
-            dist/SHA256SUMS.txt
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

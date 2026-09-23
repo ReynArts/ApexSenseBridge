@@ -21,7 +21,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="TabBorder" CornerRadius="6" Padding="12,7" Margin="0,0,6,0"
+                        <Border x:Name="TabBorder" CornerRadius="6" Padding="8,7" Margin="0,0,4,0"
                                 Background="{DynamicResource ControlBackground}"
                                 BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
                             <TextBlock x:Name="TabTxt" Text="{TemplateBinding Content}"
@@ -190,8 +190,6 @@
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="{DynamicResource Loc_ControllerTestTitle}" FontSize="15" FontWeight="Bold"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="{DynamicResource Loc_ControllerTestSubtitle}" FontSize="11"
-                                       Foreground="{DynamicResource TextMuted}" Margin="0,1,0,0"/>
                         </StackPanel>
                     </StackPanel>
                 </DockPanel>
@@ -391,25 +389,29 @@
                         </Grid.RowDefinitions>
 
                         <!-- Onglets de sélection du banc de test -->
-                        <WrapPanel Grid.Row="0" Margin="0,0,0,14">
-                            <RadioButton x:Name="TabTriggers" Content="{DynamicResource Loc_TestTabTriggers}" Style="{StaticResource TestTabButton}"
-                                         IsChecked="True" Checked="OnTestSubTabChanged"/>
-                            <RadioButton x:Name="TabVibration" Content="{DynamicResource Loc_TestTabVibration}" Style="{StaticResource TestTabButton}"
-                                         Checked="OnTestSubTabChanged"/>
-                            <RadioButton x:Name="TabRgb" Content="{DynamicResource Loc_TestTabRgb}" Style="{StaticResource TestTabButton}"
-                                         Checked="OnTestSubTabChanged"/>
-                            <RadioButton x:Name="TabMapping" Content="{DynamicResource Loc_TestTabMapping}" Style="{StaticResource TestTabButton}"
-                                         Checked="OnTestSubTabChanged"/>
-                            <RadioButton x:Name="TabGyro" Content="{DynamicResource Loc_TestTabGyro}" Style="{StaticResource TestTabButton}"
-                                         Checked="OnTestSubTabChanged"/>
-                        </WrapPanel>
+                        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                            <UniformGrid Columns="3" Margin="0,0,0,5">
+                                <RadioButton x:Name="TabMapping" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabMapping}"
+                                             Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
+                                <RadioButton x:Name="TabGyro" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabGyro}"
+                                             Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
+                                <RadioButton x:Name="TabLatency" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabLatency}"
+                                             Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
+                            </UniformGrid>
+
+                            <UniformGrid Columns="3">
+                                <RadioButton x:Name="TabTriggers" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabTriggers}"
+                                             Style="{StaticResource TestTabButton}" IsChecked="True" Checked="OnTestSubTabChanged"/>
+                                <RadioButton x:Name="TabVibration" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabVibration}"
+                                             Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
+                                <RadioButton x:Name="TabRgb" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabRgb}"
+                                             Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
+                            </UniformGrid>
+                        </StackPanel>
 
                         <!-- ══ SOUS-PANNEAU 1 : GÂCHETTES ADAPTATIVES ══ -->
                         <ScrollViewer x:Name="PanelTriggers" Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource Loc_AdaptiveTriggerTestDesc}" FontSize="12"
-                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-
                                 <!-- Cible Gâchette (LT, RT, Deux) -->
                                 <TextBlock Text="{DynamicResource Loc_TriggerSideTarget}" FontSize="12.5" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6"/>
@@ -423,13 +425,11 @@
                                 <TextBlock Text="{DynamicResource Loc_TriggerEffectMode}" FontSize="12.5" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6"/>
                                 <WrapPanel Margin="0,0,0,6">
-                                    <RadioButton x:Name="RadModeResistance" Content="{DynamicResource Loc_TriggerModeResistance}" Style="{StaticResource SegmentButton}" IsChecked="True" Checked="OnTriggerModeChanged"/>
-                                    <RadioButton x:Name="RadModeWeapon" Content="{DynamicResource Loc_TriggerModeWeapon}" Style="{StaticResource SegmentButton}" Checked="OnTriggerModeChanged"/>
-                                    <RadioButton x:Name="RadModeVibration" Content="{DynamicResource Loc_TriggerModeVibration}" Style="{StaticResource SegmentButton}" Checked="OnTriggerModeChanged"/>
-                                    <RadioButton x:Name="RadModeBow" Content="{DynamicResource Loc_TriggerModeBow}" Style="{StaticResource SegmentButton}" Checked="OnTriggerModeChanged"/>
+                                    <RadioButton x:Name="RadModeResistance" Content="{DynamicResource Loc_TriggerModeResistance}" Style="{StaticResource SegmentButton}" IsChecked="True"/>
+                                    <RadioButton x:Name="RadModeWeapon" Content="{DynamicResource Loc_TriggerModeWeapon}" Style="{StaticResource SegmentButton}"/>
+                                    <RadioButton x:Name="RadModeVibration" Content="{DynamicResource Loc_TriggerModeVibration}" Style="{StaticResource SegmentButton}"/>
+                                    <RadioButton x:Name="RadModeBow" Content="{DynamicResource Loc_TriggerModeBow}" Style="{StaticResource SegmentButton}"/>
                                 </WrapPanel>
-                                <TextBlock x:Name="TxtTriggerModeExpl" Text="{DynamicResource Loc_TriggerExplResistance}" FontSize="11"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                                 <!-- Niveaux d'intensité (1 à 4) -->
                                 <TextBlock Text="{DynamicResource Loc_TriggerIntensityLevel}" FontSize="12.5" FontWeight="SemiBold"
@@ -454,9 +454,6 @@
                         <!-- ══ SOUS-PANNEAU 2 : VIBRATION (RUMBLE) ══ -->
                         <ScrollViewer x:Name="PanelVibration" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource Loc_VibrationTestDesc}" FontSize="12"
-                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,14"/>
-
                                 <!-- Moteur Gauche (Bass) -->
                                 <DockPanel Margin="0,0,0,4">
                                     <TextBlock Text="{DynamicResource Loc_VibrationMotorLeft}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
@@ -492,9 +489,6 @@
                         <!-- ══ SOUS-PANNEAU 3 : LIGHTSYNC RGB DUALSENSE ══ -->
                         <ScrollViewer x:Name="PanelRgb" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource Loc_RgbTestDesc}" FontSize="12"
-                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-
                                 <!-- Palette Couleurs Prédéfinies -->
                                 <TextBlock Text="{DynamicResource Loc_RgbPresetsTitle}" FontSize="12.5" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"/>
@@ -516,19 +510,19 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <DockPanel Margin="0,0,0,2">
-                                            <TextBlock Text="R (Rouge)" FontSize="11.5" Foreground="#FF5252" FontWeight="SemiBold"/>
+                                            <TextBlock Text="R" FontSize="11.5" Foreground="#FF5252" FontWeight="SemiBold"/>
                                             <TextBlock x:Name="TxtRgbR" Text="0" FontSize="11.5" Foreground="#FF5252" HorizontalAlignment="Right"/>
                                         </DockPanel>
                                         <Slider x:Name="SliderR" Minimum="0" Maximum="255" Value="0" ValueChanged="OnRgbSliderChanged" Margin="0,0,0,6"/>
 
                                         <DockPanel Margin="0,0,0,2">
-                                            <TextBlock Text="V (Vert)" FontSize="11.5" Foreground="#69F0AE" FontWeight="SemiBold"/>
+                                            <TextBlock Text="G" FontSize="11.5" Foreground="#69F0AE" FontWeight="SemiBold"/>
                                             <TextBlock x:Name="TxtRgbG" Text="55" FontSize="11.5" Foreground="#69F0AE" HorizontalAlignment="Right"/>
                                         </DockPanel>
                                         <Slider x:Name="SliderG" Minimum="0" Maximum="255" Value="55" ValueChanged="OnRgbSliderChanged" Margin="0,0,0,6"/>
 
                                         <DockPanel Margin="0,0,0,2">
-                                            <TextBlock Text="B (Bleu)" FontSize="11.5" Foreground="#448AFF" FontWeight="SemiBold"/>
+                                            <TextBlock Text="B" FontSize="11.5" Foreground="#448AFF" FontWeight="SemiBold"/>
                                             <TextBlock x:Name="TxtRgbB" Text="145" FontSize="11.5" Foreground="#448AFF" HorizontalAlignment="Right"/>
                                         </DockPanel>
                                         <Slider x:Name="SliderB" Minimum="0" Maximum="255" Value="145" ValueChanged="OnRgbSliderChanged"/>
@@ -552,9 +546,6 @@
                         <!-- ══ SOUS-PANNEAU 4 : MAPPING & PERSISTANCE ══ -->
                         <ScrollViewer x:Name="PanelMapping" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource Loc_MappingTestDesc}" FontSize="12"
-                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,14"/>
-
                                 <!-- Carte Récapitulative du Profil Actif -->
                                 <Border CornerRadius="8" Background="{DynamicResource ControlBackground}" Padding="14,12" Margin="0,0,0,12">
                                     <StackPanel>
@@ -568,23 +559,11 @@
                                             <TextBlock x:Name="TxtCurrentApexSlotBadge" Text="{DynamicResource Loc_ApexProfileKeep}" FontSize="12" FontWeight="Bold"
                                                        Foreground="{DynamicResource PlayStationBlue}" HorizontalAlignment="Right"/>
                                         </DockPanel>
-                                        <DockPanel>
-                                            <TextBlock Text="{DynamicResource Loc_StorageFile}" FontSize="12" Foreground="{DynamicResource TextMuted}"/>
-                                            <TextBlock Text="tray_settings.json" FontSize="11.5" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Right"/>
-                                        </DockPanel>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Validation de la persistance -->
-                                <Border CornerRadius="8" Background="#14261C" BorderBrush="#22543D" BorderThickness="1" Padding="14,10" Margin="0,0,0,14">
-                                    <DockPanel LastChildFill="True">
-                                        <TextBlock Text="✓" FontSize="16" FontWeight="Bold" Foreground="#48BB78" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{DynamicResource Loc_PersistenceVerifiedTitle}" FontSize="12.5" FontWeight="Bold" Foreground="#48BB78"/>
-                                            <TextBlock x:Name="TxtPersistenceTimestamp" Text="{DynamicResource Loc_PersistenceVerifiedDesc}" FontSize="11" Foreground="#9AE6B4"/>
-                                        </StackPanel>
-                                    </DockPanel>
-                                </Border>
+                                <TextBlock x:Name="TxtPersistenceTimestamp" Text="{DynamicResource Loc_PersistenceVerifiedDesc}"
+                                           FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,10"/>
 
                                 <!-- Bouton Vérification Persistance -->
                                 <StackPanel Orientation="Horizontal">
@@ -597,9 +576,6 @@
                         <!-- ══ SOUS-PANNEAU 5 : GYROSCOPE & ACCÉLÉROMÈTRE 6-AXES ══ -->
                         <ScrollViewer x:Name="PanelGyro" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource Loc_GyroTestDesc}" FontSize="12"
-                                           Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-
                                 <!-- Carte Horizon Artificiel & Angles Pitch/Roll -->
                                 <Border CornerRadius="8" Background="{DynamicResource ControlBackground}" Padding="14,12" Margin="0,0,0,12">
                                     <Grid>
@@ -644,8 +620,6 @@
                                                     <Ellipse Width="8" Height="8" Fill="#F59E0B" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Grid>
                                             </Border>
-                                            <TextBlock Text="HORIZON ARTIFICIEL" FontSize="9" FontWeight="Bold"
-                                                       Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,6,0,0"/>
                                         </StackPanel>
 
                                         <!-- Données d'orientation (Pitch, Roll, Statut) -->
@@ -768,10 +742,72 @@
                             </StackPanel>
                         </ScrollViewer>
 
+                        <!-- SOUS-PANNEAU 6 : LATENCE NATIVE ET BRIDGE -->
+                        <ScrollViewer x:Name="PanelLatency" Grid.Row="1" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Loc_LatencyAccuracyNote}" FontSize="10.5"
+                                           Foreground="#93C5FD" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" CornerRadius="8" Background="{DynamicResource ControlBackground}"
+                                            BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" Padding="12">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <Button x:Name="BtnTestNativeLatency" DockPanel.Dock="Right"
+                                                        Content="{DynamicResource Loc_BtnRunLatencyTest}"
+                                                        Style="{StaticResource BtnPrimary}" Click="OnNativeLatencyClick"/>
+                                                <TextBlock Text="{DynamicResource Loc_LatencyNativeTitle}" FontSize="13" FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"
+                                                           ToolTip="{DynamicResource Loc_LatencyNativeDesc}"/>
+                                            </DockPanel>
+                                            <TextBlock x:Name="TxtNativeLatencyMain" Text="—" FontSize="25" FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
+                                            <TextBlock Text="{DynamicResource Loc_LatencyNativeMetric}" FontSize="10"
+                                                       Foreground="{DynamicResource TextMuted}"/>
+                                            <TextBlock x:Name="TxtNativeLatencyPercentiles" Text="P95 —  •  P99 —" FontSize="10.5"
+                                                       Foreground="{DynamicResource TextSecondary}" Margin="0,7,0,0"/>
+                                            <TextBlock x:Name="TxtNativeLatencySamples" Text="—" FontSize="10"
+                                                       Foreground="{DynamicResource TextMuted}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Column="2" CornerRadius="8" Background="{DynamicResource ControlBackground}"
+                                            BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" Padding="12">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <Button x:Name="BtnTestBridgeLatency" DockPanel.Dock="Right"
+                                                        Content="{DynamicResource Loc_BtnRunLatencyTest}"
+                                                        Style="{StaticResource BtnPrimary}" Click="OnBridgeLatencyClick"/>
+                                                <TextBlock Text="{DynamicResource Loc_LatencyBridgeTitle}" FontSize="13" FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"
+                                                           ToolTip="{DynamicResource Loc_LatencyBridgeDesc}"/>
+                                            </DockPanel>
+                                            <TextBlock x:Name="TxtBridgeLatencyMain" Text="—" FontSize="25" FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
+                                            <TextBlock Text="{DynamicResource Loc_LatencyBridgeMetric}" FontSize="10"
+                                                       Foreground="{DynamicResource TextMuted}"/>
+                                            <TextBlock x:Name="TxtBridgeLatencyPercentiles" Text="P95 —  •  P99 —" FontSize="10.5"
+                                                       Foreground="{DynamicResource TextSecondary}" Margin="0,7,0,0"/>
+                                            <TextBlock x:Name="TxtBridgeLatencySamples" Text="—" FontSize="10"
+                                                       Foreground="{DynamicResource TextMuted}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </ScrollViewer>
+
                         <!-- Barre d'état inférieure du banc de test -->
                         <Border Grid.Row="2" Margin="0,10,0,0" Padding="0,8,0,0" BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,1,0,0">
                             <TextBlock x:Name="TxtTestFeedback" Text="{DynamicResource Loc_ReadyForTesting}" FontSize="11.5"
-                                       Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"/>
+                                       Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Left"
+                                       TextWrapping="Wrap" MaxHeight="38"
+                                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
                         </Border>
                     </Grid>
                 </Border>
@@ -780,13 +816,8 @@
             <!-- FOOTER -->
             <Border Grid.Row="2" CornerRadius="0,0,12,12" Padding="18,10,18,12"
                     Background="{DynamicResource FooterBackground}">
-                <DockPanel LastChildFill="True">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="{DynamicResource Loc_TrayZeroCostHint}" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                    </StackPanel>
-                    <Button Content="{DynamicResource Loc_BtnClose}" Style="{StaticResource BtnSecondary}"
-                            Padding="14,6" FontSize="12" HorizontalAlignment="Right" Click="OnCloseClick"/>
-                </DockPanel>
+                <Button Content="{DynamicResource Loc_BtnClose}" Style="{StaticResource BtnSecondary}"
+                        Padding="14,6" FontSize="12" HorizontalAlignment="Right" Click="OnCloseClick"/>
             </Border>
         </Grid>
     </Border>

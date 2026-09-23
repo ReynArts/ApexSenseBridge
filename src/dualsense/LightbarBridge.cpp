@@ -1,11 +1,20 @@
 #include "dualsense/LightbarBridge.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace asb::dualsense {
 
 LightbarBridge::LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot)
     : device_(device), slot_(slot) {
+    std::string error;
+    if (!device_.readRgbConfig(slot_, backupConfig_, error)) {
+        recordFailure(std::move(error));
+        return;
+    }
+    workingConfig_ = backupConfig_;
+    hasBackup_ = true;
+    running_.store(true, std::memory_order_relaxed);
     worker_ = std::thread(&LightbarBridge::workerLoop, this);
 }
 
@@ -14,14 +23,25 @@ LightbarBridge::~LightbarBridge() {
 }
 
 void LightbarBridge::restore() {
-    if (running_.exchange(false)) {
+    if (running_.exchange(false, std::memory_order_relaxed)) {
         cv_.notify_all();
-        if (worker_.joinable()) {
-            worker_.join();
-        }
-        std::string err;
-        device_.applyProfile(slot_, err);
     }
+    if (worker_.joinable()) {
+        worker_.join();
+    }
+    if (!hasBackup_ || restored_) return;
+
+    restored_ = true;
+    std::string error;
+    auto latchedBackup = backupConfig_;
+    latchedBackup[2] = 1;
+    if (!device_.writeRgbConfig(slot_, latchedBackup, error) ||
+        !device_.writeRgbConfigRange(slot_, 0, 1, backupConfig_, error) ||
+        !device_.applyProfile(slot_, error)) {
+        recordFailure(std::move(error));
+        return;
+    }
+    workingConfig_ = backupConfig_;
 }
 
 void LightbarBridge::handle(const DualSenseFeedback& feedback) {
@@ -98,7 +118,7 @@ void LightbarBridge::workerLoop() noexcept {
 
         if (shouldWrite) {
             std::string err;
-            if (device_.setRgb(r, g, b, err, slot_)) {
+            if (writeWorkingColor(r, g, b, err)) {
                 std::lock_guard lock(mutex_);
                 writtenRed_ = r;
                 writtenGreen_ = g;
@@ -107,13 +127,53 @@ void LightbarBridge::workerLoop() noexcept {
                 writes_.fetch_add(1, std::memory_order_relaxed);
                 lastSend = std::chrono::steady_clock::now();
             } else {
-                writeFailures_.fetch_add(1, std::memory_order_relaxed);
-                failed_.store(true, std::memory_order_relaxed);
-                std::lock_guard errLock(errorMutex_);
-                error_ = std::move(err);
+                recordFailure(std::move(err));
+                running_.store(false, std::memory_order_relaxed);
+                break;
             }
         }
     }
+}
+
+bool LightbarBridge::writeWorkingColor(
+    std::uint8_t r, std::uint8_t g, std::uint8_t b, std::string& error) {
+    constexpr std::size_t kHeaderSize = 20;
+    auto loaded = workingConfig_;
+    loaded[2] = 1;
+    loaded[3] = 0;
+    loaded[4] = 9;
+    loaded[5] = 1;
+    loaded[6] = 100;
+    loaded[7] = static_cast<std::uint8_t>(flydigi::kApex5LedCount);
+    loaded[8] = 4;
+    loaded[9] = 0;
+    std::fill(loaded.begin() + 10, loaded.begin() + kHeaderSize,
+              std::uint8_t{0xFF});
+    for (std::size_t offset = kHeaderSize;
+         offset + 2 < loaded.size(); offset += 3) {
+        loaded[offset] = r;
+        loaded[offset + 1] = g;
+        loaded[offset + 2] = b;
+    }
+    if (!device_.writeRgbConfig(slot_, loaded, error)) {
+        return false;
+    }
+    workingConfig_ = loaded;
+
+    auto visible = workingConfig_;
+    visible[2] = 0;
+    if (!device_.writeRgbConfigRange(slot_, 0, 1, visible, error)) {
+        return false;
+    }
+    workingConfig_ = visible;
+    return true;
+}
+
+void LightbarBridge::recordFailure(std::string error) noexcept {
+    writeFailures_.fetch_add(1, std::memory_order_relaxed);
+    failed_.store(true, std::memory_order_relaxed);
+    std::lock_guard lock(errorMutex_);
+    error_ = std::move(error);
 }
 
 bool LightbarBridge::failed() const noexcept {
@@ -132,9 +192,6 @@ LightbarBridgeStats LightbarBridge::stats() const noexcept {
     result.writes = writes_.load(std::memory_order_relaxed);
     result.deduplicated = deduplicated_.load(std::memory_order_relaxed);
     result.writeFailures = writeFailures_.load(std::memory_order_relaxed);
-    result.lastRed = writtenRed_;
-    result.lastGreen = writtenGreen_;
-    result.lastBlue = writtenBlue_;
     return result;
 }
 

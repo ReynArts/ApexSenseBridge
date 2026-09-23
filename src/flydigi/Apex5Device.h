@@ -55,15 +55,17 @@ public:
                    std::uint8_t highFrequencyMotor,
                    std::string& error);
     bool stopRumble(std::string& error);
-    bool setRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                std::string& error, std::uint8_t slot = 0,
-                std::uint8_t brightness = 100);
     bool readRgbConfig(std::uint8_t slot,
                        std::array<std::uint8_t, kRgbConfigSize>& outConfig,
                        std::string& error);
     bool writeRgbConfig(std::uint8_t slot,
                         std::span<const std::uint8_t> payload,
                         std::string& error);
+    bool writeRgbConfigRange(std::uint8_t slot,
+                             std::uint8_t firstPacket,
+                             std::uint8_t packetCount,
+                             std::span<const std::uint8_t> payload,
+                             std::string& error);
     bool readProfileStatus(ProfileStatus& status, std::string& error);
     bool applyProfile(std::uint8_t slot, std::string& error);
     bool readInputTransportStatus(InputTransportStatus& status,

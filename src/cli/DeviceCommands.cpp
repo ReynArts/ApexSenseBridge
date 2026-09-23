@@ -7,6 +7,7 @@
 #include "dualsense/VirtualDualSense.h"
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/AdaptiveTriggerTranslation.h"
+#include "dualsense/LightbarBridge.h"
 #include "dualsense/RumbleBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
 #include "flydigi/Apex5Device.h"
@@ -1066,24 +1067,12 @@ int commandTestRgb(int argc, char** argv) {
 
     const std::uint8_t activeSlot = hasProfile ? originalProfile.slot : 0;
 
-    std::array<std::uint8_t, asb::flydigi::kRgbConfigSize> backupConfig{};
-    const bool hasBackup = device->readRgbConfig(activeSlot, backupConfig, error);
-    error.clear();
-
-    struct RgbRestoreGuard {
-        asb::flydigi::Apex5Device* dev = nullptr;
-        std::uint8_t slot = 0;
-        std::array<std::uint8_t, asb::flydigi::kRgbConfigSize> config{};
-        bool backup = false;
-        bool profile = false;
-        ~RgbRestoreGuard() {
-            if (dev) {
-                std::string err;
-                if (backup) dev->writeRgbConfig(slot, config, err);
-                if (profile) dev->applyProfile(slot, err);
-            }
-        }
-    } guard{&(*device), activeSlot, backupConfig, hasBackup, hasProfile};
+    asb::dualsense::LightbarBridge lightbar(*device, activeSlot);
+    if (lightbar.failed()) {
+        std::cerr << "Could not initialize temporary RGB control: "
+                  << lightbar.error() << '\n';
+        return 12;
+    }
 
     for (const auto& step : steps) {
         if (g_stopRequested.load(std::memory_order_relaxed)) break;
@@ -1093,8 +1082,23 @@ int commandTestRgb(int argc, char** argv) {
                   << static_cast<int>(step.g) << ", "
                   << static_cast<int>(step.b) << ")... ";
 
-        if (!device->setRgb(step.r, step.g, step.b, error, activeSlot)) {
-            std::cout << "FAILED: " << error << '\n';
+        asb::dualsense::DualSenseFeedback feedback{};
+        feedback.hasLightbar = true;
+        feedback.lightbarRed = step.r;
+        feedback.lightbarGreen = step.g;
+        feedback.lightbarBlue = step.b;
+        const auto previousWrites = lightbar.stats().writes;
+        lightbar.handle(feedback);
+        const auto writeDeadline = std::chrono::steady_clock::now() +
+                                   std::chrono::milliseconds(500);
+        while (!lightbar.failed() && lightbar.stats().writes == previousWrites &&
+               std::chrono::steady_clock::now() < writeDeadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        if (lightbar.failed() || lightbar.stats().writes == previousWrites) {
+            std::cout << "FAILED: "
+                      << (lightbar.failed() ? lightbar.error() : "RGB write timed out")
+                      << '\n';
             return 12;
         }
         std::cout << "OK\n";
@@ -1109,13 +1113,11 @@ int commandTestRgb(int argc, char** argv) {
     }
 
     std::cout << "Restoring controller profile lighting... ";
-    if (hasBackup) {
-        device->writeRgbConfig(activeSlot, backupConfig, error);
+    lightbar.restore();
+    if (lightbar.failed()) {
+        std::cout << "FAILED: " << lightbar.error() << '\n';
+        return 12;
     }
-    if (hasProfile) {
-        device->applyProfile(originalProfile.slot, error);
-    }
-    guard.dev = nullptr;
     std::cout << "OK\n";
     return 0;
 }

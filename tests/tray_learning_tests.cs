@@ -4,6 +4,7 @@ using ApexSenseBridgeTray.Services;
 using ApexSenseBridge.Common;
 using ApexSenseBridge.Security;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -26,6 +27,7 @@ internal static class TrayLearningTests
         try
         {
             TestReleaseAssetPolicy();
+            TestLatencyStatisticsAndTelemetry();
             TestColocatedEngineTakesPriority();
             TestStableLearningResolutionExportAndDeletion(testRoot);
             TestCancelledAndUnstableSessionsAreNotLearned(testRoot);
@@ -81,6 +83,35 @@ internal static class TrayLearningTests
             "ApexSenseBridge-Setup.exe",
             "https://github.com.evil.example/ReynArts/ApexSenseBridge/releases/download/v0.6.3/ApexSenseBridge-Setup.exe"),
             "a lookalike GitHub host must be rejected");
+    }
+
+    private static void TestLatencyStatisticsAndTelemetry()
+    {
+        var samples = new List<double> { 0.1, 0.2, 0.3, 0.4, 2.0 };
+        Assert(Math.Abs(ControllerTestService.Percentile(samples, 50) - 0.3) < 0.0001,
+            "latency P50 should use the nearest-rank percentile");
+        Assert(Math.Abs(ControllerTestService.Percentile(samples, 95) - 2.0) < 0.0001,
+            "latency P95 should include the tail sample");
+
+        const string telemetry = "{" +
+            "\"forward_latency_us_p50\":671," +
+            "\"forward_latency_us_p95\":1210," +
+            "\"forward_latency_us_p99\":1545," +
+            "\"forward_latency_samples\":4321," +
+            "\"virtual_report_rate_hz\":812.5}";
+        var result = ControllerTestService.ParseBridgeTelemetry(telemetry);
+        Assert(result.Success && result.IsBridge && result.Samples == 4321,
+            "valid bridge latency telemetry should produce a successful result");
+        Assert(Math.Abs(result.P50Milliseconds - 0.671) < 0.0001 &&
+               Math.Abs(result.P99Milliseconds - 1.545) < 0.0001,
+            "bridge telemetry should convert microseconds to milliseconds");
+        Assert(Math.Abs(result.UpdateRateHz - 812.5) < 0.0001,
+            "bridge telemetry should preserve the virtual report rate");
+
+        var empty = ControllerTestService.ParseBridgeTelemetry(
+            "{\"forward_latency_samples\":0}");
+        Assert(!empty.Success && !string.IsNullOrWhiteSpace(empty.Error),
+            "zero-sample bridge telemetry should be rejected");
     }
 
     private static void TestColocatedEngineTakesPriority()

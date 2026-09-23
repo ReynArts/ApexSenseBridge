@@ -608,6 +608,15 @@ bool Apex5Device::writeRgbConfig(
     std::uint8_t slot,
     std::span<const std::uint8_t> payload,
     std::string& error) {
+    return writeRgbConfigRange(slot, 0, kRgbPacketCount, payload, error);
+}
+
+bool Apex5Device::writeRgbConfigRange(
+    std::uint8_t slot,
+    std::uint8_t firstPacket,
+    std::uint8_t packetCount,
+    std::span<const std::uint8_t> payload,
+    std::string& error) {
     if (!isOpen()) {
         error = "APEX device is not open";
         return false;
@@ -619,44 +628,30 @@ bool Apex5Device::writeRgbConfig(
         error = "RGB payload too small";
         return false;
     }
-
-    const auto lock = acquireWriteLock();
-    const auto startReport = buildWriteRgbStart(slot, 0, kRgbPacketCount, kRgbPacketSize);
-    if (!transport_->writeOutputReport(startReport, error)) {
+    const auto endPacket = static_cast<std::size_t>(firstPacket) + packetCount;
+    if (packetCount == 0 || firstPacket >= kRgbPacketCount ||
+        endPacket > kRgbPacketCount) {
+        error = "RGB packet range is invalid";
         return false;
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    const auto lock = acquireWriteLock();
+    const auto startReport = buildWriteRgbStart(
+        slot, firstPacket, packetCount, kRgbPacketSize);
+    if (!exchangeCommand(*transport_, startReport, kCmdWriteRgbStart, error)) {
+        return false;
+    }
 
-    for (std::uint8_t packIndex = 0; packIndex < kRgbPacketCount; ++packIndex) {
-        const auto offset = static_cast<std::size_t>(packIndex) * kRgbPacketSize;
+    for (std::size_t packet = firstPacket; packet < endPacket; ++packet) {
+        const auto packIndex = static_cast<std::uint8_t>(packet - firstPacket);
+        const auto offset = packet * kRgbPacketSize;
         const auto chunk = std::span<const std::uint8_t>(payload.data() + offset, kRgbPacketSize);
         const auto packReport = buildWriteRgbPack(packIndex, chunk);
-        if (!transport_->writeOutputReport(packReport, error)) {
+        if (!exchangeCommand(*transport_, packReport, kCmdWriteRgbPack, error)) {
             return false;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     return true;
-}
-
-bool Apex5Device::setRgb(std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                         std::string& error, std::uint8_t /*slot*/,
-                         std::uint8_t /*brightness*/) {
-    if (!isOpen()) {
-        error = "APEX device is not open";
-        return false;
-    }
-    if (!mayWriteEffects(error)) {
-        return false;
-    }
-
-    // 0xF5 is the volatile, single-report LED command.  Do not use the
-    // multi-packet profile writer here: lightbar feedback can arrive many
-    // times per second, and repeatedly rewriting the profile interrupts the
-    // controller's physical input stream.
-    const auto lock = acquireWriteLock();
-    return transport_->writeOutputReport(buildSetRgb(r, g, b), error);
 }
 
 bool Apex5Device::requestBatteryRefresh(std::string& error) {

@@ -427,12 +427,13 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
 
     std::optional<asb::flydigi::ProfileStatus> originalProfile;
+    std::optional<asb::flydigi::InputTransportStatus> originalInputTransport;
     bool profileSwitchRequired = false;
     bool profileSwitchAcknowledged = true;
-    if (options.apexProfileSlot) {
+    if (options.apexProfileSlot || options.syncLightbar) {
         if (!device->identity() || !device->identity()->isApex5()) {
             constexpr std::string_view message =
-                "--apex-profile currently supports a verified Apex 5 only.";
+                "APEX profile and RGB control require a verified Apex 5.";
             std::cerr << message << '\n';
             return failSession(15, message);
         }
@@ -457,13 +458,25 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
         if (first.switchBank) {
             constexpr std::string_view message =
-                "The Apex 5 is using its Nintendo Switch profile bank; the "
-                "XInput profile switch was refused.";
+                "The Apex 5 is using its Nintendo Switch profile bank; "
+                "XInput profile and RGB control were refused.";
             std::cerr << message << '\n';
             return failSession(15, message);
         }
         originalProfile = first;
-        profileSwitchRequired = first.slot != *options.apexProfileSlot;
+        profileSwitchRequired = options.apexProfileSlot &&
+                                first.slot != *options.apexProfileSlot;
+        if (profileSwitchRequired) {
+            asb::flydigi::InputTransportStatus transport{};
+            error.clear();
+            if (!device->readInputTransportStatus(transport, error)) {
+                const std::string message =
+                    "Could not read the original Apex 5 input transport: " + error;
+                std::cerr << message << '\n';
+                return failSession(15, message);
+            }
+            originalInputTransport = transport;
+        }
     }
     asb::TriggerResetGuard resetOnExit(*device);
     if (!device->clearAll(error)) {
@@ -532,9 +545,17 @@ int commandBridgeTriggers(int argc, char** argv) {
     auto rumbleBridge = options.routeRumble
         ? std::make_unique<asb::dualsense::RumbleBridge>(*device, hapticConfig)
         : std::unique_ptr<asb::dualsense::RumbleBridge>{};
+    const auto lightbarSlot = options.apexProfileSlot.value_or(
+        originalProfile ? originalProfile->slot : 0);
     auto lightbarBridge = options.syncLightbar
-        ? std::make_unique<asb::dualsense::LightbarBridge>(*device, options.apexProfileSlot.value_or(0))
+        ? std::make_unique<asb::dualsense::LightbarBridge>(*device, lightbarSlot)
         : std::unique_ptr<asb::dualsense::LightbarBridge>{};
+    if (lightbarBridge && lightbarBridge->failed()) {
+        const std::string message =
+            "Could not initialize temporary RGB routing: " + lightbarBridge->error();
+        std::cerr << message << '\n';
+        return failSession(16, message);
+    }
     asb::dualsense::VirtualDualSenseOptions backendOptions{};
     backendOptions.viiperExecutable = std::move(options.viiperExecutable);
     backendOptions.backend = options.virtualBackend;
@@ -697,6 +718,13 @@ int commandBridgeTriggers(int argc, char** argv) {
         // before the controller receives the temporary switch command.
         profileRestoreOnExit = std::make_unique<asb::ApexProfileRestoreGuard>(
             *device, originalProfile->slot);
+        if (!physicalIsolation.armApexInputTransportRestore(
+                originalInputTransport->controllerData,
+                originalInputTransport->rawData, error)) {
+            return rollbackFailedProfileStartup(
+                11, "Could not arm Apex 5 input-transport recovery: " + error);
+        }
+        inputSource.reset();
         error.clear();
         profileSwitchAcknowledged =
             device->applyProfile(*options.apexProfileSlot, error);
@@ -735,10 +763,15 @@ int commandBridgeTriggers(int argc, char** argv) {
                     "the Apex 5 profile switch: " + baselineError);
         }
 
-        // A profile change invalidates the vendor input stream even when the
-        // control handle remains usable. Close the pre-switch reader before
-        // opening a fresh HID/XInput pair for the selected onboard slot.
-        inputSource.reset();
+        // The firmware applies the new profile about one second after its ACK.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+        baselineError.clear();
+        if (!device->setInputTransport(true, true, baselineError)) {
+            return rollbackFailedProfileStartup(
+                8, "Could not restart the Apex 5 physical input stream after "
+                   "profile switch: " + baselineError);
+        }
+
         const auto reopenDeadline = std::chrono::steady_clock::now() +
                                     std::chrono::milliseconds(1500);
         std::string reopenError;
@@ -1140,10 +1173,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     const auto rumbleStats = rumbleBridge
         ? rumbleBridge->stats()
         : asb::dualsense::RumbleBridgeStats{};
+    if (lightbarBridge) lightbarBridge->restore();
     const auto lightbarStats = lightbarBridge
         ? lightbarBridge->stats()
         : asb::dualsense::LightbarBridgeStats{};
-    if (lightbarBridge) lightbarBridge->restore();
     std::string rumbleResetError;
     const bool rumbleResetOk = !rumbleBridge || device->stopRumble(rumbleResetError);
     if (rumbleResetOk && rumbleResetOnExit) rumbleResetOnExit->dismiss();

@@ -3,9 +3,11 @@ using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Web.Script.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -55,8 +57,23 @@ namespace ApexSenseBridgeTray.Services
         public bool PsButton;      // PS / Guide
     }
 
+    public sealed class LatencyTestResult
+    {
+        public bool Success { get; set; }
+        public bool IsBridge { get; set; }
+        public double P50Milliseconds { get; set; }
+        public double P95Milliseconds { get; set; }
+        public double P99Milliseconds { get; set; }
+        public int Samples { get; set; }
+        public double UpdateRateHz { get; set; }
+        public string Error { get; set; }
+    }
+
     public class ControllerTestService : IDisposable
     {
+        private const string EngineSessionMutexName =
+            @"Local\ApexSenseBridge.ActiveSession.Owner.v1";
+
         [StructLayout(LayoutKind.Sequential)]
         private struct XINPUT_GAMEPAD
         {
@@ -122,6 +139,8 @@ namespace ApexSenseBridgeTray.Services
 
         private Process activeTestProcess;
         private readonly object processLock = new object();
+        private BridgeSession activeLatencySession;
+        private readonly object latencySessionLock = new object();
 
         public DualSenseVisualState PollInputState()
         {
@@ -193,6 +212,283 @@ namespace ApexSenseBridgeTray.Services
         {
             KillActiveTestProcess();
             return RunCliCommandAsync("clear");
+        }
+
+        public Task<LatencyTestResult> TestNativeLatencyAsync(int seconds, CancellationToken cancellationToken)
+        {
+            return Task.Run(() =>
+            {
+                var result = new LatencyTestResult { IsBridge = false };
+                if (IsBridgeSessionActive())
+                {
+                    result.Error = "A bridge session is already active. Stop it before running the native test.";
+                    return result;
+                }
+
+                XINPUT_STATE state = new XINPUT_STATE();
+                int controllerIndex = FindFirstConnectedXInputIndex(ref state);
+
+                if (controllerIndex < 0)
+                {
+                    result.Error = "No XInput controller is available.";
+                    return result;
+                }
+
+                var samples = new List<double>(Math.Max(1000, seconds * 1000));
+                uint lastPacket = state.dwPacketNumber;
+                int packetChanges = 0;
+                int failedReads = 0;
+                var elapsed = Stopwatch.StartNew();
+
+                while (elapsed.Elapsed < TimeSpan.FromSeconds(seconds))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    long started = Stopwatch.GetTimestamp();
+                    int status = GetXInputState(controllerIndex, ref state);
+                    long finished = Stopwatch.GetTimestamp();
+
+                    if (status == 0)
+                    {
+                        samples.Add((finished - started) * 1000.0 / Stopwatch.Frequency);
+                        if (state.dwPacketNumber != lastPacket)
+                        {
+                            lastPacket = state.dwPacketNumber;
+                            packetChanges++;
+                        }
+                    }
+                    else
+                    {
+                        failedReads++;
+                    }
+
+                    Thread.Sleep(1);
+                }
+
+                if (samples.Count == 0)
+                {
+                    result.Error = failedReads > 0
+                        ? "The controller disconnected during the test."
+                        : "No native input sample was collected.";
+                    return result;
+                }
+
+                samples.Sort();
+                result.Success = true;
+                result.Samples = samples.Count;
+                result.P50Milliseconds = Percentile(samples, 50);
+                result.P95Milliseconds = Percentile(samples, 95);
+                result.P99Milliseconds = Percentile(samples, 99);
+                result.UpdateRateHz = elapsed.Elapsed.TotalSeconds > 0
+                    ? packetChanges / elapsed.Elapsed.TotalSeconds
+                    : 0.0;
+                return result;
+            }, cancellationToken);
+        }
+
+        public Task<LatencyTestResult> TestBridgeLatencyAsync(
+            int seconds, int initializationTimeoutSeconds, CancellationToken cancellationToken)
+        {
+            return Task.Run(() =>
+            {
+                var result = new LatencyTestResult { IsBridge = true };
+                string telemetryPath = Path.Combine(
+                    Path.GetTempPath(),
+                    "ApexSenseBridge-latency-" + Guid.NewGuid().ToString("N") + ".json");
+                BridgeSession session = null;
+
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var engine = InstallLocator.ResolveEngine();
+                    if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine))
+                    {
+                        result.Error = "ApexSenseBridge.exe was not found.";
+                        return result;
+                    }
+
+                    XINPUT_STATE xinputState = new XINPUT_STATE();
+                    int xinputIndex = FindFirstConnectedXInputIndex(ref xinputState);
+                    if (xinputIndex < 0)
+                    {
+                        result.Error = "No XInput controller is available for the bridge latency test.";
+                        return result;
+                    }
+
+                    try
+                    {
+                        string arguments = "bridge-triggers --touchpad-profile none --telemetry-json " +
+                                           QuoteArgument(telemetryPath) +
+                                           " --xinput-index " +
+                                           xinputIndex.ToString(CultureInfo.InvariantCulture);
+                        string error;
+                        session = BridgeSession.TryStart(
+                            engine,
+                            arguments,
+                            TimeSpan.FromSeconds(Math.Max(5, initializationTimeoutSeconds)),
+                            message => AppLog.WriteLine("latency_test.log", message),
+                            message => AppLog.WriteLine("latency_test.log", message),
+                            out error);
+
+                        if (session == null)
+                        {
+                            result.Error = string.IsNullOrWhiteSpace(error)
+                                ? "The bridge could not start."
+                                : error;
+                            return result;
+                        }
+
+                        lock (latencySessionLock)
+                        {
+                            activeLatencySession = session;
+                        }
+
+                        var measurement = Stopwatch.StartNew();
+                        while (measurement.Elapsed < TimeSpan.FromSeconds(seconds))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            Thread.Sleep(50);
+                        }
+                    }
+                    finally
+                    {
+                        if (session != null)
+                        {
+                            session.StopAndWait(TimeSpan.FromSeconds(15));
+                            lock (latencySessionLock)
+                            {
+                                if (ReferenceEquals(activeLatencySession, session))
+                                {
+                                    activeLatencySession = null;
+                                }
+                            }
+                            session.Dispose();
+                        }
+                    }
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!File.Exists(telemetryPath))
+                    {
+                        result.Error = "The bridge did not produce latency telemetry.";
+                        return result;
+                    }
+
+                    try
+                    {
+                        return ParseBridgeTelemetry(File.ReadAllText(telemetryPath));
+                    }
+                    catch (Exception ex)
+                    {
+                        result.Error = "Invalid bridge telemetry: " + ex.Message;
+                        return result;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    result.Error = ex.Message;
+                    return result;
+                }
+                finally
+                {
+                    try { if (File.Exists(telemetryPath)) File.Delete(telemetryPath); } catch { }
+                }
+            }, cancellationToken);
+        }
+
+        private static int FindFirstConnectedXInputIndex(ref XINPUT_STATE state)
+        {
+            for (int index = 0; index < 4; index++)
+            {
+                if (GetXInputState(index, ref state) == 0) return index;
+            }
+            return -1;
+        }
+
+        private static bool IsBridgeSessionActive()
+        {
+            try
+            {
+                using (var sessionMutex = Mutex.OpenExisting(EngineSessionMutexName))
+                {
+                    try
+                    {
+                        if (!sessionMutex.WaitOne(0)) return true;
+                        sessionMutex.ReleaseMutex();
+                        return false;
+                    }
+                    catch (AbandonedMutexException)
+                    {
+                        sessionMutex.ReleaseMutex();
+                        return false;
+                    }
+                }
+            }
+            catch (WaitHandleCannotBeOpenedException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return true;
+            }
+        }
+
+        public void StopLatencyTest()
+        {
+            BridgeSession session = null;
+            lock (latencySessionLock)
+            {
+                session = activeLatencySession;
+                activeLatencySession = null;
+            }
+            if (session != null)
+            {
+                session.StopAndWait(TimeSpan.FromSeconds(15));
+            }
+        }
+
+        internal static double Percentile(List<double> sortedSamples, int percentage)
+        {
+            if (sortedSamples == null || sortedSamples.Count == 0) return 0.0;
+            int index = (int)Math.Ceiling(sortedSamples.Count * (percentage / 100.0)) - 1;
+            index = Math.Max(0, Math.Min(sortedSamples.Count - 1, index));
+            return sortedSamples[index];
+        }
+
+        private static string QuoteArgument(string value)
+        {
+            return "\"" + (value ?? string.Empty).Replace("\"", "\\\"") + "\"";
+        }
+
+        private static double ReadTelemetryNumber(Dictionary<string, object> telemetry, string key)
+        {
+            object value;
+            if (telemetry == null || !telemetry.TryGetValue(key, out value) || value == null)
+            {
+                return 0.0;
+            }
+            return Convert.ToDouble(value, CultureInfo.InvariantCulture);
+        }
+
+        internal static LatencyTestResult ParseBridgeTelemetry(string json)
+        {
+            var serializer = new JavaScriptSerializer();
+            var telemetry = serializer.Deserialize<Dictionary<string, object>>(json);
+            var result = new LatencyTestResult { IsBridge = true };
+            result.P50Milliseconds = ReadTelemetryNumber(telemetry, "forward_latency_us_p50") / 1000.0;
+            result.P95Milliseconds = ReadTelemetryNumber(telemetry, "forward_latency_us_p95") / 1000.0;
+            result.P99Milliseconds = ReadTelemetryNumber(telemetry, "forward_latency_us_p99") / 1000.0;
+            result.Samples = (int)ReadTelemetryNumber(telemetry, "forward_latency_samples");
+            result.UpdateRateHz = ReadTelemetryNumber(telemetry, "virtual_report_rate_hz");
+            result.Success = result.Samples > 0;
+            if (!result.Success)
+            {
+                result.Error = "The bridge completed without forwarding input samples.";
+            }
+            return result;
         }
 
         private Task<bool> RunCliCommandAsync(string arguments)
@@ -471,6 +767,7 @@ namespace ApexSenseBridgeTray.Services
         {
             StopGyroStream();
             KillActiveTestProcess();
+            StopLatencyTest();
             try
             {
                 var engine = InstallLocator.ResolveEngine();

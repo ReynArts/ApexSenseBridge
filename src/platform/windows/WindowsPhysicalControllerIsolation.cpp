@@ -1215,6 +1215,16 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
     if (!readRecoverySnapshot(snapshot, exists, error)) return false;
     if (!exists) return true;
 
+    bool profileRestored = true;
+    std::string profileError;
+    if (snapshot.profileRestorePending) {
+        profileRestored = restoreApexProfile(snapshot, profileError);
+        if (profileRestored && !setProfileRestorePending(false, profileError)) {
+            profileRestored = false;
+        }
+    }
+
+    // A profile restore can rewrite the input-routing bits.
     bool inputTransportRestored = true;
     std::string inputTransportError;
     if (snapshot.inputTransportRestorePending) {
@@ -1223,15 +1233,6 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
         if (inputTransportRestored &&
             !setInputTransportRestorePending(false, inputTransportError)) {
             inputTransportRestored = false;
-        }
-    }
-
-    bool profileRestored = true;
-    std::string profileError;
-    if (snapshot.profileRestorePending) {
-        profileRestored = restoreApexProfile(snapshot, profileError);
-        if (profileRestored && !setProfileRestorePending(false, profileError)) {
-            profileRestored = false;
         }
     }
 
@@ -1267,6 +1268,13 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
     // HidHide whitelist (for example after an in-place update). Once visibility
     // is restored, retry the profile recovery immediately instead of requiring
     // the user to run the command a second time.
+    if (!profileRestored && visibilityRestored && snapshot.profileRestorePending) {
+        profileError.clear();
+        profileRestored = restoreApexProfile(snapshot, profileError);
+        if (profileRestored && !setProfileRestorePending(false, profileError)) {
+            profileRestored = false;
+        }
+    }
     if (!inputTransportRestored && visibilityRestored &&
         snapshot.inputTransportRestorePending) {
         inputTransportError.clear();
@@ -1275,13 +1283,6 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
         if (inputTransportRestored &&
             !setInputTransportRestorePending(false, inputTransportError)) {
             inputTransportRestored = false;
-        }
-    }
-    if (!profileRestored && visibilityRestored && snapshot.profileRestorePending) {
-        profileError.clear();
-        profileRestored = restoreApexProfile(snapshot, profileError);
-        if (profileRestored && !setProfileRestorePending(false, profileError)) {
-            profileRestored = false;
         }
     }
 

@@ -64,6 +64,12 @@
     <Compile Include="..\ApexSenseBridgeTray\Services\PlatformClientProcessFilter.cs">
       <Link>Production\PlatformClientProcessFilter.cs</Link>
     </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\ControllerTestService.cs">
+      <Link>Production\ControllerTestService.cs</Link>
+    </Compile>
+    <Compile Include="..\shared\BridgeSession.cs">
+      <Link>Production\BridgeSession.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

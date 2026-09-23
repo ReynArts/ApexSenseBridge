@@ -27,7 +27,7 @@
 - **🔎 Detection and Touchpad Fixes:** Short titles such as `Control` no longer match utilities such as Controlify, and the standard `View` → touchpad-click path remains immediate during rapid consecutive presses.
 - **📚 More Reliable Executable Learning:** Concurrent game processes are tracked independently, repeated sightings no longer restart the 30-second stability window, elevated executable paths use a restricted Windows query fallback, and validated bindings are flushed during Tray shutdown.
 - **🧰 Installer Verification Fix:** Corrects the registry-key escaping bug that could report a successful USBip installation as failed, then misclassify it as unregistered driver remnants on the next setup run.
-- **🏎️ Blazing Fast Initialization (0.28s):** Built-in in-process `libVIIPER v0.7.0-asb7` backend with sub-millisecond USB attachment and loopback-only communication.
+- **🏎️ Blazing Fast Initialization (0.28s):** Built-in in-process `libVIIPER v0.7.0-asb8` backend with sub-millisecond USB attachment and loopback-only communication.
 
 See the [complete 0.6.3 release notes](RELEASE_NOTES_0.6.3.md) for upgrade
 instructions, compatibility notes and validation details.

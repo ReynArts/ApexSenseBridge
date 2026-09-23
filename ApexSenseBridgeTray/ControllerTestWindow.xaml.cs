@@ -4,6 +4,8 @@ using ApexSenseBridgeTray.Services;
 using System;
 using System.Globalization;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -26,6 +28,7 @@ namespace ApexSenseBridgeTray
         private double rollCalibrationOffset = 0.0;
         private double lastRawPitch = 0.0;
         private double lastRawRoll = 0.0;
+        private CancellationTokenSource latencyTestCancellation;
 
         private readonly SolidColorBrush activeBtnBrush = new SolidColorBrush(Color.FromRgb(41, 121, 255));
         private readonly SolidColorBrush defaultBtnBrush = new SolidColorBrush(Color.FromRgb(37, 41, 52));
@@ -63,6 +66,7 @@ namespace ApexSenseBridgeTray
         {
             GamepadNavigationService.IsNavigationSuspended = false;
             pollTimer.Stop();
+            CancelLatencyTest();
             testService.StopGyroStream();
             testService.Dispose();
         }
@@ -78,6 +82,7 @@ namespace ApexSenseBridgeTray
             {
                 GamepadNavigationService.IsNavigationSuspended = false;
                 pollTimer.Stop();
+                CancelLatencyTest();
                 testService.KillActiveTestProcess();
                 testService.StopGyroStream();
             }
@@ -92,6 +97,7 @@ namespace ApexSenseBridgeTray
         private void OnWindowDeactivated(object sender, EventArgs e)
         {
             GamepadNavigationService.IsNavigationSuspended = false;
+            CancelLatencyTest();
             testService.KillActiveTestProcess();
         }
 
@@ -183,13 +189,15 @@ namespace ApexSenseBridgeTray
 
         private void OnTestSubTabChanged(object sender, RoutedEventArgs e)
         {
-            if (PanelTriggers == null || PanelVibration == null || PanelRgb == null || PanelMapping == null || PanelGyro == null) return;
+            if (PanelTriggers == null || PanelVibration == null || PanelRgb == null ||
+                PanelMapping == null || PanelGyro == null || PanelLatency == null) return;
 
             PanelTriggers.Visibility = TabTriggers.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PanelVibration.Visibility = TabVibration.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PanelRgb.Visibility = TabRgb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PanelMapping.Visibility = TabMapping.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             PanelGyro.Visibility = TabGyro.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            PanelLatency.Visibility = TabLatency.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
             if (TabGyro.IsChecked == true)
             {
@@ -199,33 +207,16 @@ namespace ApexSenseBridgeTray
             {
                 testService.StopGyroStream();
             }
+
+            if (TabLatency.IsChecked != true)
+            {
+                CancelLatencyTest();
+            }
         }
 
         #endregion
 
         #region Adaptive Triggers Test
-
-        private void OnTriggerModeChanged(object sender, RoutedEventArgs e)
-        {
-            if (TxtTriggerModeExpl == null) return;
-
-            if (RadModeWeapon.IsChecked == true)
-            {
-                TxtTriggerModeExpl.Text = LocalizationManager.Get("Loc_TriggerExplWeapon");
-            }
-            else if (RadModeVibration.IsChecked == true)
-            {
-                TxtTriggerModeExpl.Text = LocalizationManager.Get("Loc_TriggerExplVibration");
-            }
-            else if (RadModeBow.IsChecked == true)
-            {
-                TxtTriggerModeExpl.Text = LocalizationManager.Get("Loc_TriggerExplBow");
-            }
-            else
-            {
-                TxtTriggerModeExpl.Text = LocalizationManager.Get("Loc_TriggerExplResistance");
-            }
-        }
 
         private async void OnApplyTriggerClick(object sender, RoutedEventArgs e)
         {
@@ -461,6 +452,153 @@ namespace ApexSenseBridgeTray
             catch (Exception ex)
             {
                 TxtTestFeedback.Text = "Erreur vérification persistance : " + ex.Message;
+            }
+        }
+
+        #endregion
+
+        #region Latency Tests
+
+        private async void OnNativeLatencyClick(object sender, RoutedEventArgs e)
+        {
+            await RunLatencyTestAsync(false);
+        }
+
+        private async void OnBridgeLatencyClick(object sender, RoutedEventArgs e)
+        {
+            await RunLatencyTestAsync(true);
+        }
+
+        private async Task RunLatencyTestAsync(bool withBridge)
+        {
+            if (latencyTestCancellation != null) return;
+
+            var cancellation = new CancellationTokenSource();
+            latencyTestCancellation = cancellation;
+            bool resumeInputPolling = pollTimer.IsEnabled;
+            pollTimer.Stop();
+            SetLatencyButtonsEnabled(false);
+            TxtTestFeedback.Text = LocalizationManager.Get(
+                withBridge ? "Loc_LatencyRunningBridge" : "Loc_LatencyRunningNative");
+
+            if (withBridge)
+            {
+                TxtBridgeLatencyMain.Text = "…";
+                TxtBridgeLatencyPercentiles.Text = LocalizationManager.Get("Loc_LatencyMeasuring");
+                TxtBridgeLatencySamples.Text = LocalizationManager.Get("Loc_LatencyMoveController");
+            }
+            else
+            {
+                TxtNativeLatencyMain.Text = "…";
+                TxtNativeLatencyPercentiles.Text = LocalizationManager.Get("Loc_LatencyMeasuring");
+                TxtNativeLatencySamples.Text = LocalizationManager.Get("Loc_LatencyMoveController");
+            }
+
+            try
+            {
+                LatencyTestResult result;
+                if (withBridge)
+                {
+                    int timeout = settings != null ? settings.InitializationTimeoutSeconds : 20;
+                    result = await testService.TestBridgeLatencyAsync(5, timeout, cancellation.Token);
+                }
+                else
+                {
+                    result = await testService.TestNativeLatencyAsync(5, cancellation.Token);
+                }
+
+                if (!cancellation.IsCancellationRequested)
+                {
+                    DisplayLatencyResult(result);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (IsLoaded)
+                {
+                    TxtTestFeedback.Text = LocalizationManager.Get("Loc_LatencyCanceled");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (IsLoaded)
+                {
+                    TxtTestFeedback.Text = string.Format(
+                        LocalizationManager.Get("Loc_LatencyFailed"), ex.Message);
+                }
+            }
+            finally
+            {
+                if (ReferenceEquals(latencyTestCancellation, cancellation))
+                {
+                    latencyTestCancellation = null;
+                }
+                cancellation.Dispose();
+                if (IsLoaded)
+                {
+                    SetLatencyButtonsEnabled(true);
+                    if (resumeInputPolling && IsVisible && !pollTimer.IsEnabled)
+                    {
+                        pollTimer.Start();
+                    }
+                }
+            }
+        }
+
+        private void DisplayLatencyResult(LatencyTestResult result)
+        {
+            var main = result.IsBridge ? TxtBridgeLatencyMain : TxtNativeLatencyMain;
+            var percentiles = result.IsBridge ? TxtBridgeLatencyPercentiles : TxtNativeLatencyPercentiles;
+            var samples = result.IsBridge ? TxtBridgeLatencySamples : TxtNativeLatencySamples;
+
+            if (!result.Success)
+            {
+                main.Text = "—";
+                percentiles.Text = LocalizationManager.Get("Loc_LatencyUnavailable");
+                samples.Text = LocalizationManager.Get("Loc_LatencyNoResult");
+                TxtTestFeedback.Text = string.Format(
+                    LocalizationManager.Get("Loc_LatencyFailed"),
+                    string.IsNullOrWhiteSpace(result.Error)
+                        ? LocalizationManager.Get("Loc_LatencyNoResult")
+                        : result.Error);
+                return;
+            }
+
+            main.Text = FormatLatency(result.P50Milliseconds);
+            percentiles.Text = string.Format(
+                LocalizationManager.Get("Loc_LatencyPercentiles"),
+                FormatLatency(result.P95Milliseconds),
+                FormatLatency(result.P99Milliseconds));
+            samples.Text = string.Format(
+                LocalizationManager.Get(result.IsBridge
+                    ? "Loc_LatencyBridgeSamples"
+                    : "Loc_LatencyNativeSamples"),
+                result.Samples,
+                result.UpdateRateHz);
+            TxtTestFeedback.Text = string.Format(
+                LocalizationManager.Get("Loc_LatencyCompleted"),
+                FormatLatency(result.P99Milliseconds));
+        }
+
+        private static string FormatLatency(double milliseconds)
+        {
+            return milliseconds < 10.0
+                ? milliseconds.ToString("F3", CultureInfo.CurrentCulture) + " ms"
+                : milliseconds.ToString("F1", CultureInfo.CurrentCulture) + " ms";
+        }
+
+        private void SetLatencyButtonsEnabled(bool enabled)
+        {
+            if (BtnTestNativeLatency != null) BtnTestNativeLatency.IsEnabled = enabled;
+            if (BtnTestBridgeLatency != null) BtnTestBridgeLatency.IsEnabled = enabled;
+        }
+
+        private void CancelLatencyTest()
+        {
+            var cancellation = latencyTestCancellation;
+            if (cancellation != null && !cancellation.IsCancellationRequested)
+            {
+                cancellation.Cancel();
             }
         }
 
