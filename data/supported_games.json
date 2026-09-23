@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-22T09:05:40.373771+00:00",
-  "totalGames": 211,
+  "updatedAt": "2026-09-23T09:07:53.554653+00:00",
+  "totalGames": 212,
   "discordExecutableGames": 127,
   "games": [
     {
@@ -1923,6 +1923,16 @@
       "executables": [
         "shproto-win64-shipping.exe"
       ]
+    },
+    {
+      "title": "Silent Hill: Townfall",
+      "normalized": "silenthilltownfall",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 1636440,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1636440/library_600x900.jpg"
     },
     {
       "title": "Skate",
