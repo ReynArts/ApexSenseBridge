@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-23T09:07:53.554653+00:00",
-  "totalGames": 212,
+  "updatedAt": "2026-09-24T09:03:01.383101+00:00",
+  "totalGames": 213,
   "discordExecutableGames": 127,
   "games": [
     {
@@ -413,6 +413,16 @@
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3669870/library_600x900.jpg"
+    },
+    {
+      "title": "Control Resonant",
+      "normalized": "controlresonant",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 3669870,
+      "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3669870/library_600x900.jpg"
     },
     {
