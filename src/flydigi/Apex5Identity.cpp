@@ -2,6 +2,7 @@
 
 #include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex4Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 
 #include <algorithm>
 #include <array>
@@ -36,13 +37,15 @@ Apex5Identity::Apex5Identity(ApexProtocol protocol,
                              std::uint8_t connectionType,
                              std::uint8_t batteryLevel,
                              bool charging,
-                             std::uint16_t firmwareVersion) noexcept
+                             std::uint16_t firmwareVersion,
+                             std::uint8_t features) noexcept
     : protocol_(protocol),
       deviceType_(deviceType),
       connectionType_(connectionType),
       batteryLevel_(batteryLevel),
       charging_(charging),
-      firmwareVersion_(firmwareVersion) {}
+      firmwareVersion_(firmwareVersion),
+      features_(features) {}
 
 Report Apex5Identity::buildRequest() {
     Report report{};
@@ -99,6 +102,17 @@ std::optional<Apex5Identity> Apex5Identity::parseApex4Reply(
                          0, false, firmware);
 }
 
+std::optional<Apex5Identity> Apex5Identity::parseApex6Reply(
+    std::span<const std::uint8_t> report) {
+    const auto parsed = apex6::parseDeviceInfo(report);
+    if (!parsed || parsed->deviceType != apex6::kDeviceType) {
+        return std::nullopt;
+    }
+    return Apex5Identity(ApexProtocol::RealtimeV3, parsed->deviceType,
+                         parsed->connectionMode, 0, false, 0,
+                         parsed->features);
+}
+
 bool Apex5Identity::isApex4DeviceType(std::uint8_t deviceType) noexcept {
     return std::find(kApex4DeviceTypes.begin(), kApex4DeviceTypes.end(), deviceType) !=
            kApex4DeviceTypes.end();
@@ -120,6 +134,11 @@ std::string Apex5Identity::describe() const {
         output << ')';
     } else if (isApex5()) {
         output << "Apex 5 (k5, DeviceType " << static_cast<unsigned int>(deviceType_) << ')';
+    } else if (isApex6()) {
+        output << "Apex 6 Pro (k6, DeviceType "
+               << static_cast<unsigned int>(deviceType_) << ", features 0x"
+               << std::hex << std::uppercase
+               << static_cast<unsigned int>(features_) << std::dec << ')';
     } else {
         output << "unsupported Flydigi controller (DeviceType "
                << static_cast<unsigned int>(deviceType_) << ')';

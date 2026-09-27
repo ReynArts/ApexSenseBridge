@@ -12,6 +12,29 @@ SPEC.loader.exec_module(UPDATER)
 
 
 class DiscordExecutableTests(unittest.TestCase):
+    def test_pcgw_support_parser_preserves_manual_fix_state_and_page_url(self):
+        markup = """
+        <table><tbody>
+          <tr>
+            <td><a href="/wiki/Native_Game" title="Native Game">Native Game</a></td>
+            <td><div title="Native support" class="svg-icon tickcross-true"></div></td>
+          </tr>
+          <tr>
+            <td><a href="/wiki/Dying_Light" title="Dying Light">Dying Light</a></td>
+            <td><div title="Hackable" class="svg-icon svg-25 tickcross-hackable"></div></td>
+          </tr>
+        </tbody></table>
+        """
+
+        games = UPDATER.parse_pcgw_support_rows(markup)
+
+        self.assertFalse(games["Native Game"]["requiresManualFix"])
+        self.assertTrue(games["Dying Light"]["requiresManualFix"])
+        self.assertEqual(
+            "https://www.pcgamingwiki.com/wiki/Dying_Light",
+            games["Dying Light"]["pcgwUrl"],
+        )
+
     def test_extracts_only_windows_non_launcher_executables_by_exact_steam_id(self):
         applications = [
             {

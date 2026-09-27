@@ -21,6 +21,7 @@ namespace ApexSenseBridgeTray.Services
         private readonly Timer pollTimer;
         private readonly Dictionary<uint, DateTime> retryCooldowns = new Dictionary<uint, DateTime>();
         private readonly Dictionary<uint, long> evaluatedProcesses = new Dictionary<uint, long>();
+        private readonly HashSet<uint> manualFixWarningProcesses = new HashSet<uint>();
         private readonly object sessionStateLock = new object();
         private readonly GameProcessSessionTracker processSession = new GameProcessSessionTracker();
 
@@ -35,6 +36,7 @@ namespace ApexSenseBridgeTray.Services
 
         public event Action<SupportedGame, string> GameDetected;
         public event Action<string> GameExited;
+        public event Action<SupportedGame> ManualFixRequired;
 
         public ProcessMonitorService(
             CloudGameListService gameListService,
@@ -129,6 +131,10 @@ namespace ApexSenseBridgeTray.Services
                 uint pid = Convert.ToUInt32(pidObj);
                 if (pid != 0)
                 {
+                    lock (manualFixWarningProcesses)
+                    {
+                        manualFixWarningProcesses.Remove(pid);
+                    }
                     if (learningService != null)
                     {
                         learningService.CancelObservation(pid, "process stopped (WMI)");
@@ -311,6 +317,10 @@ namespace ApexSenseBridgeTray.Services
                 foreach (var pid in stoppedPids)
                 {
                     evaluatedProcesses.Remove(pid);
+                    lock (manualFixWarningProcesses)
+                    {
+                        manualFixWarningProcesses.Remove(pid);
+                    }
                     if (learningService != null)
                     {
                         learningService.CancelObservation(pid, "process no longer enumerated");
@@ -376,6 +386,26 @@ namespace ApexSenseBridgeTray.Services
             string matchedBy;
             if (TryResolveGame(exePath, exeTitle, folderName, fileName, out matchedGame, out matchedBy))
             {
+                if (GameActivationPolicy.IsBlockedByManualFix(
+                    matchedGame, settings, exeTitle, folderName, fileName))
+                {
+                    bool firstWarning;
+                    lock (manualFixWarningProcesses)
+                    {
+                        firstWarning = manualFixWarningProcesses.Add(pid);
+                    }
+                    if (firstWarning)
+                    {
+                        LogDetection(string.Format(
+                            "Skipped '{0}' because its selected DualSense features require a manual fix. Path: {1}",
+                            matchedGame.Title,
+                            exePath));
+                        var manualFixHandler = ManualFixRequired;
+                        if (manualFixHandler != null) manualFixHandler(matchedGame);
+                    }
+                    return;
+                }
+
                 if (GameActivationPolicy.ShouldActivate(
                     matchedGame, settings, exeTitle, folderName, fileName))
                 {

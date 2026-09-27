@@ -251,6 +251,10 @@ int main() {
     assert(encodedLive[16] == 0xF0 && encodedLive[17] == 0xDE);
     assert(encodedLive[18] == 1);
     assert(encodedLive[31] == 87 && encodedLive[32] == 4);
+    const auto encodedWaveform = buildViiperInput(live, true);
+    assert(encodedWaveform[32] == 0x84);
+    assert(std::equal(encodedLive.begin(), encodedLive.begin() + 32,
+                      encodedWaveform.begin()));
 
     std::array<std::uint8_t, 30> hidPayload{};
     hidPayload[0] = 0x0F;
@@ -301,6 +305,29 @@ int main() {
     assert(feedback.rightPeak == 4);
     assert(feedback.leftTransient == 5);
     assert(feedback.rightTransient == 6);
+
+    std::array<std::uint8_t, 36> waveformPayload{};
+    waveformPayload[0] = 0x04;
+    waveformPayload[1] = 0x03;
+    waveformPayload[2] = 0x02;
+    waveformPayload[3] = 0x01;
+    for (std::size_t index = 0; index < 8; ++index) {
+        const auto left = static_cast<std::uint16_t>(1000 + index);
+        const auto right = static_cast<std::uint16_t>(0xFC18 - index);
+        waveformPayload[4 + index * 4] = static_cast<std::uint8_t>(left);
+        waveformPayload[5 + index * 4] = static_cast<std::uint8_t>(left >> 8U);
+        waveformPayload[6 + index * 4] = static_cast<std::uint8_t>(right);
+        waveformPayload[7 + index * 4] = static_cast<std::uint8_t>(right >> 8U);
+    }
+    assert(decodeViiperFeedbackFrame(0x03, waveformPayload, feedback));
+    assert(feedback.kind == FeedbackKind::AudioHapticWaveform);
+    assert(feedback.audioSequence == 0x01020304);
+    assert(feedback.leftHapticSamples.front() == 1000);
+    assert(feedback.leftHapticSamples.back() == 1007);
+    assert(feedback.rightHapticSamples.front() == -1000);
+    assert(feedback.rightHapticSamples.back() == -1007);
+    assert(!decodeViiperFeedbackFrame(
+        0x03, std::span<const std::uint8_t>(waveformPayload).first(35), feedback));
     assert(!feedback.hasRumble());
     assert(!feedback.requestsRumbleUpdate());
     assert(!feedback.hasTriggerEffect());

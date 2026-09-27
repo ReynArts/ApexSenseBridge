@@ -2,6 +2,7 @@
 
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 
 #include <algorithm>
 #include <array>
@@ -190,10 +191,12 @@ std::vector<HidDeviceInfo> Apex5Device::findCandidates(std::string& error) {
     std::vector<HidDeviceInfo> candidates;
 
     std::copy_if(all.begin(), all.end(), std::back_inserter(candidates), [](const HidDeviceInfo& info) {
+        const bool apex6Pro = apex6::isProduct(info.vendorId, info.productId) &&
+                              info.usagePage == apex6::kUsagePage;
         const bool apex5 = info.vendorId == kVendorId &&
                            isControllerProduct(info.productId) &&
-                           info.usagePage == kVendorUsagePage;
-        return apex5 || isApex4Candidate(info);
+                           info.usagePage == kVendorUsagePage && !apex6Pro;
+        return apex5 || apex6Pro || isApex4Candidate(info);
     });
 
     return candidates;
@@ -238,7 +241,9 @@ bool Apex5Device::verifyIdentity(std::string& error) {
     }
 
     const bool apex4 = usesApex4Protocol();
-    const auto protocolInputSize = apex4 ? std::size_t{32} : kReportSize;
+    const bool apex6Pro = usesApex6Protocol();
+    const auto protocolInputSize = apex6Pro ? apex6::kReportSize
+                                           : (apex4 ? std::size_t{32} : kReportSize);
     const auto bufferSize = std::max<std::size_t>(
         protocolInputSize, transport_->info().inputReportLength);
     std::vector<std::uint8_t> input(bufferSize, 0);
@@ -273,7 +278,9 @@ bool Apex5Device::verifyIdentity(std::string& error) {
     for (std::size_t attempt = 0; attempt < maximumAttempts; ++attempt) {
         const bool requestWritten = apex4
             ? transport_->writeOutputReport(buildApex4IdentityRequest(), error)
-            : transport_->writeOutputReport(Apex5Identity::buildRequest(), error);
+            : (apex6Pro
+                   ? transport_->writeOutputReport(apex6::buildGetInfo(), error)
+                   : transport_->writeOutputReport(Apex5Identity::buildRequest(), error));
         if (!requestWritten) {
             error = "Could not send the read-only Flydigi identity request: " + error;
             return false;
@@ -301,13 +308,20 @@ bool Apex5Device::verifyIdentity(std::string& error) {
             if (apex4) apex4Observation.record(bytes);
             const auto parsed = apex4
                 ? Apex5Identity::parseApex4Reply(bytes)
-                : Apex5Identity::parseReply(bytes);
+                : (apex6Pro ? Apex5Identity::parseApex6Reply(bytes)
+                            : Apex5Identity::parseReply(bytes));
             if (!parsed) continue;
 
-            const bool expectedModel = apex4 ? parsed->isApex4() : parsed->isApex5();
-            if (!expectedModel || !parsed->supportsAdaptiveTriggers()) {
+            const bool expectedModel = apex4 ? parsed->isApex4()
+                : (apex6Pro ? parsed->isApex6() : parsed->isApex5());
+            const bool expectedCapabilities = apex6Pro
+                ? parsed->supportsRealtimeHaptics()
+                : parsed->supportsAdaptiveTriggers();
+            if (!expectedModel || !expectedCapabilities) {
                 error = "Identity refused: found " + parsed->describe() +
-                        "; adaptive-trigger writes require an Apex 4 (k2) or Apex 5 (k5).";
+                        (apex6Pro
+                             ? "; realtime haptics require an Apex 6 Pro with grip and trigger haptics."
+                             : "; adaptive-trigger writes require an Apex 4 (k2) or Apex 5 (k5).");
                 return false;
             }
             identity_ = *parsed;
@@ -356,6 +370,28 @@ bool Apex5Device::mayControlProfiles(std::string& error) const {
 
 std::unique_lock<std::recursive_mutex> Apex5Device::acquireWriteLock() const noexcept {
     return writeMutex_ ? std::unique_lock(*writeMutex_) : std::unique_lock<std::recursive_mutex>();
+}
+
+bool Apex5Device::mayWriteApex6Haptics(std::string& error) const {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_) {
+        error = "Apex 6 haptic write refused: device identity was not verified";
+        return false;
+    }
+    if (!identity_->supportsRealtimeHaptics()) {
+        error = "Apex 6 haptic write refused: " + identity_->describe() +
+                " does not advertise grip and trigger haptics";
+        return false;
+    }
+    return true;
+}
+
+bool Apex5Device::usesApex6Protocol() const noexcept {
+    return isOpen() && apex6::isProduct(
+        transport_->info().vendorId, transport_->info().productId);
 }
 
 bool Apex5Device::writeSpacedOutputReport(
@@ -460,6 +496,66 @@ bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
 
 bool Apex5Device::stopRumble(std::string& error) {
     return setRumble(0, 0, error);
+}
+
+bool Apex5Device::enableApex6Haptics(std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    const auto lock = acquireWriteLock();
+    bool wroteAny = false;
+    for (const auto& report : apex6::buildMotorEnable()) {
+        if (!transport_->writeOutputReport(report, error)) {
+            if (wroteAny) {
+                std::string ignored;
+                for (const auto& disable : apex6::buildMotorDisable()) {
+                    (void)transport_->writeOutputReport(disable, ignored);
+                }
+            }
+            return false;
+        }
+        wroteAny = true;
+    }
+    return true;
+}
+
+bool Apex5Device::writeApex6Haptics(const apex6::MotorBlock& block,
+                                    apex6::TriggerRoute route,
+                                    bool enableTrigger,
+                                    bool enableGrips,
+                                    std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    const auto lock = acquireWriteLock();
+    return transport_->writeOutputReport(
+        apex6::buildRealtimeMotor(
+            block, route, enableTrigger, enableGrips, enableGrips),
+        error);
+}
+
+bool Apex5Device::disableApex6Haptics(std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    const auto lock = acquireWriteLock();
+    apex6::MotorBlock neutral{};
+    bool ok = true;
+    std::string firstError;
+    for (unsigned count = 0; count < 3; ++count) {
+        std::string writeError;
+        if (!transport_->writeOutputReport(
+                apex6::buildRealtimeMotor(
+                    neutral, apex6::TriggerRoute::Mute, false, true, true),
+                writeError)) {
+            ok = false;
+            if (firstError.empty()) firstError = std::move(writeError);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+    for (const auto& report : apex6::buildMotorDisable()) {
+        std::string writeError;
+        if (!transport_->writeOutputReport(report, writeError)) {
+            ok = false;
+            if (firstError.empty()) firstError = std::move(writeError);
+        }
+    }
+    if (!ok) error = std::move(firstError);
+    return ok;
 }
 
 bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {

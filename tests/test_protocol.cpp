@@ -229,6 +229,42 @@ int main() {
     assert(decodedApex5Custom);
     assert(decodedApex5Custom->batteryPercent == 80);
     assert(decodedApex5Custom->chargeState == 2);
+
+    // The matching game-controller HID collection contains the complete
+    // onboard Space Station mapping. It replaces all standard controls while
+    // retaining vendor-only PS, motion and battery data.
+    auto mergedVendorState = *decodedApex5Custom;
+    dualsense::DualSenseInputState mappedHidState{};
+    mappedHidState.lx = 200;
+    mappedHidState.r2 = 91;
+    mappedHidState.dpad = 0x04;
+    mappedHidState.buttons = dualsense::button::kCircle;
+    mergeApex5MappedControls(mergedVendorState, mappedHidState);
+    assert(mergedVendorState.lx == 200);
+    assert(mergedVendorState.r2 == 91);
+    assert(mergedVendorState.dpad == 0x04);
+    assert(mergedVendorState.buttons ==
+           (dualsense::button::kCircle | dualsense::button::kPs));
+    assert(mergedVendorState.gyroX == decodedApex5Custom->gyroX);
+    assert(mergedVendorState.batteryPercent == 80);
+
+    // A neutral mapped state is meaningful (for example a physical button
+    // mapped only to a keyboard key) and must not leak the raw vendor button
+    // into the virtual DualSense.
+    auto neutralMappedState = *decodedApex5Custom;
+    mergeApex5MappedControls(
+        neutralMappedState, dualsense::DualSenseInputState{});
+    assert(neutralMappedState.lx == 0x80);
+    assert(neutralMappedState.ly == 0x80);
+    assert(neutralMappedState.rx == 0x80);
+    assert(neutralMappedState.ry == 0x80);
+    assert(neutralMappedState.l2 == 0);
+    assert(neutralMappedState.r2 == 0);
+    assert(neutralMappedState.dpad == 0);
+    assert(neutralMappedState.buttons == dualsense::button::kPs);
+    assert(neutralMappedState.gyroX == decodedApex5Custom->gyroX);
+    assert(neutralMappedState.batteryPercent == 80);
+
     assert(!decodeApex5InputReport(
         std::span<const std::uint8_t>(apex5Input.data(), 29)));
     apex5Input[3] = 0;

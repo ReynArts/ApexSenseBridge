@@ -54,6 +54,7 @@ namespace ApexSenseBridgeTray.Services
             if (exitCode != 0) return "disconnected";
             if (Regex.IsMatch(output, @"Verified:\s+Apex 4\b", RegexOptions.IgnoreCase)) return "apex4";
             if (Regex.IsMatch(output, @"Verified:\s+Apex 5\b", RegexOptions.IgnoreCase)) return "apex5";
+            if (Regex.IsMatch(output, @"Verified:\s+Apex 6 Pro\b", RegexOptions.IgnoreCase)) return "apex6";
             return "unsupported";
         }
 

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-09T08:43:15.242868+00:00",
-  "totalGames": 207,
-  "discordExecutableGames": 126,
+  "updatedAt": "2026-09-27T09:15:24.529160+00:00",
+  "totalGames": 213,
+  "discordExecutableGames": 127,
   "games": [
     {
       "title": "007 First Light",
@@ -127,7 +127,9 @@
       "title": "Assetto Corsa",
       "normalized": "assettocorsa",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Assetto_Corsa",
       "profile": "standard",
       "steamAppId": 244210,
       "steamAppIdVerified": true,
@@ -136,7 +138,8 @@
         "acs.exe",
         "assettocorsa.exe",
         "jsgme.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Avatar: Frontiers of Pandora",
@@ -271,7 +274,9 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
       "executables": [
-        "cod.exe"
+        "cod.exe",
+        "cod26-cod.exe",
+        "sp26-cod.exe"
       ]
     },
     {
@@ -349,7 +354,7 @@
       "title": "Call of Duty: Modern Warfare III",
       "normalized": "callofdutymodernwarfareiii",
       "adaptiveTriggers": true,
-      "hapticFeedback": true,
+      "hapticFeedback": false,
       "profile": "standard",
       "steamAppId": 3595270,
       "steamAppIdVerified": true,
@@ -384,6 +389,16 @@
       ]
     },
     {
+      "title": "Clive Barker's Hellraiser: Revival",
+      "normalized": "clivebarkershellraiserrevival",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 1551980,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1551980/library_600x900.jpg"
+    },
+    {
       "title": "Cloudheim",
       "normalized": "cloudheim",
       "adaptiveTriggers": false,
@@ -397,10 +412,23 @@
       "title": "Control",
       "normalized": "control",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Control",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3669870/library_600x900.jpg",
+      "requiresManualFix": true
+    },
+    {
+      "title": "Control Resonant",
+      "normalized": "controlresonant",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 3669870,
+      "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3669870/library_600x900.jpg"
     },
     {
@@ -492,11 +520,14 @@
       "title": "Death Stranding",
       "normalized": "deathstranding",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Death_Stranding",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3280350/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3280350/library_600x900.jpg",
+      "requiresManualFix": true
     },
     {
       "title": "Death Stranding 2: On the Beach",
@@ -548,34 +579,43 @@
       "title": "DiRT 4",
       "normalized": "dirt4",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/DiRT_4",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1004921/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1004921/library_600x900.jpg",
+      "requiresManualFix": true
     },
     {
       "title": "DiRT Rally",
       "normalized": "dirtrally",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/DiRT_Rally",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/690790/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/690790/library_600x900.jpg",
+      "requiresManualFix": true
     },
     {
       "title": "DiRT Rally 2.0",
       "normalized": "dirtrally20",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/DiRT_Rally_2.0",
       "profile": "standard",
       "steamAppId": 690790,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/690790/library_600x900.jpg",
       "executables": [
         "dirtrally2.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Dolmen",
@@ -604,27 +644,34 @@
       "title": "Duck Game",
       "normalized": "duckgame",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Duck_Game",
       "profile": "standard",
       "steamAppId": 312530,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/312530/library_600x900.jpg",
       "executables": [
         "duckgame.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Dying Light",
       "normalized": "dyinglight",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": true,
+      "hapticFeedbackManualFix": true,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Dying_Light",
       "profile": "standard",
       "steamAppId": 239140,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/239140/library_600x900.jpg",
       "executables": [
         "dyinglightgame.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Dying Light 2 Stay Human",
@@ -654,13 +701,16 @@
       "normalized": "easportswrc",
       "adaptiveTriggers": false,
       "hapticFeedback": true,
+      "hapticFeedbackManualFix": true,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/EA_Sports_WRC",
       "profile": "standard",
       "steamAppId": 1849250,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1849250/library_600x900.jpg",
       "executables": [
         "wrc.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Eriksholm: The Stolen Dream",
@@ -676,14 +726,17 @@
       "title": "Euro Truck Simulator 2",
       "normalized": "eurotrucksimulator2",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Euro_Truck_Simulator_2",
       "profile": "standard",
       "steamAppId": 227300,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/227300/library_600x900.jpg",
       "executables": [
         "eurotrucks2.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Everspace 2",
@@ -755,14 +808,17 @@
       "title": "Fallout 4",
       "normalized": "fallout4",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Fallout_4",
       "profile": "standard",
       "steamAppId": 377160,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/377160/library_600x900.jpg",
       "executables": [
         "fallout4.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Fantasian Neo Dimension",
@@ -874,37 +930,59 @@
       ]
     },
     {
+      "title": "Forza Horizon 4",
+      "normalized": "forzahorizon4",
+      "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
+      "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Forza_Horizon_4",
+      "profile": "standard",
+      "steamAppId": 0,
+      "steamAppIdVerified": false,
+      "iconUrl": "",
+      "requiresManualFix": true
+    },
+    {
       "title": "Forza Horizon 5",
       "normalized": "forzahorizon5",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Forza_Horizon_5",
       "profile": "standard",
       "steamAppId": 1551360,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1551360/library_600x900.jpg",
       "executables": [
         "forzahorizon5.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Forza Horizon 6",
       "normalized": "forzahorizon6",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Forza_Horizon_6",
       "profile": "standard",
       "steamAppId": 2483190,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2483190/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2483190/library_600x900.jpg",
+      "requiresManualFix": true
     },
     {
       "title": "Forza Motorsport 7",
       "normalized": "forzamotorsport7",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Forza_Motorsport_7",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2612090/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2612090/library_600x900.jpg",
+      "requiresManualFix": true
     },
     {
       "title": "Gears of War: E-Day",
@@ -921,10 +999,13 @@
       "normalized": "genshinimpact",
       "adaptiveTriggers": true,
       "hapticFeedback": true,
+      "hapticFeedbackManualFix": true,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Genshin_Impact",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": ""
+      "iconUrl": "",
+      "requiresManualFix": true
     },
     {
       "title": "Ghost of Tsushima Director's Cut",
@@ -956,14 +1037,17 @@
       "title": "God of War",
       "normalized": "godofwar",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/God_of_War",
       "profile": "standard",
       "steamAppId": 1593500,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1593500/library_600x900.jpg",
       "executables": [
         "gow.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "God of War Ragnarök",
@@ -995,11 +1079,14 @@
       "title": "Grand Theft Auto V",
       "normalized": "grandtheftautov",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": true,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto_V",
       "profile": "standard",
       "steamAppId": 271590,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg",
+      "requiresManualFix": true
     },
     {
       "title": "Grand Theft Auto V Enhanced",
@@ -1015,11 +1102,14 @@
       "title": "Grand Theft Auto: San Andreas",
       "normalized": "grandtheftautosanandreas",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto:_San_Andreas",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1547000/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1547000/library_600x900.jpg",
+      "requiresManualFix": true
     },
     {
       "title": "Gravity Circuit",
@@ -1038,14 +1128,17 @@
       "title": "Half-Life: Alyx",
       "normalized": "halflifealyx",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Half-Life:_Alyx",
       "profile": "standard",
       "steamAppId": 546560,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/546560/library_600x900.jpg",
       "executables": [
         "hlvr.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Halo: Campaign Evolved",
@@ -1183,6 +1276,16 @@
       "executables": [
         "x6game-win64-shipping.exe"
       ]
+    },
+    {
+      "title": "Jak 3 (OpenGOAL)",
+      "normalized": "jak3opengoal",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 0,
+      "steamAppIdVerified": false,
+      "iconUrl": ""
     },
     {
       "title": "Jak II (OpenGOAL)",
@@ -1364,20 +1467,25 @@
       "title": "Metal Gear Solid V: Ground Zeroes",
       "normalized": "metalgearsolidvgroundzeroes",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_Ground_Zeroes",
       "profile": "standard",
       "steamAppId": 311340,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/311340/library_600x900.jpg",
       "executables": [
         "mgsgroundzeroes.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Metal Gear Solid V: The Phantom Pain",
       "normalized": "metalgearsolidvthephantompain",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_The_Phantom_Pain",
       "profile": "standard",
       "steamAppId": 287700,
       "steamAppIdVerified": true,
@@ -1385,7 +1493,8 @@
       "executables": [
         "mgsvmgo.exe",
         "mgsvtpp.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Metal Gear Solid Δ: Snake Eater",
@@ -1542,6 +1651,24 @@
       ]
     },
     {
+      "title": "Onimusha: Way of the Sword",
+      "normalized": "onimushawayofthesword",
+      "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
+      "hapticFeedback": true,
+      "hapticFeedbackManualFix": true,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Onimusha:_Way_of_the_Sword",
+      "profile": "standard",
+      "steamAppId": 2638890,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2638890/library_600x900.jpg",
+      "executables": [
+        "onimushawots.exe",
+        "onimushawots_demo.exe"
+      ],
+      "requiresManualFix": true
+    },
+    {
       "title": "Overwatch 2",
       "normalized": "overwatch2",
       "adaptiveTriggers": true,
@@ -1640,27 +1767,33 @@
       "title": "Red Dead Redemption 2",
       "normalized": "reddeadredemption2",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Red_Dead_Redemption_2",
       "profile": "standard",
       "steamAppId": 1174180,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1174180/library_600x900.jpg",
       "executables": [
         "rdr2.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Resident Evil 5",
       "normalized": "residentevil5",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Resident_Evil_5",
       "profile": "standard",
       "steamAppId": 21690,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/21690/library_600x900.jpg",
       "executables": [
         "re5dx9.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "Resident Evil Requiem",
@@ -1732,11 +1865,14 @@
       "title": "Rocket League",
       "normalized": "rocketleague",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Rocket_League",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": ""
+      "iconUrl": "",
+      "requiresManualFix": true
     },
     {
       "title": "S.T.A.L.K.E.R. 2: Heart of Chornobyl",
@@ -1877,6 +2013,16 @@
       "executables": [
         "shproto-win64-shipping.exe"
       ]
+    },
+    {
+      "title": "Silent Hill: Townfall",
+      "normalized": "silenthilltownfall",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 1636440,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1636440/library_600x900.jpg"
     },
     {
       "title": "Skate",
@@ -2131,14 +2277,17 @@
       "title": "The Elder Scrolls V: Skyrim Special Edition",
       "normalized": "theelderscrollsvskyrimspecialedition",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": false,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/The_Elder_Scrolls_V:_Skyrim_Special_Edition",
       "profile": "standard",
       "steamAppId": 489830,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/489830/library_600x900.jpg",
       "executables": [
         "skyrimse.exe"
-      ]
+      ],
+      "requiresManualFix": true
     },
     {
       "title": "The First Berserker: Khazan",
@@ -2265,11 +2414,15 @@
       "title": "Tomb Raider (2013)",
       "normalized": "tombraider2013",
       "adaptiveTriggers": true,
+      "adaptiveTriggersManualFix": true,
       "hapticFeedback": true,
+      "hapticFeedbackManualFix": true,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Tomb_Raider_(2013)",
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": ""
+      "iconUrl": "",
+      "requiresManualFix": true
     },
     {
       "title": "Tony Hawk's Pro Skater 3 + 4",
@@ -2466,13 +2619,16 @@
       "normalized": "zenlesszonezero",
       "adaptiveTriggers": true,
       "hapticFeedback": true,
+      "hapticFeedbackManualFix": true,
+      "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Zenless_Zone_Zero",
       "profile": "standard",
       "steamAppId": 4162040,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4162040/library_600x900.jpg",
       "executables": [
         "zenlesszonezero.exe"
-      ]
+      ],
+      "requiresManualFix": true
     }
   ]
 }

@@ -7,6 +7,7 @@
 #include "dualsense/VirtualDualSense.h"
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/AdaptiveTriggerTranslation.h"
+#include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/LightbarBridge.h"
 #include "dualsense/RumbleBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
@@ -288,7 +289,7 @@ int commandList() {
         std::cerr << "HID enumeration warning: " << error << "\n";
     }
     if (candidates.empty()) {
-        std::cout << "No APEX 4/5 vendor HID interface found.\n";
+        std::cout << "No APEX 4/5/6 vendor HID interface found.\n";
         return 2;
     }
     std::cout << "Found " << candidates.size() << " candidate(s):\n\n";
@@ -336,7 +337,10 @@ int commandIdentify(int argc, char** argv) {
                   << " (" << static_cast<unsigned int>(identity->batteryPercent()) << "%)"
                   << (identity->isCharging() ? " (charging)" : "") << '\n';
     }
-    std::cout << "Adaptive triggers: yes\n";
+    std::cout << "Adaptive triggers: "
+              << (identity->supportsAdaptiveTriggers() ? "yes" : "no") << '\n'
+              << "Realtime voice-coil haptics: "
+              << (identity->supportsRealtimeHaptics() ? "yes" : "no") << '\n';
     return 0;
 }
 
@@ -346,6 +350,14 @@ int commandClear(int argc, char** argv) {
     if (!device) {
         std::cerr << "Error: " << error << "\n";
         return 3;
+    }
+    if (device->identity() && device->identity()->isApex6()) {
+        if (!device->disableApex6Haptics(error)) {
+            std::cerr << "Error while stopping Apex 6 haptics: " << error << '\n';
+            return 4;
+        }
+        std::cout << "Apex 6 trigger and grip haptics stopped.\n";
+        return 0;
     }
     std::string triggerError;
     std::string rumbleError;
@@ -423,8 +435,6 @@ int runTestTrigger(asb::flydigi::Apex5Device& device,
     std::cout << "Using: " << narrowAscii(device.info().product) << " ("
               << hex16(device.info().vendorId) << ':' << hex16(device.info().productId) << ")\n";
 
-    asb::TriggerResetGuard resetOnExit(device);
-
     std::vector<asb::TriggerSide> targets;
     if (side == "lt" || side == "left" || side == "l2") {
         targets.push_back(asb::TriggerSide::Left);
@@ -462,6 +472,42 @@ int runTestTrigger(asb::flydigi::Apex5Device& device,
     }
 
     std::cout << "Applying " << mode << " (level " << level << ") on " << side << " for " << seconds << "s...\n";
+
+    if (device.identity() && device.identity()->isApex6()) {
+        if (seconds == 0) {
+            std::cerr << "Apex 6 realtime trigger tests require a bounded --seconds duration.\n";
+            return 4;
+        }
+        asb::dualsense::Apex6HapticBridge bridge(device, {}, false);
+        bridge.updateTriggerPositions(255, 255);
+        for (auto targetSide : targets) {
+            cmd.side = targetSide;
+            bridge.setDiagnosticTrigger(cmd);
+        }
+        if (!bridge.start(error)) {
+            std::cerr << "Could not start the Apex 6 trigger test: " << error << '\n';
+            return 4;
+        }
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::seconds(seconds);
+        while (std::chrono::steady_clock::now() < deadline &&
+               !g_stopRequested.load(std::memory_order_relaxed) &&
+               !bridge.failed()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        if (!bridge.stop(error)) {
+            std::cerr << "WARNING: Apex 6 trigger stop failed: " << error << '\n';
+            return 5;
+        }
+        if (bridge.failed()) {
+            std::cerr << "Apex 6 trigger stream failed: " << bridge.error() << '\n';
+            return 4;
+        }
+        std::cout << "Apex 6 trigger haptics stopped.\n";
+        return 0;
+    }
+
+    asb::TriggerResetGuard resetOnExit(device);
 
     for (auto targetSide : targets) {
         cmd.side = targetSide;
@@ -547,6 +593,45 @@ int runTestRumble(asb::flydigi::Apex5Device& device,
     std::string error;
     std::cout << "Using: " << narrowAscii(device.info().product) << " ("
               << hex16(device.info().vendorId) << ':' << hex16(device.info().productId) << ")\n";
+
+    if (device.identity() && device.identity()->isApex6()) {
+        if (seconds == 0) {
+            std::cerr << "Apex 6 realtime haptics require a bounded --seconds duration.\n";
+            return 12;
+        }
+        asb::dualsense::Apex6HapticBridge bridge(device, {}, true);
+        asb::dualsense::DualSenseFeedback feedback{};
+        feedback.enableBits1 = 0x01;
+        feedback.rumbleLeft = lowFrequency;
+        feedback.rumbleRight = highFrequency;
+        bridge.handle(feedback);
+        if (!bridge.start(error)) {
+            std::cerr << "Could not start the Apex 6 haptic stream: " << error << '\n';
+            return 12;
+        }
+        std::cout << "Applying Apex 6 grip voice-coil test (low="
+                  << static_cast<unsigned int>(lowFrequency) << ", high="
+                  << static_cast<unsigned int>(highFrequency) << ") for "
+                  << seconds << "s...\n";
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::seconds(seconds);
+        while (std::chrono::steady_clock::now() < deadline &&
+               !g_stopRequested.load(std::memory_order_relaxed) &&
+               !bridge.failed()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        if (!bridge.stop(error)) {
+            std::cerr << "WARNING: Apex 6 haptic stop failed: " << error
+                      << "\nPower-cycle the controller before continuing.\n";
+            return 12;
+        }
+        if (bridge.failed()) {
+            std::cerr << "Apex 6 haptic stream failed: " << bridge.error() << '\n';
+            return 12;
+        }
+        std::cout << "Apex 6 grip haptics stopped.\n";
+        return 0;
+    }
 
     if (!device.stopRumble(error)) {
         std::cerr << "Could not establish a stopped rumble baseline: " << error << '\n';

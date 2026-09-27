@@ -82,4 +82,19 @@ decodeApex5InputReport(std::span<const std::uint8_t> report,
     return state;
 }
 
+void mergeApex5MappedControls(
+    dualsense::DualSenseInputState& vendorState,
+    const dualsense::DualSenseInputState& mappedState) noexcept {
+    vendorState.lx = mappedState.lx;
+    vendorState.ly = mappedState.ly;
+    vendorState.rx = mappedState.rx;
+    vendorState.ry = mappedState.ry;
+    vendorState.l2 = mappedState.l2;
+    vendorState.r2 = mappedState.r2;
+    vendorState.dpad = mappedState.dpad;
+    const auto psButton = vendorState.buttons & dualsense::button::kPs;
+    vendorState.buttons = static_cast<std::uint16_t>(
+        mappedState.buttons | psButton);
+}
+
 } // namespace asb::flydigi

@@ -291,7 +291,7 @@ std::optional<asb::flydigi::Apex5Device> openSelected(int argc, char** argv, std
         return std::nullopt;
     }
     if (candidates.empty()) {
-        error = "No APEX 4/5 vendor HID interface found. For Apex 4, use USB or "
+        error = "No APEX 4/5/6 vendor HID interface found. For Apex 4, use USB or "
                 "the 2.4 GHz dongle in DInput mode; for Apex 5, wake the controller.";
         return std::nullopt;
     }
@@ -321,7 +321,7 @@ std::optional<asb::flydigi::Apex5Device> openSelectedIndex(
     auto candidates = asb::flydigi::Apex5Device::findCandidates(error);
     if (!error.empty() && candidates.empty()) return std::nullopt;
     if (candidates.empty()) {
-        error = "No APEX 4/5 vendor HID interface found. For Apex 4, use USB or "
+        error = "No APEX 4/5/6 vendor HID interface found. For Apex 4, use USB or "
                 "the 2.4 GHz dongle in DInput mode; for Apex 5, wake the controller.";
         return std::nullopt;
     }

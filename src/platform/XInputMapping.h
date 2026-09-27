@@ -34,6 +34,12 @@ inline constexpr std::uint16_t kY = 0x8000;
 inline constexpr std::uint8_t kTriggerThreshold = 30;
 } // namespace xinputButton
 
+// Decodes the centered trigger axis exposed by the Xbox HID compatibility
+// collection. LT occupies the negative half and RT the positive half.
+void mapCombinedTriggerAxis(std::uint16_t combined,
+                            std::uint8_t& leftTrigger,
+                            std::uint8_t& rightTrigger) noexcept;
+
 // Applies only XInput digital controls and trigger-button thresholds. Axes and
 // analog trigger values are copied by the platform poller.
 void mapXInputButtons(std::uint16_t xinputButtons,

@@ -47,7 +47,7 @@ void printUsage() {
     std::cout
         << "ApexSenseBridge 1.0.0\n\n"
         << "Commands:\n"
-        << "  list                         List APEX 4/5 vendor HID candidates\n"
+        << "  list                         List APEX 4/5/6 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
         << "                               Read-only HID interface diagnostic\n"
         << "  input-status [index] [--seconds N] [--json]\n"
@@ -88,8 +88,8 @@ void printUsage() {
         << "                               Measure View/Back hold duration without writes\n"
         << "  clear [index]                Clear LT/RT effects and stop grip rumble\n"
         << "  dry-run                      Print the test packet without HID I/O\n\n"
-        << "Hardware writes only target a verified Apex 4 (04B4:2412, DInput) or\n"
-        << "Apex 5 (Flydigi 37D7 controller family). Pass an index if several are found.\n"
+        << "Hardware writes only target a verified Apex 4, Apex 5, or Apex 6 Pro.\n"
+        << "Pass an index if several supported controllers are found.\n"
         << "virtual-ds never opens the APEX HID interface and never routes feedback to it.\n";
 }
 

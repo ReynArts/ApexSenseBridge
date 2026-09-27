@@ -3,6 +3,7 @@
 #include "core/DeviceInfo.h"
 #include "core/TriggerEffect.h"
 #include "flydigi/Apex5Identity.h"
+#include "flydigi/Apex6Protocol.h"
 #include "platform/HidTransport.h"
 
 #include <array>
@@ -28,7 +29,7 @@ using TransportPtr = std::unique_ptr<platform::HidTransport, TransportDeleter>;
 class Apex5Device {
 public:
     // Historical API name retained for source compatibility. This transport
-    // now supports both Apex 5 (Flydigi V2) and Apex 4 (Flydigi V1/DInput).
+    // now supports Apex 4 (V1/DInput), Apex 5 (V2), and Apex 6 Pro (V3).
     Apex5Device() = default;
     explicit Apex5Device(TransportPtr transport);
 
@@ -55,6 +56,13 @@ public:
                    std::uint8_t highFrequencyMotor,
                    std::string& error);
     bool stopRumble(std::string& error);
+    bool enableApex6Haptics(std::string& error);
+    bool writeApex6Haptics(const apex6::MotorBlock& block,
+                           apex6::TriggerRoute route,
+                           bool enableTrigger,
+                           bool enableGrips,
+                           std::string& error);
+    bool disableApex6Haptics(std::string& error);
     bool readRgbConfig(std::uint8_t slot,
                        std::array<std::uint8_t, kRgbConfigSize>& outConfig,
                        std::string& error);
@@ -88,8 +96,10 @@ public:
 
 private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
+    [[nodiscard]] bool mayWriteApex6Haptics(std::string& error) const;
     [[nodiscard]] bool mayControlProfiles(std::string& error) const;
     [[nodiscard]] bool usesApex4Protocol() const noexcept;
+    [[nodiscard]] bool usesApex6Protocol() const noexcept;
     [[nodiscard]] std::unique_lock<std::recursive_mutex> acquireWriteLock() const noexcept;
     [[nodiscard]] bool writeSpacedOutputReport(std::span<const std::uint8_t> report,
                                                std::string& error);

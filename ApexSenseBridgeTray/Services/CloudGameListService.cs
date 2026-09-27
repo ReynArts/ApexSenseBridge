@@ -265,6 +265,18 @@ namespace ApexSenseBridgeTray.Services
                         : string.Empty;
                     g.AdaptiveTriggers = item.ContainsKey("adaptiveTriggers") && Convert.ToBoolean(item["adaptiveTriggers"]);
                     g.HapticFeedback = item.ContainsKey("hapticFeedback") && Convert.ToBoolean(item["hapticFeedback"]);
+                    bool legacyManualFix = item.ContainsKey("requiresManualFix") &&
+                        item["requiresManualFix"] != null &&
+                        Convert.ToBoolean(item["requiresManualFix"]);
+                    g.AdaptiveTriggersManualFix = item.ContainsKey("adaptiveTriggersManualFix")
+                        ? Convert.ToBoolean(item["adaptiveTriggersManualFix"])
+                        : legacyManualFix && g.AdaptiveTriggers;
+                    g.HapticFeedbackManualFix = item.ContainsKey("hapticFeedbackManualFix")
+                        ? Convert.ToBoolean(item["hapticFeedbackManualFix"])
+                        : legacyManualFix && g.HapticFeedback;
+                    g.ManualFixUrl = item.ContainsKey("manualFixUrl") && item["manualFixUrl"] != null
+                        ? item["manualFixUrl"].ToString()
+                        : string.Empty;
                     g.Profile = item.ContainsKey("profile") && item["profile"] != null ? item["profile"].ToString() : "standard";
                     g.IconUrl = item.ContainsKey("iconUrl") && item["iconUrl"] != null ? item["iconUrl"].ToString() : string.Empty;
                     if (item.ContainsKey("steamAppId") && item["steamAppId"] != null)

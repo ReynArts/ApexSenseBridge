@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.0.0-beta.4
+
+- **In-app project support**: adds a dedicated, prominently placed Ko-fi card
+  to the Tray settings while keeping donations visually and functionally
+  separate from technical support.
+- **Consent-driven bug reports**: adds a localized report window requiring only
+  a title and explanation, with up to five optional screenshots, a previewable
+  anonymized installation diagnostic, and a prefilled GitHub issue draft. The
+  diagnostic reads only bounded local metadata when explicitly requested and
+  adds no timer, background scan, bridge activity, or idle network traffic. The
+  report entry uses the supplied vector bug icon and supports gamepad settings
+  navigation.
+- **Manual-fix game safety ([#14](https://github.com/ReynArts/ApexSenseBridge/issues/14))**:
+  the PCGamingWiki synchronizer now imports
+  `RequireManualFix` separately for adaptive triggers and haptic feedback.
+  Games whose selected features require an external modification no longer
+  activate the bridge and hide the working physical XInput controller. The
+  Tray identifies them with a localized badge and one-shot notification that
+  links to their PCGamingWiki instructions.
+- **Initial APEX 6 Pro realtime-haptics port**: recognizes the verified
+  `37D7:2502` / usage-page `FFA0` interface and its `0x96` identity without
+  routing it through the APEX 5 protocol. A dedicated 125 Hz writer performs
+  the `0x53` enable/disable handshake and streams `0x57` blocks containing
+  eight 1 kHz subframes for the two grip voice coils and the routed trigger
+  force channel. Independent LT/RT programs are position-gated and multiplexed
+  without starting any realtime worker on APEX 4 or APEX 5.
+- **Native APEX 6 haptic waveform transport**: VIIPER retains the existing
+  energy/peak/transient frame used by APEX 4/5 and additionally low-pass
+  decimates the virtual DualSense stereo haptic endpoint from 48 kHz to eight
+  signed 1 kHz samples. Integrated `libVIIPER v0.7.0-asb10` and sidecar
+  `v0.7.0-asb8` expose the new frame while preserving the existing format.
+- **Safe APEX 6 diagnostics and shutdown**: `identify`, `test-trigger`,
+  `test-rumble`, `clear`, and `bridge-triggers` select model-specific behavior.
+  Shutdown sends repeated neutral blocks followed by both motor-disable frames;
+  protocol, identity, waveform, and streamer tests ensure APEX 6 commands can
+  never be sent to APEX 4/5 transports. Real-hardware validation is still
+  required before marking APEX 6 support fully verified.
+- **Xbox Mode / AnyFSE input and Space Station compatibility**: the APEX 5
+  reader now combines the mapped game-controller HID collection with the
+  vendor motion stream instead of polling XInput. Full Screen Experience can
+  no longer neutralize the bridge's standard controls, and Space Station's
+  onboard mappings remain authoritative across Desktop ↔ FSE transitions.
+- **Stellar Blade ranged attacks ([#6](https://github.com/ReynArts/ApexSenseBridge/issues/6))**:
+  the virtual DualSense now mirrors host
+  timestamps and synthesizes the adaptive-trigger mechanism state reported by
+  real hardware. Weapon effects advance through ready, firing, and fired as RT
+  crosses the game-defined break points, so games that consume Sony's raw
+  trigger-status bytes no longer see an analog press with a permanently idle
+  trigger. Neutral trigger-arm, device-timestamp, and wired-connection metadata
+  now also match a physical USB DualSense.
+
 ## 1.0.0-beta.3
 
 - **APEX 4 wireless stability**: avoids the trigger apply flag that stalls the

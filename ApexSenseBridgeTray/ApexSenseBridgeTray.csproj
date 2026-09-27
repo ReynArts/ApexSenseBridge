@@ -68,6 +68,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="BugReportWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="LearnedExecutablesWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -88,6 +92,10 @@
       <DependentUpon>GameListWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="BugReportWindow.xaml.cs">
+      <DependentUpon>BugReportWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="LearnedExecutablesWindow.xaml.cs">
       <DependentUpon>LearnedExecutablesWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -102,6 +110,7 @@
     <Compile Include="Services\CloudGameListService.cs" />
     <Compile Include="Services\ControllerDetectionService.cs" />
     <Compile Include="Services\ControllerTestService.cs" />
+    <Compile Include="Services\DiagnosticReportService.cs" />
     <Compile Include="Services\ExecutableLearningService.cs" />
     <Compile Include="Services\GameProcessSessionTracker.cs" />
     <Compile Include="Services\GameActivationPolicy.cs" />

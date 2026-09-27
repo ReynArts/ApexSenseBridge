@@ -12,6 +12,24 @@ std::uint8_t axisToByte(std::int16_t value, bool invert) noexcept {
 
 } // namespace
 
+void mapCombinedTriggerAxis(std::uint16_t combined,
+                            std::uint8_t& leftTrigger,
+                            std::uint8_t& rightTrigger) noexcept {
+    constexpr std::uint32_t kCenter = 0x8000;
+    constexpr std::uint32_t kPositiveRange = 0x7FFF;
+    leftTrigger = 0;
+    rightTrigger = 0;
+    if (combined < kCenter) {
+        const auto distance = kCenter - combined;
+        leftTrigger = static_cast<std::uint8_t>(
+            (distance * 255U + kCenter / 2) / kCenter);
+    } else if (combined > kCenter) {
+        const auto distance = combined - kCenter;
+        rightTrigger = static_cast<std::uint8_t>(
+            (distance * 255U + kPositiveRange / 2) / kPositiveRange);
+    }
+}
+
 void mapXInputButtons(std::uint16_t raw,
                       std::uint8_t leftTrigger,
                       std::uint8_t rightTrigger,

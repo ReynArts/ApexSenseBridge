@@ -439,7 +439,8 @@ public:
             error = "Virtual DualSense input stream is not connected.";
             return false;
         }
-        const auto input = buildViiperInput(state);
+        const auto input = buildViiperInput(
+            state, options_.captureAudioHapticsWaveform);
         std::lock_guard lock(inputWriteMutex_);
         const auto updateStartedAt = std::chrono::steady_clock::now();
         if (!sendAll(toSocket(socketValue), input.data(), input.size())) {
@@ -740,7 +741,7 @@ private:
                 break;
             }
 
-            if (frameType != 0x01 && frameType != 0x02) {
+            if (frameType != 0x01 && frameType != 0x02 && frameType != 0x03) {
                 unknownFrames_.fetch_add(1, std::memory_order_relaxed);
                 continue;
             }
@@ -766,6 +767,10 @@ private:
                 }
                 // Trigger and conventional rumble requests remain immediate.
                 deliver(feedback);
+            } else if (feedback.kind == FeedbackKind::AudioHapticWaveform) {
+                audioHapticsFrames_.fetch_add(1, std::memory_order_relaxed);
+                deliver(feedback);
+                audioHapticsDelivered_.fetch_add(1, std::memory_order_relaxed);
             } else {
                 audioHapticsFrames_.fetch_add(1, std::memory_order_relaxed);
                 constexpr auto kAudioWindow = std::chrono::milliseconds(5);

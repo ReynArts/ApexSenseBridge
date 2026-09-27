@@ -13,6 +13,7 @@
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Input.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 #include "platform/HidTransport.h"
 #include "platform/XInputGamepad.h"
 #include "platform/XInputMapping.h"
@@ -92,9 +93,22 @@ std::int64_t signedLogicalValue(ULONG raw, const HIDP_VALUE_CAPS& cap) noexcept 
         : static_cast<std::int64_t>(raw);
 }
 
+std::int64_t logicalMaximum(const HIDP_VALUE_CAPS& cap) noexcept {
+    // hid.dll exposes an unsigned all-bits-set logical maximum through the
+    // signed LONG field as -1. XUSB descriptors use this for their 16-bit
+    // sticks and combined trigger axis.
+    if (cap.LogicalMin >= 0 && cap.LogicalMax < cap.LogicalMin &&
+        cap.BitSize > 0 && cap.BitSize <= 32) {
+        return cap.BitSize == 32
+            ? static_cast<std::int64_t>((std::numeric_limits<ULONG>::max)())
+            : (std::int64_t{1} << cap.BitSize) - 1;
+    }
+    return static_cast<std::int64_t>(cap.LogicalMax);
+}
+
 std::uint8_t normalizeByte(ULONG raw, const HIDP_VALUE_CAPS& cap) noexcept {
     const auto minimum = static_cast<std::int64_t>(cap.LogicalMin);
-    const auto maximum = static_cast<std::int64_t>(cap.LogicalMax);
+    const auto maximum = logicalMaximum(cap);
     if (maximum <= minimum) return 0;
     const auto value = std::clamp(signedLogicalValue(raw, cap), minimum, maximum);
     const auto numerator = static_cast<std::uint64_t>(value - minimum) * 255ULL;
@@ -286,11 +300,22 @@ private:
                                           containsUsage(cap, usage);
                                });
         };
+        const auto hasCombinedTriggerAxis = [this] {
+            return std::any_of(valueCaps_.begin(), valueCaps_.end(),
+                               [](const auto& cap) {
+                                   return cap.UsagePage == kUsagePageGenericDesktop &&
+                                          containsUsage(cap, kUsageZ) &&
+                                          cap.BitSize == 16 && cap.ReportCount == 1 &&
+                                          cap.LogicalMin == 0 &&
+                                          logicalMaximum(cap) == 0xFFFF;
+                               });
+        };
         if (!hasValue(kUsageX) || !hasValue(kUsageY) || !hasValue(kUsageRx) ||
-            !hasValue(kUsageRy) || !hasValue(kUsageZ) || !hasValue(kUsageRz)) {
+            !hasValue(kUsageRy) || !hasValue(kUsageZ) ||
+            (!hasValue(kUsageRz) && !hasCombinedTriggerAxis())) {
             std::ostringstream details;
-            details << "The APEX HID descriptor does not expose the complete X/Y/Rx/Ry/Z/Rz "
-                       "state required for a lossless DualSense proxy. Available value usages:";
+            details << "The APEX HID descriptor does not expose complete sticks and either "
+                       "separate triggers or an Xbox combined trigger axis. Available value usages:";
             for (const auto& cap : valueCaps_) {
                 details << " page=0x" << std::hex << cap.UsagePage << " usage=0x";
                 if (cap.IsRange) {
@@ -298,7 +323,9 @@ private:
                 } else {
                     details << cap.NotRange.Usage;
                 }
-                details << std::dec;
+                details << std::dec << " bits=" << cap.BitSize
+                        << " count=" << cap.ReportCount
+                        << " logical=" << cap.LogicalMin << ".." << cap.LogicalMax;
             }
             error = details.str();
             return false;
@@ -392,8 +419,27 @@ private:
             return true;
         };
         if (!readAxis(kUsageX, decoded.lx) || !readAxis(kUsageY, decoded.ly) ||
-            !readAxis(kUsageRx, decoded.rx) || !readAxis(kUsageRy, decoded.ry) ||
-            !readAxis(kUsageZ, decoded.l2) || !readAxis(kUsageRz, decoded.r2)) {
+            !readAxis(kUsageRx, decoded.rx) || !readAxis(kUsageRy, decoded.ry)) {
+            return false;
+        }
+
+        ULONG combinedTrigger = 0;
+        const HIDP_VALUE_CAPS* triggerCap = nullptr;
+        if (usageValue(kUsageRz, combinedTrigger, triggerCap) && triggerCap) {
+            decoded.r2 = normalizeByte(combinedTrigger, *triggerCap);
+            if (!readAxis(kUsageZ, decoded.l2)) return false;
+        } else if (usageValue(kUsageZ, combinedTrigger, triggerCap) && triggerCap &&
+                   triggerCap->BitSize == 16 && triggerCap->ReportCount == 1 &&
+                   triggerCap->LogicalMin == 0 &&
+                   logicalMaximum(*triggerCap) == 0xFFFF) {
+            // The Xbox HID compatibility collection projects LT and RT onto
+            // one centered DirectInput-style axis: LT moves toward 0 and RT
+            // toward 65535. A one-count center wobble must remain neutral.
+            mapCombinedTriggerAxis(
+                static_cast<std::uint16_t>(combinedTrigger),
+                decoded.l2, decoded.r2);
+        } else {
+            error = "The APEX HID trigger state was missing from an input report.";
             return false;
         }
 
@@ -612,11 +658,10 @@ private:
     std::atomic<std::uint8_t> currentChargeState_{0};
 };
 
-class Apex5VendorPhysicalInputSource final : public PhysicalInputSource {
+class Apex5DualHidPhysicalInputSource final : public PhysicalInputSource {
 public:
-    static std::unique_ptr<Apex5VendorPhysicalInputSource> open(
+    static std::unique_ptr<Apex5DualHidPhysicalInputSource> open(
         const HidDeviceInfo& vendorInterface,
-        std::optional<unsigned int> requestedXInputIndex,
         std::string& error) {
         if (vendorInterface.vendorId != flydigi::kVendorId ||
             !flydigi::isControllerProduct(vendorInterface.productId) ||
@@ -626,12 +671,12 @@ public:
             return {};
         }
 
-        std::string xinputError;
-        auto gamepad = openXInputGamepadForDevice(
-            vendorInterface.vendorId, vendorInterface.productId,
-            requestedXInputIndex, xinputError);
-        if (!gamepad) {
-            error = "XInput gamepad for Apex 5 unavailable (" + xinputError + ").";
+        std::string mappedHidError;
+        auto mappedGamepad = HidPhysicalInputSource::open(
+            vendorInterface, mappedHidError);
+        if (!mappedGamepad) {
+            error = "Mapped game-controller HID for Apex 5 unavailable (" +
+                    mappedHidError + ").";
             return {};
         }
 
@@ -646,8 +691,9 @@ public:
             return {};
         }
 
-        auto source = std::unique_ptr<Apex5VendorPhysicalInputSource>(
-            new Apex5VendorPhysicalInputSource(vendorInterface, handle, std::move(gamepad)));
+        auto source = std::unique_ptr<Apex5DualHidPhysicalInputSource>(
+            new Apex5DualHidPhysicalInputSource(
+                vendorInterface, handle, std::move(mappedGamepad)));
         if (!source->event_) {
             error = "Could not create the Apex 5 vendor input event.";
             return {};
@@ -655,7 +701,7 @@ public:
         return source;
     }
 
-    ~Apex5VendorPhysicalInputSource() override {
+    ~Apex5DualHidPhysicalInputSource() override {
         if (handle_ != INVALID_HANDLE_VALUE) {
             if (readPending_) {
                 CancelIoEx(handle_, &overlapped_);
@@ -736,31 +782,39 @@ public:
                 continue;
             }
             state = *decoded;
-            if (gamepad_) {
-                dualsense::DualSenseInputState xinputState{};
-                std::string xinputError;
-                if (gamepad_->poll(xinputState, xinputError)) {
-                    state.lx = xinputState.lx;
-                    state.ly = xinputState.ly;
-                    state.rx = xinputState.rx;
-                    state.ry = xinputState.ry;
-                    state.l2 = xinputState.l2;
-                    state.r2 = xinputState.r2;
-                    state.dpad = xinputState.dpad;
-                    const auto psButton = state.buttons & dualsense::button::kPs;
-                    state.buttons = static_cast<std::uint16_t>(xinputState.buttons | psButton);
-                } else {
-                    error = "The physical Apex 5 XInput controller disconnected (" +
-                            xinputError + ").";
-                    return PhysicalInputStatus::Disconnected;
+            dualsense::DualSenseInputState mappedState{};
+            std::string mappedError;
+            auto mappedWait = std::chrono::milliseconds(0);
+            if (!lastMappedState_) {
+                const auto mappedNow = std::chrono::steady_clock::now();
+                if (mappedNow < deadline) {
+                    mappedWait = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        deadline - mappedNow);
+                    if (mappedWait.count() == 0) {
+                        mappedWait = std::chrono::milliseconds(1);
+                    }
                 }
             }
+            const auto mappedStatus = mappedGamepad_->waitForState(
+                mappedState, mappedWait, mappedError);
+            if (mappedStatus == PhysicalInputStatus::State) {
+                lastMappedState_ = mappedState;
+            } else if (mappedStatus == PhysicalInputStatus::Disconnected ||
+                       mappedStatus == PhysicalInputStatus::Error) {
+                error = "The physical Apex 5 mapped HID stream failed (" +
+                        mappedError + ").";
+                return mappedStatus;
+            } else if (!lastMappedState_) {
+                ++stats_.timeouts;
+                return PhysicalInputStatus::Timeout;
+            }
+            flydigi::mergeApex5MappedControls(state, *lastMappedState_);
             return PhysicalInputStatus::State;
         }
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex5-v2-hybrid-event";
+        return "apex5-v2-dual-hid-event";
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override { return stats_; }
@@ -770,11 +824,11 @@ public:
     }
 
 private:
-    Apex5VendorPhysicalInputSource(
+    Apex5DualHidPhysicalInputSource(
         const HidDeviceInfo& info, HANDLE handle,
-        std::unique_ptr<XInputGamepad> gamepad)
+        std::unique_ptr<PhysicalInputSource> mappedGamepad)
         : handle_(handle), report_(info.inputReportLength, 0),
-          gamepad_(std::move(gamepad)) {
+          mappedGamepad_(std::move(mappedGamepad)) {
         event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         overlapped_.hEvent = event_;
     }
@@ -807,7 +861,8 @@ private:
     PhysicalInputSourceStats stats_{};
     std::atomic<std::uint8_t> currentBatteryPercent_{100};
     std::atomic<std::uint8_t> currentChargeState_{0};
-    std::unique_ptr<XInputGamepad> gamepad_;
+    std::unique_ptr<PhysicalInputSource> mappedGamepad_;
+    std::optional<dualsense::DualSenseInputState> lastMappedState_;
 };
 
 class XInputPhysicalInputSource final : public PhysicalInputSource {
@@ -880,11 +935,25 @@ std::unique_ptr<PhysicalInputSource> openPhysicalInputSource(
     std::optional<unsigned int> requestedXInputIndex,
     std::string& error) {
     if (!requestedXInputIndex) {
+        if (flydigi::apex6::isProduct(
+                apexVendorInterface.vendorId, apexVendorInterface.productId)) {
+            std::string apex6Error;
+            auto apex6 = HidPhysicalInputSource::open(
+                apexVendorInterface, apex6Error);
+            if (apex6) {
+                error.clear();
+                return apex6;
+            }
+            error = "Apex 6 mapped HID input unavailable (" + apex6Error + "); ";
+        }
+
         if (apexVendorInterface.vendorId == flydigi::kVendorId &&
-            flydigi::isControllerProduct(apexVendorInterface.productId)) {
+            flydigi::isControllerProduct(apexVendorInterface.productId) &&
+            !flydigi::apex6::isProduct(
+                apexVendorInterface.vendorId, apexVendorInterface.productId)) {
             std::string apex5Error;
-            auto apex5 = Apex5VendorPhysicalInputSource::open(
-                apexVendorInterface, requestedXInputIndex, apex5Error);
+            auto apex5 = Apex5DualHidPhysicalInputSource::open(
+                apexVendorInterface, apex5Error);
             if (apex5) {
                 error.clear();
                 return apex5;

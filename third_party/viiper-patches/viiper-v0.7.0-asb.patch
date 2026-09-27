@@ -153,10 +153,10 @@ index 0000000..09018dd
 +}
 diff --git a/device/dualsense/asb_extensions.go b/device/dualsense/asb_extensions.go
 new file mode 100644
-index 0000000..11e75ac
+index 0000000..0d302ac
 --- /dev/null
 +++ b/device/dualsense/asb_extensions.go
-@@ -0,0 +1,352 @@
+@@ -0,0 +1,495 @@
 +package dualsense
 +
 +import (
@@ -183,6 +183,7 @@ index 0000000..11e75ac
 +	LightbarRed        uint8
 +	LightbarGreen      uint8
 +	LightbarBlue       uint8
++	hostTimestamp      uint32
 +}
 +
 +func (f *ASBOutputState) MarshalBinary() ([]byte, error) {
@@ -222,10 +223,27 @@ index 0000000..11e75ac
 +	return b, nil
 +}
 +
++type AudioWaveformState struct {
++	Sequence uint32
++	Left     [8]int16
++	Right    [8]int16
++}
++
++func (s *AudioWaveformState) MarshalBinary() ([]byte, error) {
++	b := make([]byte, 36)
++	binary.LittleEndian.PutUint32(b[0:4], s.Sequence)
++	for i := 0; i < 8; i++ {
++		binary.LittleEndian.PutUint16(b[4+i*4:6+i*4], uint16(s.Left[i]))
++		binary.LittleEndian.PutUint16(b[6+i*4:8+i*4], uint16(s.Right[i]))
++	}
++	return b, nil
++}
++
 +type FeedbackFrame struct {
-+	Type  uint8
-+	HID   ASBOutputState
-+	Audio AudioHapticsState
++	Type     uint8
++	HID      ASBOutputState
++	Audio    AudioHapticsState
++	Waveform AudioWaveformState
 +}
 +
 +func (f *FeedbackFrame) MarshalBinary() ([]byte, error) {
@@ -236,6 +254,8 @@ index 0000000..11e75ac
 +		payload, err = f.HID.MarshalBinary()
 +	case FeedbackFrameAudioHaptics:
 +		payload, err = f.Audio.MarshalBinary()
++	case FeedbackFrameAudioWaveform:
++		payload, err = f.Waveform.MarshalBinary()
 +	}
 +	if err != nil {
 +		return nil, err
@@ -272,7 +292,98 @@ index 0000000..11e75ac
 +	feedback.LightbarRed = data[44]
 +	feedback.LightbarGreen = data[45]
 +	feedback.LightbarBlue = data[46]
++	feedback.hostTimestamp = binary.LittleEndian.Uint32(data[32:36])
 +	return feedback, true
++}
++
++const (
++	triggerEffectFeedback  = 0x21
++	triggerEffectWeapon    = 0x25
++	triggerEffectVibration = 0x26
++	triggerEffectOff       = 0x05
++	triggerStatusNeutral   = 0x09
++)
++
++func (d *DualSense) updateASBTriggerState(feedback ASBOutputState) {
++	d.mtx.Lock()
++	defer d.mtx.Unlock()
++	if feedback.EnableBits1&0x04 != 0 {
++		d.rightTriggerEffect = feedback.RightTriggerEffect
++	}
++	if feedback.EnableBits1&0x08 != 0 {
++		d.leftTriggerEffect = feedback.LeftTriggerEffect
++	}
++	d.hostTimestamp = feedback.hostTimestamp
++}
++
++func synthesizeTriggerFeedback(effect [11]uint8, position uint8) (uint8, uint8) {
++	// DualSense firmware reports the adaptive-trigger mechanism separately
++	// from the analog axis. Native Sony input consumers (including Stellar
++	// Blade) use this state to observe a weapon crossing its break point.
++	zone := uint8(uint16(position) * 10 / 256)
++	switch effect[0] {
++	case triggerEffectFeedback:
++		start, _, ok := triggerEffectZones(effect)
++		if !ok {
++			return triggerStatusNeutral, 0
++		}
++		status := uint8(0)
++		if zone >= start {
++			status = 1
++		}
++		return status<<4 | start, 1
++	case triggerEffectWeapon:
++		start, end, ok := triggerEffectZones(effect)
++		if !ok {
++			return triggerStatusNeutral, 0
++		}
++		if zone < start {
++			return start, 2
++		}
++		if zone < end {
++			return 0x10 | zone, 2
++		}
++		return 0x29, 2
++	case triggerEffectVibration:
++		start, _, ok := triggerEffectZones(effect)
++		if !ok {
++			return triggerStatusNeutral, 0
++		}
++		status := uint8(0)
++		if zone >= start {
++			status = 1
++		}
++		return status<<4 | start, 3
++	case triggerEffectOff, 0:
++		return triggerStatusNeutral, 0
++	default:
++		return triggerStatusNeutral, 0
++	}
++}
++
++func triggerEffectZones(effect [11]uint8) (uint8, uint8, bool) {
++	switch effect[0] {
++	case triggerEffectFeedback, triggerEffectWeapon, triggerEffectVibration:
++		mask := uint16(effect[1]) | uint16(effect[2])<<8
++		first, second := uint8(0), uint8(0)
++		found := 0
++		for zone := uint8(0); zone < 10; zone++ {
++			if mask&(uint16(1)<<zone) == 0 {
++				continue
++			}
++			if found == 0 {
++				first = zone
++			}
++			second = zone
++			found++
++		}
++		if effect[0] == triggerEffectWeapon {
++			return first, second, found >= 2
++		}
++		return first, first, found >= 1
++	default:
++		return 0, 0, false
++	}
 +}
 +
 +// unmarshalASBInputState decodes the wire format used by ApexSenseBridge
@@ -318,6 +429,7 @@ index 0000000..11e75ac
 +	if err != nil {
 +		return err
 +	}
++	d.audioWaveEnabled.Store(data[32]&0x80 != 0)
 +	d.UpdateInputState(&state)
 +	return nil
 +}
@@ -379,16 +491,24 @@ index 0000000..11e75ac
 +	if len(data) < 8 {
 +		return
 +	}
++	waveformEnabled := d.audioWaveEnabled.Load()
 +	d.audioMu.Lock()
 +	defer d.audioMu.Unlock()
 +	for i := 0; i+7 < len(data); i += 8 {
 +		frontLeft := absS16(int16(binary.LittleEndian.Uint16(data[i : i+2])))
 +		frontRight := absS16(int16(binary.LittleEndian.Uint16(data[i+2 : i+4])))
-+		left := absS16(int16(binary.LittleEndian.Uint16(data[i+4 : i+6])))
-+		right := absS16(int16(binary.LittleEndian.Uint16(data[i+6 : i+8])))
++		leftSigned := int16(binary.LittleEndian.Uint16(data[i+4 : i+6]))
++		rightSigned := int16(binary.LittleEndian.Uint16(data[i+6 : i+8]))
++		left := absS16(leftSigned)
++		right := absS16(rightSigned)
 +		d.audioFrontSum += uint64(frontLeft) + uint64(frontRight)
 +		d.audioLeftSum += uint64(left)
 +		d.audioRightSum += uint64(right)
++		if waveformEnabled {
++			d.audioDecimateLeft += int64(leftSigned)
++			d.audioDecimateRight += int64(rightSigned)
++			d.audioDecimateFrames++
++		}
 +		if frontLeft > d.audioFrontPeak {
 +			d.audioFrontPeak = frontLeft
 +		}
@@ -401,11 +521,34 @@ index 0000000..11e75ac
 +		if right > d.audioRightPeak {
 +			d.audioRightPeak = right
 +		}
++		if waveformEnabled && d.audioDecimateFrames == 48 {
++			index := d.audioWaveSamples
++			d.audioWaveLeft[index] = int16(d.audioDecimateLeft / 48)
++			d.audioWaveRight[index] = int16(d.audioDecimateRight / 48)
++			d.audioWaveSamples++
++			d.audioDecimateFrames = 0
++			d.audioDecimateLeft = 0
++			d.audioDecimateRight = 0
++			if d.audioWaveSamples == 8 {
++				d.flushAudioWaveformLocked()
++			}
++		}
 +		d.audioFrames++
 +		if d.audioFrames >= 240 {
 +			d.flushAudioHapticsLocked()
 +		}
 +	}
++}
++
++func (d *DualSense) flushAudioWaveformLocked() {
++	d.audioWaveSeq++
++	frame := FeedbackFrame{Type: FeedbackFrameAudioWaveform, Waveform: AudioWaveformState{
++		Sequence: d.audioWaveSeq, Left: d.audioWaveLeft, Right: d.audioWaveRight,
++	}}
++	d.audioWaveSamples = 0
++	d.audioWaveLeft = [8]int16{}
++	d.audioWaveRight = [8]int16{}
++	d.emitRawOutput(frame)
 +}
 +
 +func (d *DualSense) flushAudioHapticsLocked() {
@@ -511,10 +654,10 @@ index 0000000..11e75ac
 +}
 diff --git a/device/dualsense/asb_extensions_test.go b/device/dualsense/asb_extensions_test.go
 new file mode 100644
-index 0000000..2bfd9a1
+index 0000000..24a5f4c
 --- /dev/null
 +++ b/device/dualsense/asb_extensions_test.go
-@@ -0,0 +1,185 @@
+@@ -0,0 +1,286 @@
 +package dualsense
 +
 +import (
@@ -629,6 +772,46 @@ index 0000000..2bfd9a1
 +	}
 +}
 +
++func TestASBWeaponTriggerStateReachesUSBInputReport(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	neutral := ds.HandleTransfer(4, usbip.DirIn, nil)
++	if neutral[42] != triggerStatusNeutral || neutral[43] != triggerStatusNeutral ||
++		neutral[48] != 0 || neutral[54] != 0x08 ||
++		binary.LittleEndian.Uint32(neutral[49:53]) != binary.LittleEndian.Uint32(neutral[28:32]) {
++		t.Fatalf("neutral DualSense metadata is invalid: % x", neutral[42:55])
++	}
++
++	output := make([]byte, OutputReportSize)
++	output[0] = ReportIDOutput
++	output[1] = 0x04
++	output[11] = triggerEffectWeapon
++	output[12] = 1 << 2
++	output[13] = 1 << (8 - 8)
++	binary.LittleEndian.PutUint32(output[33:37], 0x78563412)
++	ds.HandleTransfer(3, usbip.DirOut, output)
++
++	state := *ds.inputState
++	state.R2 = 100
++	state.Buttons |= ButtonR2
++	ds.UpdateInputState(&state)
++	firing := ds.HandleTransfer(4, usbip.DirIn, nil)
++	if firing[6] != 100 || firing[9]&0x08 == 0 || firing[42] != 0x13 ||
++		firing[48]&0x0F != 2 || binary.LittleEndian.Uint32(firing[44:48]) != 0x78563412 {
++		t.Fatalf("weapon firing state was not synthesized: % x", firing[:55])
++	}
++
++	state.R2 = 255
++	ds.UpdateInputState(&state)
++	fired := ds.HandleTransfer(4, usbip.DirIn, nil)
++	if fired[6] != 255 || fired[42] != 0x29 || fired[48]&0x0F != 2 {
++		t.Fatalf("weapon fired state was not synthesized: % x", fired[:55])
++	}
++}
++
 +func TestASBCompositeDescriptorAndFirmware(t *testing.T) {
 +	ds, err := New(nil)
 +	if err != nil {
@@ -700,11 +883,72 @@ index 0000000..2bfd9a1
 +		t.Fatalf("audio haptics were not extracted: %+v", got)
 +	}
 +}
++
++func TestASBAudioWaveformIsFilteredToOneKilohertz(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var waveform FeedbackFrame
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) {
++		if frame.Type == FeedbackFrameAudioWaveform {
++			waveform = frame
++		}
++	})
++	input := make([]byte, asbInputStateSize)
++	input[32] = 0x80
++	if err := ds.UpdateASBInputState(input); err != nil {
++		t.Fatal(err)
++	}
++	pcm := make([]byte, 8*48*8)
++	for i := 0; i < len(pcm); i += 8 {
++		binary.LittleEndian.PutUint16(pcm[i+4:i+6], 4800)
++		binary.LittleEndian.PutUint16(pcm[i+6:i+8], 0xDA80)
++	}
++	packets := []usb.IsoPacket{{Offset: 0, Length: uint32(len(pcm))}}
++	ds.HandleIsoTransfer(1, usbip.DirOut, pcm, packets)
++	if waveform.Type != FeedbackFrameAudioWaveform || waveform.Waveform.Sequence != 1 {
++		t.Fatalf("audio waveform was not emitted: %+v", waveform)
++	}
++	for i := 0; i < 8; i++ {
++		if waveform.Waveform.Left[i] != 4800 || waveform.Waveform.Right[i] != -9600 {
++			t.Fatalf("sample %d = (%d,%d), want (4800,-9600)", i,
++				waveform.Waveform.Left[i], waveform.Waveform.Right[i])
++		}
++	}
++	encoded, err := waveform.MarshalBinary()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(encoded) != 39 || encoded[0] != FeedbackFrameAudioWaveform ||
++		binary.LittleEndian.Uint16(encoded[1:3]) != 36 {
++		t.Fatalf("unexpected waveform framing: %x", encoded)
++	}
++}
++
++func TestASBAudioWaveformIsOptIn(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var waveformFrames int
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) {
++		if frame.Type == FeedbackFrameAudioWaveform {
++			waveformFrames++
++		}
++	})
++	pcm := make([]byte, 8*48*8)
++	packets := []usb.IsoPacket{{Offset: 0, Length: uint32(len(pcm))}}
++	ds.HandleIsoTransfer(1, usbip.DirOut, pcm, packets)
++	if waveformFrames != 0 {
++		t.Fatalf("waveform emitted without opt-in: %d", waveformFrames)
++	}
++}
 diff --git a/device/dualsense/const.go b/device/dualsense/const.go
-index 530b457..4f60e07 100644
+index 530b457..8bc5366 100644
 --- a/device/dualsense/const.go
 +++ b/device/dualsense/const.go
-@@ -29,8 +29,15 @@ const (
+@@ -29,8 +29,16 @@ const (
  var DefaultBuildTime = time.Date(2025, time.July, 4, 10, 10, 32, 0, time.UTC)
  
  const (
@@ -717,16 +961,17 @@ index 530b457..4f60e07 100644
 +)
 +
 +const (
-+	FeedbackFrameHIDOutput    = 0x01
-+	FeedbackFrameAudioHaptics = 0x02
++	FeedbackFrameHIDOutput     = 0x01
++	FeedbackFrameAudioHaptics  = 0x02
++	FeedbackFrameAudioWaveform = 0x03
  )
  
  const (
 diff --git a/device/dualsense/device.go b/device/dualsense/device.go
-index 5dd1d2c..905a515 100644
+index 5dd1d2c..1182164 100644
 --- a/device/dualsense/device.go
 +++ b/device/dualsense/device.go
-@@ -19,15 +19,30 @@ type DualSense struct {
+@@ -19,15 +19,41 @@ type DualSense struct {
  	inputState *InputState
  	metaState  *MetaState
  
@@ -740,27 +985,39 @@ index 5dd1d2c..905a515 100644
  
  	seqCounter         uint8
  	usbReportTimestamp uint32
- 
+-
 -	mtx sync.Mutex
++	rightTriggerEffect [11]uint8
++	leftTriggerEffect  [11]uint8
++	hostTimestamp      uint32
++
 +	mtx        sync.Mutex
 +	callbackMu sync.RWMutex
 +
-+	interfaceAlt   [4]uint8
-+	audioMu        sync.Mutex
-+	audioSeq       uint32
-+	audioFrames    uint32
-+	audioFrontSum  uint64
-+	audioLeftSum   uint64
-+	audioRightSum  uint64
-+	audioFrontPeak uint16
-+	audioLeftPeak  uint16
-+	audioRightPeak uint16
-+	audioLastLeft  uint16
-+	audioLastRight uint16
++	interfaceAlt        [4]uint8
++	audioMu             sync.Mutex
++	audioSeq            uint32
++	audioFrames         uint32
++	audioFrontSum       uint64
++	audioLeftSum        uint64
++	audioRightSum       uint64
++	audioFrontPeak      uint16
++	audioLeftPeak       uint16
++	audioRightPeak      uint16
++	audioLastLeft       uint16
++	audioLastRight      uint16
++	audioDecimateFrames uint32
++	audioDecimateLeft   int64
++	audioDecimateRight  int64
++	audioWaveLeft       [8]int16
++	audioWaveRight      [8]int16
++	audioWaveSamples    uint8
++	audioWaveSeq        uint32
++	audioWaveEnabled    atomic.Bool
  }
  
  func New(o *device.CreateOptions) (*DualSense, error) {
-@@ -84,13 +99,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
+@@ -84,13 +110,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
  	}
  
  	d := &DualSense{
@@ -777,7 +1034,7 @@ index 5dd1d2c..905a515 100644
  	}
  
  	if o != nil {
-@@ -124,9 +141,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
+@@ -124,9 +152,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
  }
  
  func (d *DualSense) SetOutputCallback(f func(OutputState)) {
@@ -813,7 +1070,7 @@ index 5dd1d2c..905a515 100644
  func (d *DualSense) UpdateInputState(state *InputState) {
  	d.mtx.Lock()
  	defer d.mtx.Unlock()
-@@ -169,8 +212,9 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
+@@ -169,8 +223,10 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
  
  	if dir == usbip.DirOut && ep == 3 {
  		if len(out) >= 48 && out[0] == ReportIDOutput {
@@ -821,11 +1078,12 @@ index 5dd1d2c..905a515 100644
 -				d.outputFunc(parseOutputReport(out))
 +			d.emitOutput(parseOutputReport(out))
 +			if feedback, ok := parseASBOutputReport(out); ok {
++				d.updateASBTriggerState(feedback)
 +				d.emitRawOutput(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
  			}
  		}
  	}
-@@ -221,14 +265,21 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
+@@ -221,14 +277,22 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
  			case reportType == reportTypeFeature:
  				return nil, true
  			case reportType == reportTypeOutput && reportID == ReportIDOutput && len(data) >= 48:
@@ -833,6 +1091,7 @@ index 5dd1d2c..905a515 100644
 -					d.outputFunc(parseOutputReport(data))
 +				d.emitOutput(parseOutputReport(data))
 +				if feedback, ok := parseASBOutputReport(data); ok {
++					d.updateASBTriggerState(feedback)
 +					d.emitRawOutput(FeedbackFrame{Type: FeedbackFrameHIDOutput, HID: feedback})
  				}
  				return nil, true
@@ -849,7 +1108,9 @@ index 5dd1d2c..905a515 100644
  	slog.Warn("DualSense control request unhandled",
  		"bmRequestType", bmRequestType,
  		"bRequest", bRequest,
-@@ -312,32 +363,16 @@ func (d *DualSense) featureReportPairing() []byte {
+@@ -310,36 +374,20 @@ func (d *DualSense) featureReportPairing() []byte {
+ }
+ 
  func (d *DualSense) featureReportFirmware() []byte {
 -	report := make([]byte, 64)
 -	report[0] = featureIDFirmware
@@ -896,8 +1157,32 @@ index 5dd1d2c..905a515 100644
 +		0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 +	}
  }
+ 
+ func (d *DualSense) featureReportCommandResponse() []byte {
+@@ -439,8 +487,20 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
+ 	b[37] = touch2
+ 	encodeTouchCoords(b[38:41], s.Touch2X, s.Touch2Y)
+ 
+-	b[49] = 0x10
++	d.mtx.Lock()
++	rightTriggerEffect := d.rightTriggerEffect
++	leftTriggerEffect := d.leftTriggerEffect
++	hostTimestamp := d.hostTimestamp
++	d.mtx.Unlock()
++	rightFeedback, rightEffect := synthesizeTriggerFeedback(rightTriggerEffect, s.R2)
++	leftFeedback, leftEffect := synthesizeTriggerFeedback(leftTriggerEffect, s.L2)
++	b[42] = rightFeedback
++	b[43] = leftFeedback
++	binary.LittleEndian.PutUint32(b[44:48], hostTimestamp)
++	b[48] = rightEffect | leftEffect<<4
++	binary.LittleEndian.PutUint32(b[49:53], ts)
+ 	b[53] = m.BatteryStatus
++	b[54] = 0x08
+ 
+ 	return b
+ }
 diff --git a/device/dualsense/ds_handler.go b/device/dualsense/ds_handler.go
-index 3a02c10..d21ba1f 100644
+index 3a02c10..4527a0f 100644
 --- a/device/dualsense/ds_handler.go
 +++ b/device/dualsense/ds_handler.go
 @@ -7,6 +7,7 @@ import (
@@ -932,17 +1217,19 @@ index 3a02c10..d21ba1f 100644
  		for {
  			if _, err := io.ReadFull(conn, buf); err != nil {
  				if err == io.EOF {
-@@ -130,8 +134,8 @@ func (h *dshandler) StreamHandler() api.StreamHandlerFunc {
+@@ -130,11 +134,9 @@ func (h *dshandler) StreamHandler() api.StreamHandlerFunc {
  				return fmt.Errorf("read input state: %w", err)
  			}
  
 -			var state InputState
 -			if err := state.UnmarshalBinary(buf); err != nil {
-+			state, err := unmarshalASBInputState(buf)
-+			if err != nil {
++			if err := dse.UpdateASBInputState(buf); err != nil {
  				return fmt.Errorf("unmarshal input state: %w", err)
  			}
- 			dse.UpdateInputState(&state)
+-			dse.UpdateInputState(&state)
+ 		}
+ 	}
+ }
 diff --git a/internal/server/api/autoattach_windows.go b/internal/server/api/autoattach_windows.go
 index 47a805a..7716fd4 100644
 --- a/internal/server/api/autoattach_windows.go

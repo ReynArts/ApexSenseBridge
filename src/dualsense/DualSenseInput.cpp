@@ -14,7 +14,9 @@ void writeI16(std::array<std::uint8_t, 33>& input, std::size_t offset,
 
 } // namespace
 
-std::array<std::uint8_t, 33> buildViiperInput(const DualSenseInputState& state) {
+std::array<std::uint8_t, 33> buildViiperInput(
+    const DualSenseInputState& state,
+    bool captureAudioHapticsWaveform) {
     std::array<std::uint8_t, 33> input{};
     input[0] = state.lx;
     input[1] = state.ly;
@@ -42,7 +44,11 @@ std::array<std::uint8_t, 33> buildViiperInput(const DualSenseInputState& state) 
     writeI16(input, 27, state.accelY);
     writeI16(input, 29, state.accelZ);
     input[31] = state.batteryPercent;
-    input[32] = state.chargeState;
+    // The ASB wire adapter only uses the low charge-state bits. Bit 7 is an
+    // opt-in extension for raw haptic audio capture, so legacy sessions keep
+    // producing exactly the same 33-byte input packet.
+    input[32] = static_cast<std::uint8_t>(
+        state.chargeState | (captureAudioHapticsWaveform ? 0x80 : 0));
     return input;
 }
 

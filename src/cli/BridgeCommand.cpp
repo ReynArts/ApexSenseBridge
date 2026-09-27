@@ -9,6 +9,7 @@
 #include "dualsense/VirtualDualSenseStartup.h"
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/AdaptiveTriggerTranslation.h"
+#include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/RumbleBridge.h"
 #include "dualsense/LightbarBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
@@ -425,6 +426,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << message << '\n';
         return failSession(3, message);
     }
+    const bool apex6Pro = device->identity() && device->identity()->isApex6();
 
     std::optional<asb::flydigi::ProfileStatus> originalProfile;
     std::optional<asb::flydigi::InputTransportStatus> originalInputTransport;
@@ -478,14 +480,17 @@ int commandBridgeTriggers(int argc, char** argv) {
             originalInputTransport = transport;
         }
     }
-    asb::TriggerResetGuard resetOnExit(*device);
-    if (!device->clearAll(error)) {
-        std::cerr << "Could not establish a Normal trigger baseline: " << error << '\n';
-        return failSession(4, "Could not establish a Normal trigger baseline: " + error);
+    std::unique_ptr<asb::TriggerResetGuard> resetOnExit;
+    if (!apex6Pro) {
+        if (!device->clearAll(error)) {
+            std::cerr << "Could not establish a Normal trigger baseline: " << error << '\n';
+            return failSession(4, "Could not establish a Normal trigger baseline: " + error);
+        }
+        resetOnExit = std::make_unique<asb::TriggerResetGuard>(*device);
     }
 
     std::unique_ptr<asb::RumbleResetGuard> rumbleResetOnExit;
-    if (options.routeRumble) {
+    if (options.routeRumble && !apex6Pro) {
         if (!device->stopRumble(error)) {
             std::cerr << "Could not establish a stopped grip-rumble baseline: "
                       << error << '\n';
@@ -538,11 +543,20 @@ int commandBridgeTriggers(int argc, char** argv) {
                   << audioProtectionError << '\n';
     }
 
-    asb::dualsense::AdaptiveTriggerBridge bridge(*device);
     asb::haptics::HapticConfig hapticConfig{};
     hapticConfig.activationThreshold =
         static_cast<double>(options.hapticThresholdPercent) / 100.0;
-    auto rumbleBridge = options.routeRumble
+    auto adaptiveBridge = !apex6Pro
+        ? std::make_unique<asb::dualsense::AdaptiveTriggerBridge>(*device)
+        : std::unique_ptr<asb::dualsense::AdaptiveTriggerBridge>{};
+    auto apex6Bridge = apex6Pro
+        ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
+              *device, hapticConfig, options.routeRumble)
+        : std::unique_ptr<asb::dualsense::Apex6HapticBridge>{};
+    if (apex6Bridge) {
+        apex6Bridge->updateTriggerPositions(initialInput.l2, initialInput.r2);
+    }
+    auto rumbleBridge = options.routeRumble && !apex6Pro
         ? std::make_unique<asb::dualsense::RumbleBridge>(*device, hapticConfig)
         : std::unique_ptr<asb::dualsense::RumbleBridge>{};
     const auto lightbarSlot = options.apexProfileSlot.value_or(
@@ -559,23 +573,32 @@ int commandBridgeTriggers(int argc, char** argv) {
     asb::dualsense::VirtualDualSenseOptions backendOptions{};
     backendOptions.viiperExecutable = std::move(options.viiperExecutable);
     backendOptions.backend = options.virtualBackend;
+    backendOptions.captureAudioHapticsWaveform = apex6Pro;
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(std::move(backendOptions));
     asb::dualsense::VirtualDualSense::FeedbackHandler feedbackHandler;
-    if (lightbarBridge) {
-        feedbackHandler = [&bridge, rumble = rumbleBridge.get(),
+    if (apex6Bridge) {
+        feedbackHandler = [apex6 = apex6Bridge.get(),
                            lightbar = lightbarBridge.get()](const auto& feedback) {
-            bridge.handle(feedback);
+            apex6->handle(feedback);
+            if (lightbar) lightbar->handle(feedback);
+        };
+    } else if (lightbarBridge) {
+        feedbackHandler = [adaptive = adaptiveBridge.get(),
+                           rumble = rumbleBridge.get(),
+                           lightbar = lightbarBridge.get()](const auto& feedback) {
+            adaptive->handle(feedback);
             if (rumble) rumble->handle(feedback);
             lightbar->handle(feedback);
         };
     } else if (rumbleBridge) {
-        feedbackHandler = [&bridge, rumble = rumbleBridge.get()](const auto& feedback) {
-            bridge.handle(feedback);
+        feedbackHandler = [adaptive = adaptiveBridge.get(),
+                           rumble = rumbleBridge.get()](const auto& feedback) {
+            adaptive->handle(feedback);
             rumble->handle(feedback);
         };
     } else {
-        feedbackHandler = [&bridge](const auto& feedback) {
-            bridge.handle(feedback);
+        feedbackHandler = [adaptive = adaptiveBridge.get()](const auto& feedback) {
+            adaptive->handle(feedback);
         };
     }
     std::future<bool> audioProtectionFuture;
@@ -837,6 +860,10 @@ int commandBridgeTriggers(int argc, char** argv) {
         virtualDualSense->close();
         return failSession(11, "Could not start the APEX feedback writer: " + error);
     }
+    if (apex6Bridge && !apex6Bridge->start(error)) {
+        virtualDualSense->close();
+        return failSession(11, "Could not start the Apex 6 haptic stream: " + error);
+    }
 
     if (sessionControl) {
         if (!sessionControl->publish(asb::platform::SessionPhase::Ready, 0,
@@ -987,7 +1014,9 @@ int commandBridgeTriggers(int argc, char** argv) {
     while (!g_stopRequested.load(std::memory_order_relaxed) &&
            !globalSessionStop->stopRequested() &&
            (!sessionControl || !sessionControl->stopRequested()) &&
-           !bridge.failed() && (!rumbleBridge || !rumbleBridge->failed()) &&
+           (!adaptiveBridge || !adaptiveBridge->failed()) &&
+           (!apex6Bridge || !apex6Bridge->failed()) &&
+           (!rumbleBridge || !rumbleBridge->failed()) &&
            !device->takeAsyncWriteError(asyncWriteError)) {
         const auto loopNow = std::chrono::steady_clock::now();
         if (device->identity() && device->identity()->isApex5() &&
@@ -1006,6 +1035,9 @@ int commandBridgeTriggers(int argc, char** argv) {
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
             inputFreshness.observeFreshState(inputObservedAt);
+            if (apex6Bridge) {
+                apex6Bridge->updateTriggerPositions(input.l2, input.r2);
+            }
             ++inputSamples;
             seenButtons = static_cast<std::uint16_t>(seenButtons | input.buttons);
             seenDpad = static_cast<std::uint8_t>(seenDpad | input.dpad);
@@ -1167,9 +1199,16 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     virtualDualSense->close(); // joins the feedback callback before touching the HID device
     device->stopAsyncWrites(); // no queued effect may overtake the reset below
+    std::string apex6ResetError;
+    const bool apex6ResetOk = !apex6Bridge || apex6Bridge->stop(apex6ResetError);
     const auto virtualStats = virtualDualSense->stats();
     const auto touchpadGestureStats = touchpadGestureMapper.stats();
-    const auto bridgeStats = bridge.stats();
+    const auto bridgeStats = adaptiveBridge
+        ? adaptiveBridge->stats()
+        : asb::dualsense::AdaptiveTriggerBridgeStats{};
+    const auto apex6Stats = apex6Bridge
+        ? apex6Bridge->stats()
+        : asb::dualsense::Apex6HapticBridgeStats{};
     const auto rumbleStats = rumbleBridge
         ? rumbleBridge->stats()
         : asb::dualsense::RumbleBridgeStats{};
@@ -1184,8 +1223,9 @@ int commandBridgeTriggers(int argc, char** argv) {
     const bool physicalControlsReleased = waitForPhysicalControlsReleased(
         *inputSource, std::chrono::milliseconds(1500));
     std::string resetError;
-    const bool resetOk = device->clearAll(resetError);
-    if (resetOk) resetOnExit.dismiss();
+    const bool resetOk = apex6Pro ? apex6ResetOk : device->clearAll(resetError);
+    if (apex6Pro && !apex6ResetOk) resetError = apex6ResetError;
+    if (resetOk && resetOnExit) resetOnExit->dismiss();
     // Keep HidHide active until launch-capable controls have been released for
     // a short stable interval. The wait is bounded so disconnects and damaged
     // devices can never prevent restoration/uninstall.
@@ -1435,6 +1475,11 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "neutral_requests=" << bridgeStats.neutral << '\n'
               << "unsupported_effects=" << bridgeStats.unsupported << '\n'
               << "write_failures=" << bridgeStats.writeFailures << '\n'
+              << "apex6_haptic_frames=" << apex6Stats.framesWritten << '\n'
+              << "apex6_waveform_blocks=" << apex6Stats.waveformBlocks << '\n'
+              << "apex6_waveform_dropped=" << apex6Stats.waveformBlocksDropped << '\n'
+              << "apex6_deadline_overruns=" << apex6Stats.deadlineOverruns << '\n'
+              << "apex6_write_failures=" << apex6Stats.writeFailures << '\n'
               << "rumble_routing=" << (rumbleBridge ? "enabled" : "disabled") << '\n'
               << "rumble_updates=" << rumbleStats.updates << '\n'
               << "rumble_writes=" << rumbleStats.writes << '\n'
@@ -1498,9 +1543,12 @@ int commandBridgeTriggers(int argc, char** argv) {
     printLast("active_rt", bridgeStats.lastActiveRightDualSenseType,
               bridgeStats.lastActiveRightCommand);
     if (!resetOk) {
-        std::cerr << "WARNING: LT/RT automatic reset failed: " << resetError
-                  << "\nSet both triggers to Normal in Flydigi Space Station.\n";
-        return failSession(5, "LT/RT automatic reset failed: " + resetError);
+        const std::string prefix = apex6Pro
+            ? "Apex 6 haptic shutdown failed: "
+            : "LT/RT automatic reset failed: ";
+        std::cerr << "WARNING: " << prefix << resetError
+                  << "\nPower-cycle the controller before continuing.\n";
+        return failSession(5, prefix + resetError);
     }
     if (!rumbleResetOk) {
         std::cerr << "WARNING: grip-rumble automatic stop failed: "
@@ -1521,8 +1569,16 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(11, "Could not restore the original APEX session state: " +
                                    isolationRestoreError);
     }
-    if (bridge.failed()) {
-        const std::string message = "Bridge stopped after an APEX write failure: " + bridge.error();
+    if (adaptiveBridge && adaptiveBridge->failed()) {
+        const std::string message =
+            "Bridge stopped after an APEX write failure: " + adaptiveBridge->error();
+        std::cerr << message << '\n';
+        return failSession(4, message);
+    }
+    if (apex6Bridge && apex6Bridge->failed()) {
+        const std::string message =
+            "Bridge stopped after an Apex 6 haptic write failure: " +
+            apex6Bridge->error();
         std::cerr << message << '\n';
         return failSession(4, message);
     }

@@ -22,6 +22,7 @@ struct VirtualDualSenseOptions {
     std::filesystem::path viiperLibrary;
     std::uint16_t apiPort = 3242;
     VirtualDualSenseBackend backend = VirtualDualSenseBackend::Auto;
+    bool captureAudioHapticsWaveform = false;
 };
 
 struct VirtualDualSenseStats {

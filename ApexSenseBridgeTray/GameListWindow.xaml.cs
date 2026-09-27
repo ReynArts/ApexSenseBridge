@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -332,6 +333,7 @@ namespace ApexSenseBridgeTray
             if (TileSettingAutoDetect != null) items.Add(TileSettingAutoDetect);
             if (TileSettingAdaptive != null && TileSettingAdaptive.IsEnabled) items.Add(TileSettingAdaptive);
             if (TileSettingHaptic != null && TileSettingHaptic.IsEnabled) items.Add(TileSettingHaptic);
+            if (BtnSupportKofi != null) items.Add(BtnSupportKofi);
             return items.ToArray();
         }
 
@@ -341,6 +343,7 @@ namespace ApexSenseBridgeTray
             if (TileSettingNotifications != null) items.Add(TileSettingNotifications);
             if (TileSettingSyncLightbar != null) items.Add(TileSettingSyncLightbar);
             if (TileSettingLanguage != null) items.Add(TileSettingLanguage);
+            if (BtnReportBug != null) items.Add(BtnReportBug);
             if (BtnCheckUpdates != null) items.Add(BtnCheckUpdates);
             return items.ToArray();
         }
@@ -771,6 +774,7 @@ namespace ApexSenseBridgeTray
                     if (settingsRow0 == 0) OnSettingAutoDetectToggled(null, null);
                     else if (settingsRow0 == 1) OnSettingAdaptiveToggled(null, null);
                     else if (settingsRow0 == 2) OnSettingHapticToggled(null, null);
+                    else if (settingsRow0 == 3) OnSupportKofiClick(null, null);
                 }
                 else
                 {
@@ -780,7 +784,8 @@ namespace ApexSenseBridgeTray
                     {
                         OpenLanguagePicker();
                     }
-                    else if (settingsRow1 == 3) OnCheckUpdatesClick(null, null);
+                    else if (settingsRow1 == 3) OnReportBugClick(null, null);
+                    else if (settingsRow1 == 4) OnCheckUpdatesClick(null, null);
                 }
             }
         }
@@ -894,7 +899,8 @@ namespace ApexSenseBridgeTray
 
             bool isApex4 = string.Equals(status, "apex4", StringComparison.OrdinalIgnoreCase);
             bool isApex5 = string.Equals(status, "apex5", StringComparison.OrdinalIgnoreCase);
-            bool isConnected = isApex4 || isApex5;
+            bool isApex6 = string.Equals(status, "apex6", StringComparison.OrdinalIgnoreCase);
+            bool isConnected = isApex4 || isApex5 || isApex6;
 
             string fullLabel;
             string shortLabel;
@@ -908,6 +914,11 @@ namespace ApexSenseBridgeTray
             {
                 fullLabel = LocalizationManager.Get("Loc_ControllerApex5");
                 shortLabel = "Apex 5";
+            }
+            else if (isApex6)
+            {
+                fullLabel = "Flydigi Apex 6 Pro";
+                shortLabel = "Apex 6 Pro";
             }
             else if (string.Equals(status, "unsupported", StringComparison.OrdinalIgnoreCase))
             {
@@ -1122,7 +1133,7 @@ namespace ApexSenseBridgeTray
 
             dashboardFeaturedGames.Clear();
             var featured = allGameViewModels
-                .Where(g => !g.IsExcluded)
+                .Where(g => !g.IsExcluded && g.HasReadyFeature)
                 .OrderByDescending(GetFeaturedScore)
                 .ThenBy(g => GetStableSelectionKey(g.Normalized))
                 .Take(14)
@@ -1273,6 +1284,7 @@ namespace ApexSenseBridgeTray
             if (BadgeDetailAdaptive != null) BadgeDetailAdaptive.Visibility = game.AdaptiveVisibility;
             if (BadgeDetailHaptic != null) BadgeDetailHaptic.Visibility = game.HapticVisibility;
             if (BadgeDetailTouchpad != null) BadgeDetailTouchpad.Visibility = game.RemappingVisibility;
+            if (BadgeDetailManualFix != null) BadgeDetailManualFix.Visibility = game.ManualFixVisibility;
 
             if (TxtDetailApexProfile != null) TxtDetailApexProfile.Text = game.SelectedApexProfileDisplay;
 
@@ -1684,6 +1696,43 @@ namespace ApexSenseBridgeTray
             win.ShowDialog();
         }
 
+        private void OnSupportKofiClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("https://ko-fi.com/reynarts97")
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                MessageBox.Show(
+                    this,
+                    LocalizationManager.Get("Loc_ExternalLinkOpenFailed"),
+                    LocalizationManager.Get("Loc_AppName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+
+        private void OnReportBugClick(object sender, RoutedEventArgs e)
+        {
+            gamepadNav?.Stop();
+            try
+            {
+                var win = new BugReportWindow(settings, sessionManager, lastControllerStatus)
+                {
+                    Owner = this
+                };
+                win.ShowDialog();
+            }
+            finally
+            {
+                gamepadNav?.Start();
+            }
+        }
+
         private async void OnCheckUpdatesClick(object sender, RoutedEventArgs e)
         {
             if (updateChecker == null) return;
@@ -1835,6 +1884,10 @@ namespace ApexSenseBridgeTray
         public string Normalized => Game != null ? Game.Normalized : string.Empty;
         public bool AdaptiveTriggers => Game != null && Game.AdaptiveTriggers;
         public bool HapticFeedback => Game != null && Game.HapticFeedback;
+        public bool RequiresManualFix => Game != null && Game.RequiresManualFix;
+        public bool HasReadyFeature => Game != null &&
+            ((Game.AdaptiveTriggers && !Game.AdaptiveTriggersManualFix) ||
+             (Game.HapticFeedback && !Game.HapticFeedbackManualFix));
         public string Profile => Game != null ? Game.Profile : "standard";
         public string IconUrl => Game != null ? Game.IconUrl : string.Empty;
 
@@ -1912,6 +1965,7 @@ namespace ApexSenseBridgeTray
 
         public Visibility AdaptiveVisibility => AdaptiveTriggers ? Visibility.Visible : Visibility.Collapsed;
         public Visibility HapticVisibility => HapticFeedback ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility ManualFixVisibility => RequiresManualFix ? Visibility.Visible : Visibility.Collapsed;
         public Visibility RemappingVisibility => HasCustomRemapping ? Visibility.Visible : Visibility.Collapsed;
 
         public string SelectedApexProfileDisplay

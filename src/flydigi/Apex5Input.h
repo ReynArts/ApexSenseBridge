@@ -17,4 +17,12 @@ decodeApex5InputReport(std::span<const std::uint8_t> report,
                        std::uint8_t batteryPercent = 100,
                        std::uint8_t chargeState = 0) noexcept;
 
+// Replaces the raw controls from the vendor stream with the controller's
+// mapped game-controller HID state. Space Station stores its profile onboard,
+// so this HID collection is the source of truth for standard controls while
+// the vendor stream remains authoritative for PS, motion and battery data.
+void mergeApex5MappedControls(
+    dualsense::DualSenseInputState& vendorState,
+    const dualsense::DualSenseInputState& mappedState) noexcept;
+
 } // namespace asb::flydigi

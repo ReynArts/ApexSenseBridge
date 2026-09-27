@@ -201,7 +201,7 @@ public:
             return false;
         }
 
-        backendVersion_ = "libVIIPER v0.7.0-asb8 (integrated)";
+        backendVersion_ = "libVIIPER v0.7.0-asb10 (integrated)";
         connected_.store(true, std::memory_order_release);
         error.clear();
         return true;
@@ -261,7 +261,8 @@ public:
             error = "Integrated virtual DualSense input is not connected.";
             return false;
         }
-        const auto input = buildViiperInput(state);
+        const auto input = buildViiperInput(
+            state, options_.captureAudioHapticsWaveform);
         std::lock_guard inputLock(inputMutex_);
         const auto updateStartedAt = std::chrono::steady_clock::now();
         if (!setInputState_(deviceHandle_, input.data(),
@@ -340,7 +341,7 @@ private:
             return;
         }
         const std::uint8_t frameType = frame[0];
-        if (frameType != 0x01 && frameType != 0x02) {
+        if (frameType != 0x01 && frameType != 0x02 && frameType != 0x03) {
             unknownFrames_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
@@ -363,6 +364,13 @@ private:
                 rumbleReports_.fetch_add(1, std::memory_order_relaxed);
             }
             deliver(feedback);
+            return;
+        }
+
+        if (feedback.kind == FeedbackKind::AudioHapticWaveform) {
+            audioHapticsFrames_.fetch_add(1, std::memory_order_relaxed);
+            deliver(feedback);
+            audioHapticsDelivered_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
 

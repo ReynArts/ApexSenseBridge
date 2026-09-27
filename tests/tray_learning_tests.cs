@@ -42,6 +42,7 @@ internal static class TrayLearningTests
             TestDatabaseExecutableMissPerformance();
             TestGeneratedDatabaseExecutableCoverage();
             TestActivationPolicyStillAppliesAfterLearning();
+            TestManualFixGamesPreservePhysicalInput();
             TestPerGameApexProfileSettings();
             TestGameProcessSessionPidHandoff();
             TestPlatformClientsNeverCountAsGameProcesses();
@@ -479,6 +480,41 @@ internal static class TrayLearningTests
             "The haptic feature criterion did not activate the learned game.");
     }
 
+    private static void TestManualFixGamesPreservePhysicalInput()
+    {
+        const string json = "{\"games\":[{" +
+            "\"title\":\"Dying Light\",\"normalized\":\"dyinglight\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true," +
+            "\"hapticFeedback\":true,\"hapticFeedbackManualFix\":true," +
+            "\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"https://www.pcgamingwiki.com/wiki/Dying_Light\"," +
+            "\"profile\":\"standard\",\"steamAppId\":239140," +
+            "\"steamAppIdVerified\":true}]}";
+        var game = FindGame(CreateGameList(json), "Dying Light");
+        var settings = new TraySettings();
+
+        Assert(game.RequiresManualFix &&
+               game.AdaptiveTriggersManualFix &&
+               game.HapticFeedbackManualFix,
+            "The PCGamingWiki manual-fix flags were not loaded.");
+        Assert(game.ManualFixUrl.EndsWith("/Dying_Light", StringComparison.Ordinal),
+            "The PCGamingWiki help URL was not loaded.");
+        Assert(!GameActivationPolicy.ShouldActivate(
+                game, settings, "DyingLightGame", "Dying Light", "DyingLightGame.exe"),
+            "A manual-fix-only game would still hide the working physical controller.");
+        Assert(GameActivationPolicy.IsBlockedByManualFix(
+                game, settings, "DyingLightGame", "Dying Light", "DyingLightGame.exe"),
+            "The manual-fix block reason was not exposed to the notification path.");
+
+        game.AdaptiveTriggersManualFix = false;
+        Assert(GameActivationPolicy.ShouldActivate(
+                game, settings, "DyingLightGame", "Dying Light", "DyingLightGame.exe"),
+            "A native feature was incorrectly blocked by another feature's manual-fix state.");
+        Assert(!GameActivationPolicy.IsBlockedByManualFix(
+                game, settings, "DyingLightGame", "Dying Light", "DyingLightGame.exe"),
+            "A game with a ready selected feature was incorrectly reported as fully blocked.");
+    }
+
     private static void TestPerGameApexProfileSettings()
     {
         var settings = new TraySettings();
@@ -724,6 +760,11 @@ internal static class TrayLearningTests
         var executableGames = gameList.GetAllGames().Count(game => game.Executables.Length > 0);
         Assert(executableGames >= 100,
             "The generated database contains suspiciously few Discord executable mappings.");
+        var manualFixGames = gameList.GetAllGames().Where(game => game.RequiresManualFix).ToList();
+        Assert(manualFixGames.Count >= 20,
+            "The generated database lost the PCGamingWiki RequireManualFix metadata.");
+        Assert(manualFixGames.All(game => !string.IsNullOrWhiteSpace(game.ManualFixUrl)),
+            "A manual-fix game has no PCGamingWiki guidance URL.");
 
         SupportedGame resolved;
         Assert(gameList.TryFindByExecutable(@"C:\Games\Apex\r5apex.exe", out resolved) &&

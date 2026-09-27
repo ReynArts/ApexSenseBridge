@@ -93,6 +93,25 @@ bool decodeViiperFeedbackFrame(std::uint8_t frameType,
         return true;
     }
 
+    if (frameType == 0x03) {
+        constexpr std::size_t kPayloadSize = 4 + 8 * 2 * sizeof(std::int16_t);
+        if (payload.size() < kPayloadSize) {
+            return false;
+        }
+
+        DualSenseFeedback decoded{};
+        decoded.kind = FeedbackKind::AudioHapticWaveform;
+        decoded.audioSequence = readU32(payload, 0);
+        for (std::size_t index = 0; index < 8; ++index) {
+            decoded.leftHapticSamples[index] = static_cast<std::int16_t>(
+                readU16(payload, 4 + index * 4));
+            decoded.rightHapticSamples[index] = static_cast<std::int16_t>(
+                readU16(payload, 6 + index * 4));
+        }
+        feedback = decoded;
+        return true;
+    }
+
     return false;
 }
 

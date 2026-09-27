@@ -8,6 +8,13 @@ namespace ApexSenseBridgeTray.Models
         public string Normalized { get; set; }
         public bool AdaptiveTriggers { get; set; }
         public bool HapticFeedback { get; set; }
+        public bool AdaptiveTriggersManualFix { get; set; }
+        public bool HapticFeedbackManualFix { get; set; }
+        public bool RequiresManualFix
+        {
+            get { return AdaptiveTriggersManualFix || HapticFeedbackManualFix; }
+        }
+        public string ManualFixUrl { get; set; }
         public string Profile { get; set; }
         public string IconUrl { get; set; }
         public int SteamAppId { get; set; }
@@ -20,6 +27,7 @@ namespace ApexSenseBridgeTray.Models
             Normalized = string.Empty;
             Profile = "standard";
             IconUrl = string.Empty;
+            ManualFixUrl = string.Empty;
             Executables = new string[0];
         }
 

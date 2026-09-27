@@ -24,6 +24,7 @@ add_library(asb_core STATIC
     src/dualsense/ViewTouchpadGesture.cpp
     src/dualsense/AdaptiveTriggerTranslation.cpp
     src/dualsense/AdaptiveTriggerBridge.cpp
+    src/dualsense/Apex6HapticBridge.cpp
     src/dualsense/RumbleBridge.cpp
     src/dualsense/LightbarBridge.cpp
     src/dualsense/ViiperProtocol.cpp
@@ -37,6 +38,7 @@ add_library(asb_core STATIC
     src/flydigi/Apex5Identity.cpp
     src/flydigi/Apex5Input.cpp
     src/flydigi/Apex5Protocol.cpp
+    src/flydigi/Apex6Protocol.cpp
     src/flydigi/Apex5Device.cpp
 )
 target_include_directories(asb_core PUBLIC src)
@@ -130,6 +132,18 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME protocol COMMAND ApexSenseBridgeTests)
 
+    add_executable(ApexSenseBridgeApex6ProtocolTests
+        tests/test_apex6_protocol.cpp
+        src/flydigi/Apex6Protocol.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex6ProtocolTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6ProtocolTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6ProtocolTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_protocol COMMAND ApexSenseBridgeApex6ProtocolTests)
+
     add_executable(ApexSenseBridgeDiagnosticTests
         tests/test_hid_diagnostics.cpp
         src/diagnostics/HidDiagnostics.cpp
@@ -187,6 +201,17 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeRumbleTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME rumble_bridge COMMAND ApexSenseBridgeRumbleTests)
+
+    add_executable(ApexSenseBridgeApex6HapticTests
+        tests/test_apex6_haptic_bridge.cpp
+    )
+    target_link_libraries(ApexSenseBridgeApex6HapticTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6HapticTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6HapticTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_haptic_bridge COMMAND ApexSenseBridgeApex6HapticTests)
 
     add_executable(ApexSenseBridgeHapticProcessorTests
         tests/test_haptic_processor.cpp

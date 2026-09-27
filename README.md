@@ -1,7 +1,7 @@
 # ApexSenseBridge 1.0.0
 
-> **Bridge your Flydigi APEX 4 & APEX 5 controller into a native virtual PlayStation 5 DualSense on Windows.**  
-> Experience authentic in-game Adaptive Triggers (FORCEADAPT), rich Haptic Feedback, motion gestures, and verified touchpad shortcuts with sub-2 ms latency.
+> **Bridge your Flydigi APEX 4, APEX 5, or APEX 6 Pro controller into a native virtual PlayStation 5 DualSense on Windows.**
+> Experience FORCEADAPT on APEX 4/5, four-actuator voice-coil haptics on APEX 6 Pro, motion gestures, and verified touchpad shortcuts with sub-2 ms input latency.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-lightgrey.svg)](#requirements)
@@ -27,7 +27,7 @@
 - **🔎 Detection and Touchpad Fixes:** Short titles such as `Control` no longer match utilities such as Controlify, and the standard `View` → touchpad-click path remains immediate during rapid consecutive presses.
 - **📚 More Reliable Executable Learning:** Concurrent game processes are tracked independently, repeated sightings no longer restart the 30-second stability window, elevated executable paths use a restricted Windows query fallback, and validated bindings are flushed during Tray shutdown.
 - **🧰 Installer Verification Fix:** Corrects the registry-key escaping bug that could report a successful USBip installation as failed, then misclassify it as unregistered driver remnants on the next setup run.
-- **🏎️ Blazing Fast Initialization (0.28s):** Built-in in-process `libVIIPER v0.7.0-asb8` backend with sub-millisecond USB attachment and loopback-only communication.
+- **🏎️ Blazing Fast Initialization (0.28s):** Built-in in-process `libVIIPER v0.7.0-asb10` backend with sub-millisecond USB attachment and loopback-only communication.
 
 See the [complete 0.6.3 release notes](RELEASE_NOTES_0.6.3.md) for upgrade
 instructions, compatibility notes and validation details.
@@ -38,6 +38,7 @@ instructions, compatibility notes and validation details.
 
 | Controller | Connection Modes | Hardware Verification Status | Special Features |
 |---|---|---|---|
+| **Flydigi APEX 6 Pro** | Wired USB | ⚠️ Protocol/unit verified; external hardware validation pending | 125 Hz realtime stream, independent grip voice coils, multiplexed LT/RT force motors, native DualSense haptic waveform |
 | **Flydigi APEX 5** | 2.4 GHz Dongle / Wired USB | ✅ Fully Verified in Hardware & Gameplay | Full FORCEADAPT Trigger Resistance, Audio Haptics, Grip Rumble, Onboard Profiles 1–4 switching |
 | **Flydigi APEX 4** | 2.4 GHz Dongle / Wired USB (DInput) | ✅ Fully Verified in Hardware & Gameplay | 32-byte direct vendor input (MI_02), FORCEADAPT Resistance, Grip Rumble, HidHide double-input isolation |
 
@@ -171,7 +172,8 @@ ApexSenseBridge.exe diagnose [--all-hid] [--json]
 ApexSenseBridge.exe identify [index]
 ApexSenseBridge.exe input-status [index] [--seconds N] [--json]
 ApexSenseBridge.exe test-rt [index]
-ApexSenseBridge.exe test-rumble [index]
+ApexSenseBridge.exe test-trigger [index] [--side lt|rt|both] [--seconds N]
+ApexSenseBridge.exe test-rumble [index] [--left 0..255] [--right 0..255] [--seconds N]
 ApexSenseBridge.exe restore-controller-visibility
 ```
 

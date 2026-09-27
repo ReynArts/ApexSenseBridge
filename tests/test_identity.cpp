@@ -8,6 +8,7 @@
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 
 #include <algorithm>
 #include <cassert>
@@ -27,16 +28,18 @@ public:
     explicit FakeTransport(std::uint8_t deviceType,
                            bool silent = false,
                            bool apex4 = false,
-                           std::size_t ignoredApex4Requests = 0)
+                           std::size_t ignoredApex4Requests = 0,
+                           bool apex6 = false)
         : deviceType_(deviceType), silent_(silent), apex4_(apex4),
-          ignoredApex4Requests_(ignoredApex4Requests) {
+          apex6_(apex6), ignoredApex4Requests_(ignoredApex4Requests) {
         info_.vendorId = apex4 ? asb::flydigi::kApex4VendorId
                                : asb::flydigi::kVendorId;
-        info_.productId = apex4 ? asb::flydigi::kApex4ProductId : 0x2501;
+        info_.productId = apex4 ? asb::flydigi::kApex4ProductId
+                                : (apex6 ? asb::flydigi::apex6::kProductId : 0x2501);
         info_.usagePage = asb::flydigi::kVendorUsagePage;
         info_.interfaceNumber = apex4 ? L"MI_02" : L"MI_01";
-        info_.inputReportLength = 32;
-        info_.outputReportLength = 32;
+        info_.inputReportLength = apex6 ? 33 : 32;
+        info_.outputReportLength = apex6 ? 33 : 32;
     }
 
     [[nodiscard]] bool isOpen() const noexcept override { return true; }
@@ -57,6 +60,18 @@ public:
             reply[10] = 0x12;
             reply[13] = 1;
             reply[15] = asb::flydigi::kApex4CmdGetInfo;
+            replies_.push_back(std::move(reply));
+        } else if (!silent_ && apex6_ && report.size() == 33 &&
+                   report[3] == asb::flydigi::apex6::kCmdGetInfo) {
+            std::vector<std::uint8_t> reply(33, 0);
+            reply[1] = asb::flydigi::apex6::kMagic0;
+            reply[2] = asb::flydigi::apex6::kMagic1;
+            reply[3] = asb::flydigi::apex6::kCmdGetInfo;
+            reply[4] = 1;
+            reply[6] = deviceType_;
+            reply[30] = 0x9F;
+            reply[32] = asb::flydigi::apex6::checksum(
+                std::span<const std::uint8_t>(reply).subspan(1));
             replies_.push_back(std::move(reply));
         } else if (!silent_ && !apex4_ && report.size() > 3 &&
                    report[3] == asb::flydigi::kCmdGetInfo) {
@@ -136,6 +151,7 @@ private:
     std::uint8_t deviceType_ = 0;
     bool silent_ = false;
     bool apex4_ = false;
+    bool apex6_ = false;
     std::size_t ignoredApex4Requests_ = 0;
     std::uint8_t activeProfile_ = 0;
     bool controllerData_ = true;
@@ -147,8 +163,10 @@ asb::flydigi::Apex5Device makeDevice(FakeTransport*& fake,
                                       std::uint8_t deviceType,
                                       bool silent = false,
                                       bool apex4 = false,
-                                      std::size_t ignoredApex4Requests = 0) {
-    fake = new FakeTransport(deviceType, silent, apex4, ignoredApex4Requests);
+                                      std::size_t ignoredApex4Requests = 0,
+                                      bool apex6 = false) {
+    fake = new FakeTransport(
+        deviceType, silent, apex4, ignoredApex4Requests, apex6);
     return asb::flydigi::Apex5Device(asb::flydigi::TransportPtr(fake));
 }
 
@@ -157,6 +175,8 @@ asb::flydigi::Apex5Device makeDevice(FakeTransport*& fake,
 int main() {
     using namespace asb;
     using namespace asb::flydigi;
+    TriggerEffect effect{};
+    std::string error;
 
     const auto request = Apex5Identity::buildRequest();
     assert(request[0] == 0x03);
@@ -212,6 +232,24 @@ int main() {
     assert(!Apex5Identity::isApex5DeviceType(130)); // Vader 5 Pro.
     assert(!Apex5Identity::isApex5DeviceType(149)); // Apex 6.
 
+    FakeTransport* apex6Transport = nullptr;
+    auto apex6Device = makeDevice(
+        apex6Transport, apex6::kDeviceType, false, false, 0, true);
+    error.clear();
+    assert(apex6Device.verifyIdentity(error));
+    assert(apex6Device.identity() && apex6Device.identity()->isApex6());
+    assert(apex6Device.identity()->isWired());
+    assert(!apex6Device.identity()->supportsAdaptiveTriggers());
+    assert(apex6Device.identity()->supportsRealtimeHaptics());
+    assert(apex6Transport->writes.size() == 1);
+    assert(apex6Transport->writes.front().size() == apex6::kReportSize);
+    assert(apex6Transport->writes.front()[0] == apex6::kReportId);
+    assert(!apex6Device.setTrigger(effect, error));
+    assert(apex6Transport->writes.size() == 1);
+    assert(apex6Device.enableApex6Haptics(error));
+    assert(apex6Transport->writes.size() == 3);
+    assert(apex6Transport->writes[1][3] == apex6::kCmdMotorRoute);
+
     for (const auto deviceType : {84, 86, 87, 92, 93, 102, 103, 104}) {
         assert(Apex5Identity::isApex4DeviceType(static_cast<std::uint8_t>(deviceType)));
     }
@@ -240,8 +278,6 @@ int main() {
 
     FakeTransport* acceptedTransport = nullptr;
     auto accepted = makeDevice(acceptedTransport, 128);
-    TriggerEffect effect{};
-    std::string error;
     assert(!accepted.setTrigger(effect, error));
     assert(acceptedTransport->writes.empty());
     assert(accepted.verifyIdentity(error));
