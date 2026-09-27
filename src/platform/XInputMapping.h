@@ -40,6 +40,13 @@ void mapCombinedTriggerAxis(std::uint16_t combined,
                             std::uint8_t& leftTrigger,
                             std::uint8_t& rightTrigger) noexcept;
 
+// Replaces only the two trigger axes and their digital threshold bits. Apex 6
+// uses this to retain its event-driven HID state while sourcing LT/RT from the
+// independent XInput bytes that can represent both triggers simultaneously.
+void mergeIndependentTriggers(std::uint8_t leftTrigger,
+                              std::uint8_t rightTrigger,
+                              dualsense::DualSenseInputState& state) noexcept;
+
 // Applies only XInput digital controls and trigger-button thresholds. Axes and
 // analog trigger values are copied by the platform poller.
 void mapXInputButtons(std::uint16_t xinputButtons,

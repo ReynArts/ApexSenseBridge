@@ -392,6 +392,19 @@ int commandBridgeTriggers(int argc, char** argv) {
         return 13;
     }
 
+    // A controller can go to sleep while a previous session is isolated. The
+    // watchdog normally restores HidHide immediately, but run the idempotent
+    // recovery here as well before enumerating a freshly-woken controller.
+    // Pending profile/transport restoration may still need the controller to
+    // finish waking; activate() retries that recovery once identity is back.
+    bool recoveredPreviousIsolation = false;
+    std::string previousIsolationError;
+    if (!asb::platform::TemporaryPhysicalControllerIsolation::recoverPending(
+            recoveredPreviousIsolation, previousIsolationError)) {
+        std::cerr << "Warning: pending controller recovery is incomplete: "
+                  << previousIsolationError << '\n';
+    }
+
     std::unique_ptr<asb::platform::SessionControl> sessionControl;
     if (options.sessionToken) {
         sessionControl = asb::platform::connectSessionControl(
@@ -420,7 +433,22 @@ int commandBridgeTriggers(int argc, char** argv) {
         return exitCode;
     };
 
-    auto device = openSelectedIndex(options.deviceIndex, error);
+    // Windows publishes the APEX container, mapped gamepad and vendor HID
+    // collections independently after wake. Give the vendor interface a
+    // bounded window to appear instead of failing on the first empty scan.
+    std::optional<asb::flydigi::Apex5Device> device;
+    const auto deviceOpenDeadline = std::chrono::steady_clock::now() +
+                                    std::chrono::seconds(4);
+    do {
+        error.clear();
+        device = openSelectedIndex(options.deviceIndex, error);
+        if (device || g_stopRequested.load(std::memory_order_relaxed) ||
+            globalSessionStop->stopRequested() ||
+            (sessionControl && sessionControl->stopRequested())) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } while (std::chrono::steady_clock::now() < deviceOpenDeadline);
     if (!device) {
         const std::string message = "APEX identity check failed: " + error;
         std::cerr << message << '\n';

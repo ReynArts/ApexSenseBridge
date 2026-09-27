@@ -273,7 +273,11 @@ bool Apex5Device::verifyIdentity(std::string& error) {
     constexpr auto kApex4AttemptTimeout = std::chrono::milliseconds(100);
     constexpr auto kApex5AttemptTimeout = std::chrono::milliseconds(600);
     constexpr std::size_t kMaximumReplies = 4096;
-    const std::size_t maximumAttempts = apex4 ? 30 : 1;
+    // During controller wake, another short-lived detector can consume the
+    // first shared vendor-interface reply. Retry Apex 5 identity exchanges so
+    // that this benign race does not abort a bridge session. Apex 6 uses a
+    // different dedicated interface and retains its single exchange.
+    const std::size_t maximumAttempts = apex4 ? 30 : (apex6Pro ? 1 : 3);
     Apex4IdentityObservation apex4Observation;
     for (std::size_t attempt = 0; attempt < maximumAttempts; ++attempt) {
         const bool requestWritten = apex4
@@ -329,12 +333,17 @@ bool Apex5Device::verifyIdentity(std::string& error) {
         }
     }
 
-    error = apex4
-        ? "No valid command 0xEC Apex 4 identity reply arrived after 30 attempts;" +
-          apex4Observation.describe() +
-          "; use USB/dongle DInput mode and close Flydigi Space Station before retrying"
-        : "No valid command 0x01 identity reply arrived within 600 ms; "
-          "wake the controller and close Flydigi Space Station before retrying";
+    if (apex4) {
+        error = "No valid command 0xEC Apex 4 identity reply arrived after 30 attempts;" +
+                apex4Observation.describe() +
+                "; use USB/dongle DInput mode and close Flydigi Space Station before retrying";
+    } else if (apex6Pro) {
+        error = "No valid command 0x01 Apex 6 identity reply arrived within 600 ms; "
+                "wake the controller and close Flydigi Space Station before retrying";
+    } else {
+        error = "No valid command 0x01 Apex 5 identity reply arrived after three attempts; "
+                "wake the controller and close Flydigi Space Station before retrying";
+    }
     return false;
 }
 

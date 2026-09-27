@@ -1,12 +1,33 @@
 # Changelog
 
-## 1.0.0-beta.5
+## 1.0.0-beta.6
 
 - **APEX 5 physical-input startup ([#15](https://github.com/ReynArts/ApexSenseBridge/issues/15), [#6](https://github.com/ReynArts/ApexSenseBridge/issues/6))**:
   standard controls now initialize from the mapped HID collection without
   waiting for the optional vendor motion stream. Vendor reports are merged as
   they arrive for gyro and accelerometer data, and the required raw-input
   transport is enabled temporarily with crash-safe restoration.
+- **APEX 5 identity wake-retry resilience ([#17](https://github.com/ReynArts/ApexSenseBridge/issues/17))**:
+  retries read-only APEX 5 identity verification commands across controller
+  wake-up and benign detector races instead of aborting the session on the
+  first missing reply.
+- **APEX 5 mapped-HID XInput fallback ([#18](https://github.com/ReynArts/ApexSenseBridge/issues/18))**:
+  adds a seamless XInput polling fallback if the primary mapped-HID collection
+  times out, preventing input stalls while continuing to drain vendor motion
+  reports.
+- **APEX 6 independent trigger input ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  preserves the event-driven mapped-HID controls while sourcing only LT and RT
+  from the matching XInput device. This works around the controller's mapped HID
+  collection collapsing simultaneous trigger presses, without changing the
+  APEX 4 or APEX 5 input paths.
+- **APEX 6 haptic strength and cadence**: expands grip waveform samples to the
+  full safe signed 8-bit range, uses a high-resolution 125 Hz hardware deadline,
+  and keeps VIIPER isochronous completion pacing on an absolute timeline rather
+  than accumulating scheduler lateness. Integrated `libVIIPER v0.7.0-asb12`
+  and sidecar `v0.7.0-asb10` contain the corrected pacing.
+
+## 1.0.0-beta.5
+
 - **APEX 6 hardware-validation follow-up**: corrects the reversed Flydigi HID
   LT/RT axis ordering shared with the APEX 5 mapped-HID path, drives the APEX 6
   trigger voice coils with bipolar AC instead of a DC force level, and reports

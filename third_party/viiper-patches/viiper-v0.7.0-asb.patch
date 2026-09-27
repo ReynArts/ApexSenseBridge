@@ -1470,10 +1470,10 @@ index 5c0cc81..2271313 100644
 +	LoopbackOnly            bool          `kong:"-"`
  }
 diff --git a/internal/server/usb/server.go b/internal/server/usb/server.go
-index fe0802b..e38d840 100644
+index fe0802b..0a8a2a6 100644
 --- a/internal/server/usb/server.go
 +++ b/internal/server/usb/server.go
-@@ -33,12 +33,29 @@ type batchingWriter struct {
+@@ -33,12 +33,34 @@ type batchingWriter struct {
  
  const (
  	retSubmitHeaderSize = 0x30
@@ -1492,18 +1492,23 @@ index fe0802b..e38d840 100644
 +	if packetCount < 1 {
 +		packetCount = 1
 +	}
-+	start := now
-+	if previous.After(start) {
-+		start = previous
++	duration := time.Duration(packetCount) * time.Millisecond
++	start := previous
++	if start.IsZero() || now.Sub(start) > duration {
++		start = now
 +	}
-+	deadline := start.Add(time.Duration(packetCount) * time.Millisecond)
-+	return deadline, deadline.Sub(now)
++	deadline := start.Add(duration)
++	delay := deadline.Sub(now)
++	if delay < 0 {
++		delay = 0
++	}
++	return deadline, delay
 +}
 +
  func newBatchingWriter(dst io.Writer, bufSize int, flushEvery time.Duration, flushAtBytes int) *batchingWriter {
  	if bufSize <= 0 {
  		bufSize = writeBatcherBufferSize
-@@ -125,6 +142,8 @@ const (
+@@ -125,6 +147,8 @@ const (
  	usbReqSetDescriptor    = 0x07
  	usbReqGetConfiguration = 0x08
  	usbReqSetConfiguration = 0x09
@@ -1512,7 +1517,7 @@ index fe0802b..e38d840 100644
  
  	// USB descriptor types
  	usbDescTypeDevice        = 0x01
-@@ -134,11 +153,12 @@ const (
+@@ -134,11 +158,12 @@ const (
  	usbDescTypeHIDReport     = 0x22
  
  	// USB request types (bmRequestType)
@@ -1530,7 +1535,7 @@ index fe0802b..e38d840 100644
  
  	// USB interface classes
  	usbInterfaceClassHID = 0x03
-@@ -164,16 +184,19 @@ const (
+@@ -164,16 +189,19 @@ const (
  	usbConfigMaxPower100mA  = 50 // In units of 2mA
  
  	// URB header field offsets
@@ -1560,7 +1565,7 @@ index fe0802b..e38d840 100644
  
  	// Standard header peek size
  	headerPeekSize = 8
-@@ -352,6 +375,13 @@ func (s *Server) ListenAndServe() error {
+@@ -352,6 +380,13 @@ func (s *Server) ListenAndServe() error {
  			s.logger.Error("Accept error", "error", err)
  			continue
  		}
@@ -1574,7 +1579,7 @@ index fe0802b..e38d840 100644
  		if tcpConn, ok := c.(*net.TCPConn); ok {
  			if err := tcpConn.SetNoDelay(true); err != nil {
  				s.logger.Warn("failed to set TCP_NODELAY", "error", err)
-@@ -370,6 +400,11 @@ func (s *Server) ListenAndServe() error {
+@@ -370,6 +405,11 @@ func (s *Server) ListenAndServe() error {
  	}
  }
  
@@ -1586,7 +1591,7 @@ index fe0802b..e38d840 100644
  // Ready returns a channel that is closed once the server has successfully bound
  // to its listen address and is ready to accept connections.
  func (s *Server) Ready() <-chan struct{} { return s.ready }
-@@ -572,6 +607,86 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -572,6 +612,86 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  	} else {
  		writer = conn
  	}
@@ -1673,7 +1678,7 @@ index fe0802b..e38d840 100644
  
  	var owningBus *virtualbus.VirtualBus
  	for _, b := range s.busses {
-@@ -643,9 +758,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -643,9 +763,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  		if cmd == usbip.CmdUnlinkCode {
  			unlinkSeq := binary.BigEndian.Uint32(hdr[urbHdrOffsetUnlink : urbHdrOffsetUnlink+4])
  			s.logger.Debug("USBIP_CMD_UNLINK", "seq", seq, "unlink", unlinkSeq)
@@ -1693,7 +1698,7 @@ index fe0802b..e38d840 100644
  			continue
  		}
  		if cmd != usbip.CmdSubmitCode {
-@@ -653,6 +777,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -653,6 +782,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  		}
  		xferFlags := binary.BigEndian.Uint32(hdr[urbHdrOffsetFlags : urbHdrOffsetFlags+4])
  		xferLen := binary.BigEndian.Uint32(hdr[urbHdrOffsetLength : urbHdrOffsetLength+4])
@@ -1703,7 +1708,7 @@ index fe0802b..e38d840 100644
  		setup := hdr[urbHdrOffsetSetup:urbHdrSize]
  
  		var outPayload []byte
-@@ -663,7 +790,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -663,7 +795,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  			}
  		}
  
@@ -1724,7 +1729,7 @@ index fe0802b..e38d840 100644
  
  		actualLen := uint32(len(respData))
  		if dir == usbip.DirOut {
-@@ -674,22 +813,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -674,22 +818,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  			Basic:           usbip.HeaderBasic{Command: usbip.RetSubmitCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0},
  			Status:          0,
  			ActualLength:    actualLen,
@@ -1756,7 +1761,7 @@ index fe0802b..e38d840 100644
  		}
  		if bw != nil && ep == 0 {
  			if err := bw.Flush(); err != nil {
-@@ -728,13 +863,62 @@ func isClientDisconnect(err error) bool {
+@@ -728,13 +868,62 @@ func isClientDisconnect(err error) bool {
  	return false
  }
  
@@ -1822,7 +1827,7 @@ index fe0802b..e38d840 100644
  	}
  	bm := setup[0]
  	breq := setup[1]
-@@ -743,16 +927,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -743,16 +932,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  	wLength := binary.LittleEndian.Uint16(setup[6:8])
  
  	if breq == usbReqGetStatus {
@@ -1846,7 +1851,7 @@ index fe0802b..e38d840 100644
  	}
  
  	desc := dev.GetDescriptor()
-@@ -774,12 +961,12 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -774,12 +966,12 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			}
  		}
  		if len(data) == 0 {
@@ -1862,7 +1867,7 @@ index fe0802b..e38d840 100644
  	}
  
  	if desc.MicrosoftOS10 != nil &&
-@@ -788,9 +975,9 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -788,9 +980,9 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			wIndex == 0x0004 || wIndex == 0x0005) {
  		if data, ok := desc.MicrosoftOS10.ControlResponse(wValue, wIndex); ok {
  			if int(wLength) < len(data) {
@@ -1874,7 +1879,7 @@ index fe0802b..e38d840 100644
  		}
  	}
  
-@@ -798,21 +985,22 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -798,21 +990,22 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		dtype := uint8(wValue >> 8)
  		iface := uint8(wIndex & 0xff)
  		var data []byte
@@ -1900,7 +1905,7 @@ index fe0802b..e38d840 100644
  					}
  					data = []byte(d)
  				}
-@@ -827,23 +1015,31 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -827,23 +1020,31 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			}
  		}
  		if len(data) == 0 {
@@ -1938,7 +1943,7 @@ index fe0802b..e38d840 100644
  		}
  	}
  
-@@ -851,15 +1047,15 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -851,15 +1052,15 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		if desc.Interfaces[iface].Descriptor.BInterfaceClass == usbInterfaceClassHID {
  			switch {
  			case bm == hidReqTypeIn && breq == hidReqGetIdle:
@@ -1959,7 +1964,7 @@ index fe0802b..e38d840 100644
  			}
  		}
  	}
-@@ -868,7 +1064,7 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -868,7 +1069,7 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		s.logger.Debug("EP0 control unhandled", "bmRequestType", bm, "bRequest", breq, "wValue", wValue, "wIndex", wIndex, "wLength", wLength)
  	}
  
@@ -1970,10 +1975,10 @@ index fe0802b..e38d840 100644
  func (s *Server) buildConfigDescriptor(desc *usb.Descriptor) []byte {
 diff --git a/internal/server/usb/server_loopback_test.go b/internal/server/usb/server_loopback_test.go
 new file mode 100644
-index 0000000..850a386
+index 0000000..9b7bea7
 --- /dev/null
 +++ b/internal/server/usb/server_loopback_test.go
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,72 @@
 +package usb
 +
 +import (
@@ -2032,6 +2037,18 @@ index 0000000..850a386
 +	third, thirdDelay := isoOutCompletionDeadline(second, second, 0, true)
 +	if want := second.Add(time.Millisecond); !third.Equal(want) || thirdDelay != time.Millisecond {
 +		t.Fatalf("empty paced URB: next=%v delay=%v, want %v/1ms", third, thirdDelay, want)
++	}
++
++	lateNow := next.Add(time.Millisecond)
++	late, lateDelay := isoOutCompletionDeadline(lateNow, next, 6, true)
++	if want := next.Add(6 * time.Millisecond); !late.Equal(want) || lateDelay != 5*time.Millisecond {
++		t.Fatalf("slightly late paced URB drifted: next=%v delay=%v, want %v/5ms", late, lateDelay, want)
++	}
++
++	veryLateNow := next.Add(7 * time.Millisecond)
++	reset, resetDelay := isoOutCompletionDeadline(veryLateNow, next, 6, true)
++	if want := veryLateNow.Add(6 * time.Millisecond); !reset.Equal(want) || resetDelay != 6*time.Millisecond {
++		t.Fatalf("stale paced timeline was not reset: next=%v delay=%v, want %v/6ms", reset, resetDelay, want)
 +	}
 +}
 diff --git a/lib/viiper/dualsense.go b/lib/viiper/dualsense.go

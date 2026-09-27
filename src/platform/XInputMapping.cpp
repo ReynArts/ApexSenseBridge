@@ -30,6 +30,21 @@ void mapCombinedTriggerAxis(std::uint16_t combined,
     }
 }
 
+void mergeIndependentTriggers(std::uint8_t leftTrigger,
+                              std::uint8_t rightTrigger,
+                              dualsense::DualSenseInputState& state) noexcept {
+    state.l2 = leftTrigger;
+    state.r2 = rightTrigger;
+    state.buttons = static_cast<std::uint16_t>(
+        state.buttons & ~(dualsense::button::kL2 | dualsense::button::kR2));
+    if (leftTrigger > xinputButton::kTriggerThreshold) {
+        state.buttons |= dualsense::button::kL2;
+    }
+    if (rightTrigger > xinputButton::kTriggerThreshold) {
+        state.buttons |= dualsense::button::kR2;
+    }
+}
+
 void mapXInputButtons(std::uint16_t raw,
                       std::uint8_t leftTrigger,
                       std::uint8_t rightTrigger,

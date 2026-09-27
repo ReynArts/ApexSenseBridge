@@ -122,6 +122,23 @@ int main() {
             dualsense::button::kL2 | dualsense::button::kR2 |
             dualsense::button::kL3 | dualsense::button::kR3));
 
+    dualsense::DualSenseInputState hidState{};
+    hidState.lx = 11;
+    hidState.ry = 222;
+    hidState.buttons = dualsense::button::kCross |
+                       dualsense::button::kL2;
+    platform::mergeIndependentTriggers(200, 201, hidState);
+    assert(hidState.l2 == 200);
+    assert(hidState.r2 == 201);
+    assert(hidState.lx == 11);
+    assert(hidState.ry == 222);
+    assert((hidState.buttons & dualsense::button::kCross) != 0);
+    assert((hidState.buttons & dualsense::button::kL2) != 0);
+    assert((hidState.buttons & dualsense::button::kR2) != 0);
+    platform::mergeIndependentTriggers(30, 31, hidState);
+    assert((hidState.buttons & dualsense::button::kL2) == 0);
+    assert((hidState.buttons & dualsense::button::kR2) != 0);
+
     for (unsigned int transition = 0; transition < 10000; ++transition) {
         platform::XInputSnapshot snapshot{};
         snapshot.buttons = (transition & 1U) != 0 ? platform::xinputButton::kA : 0;

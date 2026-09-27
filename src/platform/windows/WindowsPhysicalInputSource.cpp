@@ -522,6 +522,49 @@ private:
     std::atomic<std::uint8_t> currentChargeState_{0};
 };
 
+class Apex6HybridPhysicalInputSource final : public PhysicalInputSource {
+public:
+    Apex6HybridPhysicalInputSource(
+        std::unique_ptr<HidPhysicalInputSource> mappedGamepad,
+        std::unique_ptr<XInputGamepad> xinputGamepad)
+        : mappedGamepad_(std::move(mappedGamepad)),
+          xinputGamepad_(std::move(xinputGamepad)) {}
+
+    PhysicalInputStatus waitForState(
+        dualsense::DualSenseInputState& state,
+        std::chrono::milliseconds timeout,
+        std::string& error) override {
+        const auto status = mappedGamepad_->waitForState(state, timeout, error);
+        if (status != PhysicalInputStatus::State) return status;
+
+        dualsense::DualSenseInputState xinputState{};
+        std::string xinputError;
+        if (!xinputGamepad_->poll(xinputState, xinputError)) {
+            error = "The Apex 6 independent XInput trigger source failed (" +
+                    xinputError + ").";
+            return PhysicalInputStatus::Disconnected;
+        }
+        mergeIndependentTriggers(xinputState.l2, xinputState.r2, state);
+        return PhysicalInputStatus::State;
+    }
+
+    std::string_view backendName() const noexcept override {
+        return "apex6-hid+xinput-triggers";
+    }
+    bool eventDriven() const noexcept override { return true; }
+    PhysicalInputSourceStats stats() const noexcept override {
+        return mappedGamepad_->stats();
+    }
+    void setBatteryState(std::uint8_t batteryPercent,
+                         std::uint8_t chargeState) noexcept override {
+        mappedGamepad_->setBatteryState(batteryPercent, chargeState);
+    }
+
+private:
+    std::unique_ptr<HidPhysicalInputSource> mappedGamepad_;
+    std::unique_ptr<XInputGamepad> xinputGamepad_;
+};
+
 class Apex4PhysicalInputSource final : public PhysicalInputSource {
 public:
     static std::unique_ptr<Apex4PhysicalInputSource> open(
@@ -696,6 +739,15 @@ public:
             return {};
         }
 
+        // Some Windows/XUSB combinations enumerate the mapped HID collection
+        // but never deliver input reports through ReadFile. Keep an XInput
+        // handle ready as a runtime fallback so a present-but-silent HID
+        // collection cannot prevent the mandatory input proxy from starting.
+        std::string xinputError;
+        auto xinputGamepad = openXInputGamepadForDevice(
+            vendorInterface.vendorId, vendorInterface.productId,
+            std::nullopt, xinputError);
+
         HANDLE handle = CreateFileW(
             vendorInterface.path.c_str(), GENERIC_READ,
             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
@@ -709,7 +761,8 @@ public:
 
         auto source = std::unique_ptr<Apex5DualHidPhysicalInputSource>(
             new Apex5DualHidPhysicalInputSource(
-                vendorInterface, handle, std::move(mappedGamepad)));
+                vendorInterface, handle, std::move(mappedGamepad),
+                std::move(xinputGamepad)));
         if (!source->event_) {
             error = "Could not create the Apex 5 vendor input event.";
             return {};
@@ -761,6 +814,10 @@ public:
             const DWORD waitResult = WaitForMultipleObjects(
                 eventCount, events.data(), FALSE, waitMilliseconds(remaining));
             if (waitResult == WAIT_TIMEOUT) {
+                if (pollXInputFallback(state)) {
+                    ++stats_.reports;
+                    return PhysicalInputStatus::State;
+                }
                 ++stats_.timeouts;
                 return PhysicalInputStatus::Timeout;
             }
@@ -777,11 +834,16 @@ public:
                 const auto mappedStatus = mappedGamepad_->completePreparedRead(
                     mappedState, mappedError);
                 if (mappedStatus != PhysicalInputStatus::State) {
+                    if (pollXInputFallback(state)) {
+                        ++stats_.reports;
+                        return PhysicalInputStatus::State;
+                    }
                     error = "The physical Apex 5 mapped HID stream failed (" +
                             mappedError + ").";
                     return mappedStatus;
                 }
                 lastMappedState_ = mappedState;
+                xinputFallbackActive_ = false;
                 drainVendorReports();
                 composeState(state);
                 ++stats_.reports;
@@ -796,8 +858,20 @@ public:
                     ++vendorReadFailures_;
                 }
             }
+            if (decodedVendorState && xinputFallbackActive_) {
+                if (pollXInputFallback(state)) {
+                    ++stats_.reports;
+                    return PhysicalInputStatus::State;
+                }
+                error = "The physical Apex 5 XInput fallback disconnected.";
+                return PhysicalInputStatus::Disconnected;
+            }
             if (decodedVendorState && lastMappedState_) {
                 composeState(state);
+                ++stats_.reports;
+                return PhysicalInputStatus::State;
+            }
+            if (decodedVendorState && pollXInputFallback(state)) {
                 ++stats_.reports;
                 return PhysicalInputStatus::State;
             }
@@ -805,7 +879,7 @@ public:
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex5-v3-mapped-primary";
+        return "apex5-v4-mapped+xinput-fallback";
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override {
@@ -827,9 +901,11 @@ public:
 private:
     Apex5DualHidPhysicalInputSource(
         const HidDeviceInfo& info, HANDLE handle,
-        std::unique_ptr<HidPhysicalInputSource> mappedGamepad)
+        std::unique_ptr<HidPhysicalInputSource> mappedGamepad,
+        std::unique_ptr<XInputGamepad> xinputGamepad)
         : handle_(handle), report_(info.inputReportLength, 0),
-          mappedGamepad_(std::move(mappedGamepad)) {
+          mappedGamepad_(std::move(mappedGamepad)),
+          xinputGamepad_(std::move(xinputGamepad)) {
         event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         overlapped_.hEvent = event_;
     }
@@ -931,6 +1007,18 @@ private:
             currentChargeState_.load(std::memory_order_relaxed));
     }
 
+    bool pollXInputFallback(dualsense::DualSenseInputState& state) noexcept {
+        if (!xinputGamepad_) return false;
+        dualsense::DualSenseInputState xinputState{};
+        std::string ignored;
+        if (!xinputGamepad_->poll(xinputState, ignored)) return false;
+        lastMappedState_ = xinputState;
+        xinputFallbackActive_ = true;
+        drainVendorReports();
+        composeState(state);
+        return true;
+    }
+
     HANDLE handle_ = INVALID_HANDLE_VALUE;
     HANDLE event_ = nullptr;
     OVERLAPPED overlapped_{};
@@ -946,7 +1034,9 @@ private:
     std::atomic<std::uint8_t> currentBatteryPercent_{100};
     std::atomic<std::uint8_t> currentChargeState_{0};
     std::unique_ptr<HidPhysicalInputSource> mappedGamepad_;
+    std::unique_ptr<XInputGamepad> xinputGamepad_;
     std::optional<dualsense::DualSenseInputState> lastMappedState_;
+    bool xinputFallbackActive_ = false;
 };
 
 class XInputPhysicalInputSource final : public PhysicalInputSource {
@@ -1022,11 +1112,22 @@ std::unique_ptr<PhysicalInputSource> openPhysicalInputSource(
         if (flydigi::apex6::isProduct(
                 apexVendorInterface.vendorId, apexVendorInterface.productId)) {
             std::string apex6Error;
-            auto apex6 = HidPhysicalInputSource::open(
+            auto mappedGamepad = HidPhysicalInputSource::open(
                 apexVendorInterface, apex6Error);
-            if (apex6) {
+            if (mappedGamepad) {
+                std::string xinputError;
+                auto xinputGamepad = openXInputGamepadForDevice(
+                    apexVendorInterface.vendorId,
+                    apexVendorInterface.productId,
+                    std::nullopt, xinputError);
+                if (!xinputGamepad) {
+                    error = "Apex 6 independent trigger input unavailable (" +
+                            xinputError + ").";
+                    return {};
+                }
                 error.clear();
-                return apex6;
+                return std::make_unique<Apex6HybridPhysicalInputSource>(
+                    std::move(mappedGamepad), std::move(xinputGamepad));
             }
             error = "Apex 6 mapped HID input unavailable (" + apex6Error + "); ";
         }

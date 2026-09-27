@@ -6,6 +6,11 @@
 #include <cmath>
 #include <utility>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 namespace asb::dualsense {
 namespace {
 
@@ -16,9 +21,51 @@ constexpr std::int16_t kMaximumTriggerDrive = 96;
 constexpr double kPi = 3.14159265358979323846;
 
 std::int8_t scalePcm(std::int16_t sample) noexcept {
-    const auto scaled = static_cast<std::int32_t>(sample) * 108 / 32768;
-    return static_cast<std::int8_t>(std::clamp<std::int32_t>(scaled, -108, 108));
+    // Hardware validation confirmed that the conservative pre-validation cap
+    // left substantial actuator range unused. Map PCM onto the complete safe
+    // symmetric range accepted by the unsigned-bipolar 0x57 channel.
+    const auto denominator = sample >= 0 ? 32767 : 32768;
+    const auto scaled = static_cast<std::int32_t>(sample) * 127 / denominator;
+    return static_cast<std::int8_t>(
+        std::clamp<std::int32_t>(scaled, -127, 127));
 }
+
+#ifdef _WIN32
+class HighResolutionDeadlineTimer {
+public:
+    HighResolutionDeadlineTimer() noexcept {
+        constexpr DWORD kHighResolution = 0x00000002;
+        timer_ = CreateWaitableTimerExW(
+            nullptr, nullptr, kHighResolution, TIMER_MODIFY_STATE | SYNCHRONIZE);
+        if (!timer_) {
+            timer_ = CreateWaitableTimerExW(
+                nullptr, nullptr, 0, TIMER_MODIFY_STATE | SYNCHRONIZE);
+        }
+    }
+
+    ~HighResolutionDeadlineTimer() {
+        if (timer_) CloseHandle(timer_);
+    }
+
+    bool waitUntil(std::chrono::steady_clock::time_point deadline) noexcept {
+        if (!timer_) return false;
+        const auto remaining = deadline - std::chrono::steady_clock::now();
+        if (remaining <= std::chrono::steady_clock::duration::zero()) return true;
+        const auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            remaining).count();
+        LARGE_INTEGER due{};
+        due.QuadPart = -static_cast<LONGLONG>((nanoseconds + 99) / 100);
+        if (due.QuadPart == 0) due.QuadPart = -1;
+        if (!SetWaitableTimer(timer_, &due, 0, nullptr, nullptr, FALSE)) {
+            return false;
+        }
+        return WaitForSingleObject(timer_, INFINITE) == WAIT_OBJECT_0;
+    }
+
+private:
+    HANDLE timer_ = nullptr;
+};
+#endif
 
 std::int8_t sineSample(double& phase, double frequency,
                        std::uint8_t amplitude) noexcept {
@@ -330,6 +377,9 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
 
 void Apex6HapticBridge::run() noexcept {
     auto deadline = Clock::now();
+#ifdef _WIN32
+    HighResolutionDeadlineTimer deadlineTimer;
+#endif
     for (;;) {
         deadline += kFramePeriod;
         flydigi::apex6::TriggerRoute route{};
@@ -354,8 +404,15 @@ void Apex6HapticBridge::run() noexcept {
         }
         framesWritten_.fetch_add(1, std::memory_order_relaxed);
 
+        bool usedHighResolutionTimer = false;
+#ifdef _WIN32
+        usedHighResolutionTimer = deadlineTimer.waitUntil(deadline);
+#endif
         std::unique_lock lock(stateMutex_);
-        if (stopSignal_.wait_until(lock, deadline, [this] { return stopping_; })) {
+        if (usedHighResolutionTimer) {
+            if (stopping_) return;
+        } else if (stopSignal_.wait_until(
+                       lock, deadline, [this] { return stopping_; })) {
             return;
         }
         const auto now = Clock::now();

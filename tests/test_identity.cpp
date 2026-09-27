@@ -29,9 +29,11 @@ public:
                            bool silent = false,
                            bool apex4 = false,
                            std::size_t ignoredApex4Requests = 0,
-                           bool apex6 = false)
+                           bool apex6 = false,
+                           std::size_t ignoredApex5Requests = 0)
         : deviceType_(deviceType), silent_(silent), apex4_(apex4),
-          apex6_(apex6), ignoredApex4Requests_(ignoredApex4Requests) {
+          apex6_(apex6), ignoredApex4Requests_(ignoredApex4Requests),
+          ignoredApex5Requests_(ignoredApex5Requests) {
         info_.vendorId = apex4 ? asb::flydigi::kApex4VendorId
                                : asb::flydigi::kVendorId;
         info_.productId = apex4 ? asb::flydigi::kApex4ProductId
@@ -75,6 +77,10 @@ public:
             replies_.push_back(std::move(reply));
         } else if (!silent_ && !apex4_ && report.size() > 3 &&
                    report[3] == asb::flydigi::kCmdGetInfo) {
+            if (ignoredApex5Requests_ != 0) {
+                --ignoredApex5Requests_;
+                return true;
+            }
             std::vector<std::uint8_t> reply(32, 0);
             reply[0] = asb::flydigi::kReportIdIn;
             reply[1] = asb::flydigi::kMagic0;
@@ -153,6 +159,7 @@ private:
     bool apex4_ = false;
     bool apex6_ = false;
     std::size_t ignoredApex4Requests_ = 0;
+    std::size_t ignoredApex5Requests_ = 0;
     std::uint8_t activeProfile_ = 0;
     bool controllerData_ = true;
     bool rawData_ = false;
@@ -164,9 +171,11 @@ asb::flydigi::Apex5Device makeDevice(FakeTransport*& fake,
                                       bool silent = false,
                                       bool apex4 = false,
                                       std::size_t ignoredApex4Requests = 0,
-                                      bool apex6 = false) {
+                                      bool apex6 = false,
+                                      std::size_t ignoredApex5Requests = 0) {
     fake = new FakeTransport(
-        deviceType, silent, apex4, ignoredApex4Requests, apex6);
+        deviceType, silent, apex4, ignoredApex4Requests, apex6,
+        ignoredApex5Requests);
     return asb::flydigi::Apex5Device(asb::flydigi::TransportPtr(fake));
 }
 
@@ -291,6 +300,14 @@ int main() {
     assert(acceptedTransport->writes.size() == 3);
     assert(acceptedTransport->writes[2][3] == kCmdGetInfo);
 
+    FakeTransport* wakingTransport = nullptr;
+    auto waking = makeDevice(
+        wakingTransport, 128, false, false, 0, false, 2);
+    error.clear();
+    assert(waking.verifyIdentity(error));
+    assert(waking.identity() && waking.identity()->isApex5());
+    assert(wakingTransport->writes.size() == 3);
+
     InputTransportStatus transportStatus{};
     assert(accepted.readInputTransportStatus(transportStatus, error));
     assert(transportStatus.controllerData && !transportStatus.rawData);
@@ -376,7 +393,7 @@ int main() {
     error.clear();
     assert(!silent.verifyIdentity(error));
     assert(error.find("No valid command 0x01") != std::string::npos);
-    assert(silentTransport->writes.size() == 1);
+    assert(silentTransport->writes.size() == 3);
 
     std::cout << "Identity guard tests passed\n";
     return 0;
