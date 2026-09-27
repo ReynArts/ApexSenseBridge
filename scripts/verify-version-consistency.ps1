@@ -109,8 +109,7 @@ if ($CheckArtifacts) {
         "build-win\Release\ApexSenseBridgeControl.exe",
         "build-win\Release\ApexSenseBridgeTray.exe",
         "playnite\ApexSenseBridge\bin\Release\ApexSenseBridge.dll",
-        "dist\ApexSenseBridge-Setup.exe",
-        "dist\ApexSenseBridgeTray.exe"
+        "dist\ApexSenseBridge-Setup.exe"
     )) {
         Assert-ArtifactVersion $artifact
     }
@@ -159,8 +158,7 @@ if ($RequireSignatures) {
         "build-win\Release\viiper.exe",
         "build-win\Release\libVIIPER.dll",
         "playnite\ApexSenseBridge\bin\Release\ApexSenseBridge.dll",
-        "dist\ApexSenseBridge-Setup.exe",
-        "dist\ApexSenseBridgeTray.exe"
+        "dist\ApexSenseBridge-Setup.exe"
     )
     $publisher = $null
     foreach ($relativePath in $signedPaths) {

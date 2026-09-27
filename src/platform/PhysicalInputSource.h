@@ -23,6 +23,10 @@ struct PhysicalInputSourceStats {
     std::uint64_t reports = 0;
     std::uint64_t timeouts = 0;
     std::uint64_t parseFailures = 0;
+    std::uint64_t vendorReports = 0;
+    std::uint64_t vendorStates = 0;
+    std::uint64_t vendorParseFailures = 0;
+    std::uint64_t vendorReadFailures = 0;
 };
 
 // Reads the complete physical APEX game state for the mandatory

@@ -427,6 +427,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(3, message);
     }
     const bool apex6Pro = device->identity() && device->identity()->isApex6();
+    const bool apex5 = device->identity() && device->identity()->isApex5();
 
     std::optional<asb::flydigi::ProfileStatus> originalProfile;
     std::optional<asb::flydigi::InputTransportStatus> originalInputTransport;
@@ -477,6 +478,18 @@ int commandBridgeTriggers(int argc, char** argv) {
                 std::cerr << message << '\n';
                 return failSession(15, message);
             }
+            originalInputTransport = transport;
+        }
+    }
+    if (apex5 && !originalInputTransport) {
+        asb::flydigi::InputTransportStatus transport{};
+        error.clear();
+        if (!device->readInputTransportStatus(transport, error)) {
+            std::cerr << "Warning: could not read the original Apex 5 input "
+                         "transport; raw motion routing will remain unchanged: "
+                      << error << '\n';
+            error.clear();
+        } else {
             originalInputTransport = transport;
         }
     }
@@ -736,11 +749,11 @@ int commandBridgeTriggers(int argc, char** argv) {
             return failSession(exitCode, message);
         };
 
-    if (profileSwitchRequired) {
-        // The persistent crash marker is armed by physicalIsolation.activate()
-        // before the controller receives the temporary switch command.
-        profileRestoreOnExit = std::make_unique<asb::ApexProfileRestoreGuard>(
-            *device, originalProfile->slot);
+    const bool inputTransportRefreshRequired =
+        apex5 && originalInputTransport &&
+        (profileSwitchRequired || !originalInputTransport->controllerData ||
+         !originalInputTransport->rawData);
+    if (inputTransportRefreshRequired) {
         if (!physicalIsolation.armApexInputTransportRestore(
                 originalInputTransport->controllerData,
                 originalInputTransport->rawData, error)) {
@@ -748,6 +761,11 @@ int commandBridgeTriggers(int argc, char** argv) {
                 11, "Could not arm Apex 5 input-transport recovery: " + error);
         }
         inputSource.reset();
+    }
+
+    if (profileSwitchRequired) {
+        profileRestoreOnExit = std::make_unique<asb::ApexProfileRestoreGuard>(
+            *device, originalProfile->slot);
         error.clear();
         profileSwitchAcknowledged =
             device->applyProfile(*options.apexProfileSlot, error);
@@ -788,11 +806,14 @@ int commandBridgeTriggers(int argc, char** argv) {
 
         // The firmware applies the new profile about one second after its ACK.
         std::this_thread::sleep_for(std::chrono::milliseconds(1100));
-        baselineError.clear();
-        if (!device->setInputTransport(true, true, baselineError)) {
+    }
+
+    if (inputTransportRefreshRequired) {
+        std::string transportError;
+        if (!device->setInputTransport(true, true, transportError)) {
             return rollbackFailedProfileStartup(
                 8, "Could not restart the Apex 5 physical input stream after "
-                   "profile switch: " + baselineError);
+                   "transport refresh: " + transportError);
         }
 
         const auto reopenDeadline = std::chrono::steady_clock::now() +
@@ -808,7 +829,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         } while (!inputSource && std::chrono::steady_clock::now() < reopenDeadline);
         if (!inputSource) {
             return rollbackFailedProfileStartup(
-                8, "Physical input source recreation failed after profile switch: " +
+                8, "Physical input source recreation failed after transport refresh: " +
                        reopenError);
         }
         inputBackend = std::string(inputSource->backendName());
@@ -834,7 +855,7 @@ int commandBridgeTriggers(int argc, char** argv) {
             } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
                        status == asb::platform::PhysicalInputStatus::Error) {
                 return rollbackFailedProfileStartup(
-                    8, "Physical input validation failed after profile switch: " +
+                    8, "Physical input validation failed after transport refresh: " +
                            (validationError.empty()
                                 ? std::string("the refreshed stream disconnected")
                                 : validationError));
@@ -842,15 +863,19 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
         if (freshReports < kRequiredFreshReports) {
             return rollbackFailedProfileStartup(
-                8, "Physical input validation timed out after profile switch; "
+                8, "Physical input validation timed out after transport refresh; "
                    "the refreshed stream produced fewer than three reports.");
         }
         if (!virtualDualSense->updateInput(initialInput, error)) {
             return rollbackFailedProfileStartup(
-                8, "Virtual DualSense resynchronization failed after profile switch: " +
+                8, "Virtual DualSense resynchronization failed after transport refresh: " +
                        error);
         }
-
+    }
+    if (apex5 && inputSource->stats().vendorStates == 0) {
+        std::cerr << "Warning: the Apex 5 vendor motion stream produced no state "
+                     "during initialization. Standard controls remain active; "
+                     "motion data will be merged if the stream resumes.\n";
     }
 
     // Start only after every ordered startup/profile write. On Apex 4 this
@@ -1316,6 +1341,14 @@ int commandBridgeTriggers(int argc, char** argv) {
                       << "  \"physical_report_rate_hz\": " << physicalReportRateHz << ",\n"
                       << "  \"virtual_report_rate_hz\": " << virtualReportRateHz << ",\n"
                       << "  \"physical_reports\": " << inputSourceStats.reports << ",\n"
+                      << "  \"physical_vendor_reports\": "
+                      << inputSourceStats.vendorReports << ",\n"
+                      << "  \"physical_vendor_states\": "
+                      << inputSourceStats.vendorStates << ",\n"
+                      << "  \"physical_vendor_parse_failures\": "
+                      << inputSourceStats.vendorParseFailures << ",\n"
+                      << "  \"physical_vendor_read_failures\": "
+                      << inputSourceStats.vendorReadFailures << ",\n"
                       << "  \"forwarded_physical_reports\": " << forwardedPhysicalReports << ",\n"
                       << "  \"keepalive_reports\": " << keepaliveInputReports << ",\n"
                       << "  \"lost_reports\": " << lostInputReports << ",\n"
@@ -1342,6 +1375,12 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "input_mode=mandatory-full-proxy\n"
               << "input_backend=" << inputBackend << '\n'
               << "input_event_driven=" << (inputSource->eventDriven() ? "yes" : "no") << '\n'
+              << "input_vendor_reports=" << inputSourceStats.vendorReports << '\n'
+              << "input_vendor_states=" << inputSourceStats.vendorStates << '\n'
+              << "input_vendor_parse_failures="
+              << inputSourceStats.vendorParseFailures << '\n'
+              << "input_vendor_read_failures="
+              << inputSourceStats.vendorReadFailures << '\n'
               << "virtual_startup_attempts=" << startupResult.attempts << '\n'
               << "runtime_ms=" << runtimeMilliseconds << '\n'
               << "initialization_ms=" << initializationMilliseconds << '\n'

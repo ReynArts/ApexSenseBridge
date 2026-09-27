@@ -265,6 +265,25 @@ int main() {
     assert(neutralMappedState.gyroX == decodedApex5Custom->gyroX);
     assert(neutralMappedState.batteryPercent == 80);
 
+    const auto mappedOnlyState = composeApex5InputState(
+        mappedHidState, std::nullopt, 67, 1);
+    assert(mappedOnlyState.lx == mappedHidState.lx);
+    assert(mappedOnlyState.r2 == mappedHidState.r2);
+    assert(mappedOnlyState.buttons == mappedHidState.buttons);
+    assert(mappedOnlyState.gyroX == 0);
+    assert(mappedOnlyState.batteryPercent == 67);
+    assert(mappedOnlyState.chargeState == 1);
+
+    const auto composedState = composeApex5InputState(
+        mappedHidState, decodedApex5Custom, 74, 2);
+    assert(composedState.lx == mappedHidState.lx);
+    assert(composedState.r2 == mappedHidState.r2);
+    assert(composedState.buttons ==
+           (mappedHidState.buttons | dualsense::button::kPs));
+    assert(composedState.gyroX == decodedApex5Custom->gyroX);
+    assert(composedState.batteryPercent == 74);
+    assert(composedState.chargeState == 2);
+
     assert(!decodeApex5InputReport(
         std::span<const std::uint8_t>(apex5Input.data(), 29)));
     apex5Input[3] = 0;

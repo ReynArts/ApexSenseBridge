@@ -7,10 +7,9 @@ $projectDir = Join-Path $root "ApexSenseBridgeTray"
 $project = Join-Path $projectDir "ApexSenseBridgeTray.csproj"
 $learningTestProject = Join-Path $root "tests\ApexSenseBridgeTray.LearningTests.csproj"
 $learningTestExe = Join-Path $root "tests\bin\Release\ApexSenseBridgeTray.LearningTests.exe"
-$outputDir = Join-Path $projectDir "bin\Release"
 $buildWinRelease = Join-Path $root "build-win\Release"
-$dist = Join-Path $root "dist"
-$runtimeDependencies = @("libVIIPER.dll", "viiper.exe")
+$outputDir = $buildWinRelease
+$legacyOutputDir = Join-Path $projectDir "bin\Release"
 
 function Fail($message) {
     Write-Host ""
@@ -72,6 +71,10 @@ if (-not (Test-Path $trayExe)) {
     Fail "ApexSenseBridgeTray.exe was not created."
 }
 
+if (Test-Path -LiteralPath $legacyOutputDir) {
+    Remove-Item -LiteralPath $legacyOutputDir -Recurse -Force
+}
+
 $running = Get-Process -Name "ApexSenseBridgeTray" -ErrorAction SilentlyContinue
 if ($running) {
     $running | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -79,48 +82,6 @@ if ($running) {
 }
 Start-Sleep -Milliseconds 300
 
-# Copy to build-win\Release for Inno Setup packaging
-if (-not (Test-Path $buildWinRelease)) {
-    New-Item -ItemType Directory -Path $buildWinRelease -Force | Out-Null
-}
-Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $buildWinRelease -Force
-
-# Copy to dist
-if (-not (Test-Path $dist)) {
-    New-Item -ItemType Directory -Path $dist -Force | Out-Null
-}
-Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $dist -Force
-
-# Copy to root workspace
-Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $root -Force
-
-# Keep every runnable development output self-contained. ResolveEngine prefers
-# a colocated ApexSenseBridge.exe, so its virtual-controller backends must be
-# colocated as well or bridge diagnostics will fail before measurement starts.
-foreach ($dependency in $runtimeDependencies) {
-    $source = Join-Path $buildWinRelease $dependency
-    if (-not (Test-Path -LiteralPath $source)) {
-        Write-Warning "$dependency was not found in build-win\Release; standalone root/dist bridge tests will be unavailable."
-        continue
-    }
-    Copy-Item -LiteralPath $source -Destination (Join-Path $root $dependency) -Force
-    Copy-Item -LiteralPath $source -Destination (Join-Path $dist $dependency) -Force
-}
-
-# Copy to portable distribution if it exists
-$portableDir = Join-Path $dist "ApexSenseBridge-Portable"
-if (Test-Path $portableDir) {
-    Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $portableDir -Force
-    foreach ($dependency in $runtimeDependencies) {
-        $source = Join-Path $buildWinRelease $dependency
-        if (Test-Path -LiteralPath $source) {
-            Copy-Item -LiteralPath $source -Destination (Join-Path $portableDir $dependency) -Force
-        }
-    }
-}
-
 Write-Host ""
 Write-Host "ApexSenseBridgeTray built successfully:" -ForegroundColor Green
-Write-Host "  Root:    $(Join-Path $root 'ApexSenseBridgeTray.exe')"
-Write-Host "  Dist:    $(Join-Path $dist 'ApexSenseBridgeTray.exe')"
-Write-Host "  Release: $trayExe"
+Write-Host "  Runtime: $(Join-Path $buildWinRelease 'ApexSenseBridgeTray.exe')"

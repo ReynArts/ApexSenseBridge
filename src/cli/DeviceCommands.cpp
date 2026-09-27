@@ -173,6 +173,10 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
             << "  \"state_changes\": " << stateChanges << ",\n"
             << "  \"timeouts\": " << stats.timeouts << ",\n"
             << "  \"parse_failures\": " << stats.parseFailures << ",\n"
+            << "  \"vendor_reports\": " << stats.vendorReports << ",\n"
+            << "  \"vendor_states\": " << stats.vendorStates << ",\n"
+            << "  \"vendor_parse_failures\": " << stats.vendorParseFailures << ",\n"
+            << "  \"vendor_read_failures\": " << stats.vendorReadFailures << ",\n"
             << "  \"lx\": " << static_cast<unsigned int>(lastState.lx) << ",\n"
             << "  \"ly\": " << static_cast<unsigned int>(lastState.ly) << ",\n"
             << "  \"rx\": " << static_cast<unsigned int>(lastState.rx) << ",\n"
@@ -215,6 +219,10 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
                   << "state_changes=" << stateChanges << '\n'
                   << "timeouts=" << stats.timeouts << '\n'
                   << "parse_failures=" << stats.parseFailures << '\n'
+                  << "vendor_reports=" << stats.vendorReports << '\n'
+                  << "vendor_states=" << stats.vendorStates << '\n'
+                  << "vendor_parse_failures=" << stats.vendorParseFailures << '\n'
+                  << "vendor_read_failures=" << stats.vendorReadFailures << '\n'
                   << "sticks=" << static_cast<unsigned int>(lastState.lx) << ','
                   << static_cast<unsigned int>(lastState.ly) << ','
                   << static_cast<unsigned int>(lastState.rx) << ','

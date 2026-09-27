@@ -940,14 +940,23 @@ namespace ApexSenseBridgeTray
             Brush mutedStroke = (Brush)FindResource("TextMuted");
             Brush activeText = (Brush)FindResource("TextPrimary");
 
-            // 1. Hero banner on Dashboard (controller image)
+            // 1. Hero banner on Dashboard (exact model image; never substitute another model)
             if (ImgDashboardController != null)
             {
-                ImgDashboardController.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
-                if (isConnected)
+                bool hasExactControllerImage = isApex4 || isApex5 || isApex6;
+                ImgDashboardController.Visibility = hasExactControllerImage ? Visibility.Visible : Visibility.Collapsed;
+                if (hasExactControllerImage)
                 {
-                    string asset = isApex4 ? "Resources/controller-apex4.png" : "Resources/controller-apex5.png";
+                    string asset = isApex4
+                        ? "Resources/controller-apex4.png"
+                        : isApex5
+                            ? "Resources/controller-apex5.png"
+                            : "Resources/controller-apex6-pro.png";
                     ImgDashboardController.Source = new BitmapImage(new Uri(asset, UriKind.Relative));
+                }
+                else
+                {
+                    ImgDashboardController.Source = null;
                 }
             }
 

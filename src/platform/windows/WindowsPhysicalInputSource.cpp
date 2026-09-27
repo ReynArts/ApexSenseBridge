@@ -214,7 +214,7 @@ public:
         std::chrono::milliseconds timeout,
         std::string& error) override {
         error.clear();
-        if (!ensureReadPending(error)) return PhysicalInputStatus::Error;
+        if (!prepareRead(error)) return PhysicalInputStatus::Error;
 
         const DWORD waitResult = WaitForSingleObject(event_, waitMilliseconds(timeout));
         if (waitResult == WAIT_TIMEOUT) {
@@ -225,6 +225,19 @@ public:
             const auto code = GetLastError();
             error = "Waiting for an APEX HID input report failed (" +
                     std::to_string(code) + ": " + win32Error(code) + ").";
+            return PhysicalInputStatus::Error;
+        }
+
+        return completePreparedRead(state, error);
+    }
+
+    bool prepareRead(std::string& error) { return ensureReadPending(error); }
+    HANDLE readEvent() const noexcept { return event_; }
+
+    PhysicalInputStatus completePreparedRead(
+        dualsense::DualSenseInputState& state, std::string& error) {
+        if (!readPending_) {
+            error = "The APEX HID input read was not prepared.";
             return PhysicalInputStatus::Error;
         }
 
@@ -258,6 +271,11 @@ public:
     std::string_view backendName() const noexcept override { return "apex-hid-event"; }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override { return stats_; }
+    void setBatteryState(std::uint8_t batteryPercent,
+                         std::uint8_t chargeState) noexcept override {
+        currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
+        currentChargeState_.store(chargeState, std::memory_order_relaxed);
+    }
 
 private:
     HidPhysicalInputSource(HidDeviceInfo info, HANDLE handle,
@@ -489,11 +507,6 @@ private:
         return true;
     }
 
-    void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept override {
-        currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
-        currentChargeState_.store(chargeState, std::memory_order_relaxed);
-    }
-
     HidDeviceInfo info_;
     HANDLE handle_ = INVALID_HANDLE_VALUE;
     PHIDP_PREPARSED_DATA preparsed_ = nullptr;
@@ -721,115 +734,100 @@ public:
         std::chrono::milliseconds timeout,
         std::string& error) override {
         error.clear();
-        const auto deadline = std::chrono::steady_clock::now() + timeout;
-
-        for (;;) {
-            if (!ensureReadPending(error)) return PhysicalInputStatus::Error;
-
-            const auto now = std::chrono::steady_clock::now();
-            if (now >= deadline) {
-                ++stats_.timeouts;
-                return PhysicalInputStatus::Timeout;
+        // Standard controls must not depend on the optional vendor stream.
+        if (!vendorUnavailable_) {
+            std::string vendorError;
+            if (!ensureReadPending(vendorError)) {
+                vendorUnavailable_ = true;
+                ++vendorReadFailures_;
             }
-            auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
-                deadline - now);
-            if (remaining.count() == 0) remaining = std::chrono::milliseconds(1);
+        }
 
-            const DWORD waitResult = WaitForSingleObject(
-                event_, waitMilliseconds(remaining));
+        std::string mappedError;
+        if (!mappedGamepad_->prepareRead(mappedError)) {
+            error = "The physical Apex 5 mapped HID stream failed (" +
+                    mappedError + ").";
+            return PhysicalInputStatus::Error;
+        }
+
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        for (;;) {
+            std::array<HANDLE, 2> events{mappedGamepad_->readEvent(), event_};
+            const DWORD eventCount = vendorUnavailable_ ? 1U : 2U;
+            const auto now = std::chrono::steady_clock::now();
+            const auto remaining = now < deadline
+                ? std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now)
+                : std::chrono::milliseconds(0);
+            const DWORD waitResult = WaitForMultipleObjects(
+                eventCount, events.data(), FALSE, waitMilliseconds(remaining));
             if (waitResult == WAIT_TIMEOUT) {
                 ++stats_.timeouts;
                 return PhysicalInputStatus::Timeout;
             }
-            if (waitResult != WAIT_OBJECT_0) {
+            if (waitResult == WAIT_FAILED) {
                 const auto code = GetLastError();
-                error = "Waiting for an Apex 5 vendor input report failed (" +
+                error = "Waiting for the Apex 5 physical input streams failed (" +
                         std::to_string(code) + ": " + win32Error(code) + ").";
                 return PhysicalInputStatus::Error;
             }
 
-            DWORD bytesRead = 0;
-            readPending_ = false;
-            if (!GetOverlappedResult(handle_, &overlapped_, &bytesRead, FALSE)) {
-                const auto code = GetLastError();
-                if (code == ERROR_DEVICE_NOT_CONNECTED || code == ERROR_INVALID_HANDLE ||
-                    code == ERROR_OPERATION_ABORTED) {
-                    error = "The physical Apex 5 vendor input stream disconnected.";
-                    return PhysicalInputStatus::Disconnected;
+            const DWORD selected = waitResult - WAIT_OBJECT_0;
+            if (selected == 0) {
+                dualsense::DualSenseInputState mappedState{};
+                const auto mappedStatus = mappedGamepad_->completePreparedRead(
+                    mappedState, mappedError);
+                if (mappedStatus != PhysicalInputStatus::State) {
+                    error = "The physical Apex 5 mapped HID stream failed (" +
+                            mappedError + ").";
+                    return mappedStatus;
                 }
-                error = "Completing the Apex 5 vendor input report failed (" +
-                        std::to_string(code) + ": " + win32Error(code) + ").";
-                return PhysicalInputStatus::Error;
-            }
-            ++stats_.reports;
-
-            if (bytesRead >= 14 &&
-                report_[0] == flydigi::kReportIdIn &&
-                report_[1] == flydigi::kMagic0 &&
-                report_[2] == flydigi::kMagic1 &&
-                report_[3] == flydigi::kCmdGetInfo) {
-                const auto parsed = flydigi::Apex5Identity::parseReply(
-                    std::span<const std::uint8_t>(report_.data(), bytesRead));
-                if (parsed) {
-                    currentBatteryPercent_.store(parsed->batteryPercent(), std::memory_order_relaxed);
-                    currentChargeState_.store(parsed->chargeState(), std::memory_order_relaxed);
-                }
-                continue;
-            }
-
-            const auto decoded = flydigi::decodeApex5InputReport(
-                std::span<const std::uint8_t>(report_.data(), bytesRead),
-                currentBatteryPercent_.load(std::memory_order_relaxed),
-                currentChargeState_.load(std::memory_order_relaxed));
-            if (!decoded) {
-                continue;
-            }
-            state = *decoded;
-            dualsense::DualSenseInputState mappedState{};
-            std::string mappedError;
-            auto mappedWait = std::chrono::milliseconds(0);
-            if (!lastMappedState_) {
-                const auto mappedNow = std::chrono::steady_clock::now();
-                if (mappedNow < deadline) {
-                    mappedWait = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        deadline - mappedNow);
-                    if (mappedWait.count() == 0) {
-                        mappedWait = std::chrono::milliseconds(1);
-                    }
-                }
-            }
-            const auto mappedStatus = mappedGamepad_->waitForState(
-                mappedState, mappedWait, mappedError);
-            if (mappedStatus == PhysicalInputStatus::State) {
                 lastMappedState_ = mappedState;
-            } else if (mappedStatus == PhysicalInputStatus::Disconnected ||
-                       mappedStatus == PhysicalInputStatus::Error) {
-                error = "The physical Apex 5 mapped HID stream failed (" +
-                        mappedError + ").";
-                return mappedStatus;
-            } else if (!lastMappedState_) {
-                ++stats_.timeouts;
-                return PhysicalInputStatus::Timeout;
+                drainVendorReports();
+                composeState(state);
+                ++stats_.reports;
+                return PhysicalInputStatus::State;
             }
-            flydigi::mergeApex5MappedControls(state, *lastMappedState_);
-            return PhysicalInputStatus::State;
+
+            const bool decodedVendorState = consumeVendorReport();
+            if (!vendorUnavailable_) {
+                std::string pendingError;
+                if (!ensureReadPending(pendingError)) {
+                    vendorUnavailable_ = true;
+                    ++vendorReadFailures_;
+                }
+            }
+            if (decodedVendorState && lastMappedState_) {
+                composeState(state);
+                ++stats_.reports;
+                return PhysicalInputStatus::State;
+            }
         }
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex5-v2-dual-hid-event";
+        return "apex5-v3-mapped-primary";
     }
     bool eventDriven() const noexcept override { return true; }
-    PhysicalInputSourceStats stats() const noexcept override { return stats_; }
+    PhysicalInputSourceStats stats() const noexcept override {
+        auto result = stats_;
+        const auto mappedStats = mappedGamepad_->stats();
+        result.parseFailures += mappedStats.parseFailures;
+        result.vendorReports = vendorReports_;
+        result.vendorStates = vendorStates_;
+        result.vendorParseFailures = vendorParseFailures_;
+        result.vendorReadFailures = vendorReadFailures_;
+        return result;
+    }
     void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept override {
         currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
         currentChargeState_.store(chargeState, std::memory_order_relaxed);
+        mappedGamepad_->setBatteryState(batteryPercent, chargeState);
     }
 
 private:
     Apex5DualHidPhysicalInputSource(
         const HidDeviceInfo& info, HANDLE handle,
-        std::unique_ptr<PhysicalInputSource> mappedGamepad)
+        std::unique_ptr<HidPhysicalInputSource> mappedGamepad)
         : handle_(handle), report_(info.inputReportLength, 0),
           mappedGamepad_(std::move(mappedGamepad)) {
         event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
@@ -856,15 +854,98 @@ private:
         return false;
     }
 
+    bool consumeVendorReport() noexcept {
+        DWORD bytesRead = 0;
+        readPending_ = false;
+        if (!GetOverlappedResult(handle_, &overlapped_, &bytesRead, FALSE)) {
+            vendorUnavailable_ = true;
+            ++vendorReadFailures_;
+            return false;
+        }
+        ++vendorReports_;
+
+        if (bytesRead >= 14 &&
+            report_[0] == flydigi::kReportIdIn &&
+            report_[1] == flydigi::kMagic0 &&
+            report_[2] == flydigi::kMagic1 &&
+            report_[3] == flydigi::kCmdGetInfo) {
+            const auto parsed = flydigi::Apex5Identity::parseReply(
+                std::span<const std::uint8_t>(report_.data(), bytesRead));
+            if (parsed) {
+                currentBatteryPercent_.store(
+                    parsed->batteryPercent(), std::memory_order_relaxed);
+                currentChargeState_.store(
+                    parsed->chargeState(), std::memory_order_relaxed);
+            } else {
+                ++vendorParseFailures_;
+            }
+            return false;
+        }
+
+        if (bytesRead < 4 || report_[0] != flydigi::kReportIdIn ||
+            report_[1] != flydigi::kMagic0 || report_[2] != flydigi::kMagic1 ||
+            report_[3] != flydigi::kCmdOperatorData) {
+            return false;
+        }
+        const auto decoded = flydigi::decodeApex5InputReport(
+            std::span<const std::uint8_t>(report_.data(), bytesRead),
+            currentBatteryPercent_.load(std::memory_order_relaxed),
+            currentChargeState_.load(std::memory_order_relaxed));
+        if (!decoded) {
+            ++vendorParseFailures_;
+            return false;
+        }
+        lastVendorState_ = *decoded;
+        ++vendorStates_;
+        return true;
+    }
+
+    void drainVendorReports() noexcept {
+        if (vendorUnavailable_) return;
+        constexpr unsigned int kMaximumReportsPerMappedState = 8;
+        for (unsigned int drained = 0; drained < kMaximumReportsPerMappedState;
+             ++drained) {
+            const DWORD waitResult = WaitForSingleObject(event_, 0);
+            if (waitResult == WAIT_TIMEOUT) return;
+            if (waitResult != WAIT_OBJECT_0) {
+                vendorUnavailable_ = true;
+                ++vendorReadFailures_;
+                return;
+            }
+            (void)consumeVendorReport();
+            if (vendorUnavailable_) return;
+
+            std::string pendingError;
+            if (!ensureReadPending(pendingError)) {
+                vendorUnavailable_ = true;
+                ++vendorReadFailures_;
+                return;
+            }
+        }
+    }
+
+    void composeState(dualsense::DualSenseInputState& state) const noexcept {
+        state = flydigi::composeApex5InputState(
+            *lastMappedState_, lastVendorState_,
+            currentBatteryPercent_.load(std::memory_order_relaxed),
+            currentChargeState_.load(std::memory_order_relaxed));
+    }
+
     HANDLE handle_ = INVALID_HANDLE_VALUE;
     HANDLE event_ = nullptr;
     OVERLAPPED overlapped_{};
     bool readPending_ = false;
     std::vector<std::uint8_t> report_;
+    std::optional<dualsense::DualSenseInputState> lastVendorState_;
+    std::uint64_t vendorReports_ = 0;
+    std::uint64_t vendorStates_ = 0;
+    std::uint64_t vendorParseFailures_ = 0;
+    std::uint64_t vendorReadFailures_ = 0;
+    bool vendorUnavailable_ = false;
     PhysicalInputSourceStats stats_{};
     std::atomic<std::uint8_t> currentBatteryPercent_{100};
     std::atomic<std::uint8_t> currentChargeState_{0};
-    std::unique_ptr<PhysicalInputSource> mappedGamepad_;
+    std::unique_ptr<HidPhysicalInputSource> mappedGamepad_;
     std::optional<dualsense::DualSenseInputState> lastMappedState_;
 };
 

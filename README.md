@@ -198,6 +198,13 @@ ctest --test-dir .\build-win -C Release --output-on-failure
 .\scripts\verify-version-consistency.ps1 -CheckArtifacts
 ```
 
+There is one canonical local Tray executable:
+`build-win\Release\ApexSenseBridgeTray.exe`. Files below `obj` are compiler
+intermediates and must not be launched; the Tray build removes its intermediate
+executable automatically. The repository root never contains runnable copies,
+and `dist` is reserved for packaged release artifacts. The portable build
+removes its expanded staging directory after creating the ZIP.
+
 Before publishing a tag, follow the clean-VM matrix in
 [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md). The release workflow rejects a
 tag/version mismatch, a stale package, a bad checksum or an unsigned payload.

@@ -2,6 +2,11 @@
 
 ## 1.0.0-beta.5
 
+- **APEX 5 physical-input startup ([#15](https://github.com/ReynArts/ApexSenseBridge/issues/15), [#6](https://github.com/ReynArts/ApexSenseBridge/issues/6))**:
+  standard controls now initialize from the mapped HID collection without
+  waiting for the optional vendor motion stream. Vendor reports are merged as
+  they arrive for gyro and accelerometer data, and the required raw-input
+  transport is enabled temporarily with crash-safe restoration.
 - **APEX 6 hardware-validation follow-up**: corrects the reversed Flydigi HID
   LT/RT axis ordering shared with the APEX 5 mapped-HID path, drives the APEX 6
   trigger voice coils with bipolar AC instead of a DC force level, and reports

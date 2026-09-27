@@ -30,7 +30,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>none</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>..\build-win\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -171,6 +171,9 @@
     <Resource Include="..\assets\controller-apex5.png">
       <Link>Resources\controller-apex5.png</Link>
     </Resource>
+    <Resource Include="..\assets\controller-apex6-pro.png">
+      <Link>Resources\controller-apex6-pro.png</Link>
+    </Resource>
     <Resource Include="..\assets\controller-dualsense.png">
       <Link>Resources\controller-dualsense.png</Link>
     </Resource>
@@ -245,4 +248,7 @@
     </Resource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="RemoveReleaseIntermediateExecutable" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Delete Files="$(IntermediateOutputPath)$(TargetFileName)" />
+  </Target>
 </Project>

@@ -14,8 +14,11 @@ input path; do not test USB filter removal on a development workstation.
   `ctest --test-dir .\build-win -C Release --output-on-failure`.
 - Final artifacts, SHA-256 file and Authenticode publisher agree:
   `powershell -File .\scripts\verify-version-consistency.ps1 -CheckArtifacts -RequireSignatures`.
-- `dist` contains exactly one versioned Playnite package and the documented
-  setup, portable, Tray and checksum files.
+- `dist` contains exactly one versioned Playnite package, the setup, portable
+  ZIP and checksum file—no loose executables or expanded portable directory.
+- The only local runnable Tray build is
+  `build-win\Release\ApexSenseBridgeTray.exe`; no copy remains in the project
+  `bin\Release` folder or as an executable under `obj\Release`.
 
 ## Clean-VM install and uninstall matrix
 

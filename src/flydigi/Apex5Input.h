@@ -25,4 +25,10 @@ void mergeApex5MappedControls(
     dualsense::DualSenseInputState& vendorState,
     const dualsense::DualSenseInputState& mappedState) noexcept;
 
+[[nodiscard]] dualsense::DualSenseInputState composeApex5InputState(
+    const dualsense::DualSenseInputState& mappedState,
+    const std::optional<dualsense::DualSenseInputState>& vendorState,
+    std::uint8_t batteryPercent,
+    std::uint8_t chargeState) noexcept;
+
 } // namespace asb::flydigi

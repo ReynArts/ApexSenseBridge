@@ -97,4 +97,16 @@ void mergeApex5MappedControls(
         mappedState.buttons | psButton);
 }
 
+dualsense::DualSenseInputState composeApex5InputState(
+    const dualsense::DualSenseInputState& mappedState,
+    const std::optional<dualsense::DualSenseInputState>& vendorState,
+    std::uint8_t batteryPercent,
+    std::uint8_t chargeState) noexcept {
+    auto state = vendorState.value_or(mappedState);
+    mergeApex5MappedControls(state, mappedState);
+    state.batteryPercent = batteryPercent;
+    state.chargeState = chargeState;
+    return state;
+}
+
 } // namespace asb::flydigi

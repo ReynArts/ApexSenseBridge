@@ -93,13 +93,22 @@ foreach ($name in @(
     Copy-RequiredFile (Join-Path $projectRoot "portable\$name") (Join-Path $stagingFull $name)
 }
 
-if (Test-Path -LiteralPath $zipPath) {
-    Remove-Item -LiteralPath $zipPath -Force
-}
-Compress-Archive -LiteralPath $stagingFull -DestinationPath $zipPath -CompressionLevel Optimal
+try {
+    if (Test-Path -LiteralPath $zipPath) {
+        Remove-Item -LiteralPath $zipPath -Force
+    }
+    Compress-Archive -LiteralPath $stagingFull -DestinationPath $zipPath -CompressionLevel Optimal
 
-if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) {
-    Fail "ZIP creation succeeded without producing $zipPath"
+    if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) {
+        Fail "ZIP creation succeeded without producing $zipPath"
+    }
+} finally {
+    # The expanded directory is packaging scratch space, not a second local
+    # installation. Keeping only the ZIP prevents Playnite and developers from
+    # accidentally running a stale release copy.
+    if (Test-Path -LiteralPath $stagingFull) {
+        Remove-Item -LiteralPath $stagingFull -Recurse -Force
+    }
 }
 
 Write-Host ""
