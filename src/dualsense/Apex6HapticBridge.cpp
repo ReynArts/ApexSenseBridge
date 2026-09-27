@@ -121,8 +121,7 @@ bool Apex6HapticBridge::stop(std::string& error) noexcept {
     {
         std::lock_guard lock(stateMutex_);
         started_ = false;
-        waveformHead_ = 0;
-        waveformCount_ = 0;
+        latestWaveform_.reset();
     }
     std::string disableError;
     const bool disabled = device_.disableApex6Haptics(disableError);
@@ -141,14 +140,10 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         WaveformBlock block{feedback.audioSequence,
                             feedback.leftHapticSamples,
                             feedback.rightHapticSamples};
-        if (waveformCount_ == waveformQueue_.size()) {
-            waveformHead_ = (waveformHead_ + 1) % waveformQueue_.size();
-            --waveformCount_;
+        if (latestWaveform_) {
             waveformBlocksDropped_.fetch_add(1, std::memory_order_relaxed);
         }
-        const auto tail = (waveformHead_ + waveformCount_) % waveformQueue_.size();
-        waveformQueue_[tail] = block;
-        ++waveformCount_;
+        latestWaveform_ = std::move(block);
         waveformBlocks_.fetch_add(1, std::memory_order_relaxed);
         return;
     }
@@ -167,6 +162,7 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         (feedback.enableBits3 & kCompatibleVibration2) != 0) {
         rumbleLow_ = routeGrips_ ? feedback.rumbleLeft : 0;
         rumbleHigh_ = routeGrips_ ? feedback.rumbleRight : 0;
+        diagnosticGripCarrier_ = false;
     }
     if ((feedback.enableBits1 & kLeftTrigger) != 0) {
         const auto translated = translateApex6Trigger(
@@ -191,6 +187,14 @@ void Apex6HapticBridge::setDiagnosticTrigger(
     const ForceTriggerCommand& command) noexcept {
     std::lock_guard lock(stateMutex_);
     (command.side == TriggerSide::Left ? leftTrigger_ : rightTrigger_) = command;
+}
+
+void Apex6HapticBridge::setDiagnosticGrips(
+    std::uint8_t left, std::uint8_t right) noexcept {
+    std::lock_guard lock(stateMutex_);
+    rumbleLow_ = left;
+    rumbleHigh_ = right;
+    diagnosticGripCarrier_ = true;
 }
 
 std::array<std::int8_t, 8> Apex6HapticBridge::renderTrigger(
@@ -218,21 +222,30 @@ std::array<std::int8_t, 8> Apex6HapticBridge::renderTrigger(
         }
         return std::uint8_t{0};
     }();
-    const auto strength = static_cast<std::int8_t>(
-        std::clamp<std::int16_t>(rawStrength, 1, kMaximumTriggerDrive));
+    const auto strength = std::clamp<std::int16_t>(
+        rawStrength, 1, kMaximumTriggerDrive);
 
-    if (command->mode == TriggerMode::RecoilRattle ||
-        command->mode == TriggerMode::Vibration) {
-        const double frequency = std::clamp<double>(
-            command->params[3] == 0 ? 65.0 : command->params[3], 40.0, 150.0);
-        for (auto& sample : result) {
-            const double wave = 0.5 + 0.5 * std::sin(phase * 2.0 * kPi);
-            sample = static_cast<std::int8_t>(std::lround(wave * strength));
-            phase += frequency / 1000.0;
-            phase -= std::floor(phase);
-        }
-    } else {
-        result.fill(strength);
+    // Apex 6 trigger actuators are vibration voice coils, not the geared
+    // FORCEADAPT mechanism used by Apex 4/5. A DC level only produces a tiny
+    // mechanical notch. Represent every active DualSense trigger effect with
+    // a bipolar carrier and retain the requested frequency for vibration
+    // effects.
+    double frequency = 120.0;
+    if (command->mode == TriggerMode::SniperBreak) {
+        frequency = 150.0;
+    } else if (command->mode == TriggerMode::RecoilRattle ||
+               command->mode == TriggerMode::Vibration) {
+        frequency = std::clamp<double>(
+            command->params[3] == 0 ? 120.0 : command->params[3], 40.0, 200.0);
+    }
+    for (auto& sample : result) {
+        const auto value = static_cast<std::int32_t>(
+            std::lround(std::sin(phase * 2.0 * kPi) * strength));
+        sample = static_cast<std::int8_t>(
+            std::clamp<std::int32_t>(value, -kMaximumTriggerDrive,
+                                     kMaximumTriggerDrive));
+        phase += frequency / 1000.0;
+        phase -= std::floor(phase);
     }
     return result;
 }
@@ -248,12 +261,13 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
     haptics::MotorLevels envelope{};
     std::uint8_t rumbleLow = 0;
     std::uint8_t rumbleHigh = 0;
+    bool diagnosticGripCarrier = false;
     {
         std::lock_guard lock(stateMutex_);
-        if (waveformCount_ != 0) {
-            waveform = waveformQueue_[waveformHead_];
-            waveformHead_ = (waveformHead_ + 1) % waveformQueue_.size();
-            --waveformCount_;
+        if (latestWaveform_) {
+            waveform = std::move(latestWaveform_);
+            latestWaveform_.reset();
+            waveformBlocksRendered_.fetch_add(1, std::memory_order_relaxed);
         }
         if (lastAudioEnvelopeAt_.time_since_epoch().count() != 0 &&
             now - lastAudioEnvelopeAt_ < kAudioEnvelopeTimeout) {
@@ -261,6 +275,7 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
         }
         rumbleLow = rumbleLow_;
         rumbleHigh = rumbleHigh_;
+        diagnosticGripCarrier = diagnosticGripCarrier_;
         leftTrigger = renderTrigger(leftTrigger_, leftPosition_, leftTriggerPhase_);
         rightTrigger = renderTrigger(rightTrigger_, rightPosition_, rightTriggerPhase_);
     }
@@ -275,8 +290,12 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
             output[index].rightGrip = sineSample(
                 rightGripPhase_, 85.0, envelope.highFrequency);
         } else {
-            output[index].leftGrip = sineSample(leftGripPhase_, 65.0, rumbleLow);
-            output[index].rightGrip = sineSample(rightGripPhase_, 150.0, rumbleHigh);
+            const auto leftFrequency = diagnosticGripCarrier ? 120.0 : 65.0;
+            const auto rightFrequency = diagnosticGripCarrier ? 120.0 : 150.0;
+            output[index].leftGrip = sineSample(
+                leftGripPhase_, leftFrequency, rumbleLow);
+            output[index].rightGrip = sineSample(
+                rightGripPhase_, rightFrequency, rumbleHigh);
         }
     }
 
@@ -317,11 +336,21 @@ void Apex6HapticBridge::run() noexcept {
         bool triggerEnabled = false;
         const auto block = renderBlock(route, triggerEnabled, Clock::now());
         std::string writeError;
+        const auto writeStartedAt = Clock::now();
         if (!device_.writeApex6Haptics(
                 block, route, triggerEnabled, routeGrips_, writeError)) {
             writeFailures_.fetch_add(1, std::memory_order_relaxed);
             recordError(std::move(writeError));
             return;
+        }
+        const auto writeDurationUs = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                Clock::now() - writeStartedAt).count());
+        totalWriteDurationUs_.fetch_add(writeDurationUs, std::memory_order_relaxed);
+        auto maximumWriteUs = maximumWriteDurationUs_.load(std::memory_order_relaxed);
+        while (writeDurationUs > maximumWriteUs &&
+               !maximumWriteDurationUs_.compare_exchange_weak(
+                   maximumWriteUs, writeDurationUs, std::memory_order_relaxed)) {
         }
         framesWritten_.fetch_add(1, std::memory_order_relaxed);
 
@@ -357,9 +386,12 @@ std::string Apex6HapticBridge::error() const {
 Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
     return {framesWritten_.load(std::memory_order_relaxed),
             waveformBlocks_.load(std::memory_order_relaxed),
+            waveformBlocksRendered_.load(std::memory_order_relaxed),
             waveformBlocksDropped_.load(std::memory_order_relaxed),
             deadlineOverruns_.load(std::memory_order_relaxed),
             writeFailures_.load(std::memory_order_relaxed),
+            totalWriteDurationUs_.load(std::memory_order_relaxed),
+            maximumWriteDurationUs_.load(std::memory_order_relaxed),
             leftTriggerFrames_.load(std::memory_order_relaxed),
             rightTriggerFrames_.load(std::memory_order_relaxed),
             bothTriggerFrames_.load(std::memory_order_relaxed)};

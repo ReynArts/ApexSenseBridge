@@ -426,14 +426,17 @@ private:
         ULONG combinedTrigger = 0;
         const HIDP_VALUE_CAPS* triggerCap = nullptr;
         if (usageValue(kUsageRz, combinedTrigger, triggerCap) && triggerCap) {
-            decoded.r2 = normalizeByte(combinedTrigger, *triggerCap);
-            if (!readAxis(kUsageZ, decoded.l2)) return false;
+            // Flydigi's Xbox-compatible HID collection exposes LT on Rz and
+            // RT on Z (the reverse of the assumption used by the first
+            // generic mapper). This ordering is shared by Apex 5 and 6.
+            decoded.l2 = normalizeByte(combinedTrigger, *triggerCap);
+            if (!readAxis(kUsageZ, decoded.r2)) return false;
         } else if (usageValue(kUsageZ, combinedTrigger, triggerCap) && triggerCap &&
                    triggerCap->BitSize == 16 && triggerCap->ReportCount == 1 &&
                    triggerCap->LogicalMin == 0 &&
                    logicalMaximum(*triggerCap) == 0xFFFF) {
             // The Xbox HID compatibility collection projects LT and RT onto
-            // one centered DirectInput-style axis: LT moves toward 0 and RT
+            // one centered DirectInput-style axis: RT moves toward 0 and LT
             // toward 65535. A one-count center wobble must remain neutral.
             mapCombinedTriggerAxis(
                 static_cast<std::uint16_t>(combinedTrigger),

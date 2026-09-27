@@ -17,13 +17,13 @@ int main() {
     platform::mapCombinedTriggerAxis(0x7FFF, combinedLeft, combinedRight);
     assert(combinedLeft == 0 && combinedRight == 0);
     platform::mapCombinedTriggerAxis(0x0000, combinedLeft, combinedRight);
-    assert(combinedLeft == 255 && combinedRight == 0);
-    platform::mapCombinedTriggerAxis(0xFFFF, combinedLeft, combinedRight);
     assert(combinedLeft == 0 && combinedRight == 255);
+    platform::mapCombinedTriggerAxis(0xFFFF, combinedLeft, combinedRight);
+    assert(combinedLeft == 255 && combinedRight == 0);
     platform::mapCombinedTriggerAxis(0x4000, combinedLeft, combinedRight);
-    assert(combinedLeft == 128 && combinedRight == 0);
-    platform::mapCombinedTriggerAxis(0xC000, combinedLeft, combinedRight);
     assert(combinedLeft == 0 && combinedRight == 128);
+    platform::mapCombinedTriggerAxis(0xC000, combinedLeft, combinedRight);
+    assert(combinedLeft == 128 && combinedRight == 0);
 
     dualsense::DualSenseInputState state{};
     platform::mapXInputButtons(platform::xinputButton::kBack, 0, 0, state);

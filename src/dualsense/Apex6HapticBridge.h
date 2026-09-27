@@ -21,9 +21,12 @@ namespace asb::dualsense {
 struct Apex6HapticBridgeStats {
     std::uint64_t framesWritten = 0;
     std::uint64_t waveformBlocks = 0;
+    std::uint64_t waveformBlocksRendered = 0;
     std::uint64_t waveformBlocksDropped = 0;
     std::uint64_t deadlineOverruns = 0;
     std::uint64_t writeFailures = 0;
+    std::uint64_t totalWriteDurationUs = 0;
+    std::uint64_t maximumWriteDurationUs = 0;
     std::uint64_t leftTriggerFrames = 0;
     std::uint64_t rightTriggerFrames = 0;
     std::uint64_t bothTriggerFrames = 0;
@@ -44,6 +47,7 @@ public:
     void handle(const DualSenseFeedback& feedback);
     void updateTriggerPositions(std::uint8_t left, std::uint8_t right) noexcept;
     void setDiagnosticTrigger(const ForceTriggerCommand& command) noexcept;
+    void setDiagnosticGrips(std::uint8_t left, std::uint8_t right) noexcept;
 
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
@@ -78,13 +82,12 @@ private:
     bool stopping_ = false;
     bool started_ = false;
 
-    std::array<WaveformBlock, 8> waveformQueue_{};
-    std::size_t waveformHead_ = 0;
-    std::size_t waveformCount_ = 0;
+    std::optional<WaveformBlock> latestWaveform_;
     haptics::MotorLevels audioEnvelope_{};
     Clock::time_point lastAudioEnvelopeAt_{};
     std::uint8_t rumbleLow_ = 0;
     std::uint8_t rumbleHigh_ = 0;
+    bool diagnosticGripCarrier_ = false;
     std::optional<ForceTriggerCommand> leftTrigger_;
     std::optional<ForceTriggerCommand> rightTrigger_;
     std::uint8_t leftPosition_ = 0;
@@ -100,9 +103,12 @@ private:
     std::atomic_bool failed_{false};
     std::atomic_uint64_t framesWritten_{0};
     std::atomic_uint64_t waveformBlocks_{0};
+    std::atomic_uint64_t waveformBlocksRendered_{0};
     std::atomic_uint64_t waveformBlocksDropped_{0};
     std::atomic_uint64_t deadlineOverruns_{0};
     std::atomic_uint64_t writeFailures_{0};
+    std::atomic_uint64_t totalWriteDurationUs_{0};
+    std::atomic_uint64_t maximumWriteDurationUs_{0};
     std::atomic_uint64_t leftTriggerFrames_{0};
     std::atomic_uint64_t rightTriggerFrames_{0};
     std::atomic_uint64_t bothTriggerFrames_{0};

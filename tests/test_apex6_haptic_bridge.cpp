@@ -105,6 +105,7 @@ int main() {
     bool foundRealtime = false;
     bool foundWaveform = false;
     bool foundLeftTrigger = false;
+    bool foundBipolarTrigger = false;
     for (const auto& report : transport->writes) {
         assert(report.size() == apex6::kReportSize);
         assert(report[0] == apex6::kReportId);
@@ -113,16 +114,26 @@ int main() {
         if (report[3] != apex6::kCmdRealtimeMotor) continue;
         foundRealtime = true;
         if (report[7] != 0x80 || report[8] != 0x80) foundWaveform = true;
-        if ((report[5] & 0x07) == 0x04 && report[6] > 0x80) {
-            foundLeftTrigger = true;
+        if ((report[5] & 0x07) == 0x04) {
+            bool positive = false;
+            bool negative = false;
+            for (std::size_t sample = 0; sample < 8; ++sample) {
+                const auto encoded = report[6 + sample * 3];
+                positive = positive || encoded > 0x80;
+                negative = negative || encoded < 0x80;
+            }
+            foundLeftTrigger = foundLeftTrigger || positive || negative;
+            foundBipolarTrigger = foundBipolarTrigger || (positive && negative);
         }
     }
     assert(foundRealtime);
     assert(foundWaveform);
     assert(foundLeftTrigger);
+    assert(foundBipolarTrigger);
     const auto stats = bridge.stats();
     assert(stats.framesWritten >= 2);
     assert(stats.waveformBlocks == 1);
+    assert(stats.waveformBlocksRendered == 1);
     assert(stats.writeFailures == 0);
     return 0;
 }

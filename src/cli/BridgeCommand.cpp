@@ -915,10 +915,14 @@ int commandBridgeTriggers(int argc, char** argv) {
     const auto processUsageStarted = processUsageSnapshot();
 
     std::cout << "APEX verified: " << device->identity()->describe() << '\n'
-              << "Adaptive-trigger routing enabled.\n"
-              << (rumbleBridge
-                      ? "Grip-rumble and DualSense audio-haptics routing enabled.\n"
-                      : "Grip-rumble and audio haptics routing remain disabled.\n")
+              << (apex6Pro
+                      ? "Apex 6 trigger-vibration routing enabled.\n"
+                      : "Adaptive-trigger routing enabled.\n")
+              << (apex6Pro && options.routeRumble
+                      ? "Apex 6 grip voice-coil and DualSense audio-haptics routing enabled.\n"
+                      : rumbleBridge
+                          ? "Grip-rumble and DualSense audio-haptics routing enabled.\n"
+                          : "Grip-rumble and audio haptics routing remain disabled.\n")
               << (lightbarBridge
                       ? "DualSense lightbar RGB synchronization enabled.\n"
                       : "")
@@ -1332,7 +1336,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
     }
 
-    std::cout << "apex_routing=adaptive-triggers\n"
+    std::cout << "apex_routing="
+              << (apex6Pro ? "realtime-voice-coils" : "adaptive-triggers") << '\n'
               << "virtual_backend=" << virtualStats.backendVersion << '\n'
               << "input_mode=mandatory-full-proxy\n"
               << "input_backend=" << inputBackend << '\n'
@@ -1477,10 +1482,18 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "write_failures=" << bridgeStats.writeFailures << '\n'
               << "apex6_haptic_frames=" << apex6Stats.framesWritten << '\n'
               << "apex6_waveform_blocks=" << apex6Stats.waveformBlocks << '\n'
+              << "apex6_waveform_rendered=" << apex6Stats.waveformBlocksRendered << '\n'
               << "apex6_waveform_dropped=" << apex6Stats.waveformBlocksDropped << '\n'
               << "apex6_deadline_overruns=" << apex6Stats.deadlineOverruns << '\n'
               << "apex6_write_failures=" << apex6Stats.writeFailures << '\n'
-              << "rumble_routing=" << (rumbleBridge ? "enabled" : "disabled") << '\n'
+              << "apex6_average_write_us="
+              << (apex6Stats.framesWritten == 0
+                      ? 0 : apex6Stats.totalWriteDurationUs / apex6Stats.framesWritten)
+              << '\n'
+              << "apex6_maximum_write_us=" << apex6Stats.maximumWriteDurationUs << '\n'
+              << "rumble_routing="
+              << ((rumbleBridge || (apex6Bridge && options.routeRumble))
+                      ? "enabled" : "disabled") << '\n'
               << "rumble_updates=" << rumbleStats.updates << '\n'
               << "rumble_writes=" << rumbleStats.writes << '\n'
               << "rumble_stops=" << rumbleStats.stops << '\n'
@@ -1488,7 +1501,9 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "rumble_write_failures=" << rumbleStats.writeFailures << '\n'
               << "last_rumble_low=" << static_cast<unsigned>(rumbleStats.lastLowFrequency) << '\n'
               << "last_rumble_high=" << static_cast<unsigned>(rumbleStats.lastHighFrequency) << '\n'
-              << "audio_haptics_routing=" << (rumbleBridge ? "enabled" : "disabled") << '\n'
+              << "audio_haptics_routing="
+              << ((rumbleBridge || (apex6Bridge && options.routeRumble))
+                      ? "enabled" : "disabled") << '\n'
               << "audio_haptics_processed=" << rumbleStats.audioFrames << '\n'
               << "audio_haptics_active=" << rumbleStats.audioActiveFrames << '\n'
               << "audio_haptics_active_percent=" << std::fixed << std::setprecision(2)
@@ -1613,7 +1628,9 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << "Playnite session completion status failed: " << error << '\n';
         return 13;
     }
-    std::cout << "LT and RT reset to Normal; grip rumble stopped.\n";
+    std::cout << (apex6Pro
+                      ? "Apex 6 trigger and grip voice coils stopped.\n"
+                      : "LT and RT reset to Normal; grip rumble stopped.\n");
     return 0;
 }
 

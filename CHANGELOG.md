@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.0-beta.5
+
+- **APEX 6 hardware-validation follow-up**: corrects the reversed Flydigi HID
+  LT/RT axis ordering shared with the APEX 5 mapped-HID path, drives the APEX 6
+  trigger voice coils with bipolar AC instead of a DC force level, and reports
+  the APEX 6 realtime routing state accurately in session diagnostics.
+- **APEX 6 realtime haptic pacing**: paces each virtual DualSense isochronous
+  audio transfer by its USB packet duration instead of completing every URB
+  after a fixed 2 ms. This prevents the 1 kHz waveform from being consumed
+  roughly six times too fast and losing most samples before the 125 Hz hardware
+  writer can render them. The behavior is gated by the APEX 6 waveform opt-in;
+  APEX 4/5 keep the original VIIPER path and timing. Diagnostics now report
+  rendered waveform blocks and average/maximum APEX 6 HID write duration.
+- **Upgraded VIIPER Sidecar & Library**: incorporates `libVIIPER v0.7.0-asb11`
+  and sidecar `v0.7.0-asb9` with packet-duration USB pacing and refined
+  decimated haptic stream delivery.
+
 ## 1.0.0-beta.4
 
 - **In-app project support**: adds a dedicated, prominently placed Ko-fi card
@@ -29,8 +46,8 @@
 - **Native APEX 6 haptic waveform transport**: VIIPER retains the existing
   energy/peak/transient frame used by APEX 4/5 and additionally low-pass
   decimates the virtual DualSense stereo haptic endpoint from 48 kHz to eight
-  signed 1 kHz samples. Integrated `libVIIPER v0.7.0-asb10` and sidecar
-  `v0.7.0-asb8` expose the new frame while preserving the existing format.
+  signed 1 kHz samples. Integrated `libVIIPER v0.7.0-asb11` and sidecar
+  `v0.7.0-asb9` expose the new frame while preserving the existing format.
 - **Safe APEX 6 diagnostics and shutdown**: `identify`, `test-trigger`,
   `test-rumble`, `clear`, and `bridge-triggers` select model-specific behavior.
   Shutdown sends repeated neutral blocks followed by both motor-disable frames;

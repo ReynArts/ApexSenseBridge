@@ -125,6 +125,8 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
     std::uint8_t minRx = 255, maxRx = 0;
     std::uint8_t minRy = 255, maxRy = 0;
     std::uint8_t maxL2 = 0, maxR2 = 0;
+    std::uint8_t maxSimultaneousTriggers = 0;
+    std::uint64_t simultaneousTriggerReports = 0;
     bool receivedState = false;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
     while (std::chrono::steady_clock::now() < deadline &&
@@ -146,6 +148,11 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
             maxRy = (std::max)(maxRy, state.ry);
             maxL2 = (std::max)(maxL2, state.l2);
             maxR2 = (std::max)(maxR2, state.r2);
+            maxSimultaneousTriggers = (std::max)(
+                maxSimultaneousTriggers, (std::min)(state.l2, state.r2));
+            if (state.l2 > 30 && state.r2 > 30) {
+                ++simultaneousTriggerReports;
+            }
             lastState = state;
             receivedState = true;
         } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
@@ -182,6 +189,10 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
             << "  \"r2\": " << static_cast<unsigned int>(lastState.r2) << ",\n"
             << "  \"max_l2\": " << static_cast<unsigned int>(maxL2) << ",\n"
             << "  \"max_r2\": " << static_cast<unsigned int>(maxR2) << ",\n"
+            << "  \"max_simultaneous_triggers\": "
+            << static_cast<unsigned int>(maxSimultaneousTriggers) << ",\n"
+            << "  \"simultaneous_trigger_reports\": "
+            << simultaneousTriggerReports << ",\n"
             << "  \"dpad\": " << static_cast<unsigned int>(lastState.dpad) << ",\n"
             << "  \"dpad_name\": \"" << dpadDescription(lastState.dpad) << "\",\n"
             << "  \"seen_dpad\": " << static_cast<unsigned int>(seenDpad) << ",\n"
@@ -220,6 +231,10 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
                   << static_cast<unsigned int>(lastState.r2) << '\n'
                   << "max_triggers=" << static_cast<unsigned int>(maxL2) << ','
                   << static_cast<unsigned int>(maxR2) << '\n'
+                  << "max_simultaneous_triggers="
+                  << static_cast<unsigned int>(maxSimultaneousTriggers) << '\n'
+                  << "simultaneous_trigger_reports="
+                  << simultaneousTriggerReports << '\n'
                   << "dpad=" << static_cast<unsigned int>(lastState.dpad)
                   << " (" << dpadDescription(lastState.dpad) << ")\n"
                   << "seen_dpad=" << static_cast<unsigned int>(seenDpad)
@@ -600,18 +615,15 @@ int runTestRumble(asb::flydigi::Apex5Device& device,
             return 12;
         }
         asb::dualsense::Apex6HapticBridge bridge(device, {}, true);
-        asb::dualsense::DualSenseFeedback feedback{};
-        feedback.enableBits1 = 0x01;
-        feedback.rumbleLeft = lowFrequency;
-        feedback.rumbleRight = highFrequency;
-        bridge.handle(feedback);
+        bridge.setDiagnosticGrips(lowFrequency, highFrequency);
         if (!bridge.start(error)) {
             std::cerr << "Could not start the Apex 6 haptic stream: " << error << '\n';
             return 12;
         }
-        std::cout << "Applying Apex 6 grip voice-coil test (low="
-                  << static_cast<unsigned int>(lowFrequency) << ", high="
-                  << static_cast<unsigned int>(highFrequency) << ") for "
+        std::cout << "Applying Apex 6 grip voice-coil test (left="
+                  << static_cast<unsigned int>(lowFrequency) << ", right="
+                  << static_cast<unsigned int>(highFrequency)
+                  << ", carrier=120 Hz) for "
                   << seconds << "s...\n";
         const auto deadline = std::chrono::steady_clock::now() +
                               std::chrono::seconds(seconds);

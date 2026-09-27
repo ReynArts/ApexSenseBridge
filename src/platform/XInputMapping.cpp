@@ -21,11 +21,11 @@ void mapCombinedTriggerAxis(std::uint16_t combined,
     rightTrigger = 0;
     if (combined < kCenter) {
         const auto distance = kCenter - combined;
-        leftTrigger = static_cast<std::uint8_t>(
+        rightTrigger = static_cast<std::uint8_t>(
             (distance * 255U + kCenter / 2) / kCenter);
     } else if (combined > kCenter) {
         const auto distance = combined - kCenter;
-        rightTrigger = static_cast<std::uint8_t>(
+        leftTrigger = static_cast<std::uint8_t>(
             (distance * 255U + kPositiveRange / 2) / kPositiveRange);
     }
 }
