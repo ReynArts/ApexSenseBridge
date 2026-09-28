@@ -15,6 +15,10 @@ namespace ApexSenseBridgeTray.Models
         public bool SyncLightbar { get; set; }
         public int HapticThresholdPercent { get; set; }
         public int InitializationTimeoutSeconds { get; set; }
+        // Manual bridge mode describes the current process session, not a
+        // durable preference. Persisting it leaves automatic detection paused
+        // after a Tray restart without recreating the manual engine session.
+        [ScriptIgnore]
         public string ForcedProfile { get; set; }
         public string Language { get; set; }
         public List<string> ExcludedGames { get; set; }
@@ -123,6 +127,11 @@ namespace ApexSenseBridgeTray.Models
             if (slot != 0) ApexProfileSlots[normalizedOrTitle.Trim()] = slot;
         }
 
+        internal void ResetTransientState()
+        {
+            ForcedProfile = "none";
+        }
+
         private static string SettingsFilePath
         {
             get
@@ -144,6 +153,7 @@ namespace ApexSenseBridgeTray.Models
                     var settings = serializer.Deserialize<TraySettings>(json);
                     if (settings != null)
                     {
+                        settings.ResetTransientState();
                         if (settings.ExcludedGames == null) settings.ExcludedGames = new List<string>();
                         if (settings.ApexProfileSlots == null)
                         {

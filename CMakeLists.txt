@@ -15,6 +15,7 @@ endif()
 
 add_library(asb_core STATIC
     src/core/ApexProfileRestoreGuard.cpp
+    src/diagnostics/Apex4GyroCapture.cpp
     src/diagnostics/HidDiagnostics.cpp
     src/dualsense/DualSenseFeedback.cpp
     src/dualsense/DualSenseFirmware.cpp
@@ -74,8 +75,12 @@ endif()
 
 add_executable(ApexSenseBridge
     src/main.cpp
+    src/cli/BridgeOptions.cpp
+    src/cli/BridgeRuntimeSupport.cpp
+    src/cli/BridgeTelemetry.cpp
     src/cli/CliApplication.cpp
     src/cli/CommandSupport.cpp
+    src/cli/JsonSupport.cpp
     src/cli/DeviceCommands.cpp
     src/cli/VirtualDualSenseCommand.cpp
     src/cli/BridgeCommand.cpp
@@ -101,6 +106,21 @@ if(WIN32)
         ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
         ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
     )
+
+    # Support-only diagnostic: build explicitly with
+    # --target Apex5IsolationProbe. Never include it in normal/release builds.
+    add_executable(Apex5IsolationProbe EXCLUDE_FROM_ALL
+        src/tools/Apex5IsolationProbe.cpp
+        src/tools/Apex5IsolationProbe.rc
+        ${ASB_RC_FILE}
+    )
+    target_link_libraries(Apex5IsolationProbe PRIVATE asb_core)
+    target_compile_definitions(Apex5IsolationProbe PRIVATE
+        ASB_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        ASB_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
+    )
 endif()
 
 if(MSVC)
@@ -109,6 +129,11 @@ if(MSVC)
     target_compile_options(ApexSenseBridge PRIVATE /utf-8)
     if(WIN32)
         target_compile_options(ApexSenseBridgeControl PRIVATE /W4 /permissive- /EHsc /Gy /utf-8 $<$<CONFIG:Release>:/O2>)
+        target_compile_options(Apex5IsolationProbe PRIVATE /W4 /permissive- /EHsc /Gy /utf-8 $<$<CONFIG:Release>:/O2>)
+        # The probe embeds its requireAdministrator manifest as a resource.
+        # Disable the linker's generated default manifest to avoid duplicate
+        # RT_MANIFEST/1 resources.
+        target_link_options(Apex5IsolationProbe PRIVATE /MANIFEST:NO)
     endif()
 else()
     target_compile_options(asb_core PRIVATE -Wall -Wextra -Wpedantic)
@@ -156,6 +181,18 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeDiagnosticTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME hid_diagnostics COMMAND ApexSenseBridgeDiagnosticTests)
+
+    add_executable(ApexSenseBridgeApex4GyroCaptureTests
+        tests/test_apex4_gyro_capture.cpp
+        src/diagnostics/Apex4GyroCapture.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex4GyroCaptureTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex4GyroCaptureTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex4GyroCaptureTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex4_gyro_capture COMMAND ApexSenseBridgeApex4GyroCaptureTests)
 
     add_executable(ApexSenseBridgeIdentityTests tests/test_identity.cpp)
     target_link_libraries(ApexSenseBridgeIdentityTests PRIVATE asb_core)
@@ -284,6 +321,48 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeTouchpadGestureProfileTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME touchpad_gesture_profiles COMMAND ApexSenseBridgeTouchpadGestureProfileTests)
+
+    add_executable(ApexSenseBridgeBridgeOptionsTests
+        tests/test_bridge_options.cpp
+        src/cli/BridgeOptions.cpp
+        src/dualsense/TouchpadGestureProfile.cpp
+        src/platform/SessionControl.cpp
+    )
+    target_include_directories(ApexSenseBridgeBridgeOptionsTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeBridgeOptionsTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeBridgeOptionsTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bridge_options COMMAND ApexSenseBridgeBridgeOptionsTests)
+
+    add_executable(ApexSenseBridgeBridgeRuntimeSupportTests
+        tests/test_bridge_runtime_support.cpp
+        src/cli/BridgeRuntimeSupport.cpp
+    )
+    target_include_directories(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE src)
+    if(WIN32)
+        target_link_libraries(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE psapi)
+    endif()
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bridge_runtime_support COMMAND ApexSenseBridgeBridgeRuntimeSupportTests)
+
+    add_executable(ApexSenseBridgeBridgeTelemetryTests
+        tests/test_bridge_telemetry.cpp
+        src/cli/BridgeTelemetry.cpp
+        src/cli/JsonSupport.cpp
+    )
+    target_include_directories(ApexSenseBridgeBridgeTelemetryTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeBridgeTelemetryTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeBridgeTelemetryTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bridge_telemetry COMMAND ApexSenseBridgeBridgeTelemetryTests)
 
     add_executable(ApexSenseBridgeAudioEndpointProtectionTests
         tests/test_audio_endpoint_protection.cpp

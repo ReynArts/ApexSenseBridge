@@ -70,6 +70,9 @@
     <Compile Include="..\shared\BridgeSession.cs">
       <Link>Production\BridgeSession.cs</Link>
     </Compile>
+    <Compile Include="..\shared\BridgeArguments.cs">
+      <Link>Production\BridgeArguments.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -18,6 +18,7 @@ int commandTestProfileSwitch(int argc, char** argv);
 int commandTestRgb(int argc, char** argv);
 int commandTestGyro(int argc, char** argv);
 int commandApex4PortTest(int argc, char** argv);
+int commandApex4GyroCapture(int argc, char** argv);
 int commandXInputViewTest(int argc, char** argv);
 
 } // namespace asb::cli

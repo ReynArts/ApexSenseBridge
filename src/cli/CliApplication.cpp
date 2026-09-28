@@ -58,7 +58,7 @@ void printUsage() {
         << "                               Create a neutral virtual DualSense and count feedback\n"
         << "  bridge-triggers [index] [--seconds N] [--viiper PATH]\n"
         << "                  [--telemetry-json PATH]\n"
-        << "                  [--proxy-xinput] [--xinput-index 0..3]\n"
+        << "                  [--xinput-index 0..3]\n"
         << "                  [--rumble]\n"
         << "                  [--sync-lightbar]\n"
         << "                  [--haptic-threshold 0..95]\n"
@@ -67,7 +67,6 @@ void printUsage() {
         << "                  [--touchpad-profile NAME]\n"
         << "                  [--apex-profile 1..4]\n"
         << "                  [--view-hold-swipe-up]\n"
-        << "                  [--isolate-apex]\n"
         << "                  [--session-token 32HEX] [--session-owner-pid PID]\n"
         << "                               Route adaptive triggers and optional grip/audio haptics\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
@@ -84,6 +83,8 @@ void printUsage() {
         << "                               Test 6-axis motion sensor (gyroscope & accelerometer)\n"
         << "  apex4-port-test [index] [--seconds N] [--rumble] [--forceadapt]\n"
         << "                               Validate APEX 4 input/effects with one identity exchange\n"
+        << "  apex4-gyro-capture [index] [--phase-seconds N] [--output PATH]\n"
+        << "                               Capture guided raw APEX 4 motion reports (read-only)\n"
         << "  xinput-view-test [index] [--seconds N]\n"
         << "                               Measure View/Back hold duration without writes\n"
         << "  clear [index]                Clear LT/RT effects and stop grip rumble\n"
@@ -203,6 +204,9 @@ int run(int argc, char** argv) {
     }
     if (command == "apex4-port-test") {
         return commandApex4PortTest(argc, argv);
+    }
+    if (command == "apex4-gyro-capture") {
+        return commandApex4GyroCapture(argc, argv);
     }
     if (command == "clear") {
         return commandClear(argc, argv);

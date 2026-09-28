@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 $usbipVersion = "0.9.8.0"
 $usbipInstallerSha256 = "81F426741F7EE2ED991FEBE24A22DACA8400B6AE2F171054E3FB404897E15D39"
+$hidHideVersion = "1.5.230"
+$hidHideInstallerSha256 = "F4BBBCB82E6258641B887C74BC81C4C5F66E4AA811808DFC304347687B7605F6"
 $usbipKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{199505b0-b93d-4521-a8c7-897818e0205a}_is1"
 $usbipUdeService = "HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_ude"
 $usbipFilterService = "HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_filter"
@@ -108,18 +110,36 @@ try {
         }
     }
 
-    if ((Test-Path -LiteralPath $hidHideKey) -and
-        (Test-Path -LiteralPath $hidHideService)) {
-        Write-DriverLog "HidHide 1.5.230 is already ready; skipping."
+    $hidHide = Get-ItemProperty -LiteralPath $hidHideKey -ErrorAction SilentlyContinue
+    $hidHideServiceReady = Test-Path -LiteralPath $hidHideService
+    if ($null -ne $hidHide) {
+        $installedVersion = ([string]$hidHide.DisplayVersion).Trim()
+        if ($installedVersion -ne $hidHideVersion -or -not $hidHideServiceReady) {
+            throw "HidHide $installedVersion is already registered or incomplete. Repair or uninstall HidHide in Windows Settings, restart, and run this helper again."
+        }
+        Write-DriverLog "Compatible HidHide $installedVersion is already ready; preserving it."
     }
-    elseif (Test-Path -LiteralPath $hidHideService) {
-        Write-DriverLog "An existing HidHide driver is present; preserving it."
+    elseif ($hidHideServiceReady) {
+        throw "A HidHide driver service exists without a matching uninstall registration. Repair or remove HidHide, restart, and run this helper again."
     }
     else {
         $hidHideInstaller = Join-Path $PSScriptRoot "Drivers\HidHide_1.5.230_x64.exe"
-        Invoke-BoundedInstaller $hidHideInstaller @("/quiet", "/norestart") "HidHide 1.5.230"
-        if (-not (Test-Path -LiteralPath $hidHideService)) {
-            throw "HidHide setup returned without creating its driver service."
+        if (-not (Test-Path -LiteralPath $hidHideInstaller)) {
+            throw "HidHide $hidHideVersion installer is missing: $hidHideInstaller"
+        }
+        if ((Get-FileHash -LiteralPath $hidHideInstaller -Algorithm SHA256).Hash -ne
+            $hidHideInstallerSha256) {
+            throw "HidHide $hidHideVersion installer failed its SHA-256 integrity check."
+        }
+        Invoke-BoundedInstaller $hidHideInstaller @("/quiet", "/norestart") "HidHide $hidHideVersion"
+
+        $hidHide = Get-ItemProperty -LiteralPath $hidHideKey -ErrorAction SilentlyContinue
+        $installedVersion = if ($null -ne $hidHide) {
+            ([string]$hidHide.DisplayVersion).Trim()
+        } else { "" }
+        if ($installedVersion -ne $hidHideVersion -or
+            -not (Test-Path -LiteralPath $hidHideService)) {
+            throw "HidHide setup returned without creating the expected $hidHideVersion registration and driver service."
         }
     }
 

@@ -627,6 +627,19 @@ bool Apex5Device::setInputTransport(bool controllerData, bool rawData,
     return true;
 }
 
+platform::HidReadStatus Apex5Device::readRawInputReport(
+    std::span<std::uint8_t> report,
+    std::chrono::milliseconds timeout,
+    std::size_t& bytesRead,
+    std::string& error) {
+    bytesRead = 0;
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return platform::HidReadStatus::Error;
+    }
+    return transport_->readInputReport(report, timeout, bytesRead, error);
+}
+
 bool Apex5Device::readRgbConfig(
     std::uint8_t slot,
     std::array<std::uint8_t, kRgbConfigSize>& outConfig,

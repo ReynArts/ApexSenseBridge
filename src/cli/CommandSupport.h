@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cli/JsonSupport.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/DualSenseInput.h"
@@ -38,7 +39,6 @@ std::optional<VirtualDualSenseDiscovery> readNewVirtualDualSenseFirmware(
     const asb::dualsense::DualSenseInputState* expectedInitialInput = nullptr);
 std::optional<asb::dualsense::VirtualDualSenseBackend> parseVirtualDualSenseBackend(
     std::string_view name);
-std::string jsonEscape(std::string_view value);
 void printDevice(const asb::HidDeviceInfo& info, std::size_t index);
 std::optional<std::size_t> parseIndex(int argc, char** argv);
 std::optional<asb::flydigi::Apex5Device> openSelected(

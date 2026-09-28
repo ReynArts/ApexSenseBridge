@@ -4,9 +4,11 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $installerPath = Join-Path $projectRoot "installer\ApexSenseBridge.iss"
 $manifestPath = Join-Path $projectRoot "installer\driver-manifest.json"
 $controlPanelPath = Join-Path $projectRoot "src\control\ControlPanel.cpp"
+$portableDriverPath = Join-Path $projectRoot "portable\Install-Drivers.ps1"
 $installer = Get-Content -LiteralPath $installerPath -Raw
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $controlPanel = Get-Content -LiteralPath $controlPanelPath -Raw
+$portableDriver = Get-Content -LiteralPath $portableDriverPath -Raw
 
 function Assert-Contract([bool]$Condition, [string]$Message) {
     if (-not $Condition) {
@@ -24,6 +26,10 @@ function Get-QuotedDefine([string]$Name) {
 
 $usbipProductCode = [string]$manifest.'usbip-win2'.productCode
 $hidHideProductCode = [string]$manifest.HidHide.productCode
+$usbipVersion = [string]$manifest.'usbip-win2'.version
+$usbipSha256 = [string]$manifest.'usbip-win2'.sha256
+$hidHideVersion = [string]$manifest.HidHide.version
+$hidHideSha256 = [string]$manifest.HidHide.sha256
 
 Assert-Contract (
     (Get-QuotedDefine "UsbipProductKeyPascal") -ceq $usbipProductCode
@@ -110,5 +116,34 @@ Assert-Contract ([Regex]::IsMatch(
     '(?s)function\s+UninstallNeedRestart:\s*Boolean;.*?' +
     'Result\s*:=\s*RemoveHidHideApproved'
 )) "driver removal does not require a Windows restart"
+
+# The portable helper must enforce the same exact prerequisite versions and
+# package hashes as the standard installer. Otherwise the two user-facing
+# installation paths can silently diverge.
+Assert-Contract ($portableDriver.Contains('$usbipVersion = "' + $usbipVersion + '"')) `
+    "portable USBip version differs from driver-manifest.json"
+Assert-Contract ($portableDriver.Contains('$usbipInstallerSha256 = "' + $usbipSha256 + '"')) `
+    "portable USBip SHA-256 differs from driver-manifest.json"
+Assert-Contract ($portableDriver.Contains('$hidHideVersion = "' + $hidHideVersion + '"')) `
+    "portable HidHide version differs from driver-manifest.json"
+Assert-Contract ($portableDriver.Contains('$hidHideInstallerSha256 = "' + $hidHideSha256 + '"')) `
+    "portable HidHide SHA-256 differs from driver-manifest.json"
+Assert-Contract ([Regex]::IsMatch(
+    $portableDriver,
+    '(?s)\$hidHide\s*=\s*Get-ItemProperty.*?' +
+    '\$installedVersion\s+-ne\s+\$hidHideVersion\s+-or\s+-not\s+\$hidHideServiceReady'
+)) "portable helper accepts a mismatched or incomplete HidHide registration"
+Assert-Contract ([Regex]::IsMatch(
+    $portableDriver,
+    '(?s)Get-FileHash\s+-LiteralPath\s+\$hidHideInstaller\s+-Algorithm\s+SHA256.*?' +
+    '\$hidHideInstallerSha256'
+)) "portable helper does not verify the HidHide installer SHA-256"
+Assert-Contract ([Regex]::IsMatch(
+    $portableDriver,
+    '(?s)Invoke-BoundedInstaller\s+\$hidHideInstaller.*?' +
+    'Get-ItemProperty\s+-LiteralPath\s+\$hidHideKey.*?' +
+    '\$installedVersion\s+-ne\s+\$hidHideVersion.*?' +
+    'Test-Path\s+-LiteralPath\s+\$hidHideService'
+)) "portable helper does not verify HidHide registration and service after setup"
 
 Write-Output "Installer safety contract passed."

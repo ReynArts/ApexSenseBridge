@@ -339,53 +339,31 @@ namespace ApexSenseBridge
 
         private string BuildBridgeArguments(GameBridgeProfile profile)
         {
-            var arguments = new List<string> { "bridge-triggers" };
-
-            var gestureProfile = profile.ProfileType;
-
-            switch (gestureProfile)
+            string gestureProfile;
+            switch (profile.ProfileType)
             {
                 case BridgeProfileType.SpiderMan2:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("spider-man-2");
+                    gestureProfile = "spider-man-2";
                     break;
                 case BridgeProfileType.MilesMorales:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("miles-morales");
+                    gestureProfile = "miles-morales";
                     break;
                 case BridgeProfileType.GhostOfTsushima:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("ghost-of-tsushima");
+                    gestureProfile = "ghost-of-tsushima";
                     break;
                 case BridgeProfileType.Warframe:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("warframe");
+                    gestureProfile = "warframe";
                     break;
                 default:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("none");
+                    gestureProfile = "none";
                     break;
             }
-
-            if (profile.ApexProfileSlot >= 1 && profile.ApexProfileSlot <= 4)
-            {
-                arguments.Add("--apex-profile");
-                arguments.Add(profile.ApexProfileSlot.ToString());
-            }
-
-            if (settings.Settings.EnableRumble)
-            {
-                arguments.Add("--rumble");
-                arguments.Add("--haptic-threshold");
-                arguments.Add(settings.Settings.HapticThresholdPercent.ToString());
-            }
-
-            if (settings.Settings.SyncLightbar)
-            {
-                arguments.Add("--sync-lightbar");
-            }
-
-            return string.Join(" ", arguments);
+            return BridgeArguments.Build(
+                gestureProfile,
+                settings.Settings.EnableRumble,
+                settings.Settings.HapticThresholdPercent,
+                settings.Settings.SyncLightbar,
+                profile.ApexProfileSlot);
         }
 
         private static string Mark(bool selected)

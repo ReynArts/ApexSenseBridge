@@ -82,6 +82,14 @@ public:
                            std::string& error);
     bool requestBatteryRefresh(std::string& error);
 
+    // Support diagnostic only. Reads the verified vendor HID stream without
+    // interpreting or modifying controller state/profile configuration.
+    platform::HidReadStatus readRawInputReport(
+        std::span<std::uint8_t> report,
+        std::chrono::milliseconds timeout,
+        std::size_t& bytesRead,
+        std::string& error);
+
     // The Apex 4 receiver needs paced vendor writes. The bridge queues the
     // newest value per output so its feedback callback never blocks and stale
     // effects are coalesced instead of replayed later.

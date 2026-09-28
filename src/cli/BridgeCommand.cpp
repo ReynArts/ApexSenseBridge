@@ -1,4 +1,7 @@
 #include "cli/Commands.h"
+#include "cli/BridgeOptions.h"
+#include "cli/BridgeRuntimeSupport.h"
+#include "cli/BridgeTelemetry.h"
 #include "cli/CommandSupport.h"
 #include "core/ApexProfileRestoreGuard.h"
 #include "core/TriggerResetGuard.h"
@@ -24,357 +27,21 @@
 #include "platform/XInputGamepad.h"
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <future>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <psapi.h>
-#endif
-
 namespace asb::cli {
-namespace {
-
-class MicrosecondLatencyHistogram {
-public:
-    void observe(std::chrono::steady_clock::duration duration) noexcept {
-        const auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
-            duration).count();
-        const auto bucket = static_cast<std::size_t>((std::clamp)(
-            microseconds, std::int64_t{0},
-            static_cast<std::int64_t>(buckets_.size() - 1)));
-        ++buckets_[bucket];
-        ++samples_;
-    }
-
-    [[nodiscard]] std::uint64_t percentile(unsigned int percentage) const noexcept {
-        if (samples_ == 0) return 0;
-        const auto wanted = (samples_ * percentage + 99) / 100;
-        std::uint64_t cumulative = 0;
-        for (std::size_t index = 0; index < buckets_.size(); ++index) {
-            cumulative += buckets_[index];
-            if (cumulative >= wanted) return index;
-        }
-        return buckets_.size() - 1;
-    }
-
-    [[nodiscard]] std::uint64_t samples() const noexcept { return samples_; }
-
-private:
-    // The final bucket includes every value >= 2 ms. The acceptance target is
-    // 1.5 ms, so this fixed 16 KiB structure gives useful resolution without
-    // allocating or sorting samples in the hot input path.
-    std::array<std::uint64_t, 2001> buckets_{};
-    std::uint64_t samples_ = 0;
-};
-
-struct ProcessUsageSnapshot {
-    std::uint64_t cpu100ns = 0;
-    std::uint64_t workingSetBytes = 0;
-    std::uint64_t peakWorkingSetBytes = 0;
-};
-
-ProcessUsageSnapshot processUsageSnapshot() noexcept {
-    ProcessUsageSnapshot snapshot{};
-#ifdef _WIN32
-    FILETIME creation{}, exit{}, kernel{}, user{};
-    if (GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) {
-        ULARGE_INTEGER kernelValue{};
-        kernelValue.LowPart = kernel.dwLowDateTime;
-        kernelValue.HighPart = kernel.dwHighDateTime;
-        ULARGE_INTEGER userValue{};
-        userValue.LowPart = user.dwLowDateTime;
-        userValue.HighPart = user.dwHighDateTime;
-        snapshot.cpu100ns = kernelValue.QuadPart + userValue.QuadPart;
-    }
-    PROCESS_MEMORY_COUNTERS counters{};
-    counters.cb = sizeof(counters);
-    if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters))) {
-        snapshot.workingSetBytes = counters.WorkingSetSize;
-        snapshot.peakWorkingSetBytes = counters.PeakWorkingSetSize;
-    }
-#endif
-    return snapshot;
-}
-
-unsigned int logicalProcessorCount() noexcept {
-#ifdef _WIN32
-    SYSTEM_INFO info{};
-    GetSystemInfo(&info);
-    return (std::max)(1U, static_cast<unsigned int>(info.dwNumberOfProcessors));
-#else
-    return (std::max)(1U, std::thread::hardware_concurrency());
-#endif
-}
-
-bool gameplayControlsReleased(
-    const asb::dualsense::DualSenseInputState& state) noexcept {
-    constexpr std::uint8_t kTriggerReleaseThreshold = 8;
-    return state.buttons == 0 && state.dpad == 0 &&
-           state.l2 <= kTriggerReleaseThreshold &&
-           state.r2 <= kTriggerReleaseThreshold;
-}
-
-bool waitForPhysicalControlsReleased(
-    asb::platform::PhysicalInputSource& input,
-    std::chrono::milliseconds maximumWait) noexcept {
-    constexpr auto kStableRelease = std::chrono::milliseconds(120);
-    const auto deadline = std::chrono::steady_clock::now() + maximumWait;
-    std::optional<std::chrono::steady_clock::time_point> releasedAt;
-    while (std::chrono::steady_clock::now() < deadline) {
-        asb::dualsense::DualSenseInputState state{};
-        std::string error;
-        const auto status = input.waitForState(
-            state, input.eventDriven() ? std::chrono::milliseconds(25)
-                                       : std::chrono::milliseconds(1),
-            error);
-        const auto now = std::chrono::steady_clock::now();
-        if (status == asb::platform::PhysicalInputStatus::State) {
-            if (gameplayControlsReleased(state)) {
-                if (!releasedAt) releasedAt = now;
-                if (now - *releasedAt >= kStableRelease) return true;
-            } else {
-                releasedAt.reset();
-            }
-        } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
-                   status == asb::platform::PhysicalInputStatus::Error) {
-            return false;
-        }
-    }
-    return false;
-}
-
-class ButtonHoldTracker {
-public:
-    using Clock = std::chrono::steady_clock;
-
-    void observe(bool pressed, Clock::time_point now) noexcept {
-        if (pressed) {
-            if (!pressedAt_) {
-                pressedAt_ = now;
-                ++presses_;
-            }
-            updateMaximum(now);
-            return;
-        }
-        finish(now);
-    }
-
-    void finish(Clock::time_point now) noexcept {
-        if (!pressedAt_) return;
-        updateMaximum(now);
-        pressedAt_.reset();
-    }
-
-    [[nodiscard]] std::uint64_t presses() const noexcept { return presses_; }
-    [[nodiscard]] std::int64_t maximumHoldMilliseconds() const noexcept {
-        return maximumHold_.count();
-    }
-
-private:
-    void updateMaximum(Clock::time_point now) noexcept {
-        if (!pressedAt_) return;
-        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - *pressedAt_);
-        if (duration > maximumHold_) maximumHold_ = duration;
-    }
-
-    std::optional<Clock::time_point> pressedAt_;
-    std::chrono::milliseconds maximumHold_{};
-    std::uint64_t presses_ = 0;
-};
-
-} // namespace
-
-struct BridgeCommandOptions {
-    std::optional<std::size_t> deviceIndex;
-    std::optional<std::chrono::seconds> duration;
-    std::filesystem::path viiperExecutable;
-    asb::dualsense::VirtualDualSenseBackend virtualBackend =
-        asb::dualsense::VirtualDualSenseBackend::Auto;
-    bool proxyXInput = true;
-    bool routeRumble = false;
-    bool syncLightbar = false;
-    bool verifyVirtualInput = false;
-    bool isolateApex = true;
-    asb::dualsense::TouchpadGestureProfile touchpadProfile =
-        asb::dualsense::TouchpadGestureProfile::None;
-    bool touchpadProfileExplicit = false;
-    unsigned int hapticThresholdPercent = 12;
-    bool hapticThresholdExplicit = false;
-    std::optional<unsigned int> xinputIndex;
-    std::optional<std::string> sessionToken;
-    std::optional<std::uint32_t> sessionOwnerProcessId;
-    std::optional<std::uint8_t> apexProfileSlot;
-    std::filesystem::path telemetryJson;
-};
-
-bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
-                        std::string& error) {
-    for (int i = 2; i < argc; ++i) {
-        const std::string_view value = argv[i];
-        if (value == "--seconds") {
-            if (++i >= argc) { error = "--seconds requires an integer from 1 to 86400."; return false; }
-            try {
-                const auto seconds = std::stoul(argv[i]);
-                if (seconds == 0 || seconds > 86400) throw std::out_of_range("seconds");
-                options.duration = std::chrono::seconds(seconds);
-            } catch (...) { error = "--seconds requires an integer from 1 to 86400."; return false; }
-        } else if (value == "--viiper") {
-            if (++i >= argc) { error = "--viiper requires a path."; return false; }
-            options.viiperExecutable = argv[i];
-        } else if (value == "--virtual-backend") {
-            if (++i >= argc) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
-                return false;
-            }
-            const auto backend = parseVirtualDualSenseBackend(argv[i]);
-            if (!backend) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
-                return false;
-            }
-            options.virtualBackend = *backend;
-        } else if (value == "--telemetry-json") {
-            if (++i >= argc) { error = "--telemetry-json requires a file path."; return false; }
-            options.telemetryJson = argv[i];
-        } else if (value == "--proxy-xinput") {
-            options.proxyXInput = true;
-        } else if (value == "--rumble") {
-            options.routeRumble = true;
-        } else if (value == "--sync-lightbar") {
-            options.syncLightbar = true;
-        } else if (value == "--haptic-threshold") {
-            if (++i >= argc) {
-                error = "--haptic-threshold requires an integer percentage from 0 to 95.";
-                return false;
-            }
-            try {
-                std::size_t parsedCharacters = 0;
-                const auto parsed = std::stoul(argv[i], &parsedCharacters);
-                if (parsedCharacters != std::string_view(argv[i]).size() || parsed > 95) {
-                    throw std::out_of_range("haptic-threshold");
-                }
-                options.hapticThresholdPercent = static_cast<unsigned int>(parsed);
-                options.hapticThresholdExplicit = true;
-            } catch (...) {
-                error = "--haptic-threshold requires an integer percentage from 0 to 95.";
-                return false;
-            }
-        } else if (value == "--verify-virtual-input") {
-            options.verifyVirtualInput = true;
-            options.proxyXInput = true;
-        } else if (value == "--touchpad-profile") {
-            if (++i >= argc) {
-                error = "--touchpad-profile requires one of: none, spider-man-2, miles-morales, ghost-of-tsushima, warframe.";
-                return false;
-            }
-            const auto profile = asb::dualsense::parseTouchpadGestureProfile(argv[i]);
-            if (!profile || *profile == asb::dualsense::TouchpadGestureProfile::LegacyViewHoldSwipeUp) {
-                error = "Unknown --touchpad-profile. Expected none, spider-man-2, miles-morales, ghost-of-tsushima, or warframe.";
-                return false;
-            }
-            options.touchpadProfile = *profile;
-            options.touchpadProfileExplicit = true;
-            options.proxyXInput = true;
-        } else if (value == "--view-hold-swipe-up") {
-            options.touchpadProfile =
-                asb::dualsense::TouchpadGestureProfile::LegacyViewHoldSwipeUp;
-            options.touchpadProfileExplicit = true;
-            options.proxyXInput = true;
-        } else if (value == "--isolate-apex") {
-            options.isolateApex = true;
-            options.proxyXInput = true;
-        } else if (value == "--xinput-index") {
-            if (++i >= argc) { error = "--xinput-index requires a value from 0 to 3."; return false; }
-            try {
-                const auto parsed = std::stoul(argv[i]);
-                if (parsed > 3) throw std::out_of_range("xinput-index");
-                options.xinputIndex = static_cast<unsigned int>(parsed);
-                options.proxyXInput = true;
-            } catch (...) { error = "--xinput-index requires a value from 0 to 3."; return false; }
-        } else if (value == "--session-token") {
-            if (++i >= argc) {
-                error = "--session-token requires exactly 32 hexadecimal characters.";
-                return false;
-            }
-            const std::string token = argv[i];
-            if (!asb::platform::isValidSessionToken(token)) {
-                error = "--session-token requires exactly 32 hexadecimal characters.";
-                return false;
-            }
-            options.sessionToken = token;
-        } else if (value == "--session-owner-pid") {
-            if (++i >= argc) {
-                error = "--session-owner-pid requires a non-zero Windows process ID.";
-                return false;
-            }
-            try {
-                std::size_t parsedCharacters = 0;
-                const auto parsed = std::stoull(argv[i], &parsedCharacters);
-                if (parsedCharacters != std::string_view(argv[i]).size() ||
-                    parsed == 0 || parsed > 0xFFFFFFFFULL) {
-                    throw std::out_of_range("session-owner-pid");
-                }
-                options.sessionOwnerProcessId = static_cast<std::uint32_t>(parsed);
-            } catch (...) {
-                error = "--session-owner-pid requires a non-zero Windows process ID.";
-                return false;
-            }
-        } else if (value == "--apex-profile") {
-            if (++i >= argc) {
-                error = "--apex-profile requires a profile number from 1 to 4.";
-                return false;
-            }
-            try {
-                std::size_t parsedCharacters = 0;
-                const auto parsed = std::stoul(argv[i], &parsedCharacters);
-                if (parsedCharacters != std::string_view(argv[i]).size() ||
-                    parsed < 1 || parsed > asb::flydigi::kProfileSlotCount) {
-                    throw std::out_of_range("apex-profile");
-                }
-                options.apexProfileSlot = static_cast<std::uint8_t>(parsed - 1);
-            } catch (...) {
-                error = "--apex-profile requires a profile number from 1 to 4.";
-                return false;
-            }
-        } else if (!value.empty() && value.front() != '-' && !options.deviceIndex) {
-            try { options.deviceIndex = static_cast<std::size_t>(std::stoul(std::string(value))); }
-            catch (...) { error = "The device index must be an integer."; return false; }
-        } else {
-            error = "Unknown bridge-triggers option: " + std::string(value);
-            return false;
-        }
-    }
-    if (options.hapticThresholdExplicit && !options.routeRumble) {
-        error = "--haptic-threshold requires --rumble.";
-        return false;
-    }
-    if (options.sessionOwnerProcessId && !options.sessionToken) {
-        error = "--session-owner-pid requires --session-token.";
-        return false;
-    }
-    // A DualSense session is always a complete physical-input proxy. These
-    // invariants are enforced by the engine, not merely by the Playnite UI.
-    options.proxyXInput = true;
-    options.isolateApex = true;
-    return true;
-}
 
 int commandBridgeTriggers(int argc, char** argv) {
     const auto initializationStartedAt = std::chrono::steady_clock::now();
@@ -382,7 +49,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     BridgeCommandOptions options{};
     std::string error;
     if (!parseBridgeOptions(argc, argv, options, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--sync-lightbar] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--apex-profile 1..4] [--isolate-apex] [--session-token 32HEX] [--session-owner-pid PID]\n";
+        std::cerr << error << '\n' << bridgeCommandUsage() << '\n';
         return 1;
     }
 
@@ -1341,82 +1008,48 @@ int commandBridgeTriggers(int argc, char** argv) {
         static_cast<std::uint64_t>(inputProxyFailed ? 1 : 0);
 
     if (!options.telemetryJson.empty()) {
-        std::ofstream telemetry(options.telemetryJson, std::ios::binary | std::ios::trunc);
-        if (!telemetry) {
-            std::cerr << "Warning: could not create telemetry JSON file: "
-                      << options.telemetryJson.string() << '\n';
-        } else {
-            telemetry << std::fixed << std::setprecision(3)
-                      << "{\n"
-                      << "  \"schema\": 1,\n"
-                      << "  \"virtual_backend\": \""
-                      << jsonEscape(virtualStats.backendVersion) << "\",\n"
-                      << "  \"input_mode\": \"mandatory-full-proxy\",\n"
-                      << "  \"input_backend\": \"" << jsonEscape(inputBackend) << "\",\n"
-                      << "  \"virtual_startup_attempts\": "
-                      << startupResult.attempts << ",\n"
-                      << "  \"initialization_ms\": " << initializationMilliseconds << ",\n"
-                      << "  \"initialization_physical_input_ms\": "
-                      << physicalInputInitializationMilliseconds << ",\n"
-                      << "  \"initialization_virtual_input_ms\": "
-                      << virtualInputInitializationMilliseconds << ",\n"
-                      << "  \"initialization_firmware_ms\": "
-                      << firmwareInitializationMilliseconds << ",\n"
-                      << "  \"initialization_isolation_ms\": "
-                      << isolationInitializationMilliseconds << ",\n"
-                      << "  \"backend_initialization_bootstrap_us\": "
-                      << virtualStats.initializationBootstrapUs << ",\n"
-                      << "  \"backend_initialization_server_us\": "
-                      << virtualStats.initializationServerUs << ",\n"
-                      << "  \"backend_initialization_bus_us\": "
-                      << virtualStats.initializationBusUs << ",\n"
-                      << "  \"backend_initialization_device_us\": "
-                      << virtualStats.initializationDeviceUs << ",\n"
-                      << "  \"backend_initialization_feedback_us\": "
-                      << virtualStats.initializationFeedbackUs << ",\n"
-                      << "  \"backend_initialization_input_us\": "
-                      << virtualStats.initializationInputUs << ",\n"
-                      << "  \"runtime_ms\": " << runtimeMilliseconds << ",\n"
-                      << "  \"forward_latency_us_p50\": " << forwardingLatency.percentile(50) << ",\n"
-                      << "  \"forward_latency_us_p95\": " << forwardingLatency.percentile(95) << ",\n"
-                      << "  \"forward_latency_us_p99\": " << forwardingLatency.percentile(99) << ",\n"
-                      << "  \"forward_latency_samples\": " << forwardingLatency.samples() << ",\n"
-                      << "  \"physical_report_rate_hz\": " << physicalReportRateHz << ",\n"
-                      << "  \"virtual_report_rate_hz\": " << virtualReportRateHz << ",\n"
-                      << "  \"physical_reports\": " << inputSourceStats.reports << ",\n"
-                      << "  \"physical_vendor_reports\": "
-                      << inputSourceStats.vendorReports << ",\n"
-                      << "  \"physical_vendor_states\": "
-                      << inputSourceStats.vendorStates << ",\n"
-                      << "  \"physical_vendor_parse_failures\": "
-                      << inputSourceStats.vendorParseFailures << ",\n"
-                      << "  \"physical_vendor_read_failures\": "
-                      << inputSourceStats.vendorReadFailures << ",\n"
-                      << "  \"forwarded_physical_reports\": " << forwardedPhysicalReports << ",\n"
-                      << "  \"keepalive_reports\": " << keepaliveInputReports << ",\n"
-                      << "  \"lost_reports\": " << lostInputReports << ",\n"
-                      << "  \"coalesced_reports\": " << coalescedInputReports << ",\n"
-                      << "  \"maximum_simultaneous_triggers\": "
-                      << static_cast<unsigned>(maximumSimultaneousTriggers) << ",\n"
-                      << "  \"simultaneous_trigger_reports\": "
-                      << simultaneousTriggerReports << ",\n"
-                      << "  \"virtual_maximum_simultaneous_triggers\": "
-                      << static_cast<unsigned>(virtualMaximumSimultaneousTriggers) << ",\n"
-                      << "  \"virtual_simultaneous_trigger_reports\": "
-                      << virtualSimultaneousTriggerReports << ",\n"
-                      << "  \"battery_percent\": "
-                      << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent) << ",\n"
-                      << "  \"charge_state\": "
-                      << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->chargeState : initialInput.chargeState) << ",\n"
-                      << "  \"cpu_percent_total\": " << cpuPercent << ",\n"
-                      << "  \"working_set_mib\": "
-                      << static_cast<double>(processUsageFinished.workingSetBytes) / (1024.0 * 1024.0) << ",\n"
-                      << "  \"peak_working_set_mib\": "
-                      << static_cast<double>(processUsageFinished.peakWorkingSetBytes) / (1024.0 * 1024.0) << ",\n"
-                      << "  \"audio_haptics_received\": " << virtualStats.audioHapticsFrames << ",\n"
-                      << "  \"audio_haptics_delivered\": " << virtualStats.audioHapticsDelivered << ",\n"
-                      << "  \"audio_haptics_coalesced\": " << virtualStats.audioHapticsCoalesced << "\n"
-                      << "}\n";
+        BridgeTelemetry telemetry{};
+        telemetry.virtualStats = virtualStats;
+        telemetry.physicalStats = inputSourceStats;
+        telemetry.processUsage = processUsageFinished;
+        telemetry.inputBackend = inputBackend;
+        telemetry.startupAttempts = startupResult.attempts;
+        telemetry.initializationMilliseconds = initializationMilliseconds;
+        telemetry.physicalInputInitializationMilliseconds =
+            physicalInputInitializationMilliseconds;
+        telemetry.virtualInputInitializationMilliseconds =
+            virtualInputInitializationMilliseconds;
+        telemetry.firmwareInitializationMilliseconds =
+            firmwareInitializationMilliseconds;
+        telemetry.isolationInitializationMilliseconds =
+            isolationInitializationMilliseconds;
+        telemetry.runtimeMilliseconds = runtimeMilliseconds;
+        telemetry.latencyP50Us = forwardingLatency.percentile(50);
+        telemetry.latencyP95Us = forwardingLatency.percentile(95);
+        telemetry.latencyP99Us = forwardingLatency.percentile(99);
+        telemetry.latencySamples = forwardingLatency.samples();
+        telemetry.physicalReportRateHz = physicalReportRateHz;
+        telemetry.virtualReportRateHz = virtualReportRateHz;
+        telemetry.forwardedPhysicalReports = forwardedPhysicalReports;
+        telemetry.keepaliveReports = keepaliveInputReports;
+        telemetry.lostReports = lostInputReports;
+        telemetry.coalescedReports = coalescedInputReports;
+        telemetry.maximumSimultaneousTriggers = maximumSimultaneousTriggers;
+        telemetry.simultaneousTriggerReports = simultaneousTriggerReports;
+        telemetry.virtualMaximumSimultaneousTriggers =
+            virtualMaximumSimultaneousTriggers;
+        telemetry.virtualSimultaneousTriggerReports =
+            virtualSimultaneousTriggerReports;
+        telemetry.batteryPercent = lastPhysicalInput
+            ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent;
+        telemetry.chargeState = lastPhysicalInput
+            ? lastPhysicalInput->chargeState : initialInput.chargeState;
+        telemetry.cpuPercent = cpuPercent;
+
+        std::string telemetryError;
+        if (!writeBridgeTelemetryFile(
+                options.telemetryJson, telemetry, telemetryError)) {
+            std::cerr << "Warning: " << telemetryError << '\n';
         }
     }
 

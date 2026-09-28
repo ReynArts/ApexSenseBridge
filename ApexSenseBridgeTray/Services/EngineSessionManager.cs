@@ -2,8 +2,6 @@ using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.Threading;
 
 namespace ApexSenseBridgeTray.Services
@@ -227,49 +225,12 @@ namespace ApexSenseBridgeTray.Services
         private static string BuildArguments(string profileName, TraySettings settings,
                                              int apexProfileSlot)
         {
-            var args = new List<string> { "bridge-triggers" };
-
-            var profile = profileName != null ? profileName.ToLowerInvariant() : "standard";
-            if (profile == "spider-man-2")
-            {
-                args.Add("--touchpad-profile spider-man-2");
-            }
-            else if (profile == "miles-morales")
-            {
-                args.Add("--touchpad-profile miles-morales");
-            }
-            else if (profile == "ghost-of-tsushima")
-            {
-                args.Add("--touchpad-profile ghost-of-tsushima");
-            }
-            else if (profile == "warframe")
-            {
-                args.Add("--touchpad-profile warframe");
-            }
-            else
-            {
-                args.Add("--touchpad-profile none");
-            }
-
-            if (settings != null && settings.EnableRumble)
-            {
-                args.Add("--rumble");
-                args.Add("--haptic-threshold");
-                args.Add(settings.HapticThresholdPercent.ToString());
-            }
-
-            if (settings != null && settings.SyncLightbar)
-            {
-                args.Add("--sync-lightbar");
-            }
-
-            if (apexProfileSlot >= 1 && apexProfileSlot <= 4)
-            {
-                args.Add("--apex-profile");
-                args.Add(apexProfileSlot.ToString(CultureInfo.InvariantCulture));
-            }
-
-            return string.Join(" ", args.ToArray());
+            return BridgeArguments.Build(
+                profileName,
+                settings != null && settings.EnableRumble,
+                settings != null ? settings.HapticThresholdPercent : 12,
+                settings != null && settings.SyncLightbar,
+                apexProfileSlot);
         }
     }
 }

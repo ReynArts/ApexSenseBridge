@@ -937,6 +937,7 @@ public:
         auto result = stats_;
         const auto mappedStats = mappedGamepad_->stats();
         result.parseFailures += mappedStats.parseFailures;
+        result.mappedReports = mappedStats.reports;
         result.vendorReports = vendorReports_;
         result.vendorStates = vendorStates_;
         result.vendorParseFailures = vendorParseFailures_;

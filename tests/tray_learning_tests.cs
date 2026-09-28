@@ -44,6 +44,8 @@ internal static class TrayLearningTests
             TestActivationPolicyStillAppliesAfterLearning();
             TestManualFixGamesPreservePhysicalInput();
             TestPerGameApexProfileSettings();
+            TestManualBridgeModeIsNotPersisted();
+            TestSharedBridgeArguments();
             TestGameProcessSessionPidHandoff();
             TestPlatformClientsNeverCountAsGameProcesses();
             TestPidTrackingFastPathPerformance();
@@ -539,6 +541,36 @@ internal static class TrayLearningTests
         try { settings.SetApexProfileSlot("spiderman2", 5); }
         catch (ArgumentOutOfRangeException) { rejected = true; }
         Assert(rejected, "An invalid Apex profile slot was accepted.");
+    }
+
+    private static void TestManualBridgeModeIsNotPersisted()
+    {
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var settings = new TraySettings { ForcedProfile = "standard" };
+        var json = serializer.Serialize(settings);
+
+        Assert(!json.Contains("ForcedProfile"),
+            "The transient manual bridge mode was persisted as a durable setting.");
+
+        var migrated = serializer.Deserialize<TraySettings>(
+            "{\"ForcedProfile\":\"standard\",\"AutoDetectGames\":true}");
+        migrated.ResetTransientState();
+        Assert(migrated != null && migrated.ForcedProfile == "none",
+            "A legacy persisted manual bridge mode still disables detection after restart.");
+    }
+
+    private static void TestSharedBridgeArguments()
+    {
+        Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3) ==
+               "bridge-triggers --touchpad-profile spider-man-2 --rumble " +
+               "--haptic-threshold 12 --sync-lightbar --apex-profile 3",
+            "The shared bridge argument contract changed for a complete profile.");
+        Assert(BridgeArguments.Build("unknown", true, 999, false, 9) ==
+               "bridge-triggers --touchpad-profile none --rumble --haptic-threshold 95",
+            "The shared bridge argument contract did not normalize invalid settings.");
+        Assert(BridgeArguments.Build(null, false, -1, false, 0) ==
+               "bridge-triggers --touchpad-profile none",
+            "The shared bridge argument contract did not preserve minimal defaults.");
     }
 
     private static void TestDatabaseExecutableResolutionAndCollisions()

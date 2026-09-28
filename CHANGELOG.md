@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.7
 
 - **APEX 5 simultaneous-trigger regression**:
   keeps mapped HID authoritative for buttons, sticks, and the D-pad while
@@ -21,6 +21,25 @@
   now record simultaneous LT/RT levels and report counts for both the physical
   input and virtual DualSense paths, making trigger-concurrency regressions
   directly observable in gameplay logs.
+- **Bridge runtime modularization**: separates command-line option parsing,
+  fixed-allocation runtime measurements, JSON support, and post-session
+  telemetry from the hardware bridge command. The input-forwarding loop and
+  its latency/button trackers remain allocation-free and inline, while new
+  contract tests cover option compatibility, malformed numeric values,
+  latency histograms, hold tracking, JSON escaping, and the telemetry schema.
+- **Launcher configuration consistency**: Tray and Playnite now share one
+  normalized bridge-argument builder, and manual forced-profile state is kept
+  transient instead of being serialized into user settings. Production engine
+  discovery no longer falls back to development build or distribution paths.
+- **Portable-driver verification**: pins the portable HidHide dependency to
+  the expected version and SHA-256 and verifies its product registration and
+  service state before accepting or completing installation.
+- **APEX 5 hardware regression validation**: an end-to-end dongle session
+  sustained roughly 800 physical and virtual reports per second with no lost
+  or coalesced reports. Simultaneous LT/RT reached 255 on both the physical and
+  virtual paths, forwarding latency remained below 30 microseconds at p99, and
+  virtual neutralization, trigger reset, profile recovery, and physical-device
+  restoration all completed successfully.
 
 ## 1.0.0-beta.6
 

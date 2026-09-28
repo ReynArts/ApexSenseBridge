@@ -2,6 +2,7 @@
 #include "cli/CommandSupport.h"
 #include "core/TriggerResetGuard.h"
 #include "core/RumbleResetGuard.h"
+#include "diagnostics/Apex4GyroCapture.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"
@@ -995,6 +996,215 @@ int commandApex4PortTest(int argc, char** argv) {
     if (inputCode != 0) return inputCode;
     if (rumbleCode != 0) return rumbleCode;
     return forceAdaptCode;
+}
+
+int commandApex4GyroCapture(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    unsigned int phaseSeconds = 5;
+    std::optional<std::filesystem::path> requestedOutput;
+
+    const auto printUsage = [] {
+        std::cerr
+            << "Usage: ApexSenseBridge apex4-gyro-capture [index] "
+               "[--phase-seconds N] [--output PATH]\n";
+    };
+
+    for (int index = 2; index < argc; ++index) {
+        const std::string_view option = argv[index];
+        if (option == "--phase-seconds") {
+            if (++index >= argc) {
+                printUsage();
+                return 1;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(argv[index], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[index]).size() ||
+                    parsed < 2 || parsed > 30) {
+                    throw std::out_of_range("phase-seconds");
+                }
+                phaseSeconds = static_cast<unsigned int>(parsed);
+            } catch (...) {
+                std::cerr << "--phase-seconds requires an integer from 2 to 30.\n";
+                return 1;
+            }
+        } else if (option == "--output") {
+            if (++index >= argc || std::string_view(argv[index]).empty()) {
+                printUsage();
+                return 1;
+            }
+            requestedOutput = std::filesystem::path(argv[index]);
+        } else {
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(std::string(option), &parsedCharacters);
+                if (parsedCharacters != option.size() || deviceIndex) {
+                    throw std::invalid_argument("index");
+                }
+                deviceIndex = static_cast<std::size_t>(parsed);
+            } catch (...) {
+                std::cerr << "Unknown apex4-gyro-capture option: " << option << '\n';
+                printUsage();
+                return 1;
+            }
+        }
+    }
+
+    std::string error;
+    auto device = openSelectedIndex(deviceIndex, error);
+    if (!device) {
+        std::cerr << "APEX identity verification failed: " << error << '\n';
+        return 2;
+    }
+    if (!device->identity() || !device->identity()->isApex4()) {
+        std::cerr << "apex4-gyro-capture requires a verified APEX 4.\n";
+        return 3;
+    }
+
+    std::filesystem::path outputPath;
+    if (requestedOutput) {
+        outputPath = *requestedOutput;
+    } else {
+        const auto stamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        outputPath = "apex4-gyro-capture-" + std::to_string(stamp) + ".json";
+    }
+    std::error_code filesystemError;
+    if (std::filesystem::exists(outputPath, filesystemError)) {
+        std::cerr << "Refusing to overwrite existing capture: "
+                  << outputPath.string() << '\n';
+        return 4;
+    }
+    if (filesystemError) {
+        std::cerr << "Could not validate the output path: "
+                  << filesystemError.message() << '\n';
+        return 4;
+    }
+
+    struct PhaseDefinition {
+        std::string_view name;
+        std::string_view instruction;
+    };
+    constexpr std::array<PhaseDefinition, 4> definitions{{
+        {"still", "Place the controller flat and do not touch it."},
+        {"yaw", "Keep buttons and sticks untouched; rotate the controller left and right repeatedly."},
+        {"pitch", "Keep buttons and sticks untouched; tilt the front edge up and down repeatedly."},
+        {"roll", "Keep buttons and sticks untouched; roll the controller clockwise and counterclockwise repeatedly."},
+    }};
+
+    std::cout
+        << "APEX 4 raw motion capture\n"
+        << "Verified: " << device->identity()->describe() << '\n'
+        << "Connection: "
+        << (device->identity()->isWired() ? "wired" : "dongle") << '\n'
+        << "This diagnostic reads controller HID input only. It does not change "
+           "profiles, mappings, firmware, or onboard settings.\n"
+        << "Do not press buttons, move sticks, or pull triggers during the four phases.\n"
+        << "Output: " << outputPath.string() << "\n\n";
+
+    std::vector<asb::diagnostics::Apex4MotionPhaseCapture> phases;
+    phases.reserve(definitions.size());
+    const auto bufferSize = (std::max)(
+        asb::diagnostics::kApex4MinimumStateReportSize,
+        static_cast<std::size_t>(device->info().inputReportLength));
+    std::vector<std::uint8_t> report(bufferSize, 0);
+    g_stopRequested.store(false, std::memory_order_relaxed);
+
+    bool captureFailed = false;
+    for (std::size_t phaseIndex = 0; phaseIndex < definitions.size(); ++phaseIndex) {
+        const auto& definition = definitions[phaseIndex];
+        std::cout << "Phase " << (phaseIndex + 1) << '/' << definitions.size()
+                  << " - " << definition.name << "\n"
+                  << definition.instruction << "\n"
+                  << "Press Enter when ready..." << std::flush;
+        std::string line;
+        if (!std::getline(std::cin, line)) {
+            std::cerr << "\nInteractive input closed before capture completed.\n";
+            captureFailed = true;
+            break;
+        }
+        for (int countdown = 3; countdown >= 1; --countdown) {
+            std::cout << countdown << "..." << std::flush;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+        std::cout << " GO\n";
+
+        phases.emplace_back(
+            std::string(definition.name), std::string(definition.instruction));
+        auto& phase = phases.back();
+        const auto startedAt = std::chrono::steady_clock::now();
+        const auto deadline = startedAt + std::chrono::seconds(phaseSeconds);
+        while (!g_stopRequested.load(std::memory_order_relaxed) &&
+               std::chrono::steady_clock::now() < deadline) {
+            const auto now = std::chrono::steady_clock::now();
+            auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - now);
+            remaining = (std::min)(remaining, std::chrono::milliseconds(250));
+            if (remaining.count() <= 0) break;
+
+            std::size_t bytesRead = 0;
+            error.clear();
+            const auto status = device->readRawInputReport(
+                report, remaining, bytesRead, error);
+            if (status == asb::platform::HidReadStatus::Timeout) continue;
+            if (status == asb::platform::HidReadStatus::Error) {
+                std::cerr << "APEX 4 raw input failed: " << error << '\n';
+                captureFailed = true;
+                break;
+            }
+            const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - startedAt).count();
+            phase.addReport(
+                std::span<const std::uint8_t>(report.data(), bytesRead),
+                static_cast<std::uint64_t>((std::max)(elapsed, std::int64_t{0})));
+        }
+
+        std::cout << "Captured " << phase.samples().size()
+                  << " state reports; changing byte offsets:";
+        bool printedCandidate = false;
+        for (const auto& activity : phase.byteActivity()) {
+            if (activity.knownControl) continue;
+            std::cout << ' ' << activity.offset;
+            printedCandidate = true;
+        }
+        if (!printedCandidate) std::cout << " none";
+        std::cout << "\n\n";
+        if (captureFailed || g_stopRequested.load(std::memory_order_relaxed)) break;
+    }
+
+    asb::diagnostics::Apex4GyroCaptureMetadata metadata{};
+    metadata.model = device->identity()->describe();
+    metadata.connection = device->identity()->isWired() ? "wired" : "dongle";
+    metadata.connectionRaw = device->identity()->connectionTypeRaw();
+    metadata.vendorId = device->info().vendorId;
+    metadata.productId = device->info().productId;
+    metadata.declaredInputReportLength = device->info().inputReportLength;
+    metadata.phaseSeconds = phaseSeconds;
+    metadata.interrupted = captureFailed ||
+        g_stopRequested.load(std::memory_order_relaxed) ||
+        phases.size() != definitions.size();
+
+    std::ofstream output(outputPath, std::ios::binary | std::ios::out);
+    if (!output) {
+        std::cerr << "Could not create capture file: " << outputPath.string() << '\n';
+        return 5;
+    }
+    output << asb::diagnostics::formatApex4GyroCaptureJson(metadata, phases);
+    output.close();
+    if (!output) {
+        std::cerr << "Could not finish writing capture file: "
+                  << outputPath.string() << '\n';
+        return 5;
+    }
+
+    std::cout << "Capture saved: " << std::filesystem::absolute(outputPath).string()
+              << '\n';
+    if (metadata.interrupted) {
+        std::cerr << "The capture is partial but was saved for inspection.\n";
+        return 6;
+    }
+    std::cout << "Please attach this JSON file to GitHub issue #10.\n";
+    return 0;
 }
 
 int commandXInputViewTest(int argc, char** argv) {

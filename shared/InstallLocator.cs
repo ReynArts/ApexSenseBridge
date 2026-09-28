@@ -97,46 +97,6 @@ namespace ApexSenseBridge.Common
                 }
             }
 
-            var searchRoots = new List<string>();
-            if (!string.IsNullOrWhiteSpace(appDir))
-            {
-                searchRoots.Add(appDir);
-                var parent = Path.GetDirectoryName(appDir.TrimEnd('\\', '/'));
-                if (!string.IsNullOrWhiteSpace(parent))
-                    searchRoots.Add(parent);
-                var grandparent = Path.GetDirectoryName(parent);
-                if (!string.IsNullOrWhiteSpace(grandparent))
-                    searchRoots.Add(grandparent);
-                var greatgrandparent = Path.GetDirectoryName(grandparent);
-                if (!string.IsNullOrWhiteSpace(greatgrandparent))
-                    searchRoots.Add(greatgrandparent);
-            }
-
-            var relativePaths = new[]
-            {
-                "build-win\\Release",
-                "build-verify\\Release",
-                "dist",
-            };
-
-            foreach (var root in searchRoots)
-            {
-                foreach (var rel in relativePaths)
-                {
-                    try
-                    {
-                        var candidate = Path.Combine(root, rel, fileName);
-                        if (File.Exists(candidate))
-                        {
-                            return Path.GetFullPath(candidate);
-                        }
-                    }
-                    catch
-                    {
-                    }
-                }
-            }
-
             return (!string.IsNullOrWhiteSpace(legacyPath) && File.Exists(legacyPath))
                 ? Path.GetFullPath(legacyPath)
                 : string.Empty;
