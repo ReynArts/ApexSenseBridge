@@ -14,6 +14,7 @@
 #include "flydigi/Apex5Input.h"
 #include "flydigi/Apex5Protocol.h"
 #include "flydigi/Apex6Protocol.h"
+#include "platform/Apex6InputFusion.h"
 #include "platform/HidTransport.h"
 #include "platform/XInputGamepad.h"
 #include "platform/XInputMapping.h"
@@ -534,18 +535,60 @@ public:
         dualsense::DualSenseInputState& state,
         std::chrono::milliseconds timeout,
         std::string& error) override {
-        const auto status = mappedGamepad_->waitForState(state, timeout, error);
-        if (status != PhysicalInputStatus::State) return status;
+        constexpr auto kTriggerPollInterval = std::chrono::milliseconds(2);
+        const auto startedAt = std::chrono::steady_clock::now();
+        const auto deadline = startedAt + (std::max)(timeout, std::chrono::milliseconds(0));
 
-        dualsense::DualSenseInputState xinputState{};
-        std::string xinputError;
-        if (!xinputGamepad_->poll(xinputState, xinputError)) {
-            error = "The Apex 6 independent XInput trigger source failed (" +
-                    xinputError + ").";
-            return PhysicalInputStatus::Disconnected;
+        for (;;) {
+            const auto beforeWait = std::chrono::steady_clock::now();
+            const auto remaining = deadline - beforeWait;
+            const auto waitBudget = (std::min)(
+                (std::max)(remaining, std::chrono::steady_clock::duration::zero()),
+                std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                    kTriggerPollInterval));
+            auto waitSlice = std::chrono::duration_cast<std::chrono::milliseconds>(
+                waitBudget);
+            if (remaining > std::chrono::steady_clock::duration::zero() &&
+                waitSlice <= std::chrono::milliseconds(0)) {
+                waitSlice = std::chrono::milliseconds(1);
+            }
+
+            dualsense::DualSenseInputState mappedState{};
+            std::string mappedError;
+            const auto mappedStatus = mappedGamepad_->waitForState(
+                mappedState, waitSlice, mappedError);
+            if (mappedStatus == PhysicalInputStatus::Disconnected ||
+                mappedStatus == PhysicalInputStatus::Error) {
+                error = std::move(mappedError);
+                return mappedStatus;
+            }
+
+            dualsense::DualSenseInputState xinputState{};
+            std::string xinputError;
+            if (!xinputGamepad_->poll(xinputState, xinputError)) {
+                error = "The Apex 6 independent XInput trigger source failed (" +
+                        xinputError + ").";
+                return PhysicalInputStatus::Disconnected;
+            }
+
+            const auto observedAt = std::chrono::steady_clock::now();
+            const auto fused = fusion_.observe(
+                mappedStatus == PhysicalInputStatus::State
+                    ? std::optional<dualsense::DualSenseInputState>(mappedState)
+                    : std::nullopt,
+                xinputState, observedAt);
+            if (fused) {
+                state = *fused;
+                ++stats_.reports;
+                error.clear();
+                return PhysicalInputStatus::State;
+            }
+            if (observedAt >= deadline) {
+                ++stats_.timeouts;
+                error.clear();
+                return PhysicalInputStatus::Timeout;
+            }
         }
-        mergeIndependentTriggers(xinputState.l2, xinputState.r2, state);
-        return PhysicalInputStatus::State;
     }
 
     std::string_view backendName() const noexcept override {
@@ -553,7 +596,10 @@ public:
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override {
-        return mappedGamepad_->stats();
+        auto result = stats_;
+        const auto mappedStats = mappedGamepad_->stats();
+        result.parseFailures = mappedStats.parseFailures;
+        return result;
     }
     void setBatteryState(std::uint8_t batteryPercent,
                          std::uint8_t chargeState) noexcept override {
@@ -563,6 +609,8 @@ public:
 private:
     std::unique_ptr<HidPhysicalInputSource> mappedGamepad_;
     std::unique_ptr<XInputGamepad> xinputGamepad_;
+    Apex6InputFusion fusion_;
+    PhysicalInputSourceStats stats_{};
 };
 
 class Apex4PhysicalInputSource final : public PhysicalInputSource {
@@ -739,10 +787,10 @@ public:
             return {};
         }
 
-        // Some Windows/XUSB combinations enumerate the mapped HID collection
-        // but never deliver input reports through ReadFile. Keep an XInput
-        // handle ready as a runtime fallback so a present-but-silent HID
-        // collection cannot prevent the mandatory input proxy from starting.
+        // Keep the mapped HID collection authoritative for every standard
+        // control. XInput supplies independent LT/RT bytes because the mapped
+        // HID trigger representation cannot reliably preserve both at once;
+        // it also bootstraps installations whose HID never reports at all.
         std::string xinputError;
         auto xinputGamepad = openXInputGamepadForDevice(
             vendorInterface.vendorId, vendorInterface.productId,
@@ -814,7 +862,7 @@ public:
             const DWORD waitResult = WaitForMultipleObjects(
                 eventCount, events.data(), FALSE, waitMilliseconds(remaining));
             if (waitResult == WAIT_TIMEOUT) {
-                if (pollXInputFallback(state)) {
+                if (!mappedInputObserved_ && pollXInputFallback(state)) {
                     ++stats_.reports;
                     return PhysicalInputStatus::State;
                 }
@@ -834,7 +882,7 @@ public:
                 const auto mappedStatus = mappedGamepad_->completePreparedRead(
                     mappedState, mappedError);
                 if (mappedStatus != PhysicalInputStatus::State) {
-                    if (pollXInputFallback(state)) {
+                    if (!mappedInputObserved_ && pollXInputFallback(state)) {
                         ++stats_.reports;
                         return PhysicalInputStatus::State;
                     }
@@ -842,6 +890,8 @@ public:
                             mappedError + ").";
                     return mappedStatus;
                 }
+                mergeIndependentXInputTriggers(mappedState);
+                mappedInputObserved_ = true;
                 lastMappedState_ = mappedState;
                 xinputFallbackActive_ = false;
                 drainVendorReports();
@@ -871,7 +921,8 @@ public:
                 ++stats_.reports;
                 return PhysicalInputStatus::State;
             }
-            if (decodedVendorState && pollXInputFallback(state)) {
+            if (decodedVendorState && !mappedInputObserved_ &&
+                pollXInputFallback(state)) {
                 ++stats_.reports;
                 return PhysicalInputStatus::State;
             }
@@ -879,7 +930,7 @@ public:
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex5-v4-mapped+xinput-fallback";
+        return "apex5-v5-mapped+xinput-triggers";
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override {
@@ -1007,8 +1058,21 @@ private:
             currentChargeState_.load(std::memory_order_relaxed));
     }
 
+    void mergeIndependentXInputTriggers(
+        dualsense::DualSenseInputState& mappedState) noexcept {
+        if (!xinputGamepad_) return;
+        dualsense::DualSenseInputState xinputState{};
+        std::string ignored;
+        if (!xinputGamepad_->poll(xinputState, ignored)) return;
+        mergeIndependentTriggers(xinputState.l2, xinputState.r2, mappedState);
+    }
+
     bool pollXInputFallback(dualsense::DualSenseInputState& state) noexcept {
-        if (!xinputGamepad_) return false;
+        // A short mapped-HID silence is normal for an event-driven collection.
+        // XInput may bootstrap installations whose HID never produces a first
+        // report, but must never replace a mapped source that already proved
+        // healthy: alternating those sources can create false trigger releases.
+        if (mappedInputObserved_ || !xinputGamepad_) return false;
         dualsense::DualSenseInputState xinputState{};
         std::string ignored;
         if (!xinputGamepad_->poll(xinputState, ignored)) return false;
@@ -1036,6 +1100,7 @@ private:
     std::unique_ptr<HidPhysicalInputSource> mappedGamepad_;
     std::unique_ptr<XInputGamepad> xinputGamepad_;
     std::optional<dualsense::DualSenseInputState> lastMappedState_;
+    bool mappedInputObserved_ = false;
     bool xinputFallbackActive_ = false;
 };
 

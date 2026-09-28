@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **APEX 5 simultaneous-trigger regression**:
+  keeps mapped HID authoritative for buttons, sticks, and the D-pad while
+  sourcing only LT and RT from the matching XInput device. Full-state XInput is
+  now limited to startup when mapped HID has not produced its first report,
+  preventing source alternation from releasing aim when fire is pressed.
+- **APEX 6 idle-input resilience ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  polls the independent XInput trigger axes while mapped HID is quiet and
+  publishes a bounded heartbeat. This prevents an otherwise healthy stationary
+  controller from tripping the mandatory one-second input watchdog, as observed
+  during PRAGMATA testing.
+- **APEX 6 waveform continuity ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  replaces the single pending waveform slot with a bounded three-block,
+  sequence-aware queue. Batched USB audio delivery can now be absorbed without
+  unbounded latency, while gaps, duplicates, reordering, underruns, and genuine
+  queue-overflow drops are reported separately.
+- **Simultaneous-trigger diagnostics**: bridge session summaries and telemetry
+  now record simultaneous LT/RT levels and report counts for both the physical
+  input and virtual DualSense paths, making trigger-concurrency regressions
+  directly observable in gameplay logs.
+
 ## 1.0.0-beta.6
 
 - **APEX 5 physical-input startup ([#15](https://github.com/ReynArts/ApexSenseBridge/issues/15), [#6](https://github.com/ReynArts/ApexSenseBridge/issues/6))**:

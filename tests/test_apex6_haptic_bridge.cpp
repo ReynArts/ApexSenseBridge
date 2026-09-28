@@ -96,6 +96,15 @@ int main() {
     waveform.leftHapticSamples.fill(12000);
     waveform.rightHapticSamples.fill(-12000);
     bridge.handle(waveform);
+    bridge.handle(waveform); // duplicate sequence 1
+    waveform.audioSequence = 0;
+    bridge.handle(waveform); // older than sequence 1
+    waveform.audioSequence = 3; // sequence 2 was lost upstream
+    bridge.handle(waveform);
+    waveform.audioSequence = 4;
+    bridge.handle(waveform);
+    waveform.audioSequence = 5; // bounded queue evicts sequence 1
+    bridge.handle(waveform);
 
     assert(bridge.start(error));
     std::this_thread::sleep_for(std::chrono::milliseconds(28));
@@ -132,8 +141,14 @@ int main() {
     assert(foundBipolarTrigger);
     const auto stats = bridge.stats();
     assert(stats.framesWritten >= 2);
-    assert(stats.waveformBlocks == 1);
-    assert(stats.waveformBlocksRendered == 1);
+    assert(stats.waveformBlocks == 6);
+    assert(stats.waveformBlocksRendered == 3);
+    assert(stats.waveformBlocksDropped == 3);
+    assert(stats.waveformQueueMaxDepth == 3);
+    assert(stats.waveformSequenceGaps == 1);
+    assert(stats.waveformDuplicates == 1);
+    assert(stats.waveformOutOfOrder == 1);
+    assert(stats.waveformOverflowDrops == 1);
     assert(stats.writeFailures == 0);
     return 0;
 }

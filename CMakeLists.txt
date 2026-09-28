@@ -29,6 +29,7 @@ add_library(asb_core STATIC
     src/dualsense/LightbarBridge.cpp
     src/dualsense/ViiperProtocol.cpp
     src/haptics/HapticProcessor.cpp
+    src/platform/Apex6InputFusion.cpp
     src/platform/AudioEndpointProtection.cpp
     src/platform/PhysicalInputSource.h
     src/platform/SessionControl.cpp
@@ -236,6 +237,17 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeXInputMappingTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME xinput_mapping COMMAND ApexSenseBridgeXInputMappingTests)
+
+    add_executable(ApexSenseBridgeApex6InputFusionTests
+        tests/test_apex6_input_fusion.cpp
+    )
+    target_link_libraries(ApexSenseBridgeApex6InputFusionTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6InputFusionTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6InputFusionTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_input_fusion COMMAND ApexSenseBridgeApex6InputFusionTests)
 
     add_executable(ApexSenseBridgePhysicalInputFreshnessTests
         tests/test_physical_input_freshness.cpp

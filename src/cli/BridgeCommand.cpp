@@ -1027,6 +1027,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::uint8_t seenDpad = 0;
     std::uint8_t maximumL2 = 0;
     std::uint8_t maximumR2 = 0;
+    std::uint8_t maximumSimultaneousTriggers = 0;
+    std::uint64_t simultaneousTriggerReports = 0;
     std::uint8_t minimumRightStickX = initialInput.rx;
     std::uint8_t maximumRightStickX = initialInput.rx;
     std::uint8_t minimumRightStickY = initialInput.ry;
@@ -1038,6 +1040,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::uint16_t virtualSeenDpadHats = 0;
     std::uint8_t virtualMaximumL2 = 0;
     std::uint8_t virtualMaximumR2 = 0;
+    std::uint8_t virtualMaximumSimultaneousTriggers = 0;
+    std::uint64_t virtualSimultaneousTriggerReports = 0;
     std::uint8_t virtualMinimumRightStickX = 0xFF;
     std::uint8_t virtualMaximumRightStickX = 0;
     std::uint8_t virtualMinimumRightStickY = 0xFF;
@@ -1100,6 +1104,11 @@ int commandBridgeTriggers(int argc, char** argv) {
             seenDpad = static_cast<std::uint8_t>(seenDpad | input.dpad);
             if (input.l2 > maximumL2) maximumL2 = input.l2;
             if (input.r2 > maximumR2) maximumR2 = input.r2;
+            maximumSimultaneousTriggers = (std::max)(
+                maximumSimultaneousTriggers, (std::min)(input.l2, input.r2));
+            if (input.l2 > 30 && input.r2 > 30) {
+                ++simultaneousTriggerReports;
+            }
             minimumRightStickX = (std::min)(minimumRightStickX, input.rx);
             maximumRightStickX = (std::max)(maximumRightStickX, input.rx);
             minimumRightStickY = (std::min)(minimumRightStickY, input.ry);
@@ -1213,6 +1222,12 @@ int commandBridgeTriggers(int argc, char** argv) {
                 }
                 if (virtualInputBuffer[5] > virtualMaximumL2) virtualMaximumL2 = virtualInputBuffer[5];
                 if (virtualInputBuffer[6] > virtualMaximumR2) virtualMaximumR2 = virtualInputBuffer[6];
+                virtualMaximumSimultaneousTriggers = (std::max)(
+                    virtualMaximumSimultaneousTriggers,
+                    (std::min)(virtualInputBuffer[5], virtualInputBuffer[6]));
+                if (virtualInputBuffer[5] > 30 && virtualInputBuffer[6] > 30) {
+                    ++virtualSimultaneousTriggerReports;
+                }
                 virtualMinimumRightStickX =
                     (std::min)(virtualMinimumRightStickX, virtualInputBuffer[3]);
                 virtualMaximumRightStickX =
@@ -1381,6 +1396,14 @@ int commandBridgeTriggers(int argc, char** argv) {
                       << "  \"keepalive_reports\": " << keepaliveInputReports << ",\n"
                       << "  \"lost_reports\": " << lostInputReports << ",\n"
                       << "  \"coalesced_reports\": " << coalescedInputReports << ",\n"
+                      << "  \"maximum_simultaneous_triggers\": "
+                      << static_cast<unsigned>(maximumSimultaneousTriggers) << ",\n"
+                      << "  \"simultaneous_trigger_reports\": "
+                      << simultaneousTriggerReports << ",\n"
+                      << "  \"virtual_maximum_simultaneous_triggers\": "
+                      << static_cast<unsigned>(virtualMaximumSimultaneousTriggers) << ",\n"
+                      << "  \"virtual_simultaneous_trigger_reports\": "
+                      << virtualSimultaneousTriggerReports << ",\n"
                       << "  \"battery_percent\": "
                       << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent) << ",\n"
                       << "  \"charge_state\": "
@@ -1503,6 +1526,10 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(seenDpad) << std::dec << '\n'
               << "maximum_l2=" << static_cast<unsigned>(maximumL2) << '\n'
               << "maximum_r2=" << static_cast<unsigned>(maximumR2) << '\n'
+              << "maximum_simultaneous_triggers="
+              << static_cast<unsigned>(maximumSimultaneousTriggers) << '\n'
+              << "simultaneous_trigger_reports="
+              << simultaneousTriggerReports << '\n'
               << "right_stick_x_range="
               << static_cast<unsigned>(minimumRightStickX)
               << ',' << static_cast<unsigned>(maximumRightStickX) << '\n'
@@ -1532,6 +1559,10 @@ int commandBridgeTriggers(int argc, char** argv) {
               << virtualSeenDpadHats << std::dec << '\n'
               << "virtual_maximum_l2=" << static_cast<unsigned>(virtualMaximumL2) << '\n'
               << "virtual_maximum_r2=" << static_cast<unsigned>(virtualMaximumR2) << '\n'
+              << "virtual_maximum_simultaneous_triggers="
+              << static_cast<unsigned>(virtualMaximumSimultaneousTriggers) << '\n'
+              << "virtual_simultaneous_trigger_reports="
+              << virtualSimultaneousTriggerReports << '\n'
               << "virtual_right_stick_x_range="
               << (virtualInputReports == 0
                       ? 0 : static_cast<unsigned>(virtualMinimumRightStickX))
@@ -1551,6 +1582,12 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_waveform_blocks=" << apex6Stats.waveformBlocks << '\n'
               << "apex6_waveform_rendered=" << apex6Stats.waveformBlocksRendered << '\n'
               << "apex6_waveform_dropped=" << apex6Stats.waveformBlocksDropped << '\n'
+              << "apex6_waveform_queue_max_depth=" << apex6Stats.waveformQueueMaxDepth << '\n'
+              << "apex6_waveform_sequence_gaps=" << apex6Stats.waveformSequenceGaps << '\n'
+              << "apex6_waveform_duplicates=" << apex6Stats.waveformDuplicates << '\n'
+              << "apex6_waveform_out_of_order=" << apex6Stats.waveformOutOfOrder << '\n'
+              << "apex6_waveform_underruns=" << apex6Stats.waveformUnderruns << '\n'
+              << "apex6_waveform_overflow_drops=" << apex6Stats.waveformOverflowDrops << '\n'
               << "apex6_deadline_overruns=" << apex6Stats.deadlineOverruns << '\n'
               << "apex6_write_failures=" << apex6Stats.writeFailures << '\n'
               << "apex6_average_write_us="

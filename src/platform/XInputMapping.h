@@ -40,9 +40,9 @@ void mapCombinedTriggerAxis(std::uint16_t combined,
                             std::uint8_t& leftTrigger,
                             std::uint8_t& rightTrigger) noexcept;
 
-// Replaces only the two trigger axes and their digital threshold bits. Apex 6
-// uses this to retain its event-driven HID state while sourcing LT/RT from the
-// independent XInput bytes that can represent both triggers simultaneously.
+// Replaces only the two trigger axes and their digital threshold bits. The
+// APEX 5 and APEX 6 paths use this to retain their event-driven HID state while
+// sourcing LT/RT from independent XInput bytes that represent both at once.
 void mergeIndependentTriggers(std::uint8_t leftTrigger,
                               std::uint8_t rightTrigger,
                               dualsense::DualSenseInputState& state) noexcept;

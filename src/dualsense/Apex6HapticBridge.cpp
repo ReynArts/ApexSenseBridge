@@ -82,6 +82,19 @@ bool anyNonZero(const std::array<std::int8_t, 8>& samples) noexcept {
                        [](std::int8_t sample) { return sample != 0; });
 }
 
+bool sequenceIsAfter(std::uint32_t candidate, std::uint32_t previous) noexcept {
+    const auto delta = candidate - previous;
+    return delta != 0 && delta < 0x80000000U;
+}
+
+void updateMaximum(std::atomic_uint64_t& target, std::uint64_t value) noexcept {
+    auto current = target.load(std::memory_order_relaxed);
+    while (value > current &&
+           !target.compare_exchange_weak(
+               current, value, std::memory_order_relaxed)) {
+    }
+}
+
 std::optional<ForceTriggerCommand> translateApex6Trigger(
     TriggerSide side,
     const std::array<std::uint8_t, 11>& effect,
@@ -168,7 +181,9 @@ bool Apex6HapticBridge::stop(std::string& error) noexcept {
     {
         std::lock_guard lock(stateMutex_);
         started_ = false;
-        latestWaveform_.reset();
+        waveformQueue_.clear();
+        lastWaveformSequence_.reset();
+        lastWaveformAt_ = {};
     }
     std::string disableError;
     const bool disabled = device_.disableApex6Haptics(disableError);
@@ -184,14 +199,37 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
     std::lock_guard lock(stateMutex_);
     if (feedback.kind == FeedbackKind::AudioHapticWaveform) {
         if (!routeGrips_) return;
+        waveformBlocks_.fetch_add(1, std::memory_order_relaxed);
         WaveformBlock block{feedback.audioSequence,
                             feedback.leftHapticSamples,
                             feedback.rightHapticSamples};
-        if (latestWaveform_) {
+        if (lastWaveformSequence_) {
+            const auto delta = block.sequence - *lastWaveformSequence_;
+            if (delta == 0) {
+                waveformDuplicates_.fetch_add(1, std::memory_order_relaxed);
+                waveformBlocksDropped_.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
+            if (!sequenceIsAfter(block.sequence, *lastWaveformSequence_)) {
+                waveformOutOfOrder_.fetch_add(1, std::memory_order_relaxed);
+                waveformBlocksDropped_.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
+            if (delta > 1) {
+                waveformSequenceGaps_.fetch_add(
+                    static_cast<std::uint64_t>(delta - 1),
+                    std::memory_order_relaxed);
+            }
+        }
+        lastWaveformSequence_ = block.sequence;
+        lastWaveformAt_ = Clock::now();
+        if (waveformQueue_.size() == kWaveformQueueCapacity) {
+            waveformQueue_.pop_front();
+            waveformOverflowDrops_.fetch_add(1, std::memory_order_relaxed);
             waveformBlocksDropped_.fetch_add(1, std::memory_order_relaxed);
         }
-        latestWaveform_ = std::move(block);
-        waveformBlocks_.fetch_add(1, std::memory_order_relaxed);
+        waveformQueue_.push_back(std::move(block));
+        updateMaximum(waveformQueueMaxDepth_, waveformQueue_.size());
         return;
     }
     if (feedback.kind == FeedbackKind::AudioHaptics) {
@@ -311,10 +349,13 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
     bool diagnosticGripCarrier = false;
     {
         std::lock_guard lock(stateMutex_);
-        if (latestWaveform_) {
-            waveform = std::move(latestWaveform_);
-            latestWaveform_.reset();
+        if (!waveformQueue_.empty()) {
+            waveform = std::move(waveformQueue_.front());
+            waveformQueue_.pop_front();
             waveformBlocksRendered_.fetch_add(1, std::memory_order_relaxed);
+        } else if (lastWaveformAt_.time_since_epoch().count() != 0 &&
+                   now - lastWaveformAt_ < kAudioEnvelopeTimeout) {
+            waveformUnderruns_.fetch_add(1, std::memory_order_relaxed);
         }
         if (lastAudioEnvelopeAt_.time_since_epoch().count() != 0 &&
             now - lastAudioEnvelopeAt_ < kAudioEnvelopeTimeout) {
@@ -397,11 +438,7 @@ void Apex6HapticBridge::run() noexcept {
             std::chrono::duration_cast<std::chrono::microseconds>(
                 Clock::now() - writeStartedAt).count());
         totalWriteDurationUs_.fetch_add(writeDurationUs, std::memory_order_relaxed);
-        auto maximumWriteUs = maximumWriteDurationUs_.load(std::memory_order_relaxed);
-        while (writeDurationUs > maximumWriteUs &&
-               !maximumWriteDurationUs_.compare_exchange_weak(
-                   maximumWriteUs, writeDurationUs, std::memory_order_relaxed)) {
-        }
+        updateMaximum(maximumWriteDurationUs_, writeDurationUs);
         framesWritten_.fetch_add(1, std::memory_order_relaxed);
 
         bool usedHighResolutionTimer = false;
@@ -441,17 +478,38 @@ std::string Apex6HapticBridge::error() const {
 }
 
 Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
-    return {framesWritten_.load(std::memory_order_relaxed),
-            waveformBlocks_.load(std::memory_order_relaxed),
-            waveformBlocksRendered_.load(std::memory_order_relaxed),
-            waveformBlocksDropped_.load(std::memory_order_relaxed),
-            deadlineOverruns_.load(std::memory_order_relaxed),
-            writeFailures_.load(std::memory_order_relaxed),
-            totalWriteDurationUs_.load(std::memory_order_relaxed),
-            maximumWriteDurationUs_.load(std::memory_order_relaxed),
-            leftTriggerFrames_.load(std::memory_order_relaxed),
-            rightTriggerFrames_.load(std::memory_order_relaxed),
-            bothTriggerFrames_.load(std::memory_order_relaxed)};
+    Apex6HapticBridgeStats result{};
+    result.framesWritten = framesWritten_.load(std::memory_order_relaxed);
+    result.waveformBlocks = waveformBlocks_.load(std::memory_order_relaxed);
+    result.waveformBlocksRendered =
+        waveformBlocksRendered_.load(std::memory_order_relaxed);
+    result.waveformBlocksDropped =
+        waveformBlocksDropped_.load(std::memory_order_relaxed);
+    result.waveformQueueMaxDepth =
+        waveformQueueMaxDepth_.load(std::memory_order_relaxed);
+    result.waveformSequenceGaps =
+        waveformSequenceGaps_.load(std::memory_order_relaxed);
+    result.waveformDuplicates =
+        waveformDuplicates_.load(std::memory_order_relaxed);
+    result.waveformOutOfOrder =
+        waveformOutOfOrder_.load(std::memory_order_relaxed);
+    result.waveformUnderruns =
+        waveformUnderruns_.load(std::memory_order_relaxed);
+    result.waveformOverflowDrops =
+        waveformOverflowDrops_.load(std::memory_order_relaxed);
+    result.deadlineOverruns = deadlineOverruns_.load(std::memory_order_relaxed);
+    result.writeFailures = writeFailures_.load(std::memory_order_relaxed);
+    result.totalWriteDurationUs =
+        totalWriteDurationUs_.load(std::memory_order_relaxed);
+    result.maximumWriteDurationUs =
+        maximumWriteDurationUs_.load(std::memory_order_relaxed);
+    result.leftTriggerFrames =
+        leftTriggerFrames_.load(std::memory_order_relaxed);
+    result.rightTriggerFrames =
+        rightTriggerFrames_.load(std::memory_order_relaxed);
+    result.bothTriggerFrames =
+        bothTriggerFrames_.load(std::memory_order_relaxed);
+    return result;
 }
 
 } // namespace asb::dualsense

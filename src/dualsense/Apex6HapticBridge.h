@@ -10,7 +10,9 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -23,6 +25,12 @@ struct Apex6HapticBridgeStats {
     std::uint64_t waveformBlocks = 0;
     std::uint64_t waveformBlocksRendered = 0;
     std::uint64_t waveformBlocksDropped = 0;
+    std::uint64_t waveformQueueMaxDepth = 0;
+    std::uint64_t waveformSequenceGaps = 0;
+    std::uint64_t waveformDuplicates = 0;
+    std::uint64_t waveformOutOfOrder = 0;
+    std::uint64_t waveformUnderruns = 0;
+    std::uint64_t waveformOverflowDrops = 0;
     std::uint64_t deadlineOverruns = 0;
     std::uint64_t writeFailures = 0;
     std::uint64_t totalWriteDurationUs = 0;
@@ -62,6 +70,8 @@ private:
         std::array<std::int16_t, 8> right{};
     };
 
+    static constexpr std::size_t kWaveformQueueCapacity = 3;
+
     void run() noexcept;
     flydigi::apex6::MotorBlock renderBlock(
         flydigi::apex6::TriggerRoute& route,
@@ -82,7 +92,9 @@ private:
     bool stopping_ = false;
     bool started_ = false;
 
-    std::optional<WaveformBlock> latestWaveform_;
+    std::deque<WaveformBlock> waveformQueue_;
+    std::optional<std::uint32_t> lastWaveformSequence_;
+    Clock::time_point lastWaveformAt_{};
     haptics::MotorLevels audioEnvelope_{};
     Clock::time_point lastAudioEnvelopeAt_{};
     std::uint8_t rumbleLow_ = 0;
@@ -105,6 +117,12 @@ private:
     std::atomic_uint64_t waveformBlocks_{0};
     std::atomic_uint64_t waveformBlocksRendered_{0};
     std::atomic_uint64_t waveformBlocksDropped_{0};
+    std::atomic_uint64_t waveformQueueMaxDepth_{0};
+    std::atomic_uint64_t waveformSequenceGaps_{0};
+    std::atomic_uint64_t waveformDuplicates_{0};
+    std::atomic_uint64_t waveformOutOfOrder_{0};
+    std::atomic_uint64_t waveformUnderruns_{0};
+    std::atomic_uint64_t waveformOverflowDrops_{0};
     std::atomic_uint64_t deadlineOverruns_{0};
     std::atomic_uint64_t writeFailures_{0};
     std::atomic_uint64_t totalWriteDurationUs_{0};

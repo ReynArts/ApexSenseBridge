@@ -236,15 +236,20 @@ int main() {
     auto mergedVendorState = *decodedApex5Custom;
     dualsense::DualSenseInputState mappedHidState{};
     mappedHidState.lx = 200;
+    mappedHidState.l2 = 90;
     mappedHidState.r2 = 91;
     mappedHidState.dpad = 0x04;
-    mappedHidState.buttons = dualsense::button::kCircle;
+    mappedHidState.buttons = dualsense::button::kCircle |
+                             dualsense::button::kL2 |
+                             dualsense::button::kR2;
     mergeApex5MappedControls(mergedVendorState, mappedHidState);
     assert(mergedVendorState.lx == 200);
+    assert(mergedVendorState.l2 == 90);
     assert(mergedVendorState.r2 == 91);
     assert(mergedVendorState.dpad == 0x04);
     assert(mergedVendorState.buttons ==
-           (dualsense::button::kCircle | dualsense::button::kPs));
+           (dualsense::button::kCircle | dualsense::button::kL2 |
+            dualsense::button::kR2 | dualsense::button::kPs));
     assert(mergedVendorState.gyroX == decodedApex5Custom->gyroX);
     assert(mergedVendorState.batteryPercent == 80);
 
@@ -268,6 +273,7 @@ int main() {
     const auto mappedOnlyState = composeApex5InputState(
         mappedHidState, std::nullopt, 67, 1);
     assert(mappedOnlyState.lx == mappedHidState.lx);
+    assert(mappedOnlyState.l2 == mappedHidState.l2);
     assert(mappedOnlyState.r2 == mappedHidState.r2);
     assert(mappedOnlyState.buttons == mappedHidState.buttons);
     assert(mappedOnlyState.gyroX == 0);
@@ -277,6 +283,7 @@ int main() {
     const auto composedState = composeApex5InputState(
         mappedHidState, decodedApex5Custom, 74, 2);
     assert(composedState.lx == mappedHidState.lx);
+    assert(composedState.l2 == mappedHidState.l2);
     assert(composedState.r2 == mappedHidState.r2);
     assert(composedState.buttons ==
            (mappedHidState.buttons | dualsense::button::kPs));
