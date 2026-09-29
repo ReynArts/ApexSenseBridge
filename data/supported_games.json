@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-28T10:39:15.555504+00:00",
-  "totalGames": 213,
-  "discordExecutableGames": 127,
+  "updatedAt": "2026-09-29T10:26:54.382052+00:00",
+  "totalGames": 214,
+  "discordExecutableGames": 130,
   "games": [
     {
       "title": "007 First Light",
@@ -271,9 +271,7 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
       "executables": [
-        "cod.exe",
-        "cod26-cod.exe",
-        "sp26-cod.exe"
+        "cod.exe"
       ]
     },
     {
@@ -321,7 +319,11 @@
       "profile": "standard",
       "steamAppId": 4435490,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4435490/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4435490/library_600x900.jpg",
+      "executables": [
+        "cod26-cod.exe",
+        "sp26-cod.exe"
+      ]
     },
     {
       "title": "Call of Duty: Modern Warfare 4 Beta",
@@ -393,7 +395,11 @@
       "profile": "standard",
       "steamAppId": 1551980,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1551980/library_600x900.jpg"
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1551980/library_600x900.jpg",
+      "executables": [
+        "hellraiser-win64-shipping.exe",
+        "hellraiser.exe"
+      ]
     },
     {
       "title": "Cloudheim",
@@ -1464,6 +1470,19 @@
       "steamAppId": 0,
       "steamAppIdVerified": false,
       "iconUrl": ""
+    },
+    {
+      "title": "Microsoft Flight Simulator 2024",
+      "normalized": "microsoftflightsimulator2024",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 2537590,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2537590/library_600x900.jpg",
+      "executables": [
+        "flightsimulator2024.exe"
+      ]
     },
     {
       "title": "MindsEye",
