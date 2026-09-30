@@ -11,7 +11,9 @@ namespace ApexSenseBridge.Common
             bool enableRumble,
             int hapticThresholdPercent,
             bool syncLightbar,
-            int apexProfileSlot)
+            int apexProfileSlot,
+            int triggerStrengthPercent = 100,
+            int vibrationStrengthPercent = 100)
         {
             var arguments = new List<string>
             {
@@ -19,6 +21,11 @@ namespace ApexSenseBridge.Common
                 "--touchpad-profile",
                 NormalizeTouchpadProfile(touchpadProfile)
             };
+
+            arguments.Add("--trigger-strength");
+            arguments.Add(Math.Max(0, Math.Min(100, triggerStrengthPercent)).ToString(CultureInfo.InvariantCulture));
+            arguments.Add("--vibration-strength");
+            arguments.Add(Math.Max(0, Math.Min(100, vibrationStrengthPercent)).ToString(CultureInfo.InvariantCulture));
 
             if (enableRumble)
             {

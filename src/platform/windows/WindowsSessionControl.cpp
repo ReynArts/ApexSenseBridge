@@ -27,19 +27,33 @@ public:
                           HANDLE stopEvent,
                           HANDLE statusMapping,
                           SessionStatusBlock* status,
-                          HANDLE ownerProcess) noexcept
+                          HANDLE ownerProcess,
+                          HANDLE progressMapping,
+                          SessionProgressBlock* progress) noexcept
         : readyEvent_(readyEvent),
           stopEvent_(stopEvent),
           statusMapping_(statusMapping),
           status_(status),
-          ownerProcess_(ownerProcess) {}
+          ownerProcess_(ownerProcess), progressMapping_(progressMapping), progress_(progress) {
+        if (progress_) *progress_ = SessionProgressBlock{};
+    }
 
     ~WindowsSessionControl() override {
+        if (progress_) UnmapViewOfFile(progress_);
+        if (progressMapping_) CloseHandle(progressMapping_);
         if (ownerProcess_) CloseHandle(ownerProcess_);
         if (status_) UnmapViewOfFile(status_);
         if (statusMapping_) CloseHandle(statusMapping_);
         if (stopEvent_) CloseHandle(stopEvent_);
         if (readyEvent_) CloseHandle(readyEvent_);
+    }
+
+    void markProgress(SessionProgress stage) noexcept override {
+        if (progress_) InterlockedOr(reinterpret_cast<volatile LONG*>(&progress_->stages), static_cast<LONG>(stage));
+    }
+
+    void markInterrupted(SessionInterruption cause) noexcept override {
+        if (progress_) InterlockedExchange(reinterpret_cast<volatile LONG*>(&progress_->interruption), static_cast<LONG>(cause));
     }
 
     bool publish(SessionPhase phase,
@@ -88,6 +102,8 @@ private:
     HANDLE statusMapping_ = nullptr;
     SessionStatusBlock* status_ = nullptr;
     HANDLE ownerProcess_ = nullptr;
+    HANDLE progressMapping_ = nullptr;
+    SessionProgressBlock* progress_ = nullptr;
 };
 
 constexpr wchar_t kGlobalStopEventName[] =
@@ -294,7 +310,7 @@ std::unique_ptr<SessionControl> connectSessionControl(
     HANDLE ownerProcess = nullptr;
     if (ownerProcessId) {
         if (*ownerProcessId == 0) {
-            error = "The Playnite session owner PID must be non-zero.";
+            error = "The bridge session owner PID must be non-zero.";
             UnmapViewOfFile(status);
             CloseHandle(statusMapping);
             CloseHandle(stopEvent);
@@ -304,7 +320,7 @@ std::unique_ptr<SessionControl> connectSessionControl(
         ownerProcess = OpenProcess(SYNCHRONIZE, FALSE, *ownerProcessId);
         if (!ownerProcess) {
             error = windowsError(
-                "Opening the Playnite session owner process", GetLastError());
+                "Opening the bridge session owner process", GetLastError());
             UnmapViewOfFile(status);
             CloseHandle(statusMapping);
             CloseHandle(stopEvent);
@@ -313,8 +329,13 @@ std::unique_ptr<SessionControl> connectSessionControl(
         }
     }
 
+    const auto progressName = widenAscii("Local\\ApexSenseBridge.Session." + std::string(token) + ".Progress");
+    HANDLE progressMapping = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, progressName.c_str());
+    auto* progress = progressMapping ? static_cast<SessionProgressBlock*>(MapViewOfFile(
+        progressMapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(SessionProgressBlock))) : nullptr;
+    if (progressMapping && !progress) { CloseHandle(progressMapping); progressMapping = nullptr; }
     return std::make_unique<WindowsSessionControl>(
-        readyEvent, stopEvent, statusMapping, status, ownerProcess);
+        readyEvent, stopEvent, statusMapping, status, ownerProcess, progressMapping, progress);
 }
 
 } // namespace asb::platform

@@ -44,18 +44,38 @@ void testNativeTriggerEffects() {
     bytes[0] = 0x26;
     bytes[1] = 1U << 3U;
     bytes[3] = bytes[4] = 0;
-    bytes[10] = 180;
+    bytes[9] = 180;
+    bytes[10] = 7;
     const auto vibration = decodeApex6TriggerEffect(asb::TriggerSide::Right, bytes, 0);
     assert(vibration && vibration->frequency == 180);
     Apex6TriggerRenderState vibrationState{};
     // A high requested frequency must never become high motor amplitude.
     assert(peak(renderApex6TriggerEffect(*vibration, 90, vibrationState)) <= 10);
-    bytes[10] = 0;
+    bytes[9] = 0;
     const auto silentVibration = decodeApex6TriggerEffect(
         asb::TriggerSide::Right, bytes, 0);
     assert(silentVibration);
     Apex6TriggerRenderState silentState{};
     assert(peak(renderApex6TriggerEffect(*silentVibration, 90, silentState)) == 0);
+
+    const std::array<std::uint8_t, 11> referenceVibration{
+        0x26, 0xFF, 0x03, 0xFF, 0xFF, 0xFF, 0x3F, 0, 0, 150, 0};
+    const auto reference = decodeApex6TriggerEffect(
+        asb::TriggerSide::Left, referenceVibration, 0);
+    assert(reference && reference->frequency == 150);
+    assert(reference->zoneStrengths[0] == 8 && reference->zoneStrengths[9] == 8);
+    Apex6TriggerRenderState referenceState{};
+    assert(peak(renderApex6TriggerEffect(*reference, 255, referenceState)) > 60);
+    for (const auto type : {0x21, 0x25, 0x26}) {
+        std::array<std::uint8_t, 11> empty{};
+        empty[0] = static_cast<std::uint8_t>(type);
+        empty[9] = 150;
+        Apex6TriggerDecodeError error{};
+        const auto decoded = decodeApex6TriggerEffect(
+            asb::TriggerSide::Left, empty, 0, &error);
+        assert(decoded && decoded->type == Apex6TriggerType::Off);
+        assert(error == Apex6TriggerDecodeError::None);
+    }
 
     bytes = {};
     bytes[0] = 0x25;
@@ -81,7 +101,12 @@ void testNativeTriggerEffects() {
            Apex6TriggerType::Off);
     bytes[0] = 0x25;
     bytes[2] = 0x80;
-    assert(!decodeApex6TriggerEffect(asb::TriggerSide::Right, bytes, 0));
+    Apex6TriggerDecodeError error{};
+    assert(!decodeApex6TriggerEffect(asb::TriggerSide::Right, bytes, 0, &error));
+    assert(error == Apex6TriggerDecodeError::InvalidParameters);
+    bytes[0] = 0x7F;
+    assert(!decodeApex6TriggerEffect(asb::TriggerSide::Right, bytes, 0, &error));
+    assert(error == Apex6TriggerDecodeError::UnsupportedType);
 }
 
 class FakeApex6Transport final : public asb::platform::HidTransport {
@@ -137,11 +162,166 @@ public:
 
 } // namespace
 
+void testTriggerDiagnostics() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    bridge.updateTriggerPositions(200, 200);
+    DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x08;
+    feedback.leftTriggerEffect = {0x26, 0xFF, 0x03, 0, 0, 0, 0, 0, 0, 90, 0};
+    bridge.handle(feedback);
+    feedback.leftTriggerEffect[2] = 0x80;
+    bridge.handle(feedback);
+    bridge.handle(feedback);
+    feedback.leftTriggerEffect[0] = 0x22;
+    bridge.handle(feedback);
+    auto stats = bridge.stats();
+    assert(stats.triggerUnsupported == 3 && stats.triggerMalformed == 2);
+    assert(stats.triggerRejectedStops == 1 && stats.triggerStops == 0);
+    assert(stats.triggerTraceCount == 3);
+    assert(stats.lastActiveLeft && stats.lastActiveLeft->bytes[9] == 90);
+    assert(stats.lastRejectedLeft && stats.lastRejectedLeft->bytes[0] == 0x22);
+    assert(stats.triggerTrace[1].status == Apex6TriggerTraceStatus::Malformed);
+    assert(stats.triggerTrace[1].position == 200);
+
+    feedback.leftTriggerEffect = {0x26, 0xFF, 0x03, 0, 0, 0, 0, 0, 0, 1, 0};
+    for (unsigned frequency = 1; frequency <= 70; ++frequency) {
+        feedback.leftTriggerEffect[9] = static_cast<std::uint8_t>(frequency);
+        bridge.handle(feedback);
+    }
+    feedback.leftTriggerEffect = {0x26};
+    bridge.handle(feedback);
+    stats = bridge.stats();
+    assert(stats.triggerTraceCount == 64 && stats.triggerTraceOverwritten == 10);
+    assert(stats.triggerTrace[63].status == Apex6TriggerTraceStatus::Off);
+    assert(stats.lastActiveLeft->bytes[9] == 70);
+    assert(stats.lastRejectedLeft->bytes[0] == 0x22);
+    assert(stats.triggerUnsupported == 3 && stats.triggerStops == 1);
+
+    DualSenseFeedback audio{};
+    audio.kind = FeedbackKind::AudioHapticWaveform;
+    audio.audioSequence = 1;
+    audio.leftHapticSamples.fill(4000);
+    audio.rightHapticSamples.fill(-8000);
+    bridge.handle(audio);
+    audio.audioSequence = 2;
+    audio.leftHapticSamples.fill(0);
+    audio.rightHapticSamples.fill(0);
+    bridge.handle(audio);
+    stats = bridge.stats();
+    assert(stats.waveformSilentBlocks == 1);
+    assert(stats.waveformLeftActiveRms == 4000.0);
+    assert(stats.waveformRightActiveRms == 8000.0);
+    assert(stats.waveformLeftThresholded == 0 && stats.waveformRightThresholded == 0);
+    assert(stats.rawAudioMeasuredBlocks == 0 && stats.rawAudioFrames == 0);
+    audio.audioSequence = 3;
+    audio.hasRawAudioMeasurements = true;
+    audio.rawAudioFrames = 384;
+    audio.rawAudioPeaks = {1234, 5678, 10000, 32768};
+    audio.rawHapticLeftSumSquares = 384ULL * 10000 * 10000;
+    audio.rawHapticRightSumSquares = 384ULL * 32768 * 32768;
+    bridge.handle(audio);
+    stats = bridge.stats();
+    assert(stats.rawAudioMeasuredBlocks == 1 && stats.rawAudioFrames == 384);
+    assert(stats.rawAudioPeaks[0] == 1234 && stats.rawAudioPeaks[3] == 32768);
+    assert(stats.rawHapticLeftRms == 10000.0 && stats.rawHapticRightRms == 32768.0);
+    assert(stats.waveformSilentBlocks == 2);
+}
+
+void testStrength(unsigned strength, double threshold) {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    asb::haptics::HapticConfig config{};
+    config.activationThreshold = threshold;
+    Apex6HapticBridge bridge(device, config, true, strength, strength);
+    bridge.updateTriggerPositions(200, 200);
+    assert(bridge.start(error));
+    DualSenseFeedback trigger{};
+    trigger.enableBits1 = 0x0C;
+    trigger.leftTriggerEffect = {1, 0, 100};
+    trigger.rightTriggerEffect = trigger.leftTriggerEffect;
+    bridge.handle(trigger);
+    DualSenseFeedback waveform{};
+    waveform.kind = FeedbackKind::AudioHapticWaveform;
+    waveform.leftHapticSamples.fill(30000);
+    waveform.rightHapticSamples.fill(-30000);
+    for (unsigned sequence = 1; sequence <= 4; ++sequence) {
+        waveform.audioSequence = sequence;
+        bridge.handle(waveform);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(bridge.stop(error));
+    int maximumGrip = 0;
+    int maximumTrigger = 0;
+    for (const auto& report : transport->writes) {
+        if (report[3] != apex6::kCmdRealtimeMotor) continue;
+        for (std::size_t sample = 0; sample < 8; ++sample) {
+            maximumGrip = (std::max)(maximumGrip, std::abs(int(report[7 + sample * 3]) - 128));
+            maximumGrip = (std::max)(maximumGrip, std::abs(int(report[8 + sample * 3]) - 128));
+            maximumTrigger = (std::max)(maximumTrigger, std::abs(int(report[6 + sample * 3]) - 128));
+        }
+    }
+    if (strength == 0 || threshold > 0.92) assert(maximumGrip == 0);
+    else assert(maximumGrip == (30000 * 127 / 32767) * int(strength) / 100);
+    if (strength == 0) assert(maximumTrigger == 0);
+    else assert(maximumTrigger > 0 && maximumTrigger <= int(strength));
+    const auto stats = bridge.stats();
+    if (strength == 0 || threshold > 0.92) assert(stats.waveformActiveRendered == 0);
+    else assert(stats.waveformActiveRendered > 0);
+    if (threshold > 0.92) {
+        assert(stats.waveformLeftThresholded == 4 && stats.waveformRightThresholded == 4);
+    }
+}
+
+void testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    asb::haptics::HapticConfig config{};
+    config.activationThreshold = 0;
+    Apex6HapticBridge bridge(device, config, true);
+    assert(bridge.start(error));
+    DualSenseFeedback rumble{};
+    rumble.enableBits1 = 0x01;
+    rumble.rumbleRight = 100;
+    bridge.handle(rumble);
+    DualSenseFeedback waveform{};
+    waveform.kind = FeedbackKind::AudioHapticWaveform;
+    waveform.leftHapticSamples.fill(1); // Nonzero, but below 8-bit output resolution.
+    for (unsigned sequence = 1; sequence <= 4; ++sequence) {
+        waveform.audioSequence = sequence;
+        bridge.handle(waveform);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(bridge.stop(error));
+    const auto stats = bridge.stats();
+    assert(stats.waveformLeftActiveBlocks == 4 && stats.waveformActiveRendered == 0);
+    assert(stats.gripRumbleFrames != 0);
+}
+
 int main() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
 
     testNativeTriggerEffects();
+    testTriggerDiagnostics();
+    testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm();
+    testStrength(100, 0.0);
+    testStrength(50, 0.0);
+    testStrength(0, 0.0);
+    testStrength(100, 0.95);
 
     auto* transport = new FakeApex6Transport();
     Apex5Device device{TransportPtr(transport)};
@@ -195,11 +375,11 @@ int main() {
     both.leftTriggerEffect[0] = both.rightTriggerEffect[0] = 0x26;
     both.leftTriggerEffect[1] = both.rightTriggerEffect[1] = 0xFC;
     both.leftTriggerEffect[2] = both.rightTriggerEffect[2] = 0x03;
-    both.leftTriggerEffect[10] = both.rightTriggerEffect[10] = 90;
+    both.leftTriggerEffect[9] = both.rightTriggerEffect[9] = 90;
     bridge.handle(both);
     std::this_thread::sleep_for(std::chrono::milliseconds(24));
     both.enableBits1 = 0x04;
-    both.rightTriggerEffect[10] = 140;
+    both.rightTriggerEffect[9] = 140;
     bridge.handle(both);
     std::this_thread::sleep_for(std::chrono::milliseconds(40));
     assert(bridge.stop(error));

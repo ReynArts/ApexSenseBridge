@@ -346,6 +346,26 @@ int main() {
         assert((restoreLatchValues == std::vector<std::uint8_t>{1, 0}));
     }
 
+    {
+        auto* scaledTransport = new FakeTransport();
+        asb::flydigi::Apex5Device scaledDevice{asb::flydigi::TransportPtr(scaledTransport)};
+        assert(scaledDevice.verifyIdentity(error));
+        RumbleBridge scaled(scaledDevice, {}, 50);
+        DualSenseFeedback rumble{};
+        rumble.enableBits1 = 0x01;
+        rumble.rumbleLeft = 200;
+        rumble.rumbleRight = 100;
+        scaled.handle(rumble);
+        assert(scaledTransport->writes.back()[5] == 100 && scaledTransport->writes.back()[6] == 50);
+        rumble.kind = FeedbackKind::AudioHaptics;
+        rumble.leftEnergy = rumble.rightEnergy = 30000;
+        rumble.leftPeak = rumble.rightPeak = 32000;
+        scaled.handle(rumble);
+        assert(scaled.stats().lastLowFrequency <= 127 && scaled.stats().lastHighFrequency <= 127);
+        RumbleBridge disabled(scaledDevice, {}, 0);
+        disabled.handle(rumble);
+        assert(disabled.stats().lastLowFrequency == 0 && disabled.stats().lastHighFrequency == 0);
+    }
     transport->failWrites = true;
     feedback.rumbleLeft = 1;
     bridge.handle(feedback);

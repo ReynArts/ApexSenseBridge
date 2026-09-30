@@ -2,8 +2,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 
-[assembly: AssemblyTitle("ApexSenseBridge Tray")]
-[assembly: AssemblyDescription("Standalone DualSense Bridge Auto-Detector for Flydigi APEX 4 and APEX 5")]
+[assembly: AssemblyTitle("ApexSenseBridge — Main application (Tray)")]
+[assembly: AssemblyDescription("Main application: game detection, controller settings and diagnostics for Flydigi APEX 4/5/6")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("ReynArts")]
 [assembly: AssemblyProduct("ApexSenseBridge")]

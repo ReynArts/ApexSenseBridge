@@ -34,16 +34,19 @@ std::int8_t sample(double& phase, double frequency,
 
 std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
     TriggerSide side, const std::array<std::uint8_t, 11>& bytes,
-    std::uint8_t fallbackMotor) noexcept {
+    std::uint8_t fallbackMotor, Apex6TriggerDecodeError* error) noexcept {
+    if (error) *error = Apex6TriggerDecodeError::None;
     Apex6TriggerEffect result{};
     if (bytes[0] == 0 || bytes[0] == 0x05) return result;
 
     if (bytes[0] == 0x21 || bytes[0] == 0x26 || bytes[0] == 0x25) {
         const auto mask = static_cast<std::uint16_t>(bytes[1]) |
                           (static_cast<std::uint16_t>(bytes[2]) << 8U);
-        if ((mask & ~std::uint16_t{0x03FF}) != 0 || mask == 0) {
+        if ((mask & ~std::uint16_t{0x03FF}) != 0) {
+            if (error) *error = Apex6TriggerDecodeError::InvalidParameters;
             return std::nullopt;
         }
+        if (mask == 0 || (bytes[0] == 0x26 && bytes[9] == 0)) return result;
         auto first = 10U;
         auto last = 0U;
         auto active = 0U;
@@ -56,7 +59,10 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
         result.startZone = static_cast<std::uint8_t>(first);
         result.endZone = static_cast<std::uint8_t>(last);
         if (bytes[0] == 0x25) {
-            if (active != 2 || first >= last) return std::nullopt;
+            if (active != 2 || first >= last) {
+                if (error) *error = Apex6TriggerDecodeError::InvalidParameters;
+                return std::nullopt;
+            }
             result.type = Apex6TriggerType::Weapon;
             result.strength = static_cast<std::uint8_t>((bytes[3] & 0x07U) + 1U);
             return result;
@@ -74,12 +80,15 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
         }
         result.type = bytes[0] == 0x21
             ? Apex6TriggerType::Feedback : Apex6TriggerType::Vibration;
-        result.frequency = bytes[0] == 0x26 ? bytes[10] : 0;
+        result.frequency = bytes[0] == 0x26 ? bytes[9] : 0;
         return result;
     }
 
     const auto translated = translateAdaptiveTrigger(side, bytes, fallbackMotor);
-    if (!translated) return std::nullopt;
+    if (!translated) {
+        if (error) *error = Apex6TriggerDecodeError::UnsupportedType;
+        return std::nullopt;
+    }
     if (translated->mode == TriggerMode::Normal) return result;
     result.type = Apex6TriggerType::Legacy;
     result.legacy = *translated;

@@ -110,6 +110,10 @@ if(WIN32)
 
     # Support-only diagnostic: build explicitly with
     # --target Apex5IsolationProbe. Never include it in normal/release builds.
+    add_executable(Apex45TriggerCapture EXCLUDE_FROM_ALL
+        src/tools/Apex45TriggerCapture.cpp src/cli/JsonSupport.cpp)
+    target_link_libraries(Apex45TriggerCapture PRIVATE asb_core)
+
     add_executable(Apex5IsolationProbe EXCLUDE_FROM_ALL
         src/tools/Apex5IsolationProbe.cpp
         src/tools/Apex5IsolationProbe.rc
@@ -143,6 +147,9 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(ApexSenseBridgeTriggerPositionMarkersTests tests/test_trigger_position_markers.cpp)
+    target_include_directories(ApexSenseBridgeTriggerPositionMarkersTests PRIVATE src)
+    add_test(NAME trigger_position_markers COMMAND ApexSenseBridgeTriggerPositionMarkersTests)
     add_executable(ApexSenseBridgeTests
         tests/test_protocol.cpp
         src/flydigi/Apex4Input.cpp
@@ -231,6 +238,15 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeTriggerTranslationTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME adaptive_trigger_translation COMMAND ApexSenseBridgeTriggerTranslationTests)
+
+    add_executable(ApexSenseBridgeTriggerBridgeTests tests/test_adaptive_trigger_bridge.cpp)
+    target_link_libraries(ApexSenseBridgeTriggerBridgeTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeTriggerBridgeTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeTriggerBridgeTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME adaptive_trigger_bridge COMMAND ApexSenseBridgeTriggerBridgeTests)
 
     add_executable(ApexSenseBridgeRumbleTests tests/test_rumble_bridge.cpp)
     target_link_libraries(ApexSenseBridgeRumbleTests PRIVATE asb_core)
@@ -379,6 +395,9 @@ if(BUILD_TESTING)
              COMMAND ApexSenseBridgeAudioEndpointProtectionTests)
 
     if(WIN32)
+        add_test(NAME trigger_position_capture_analysis
+                 COMMAND powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_trigger_position_capture_analysis.ps1)
         add_executable(ApexSenseBridgeSessionControlWindowsTests
             tests/test_session_control.cpp
         )

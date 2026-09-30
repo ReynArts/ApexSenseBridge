@@ -16,6 +16,12 @@ enum class Apex6TriggerType : std::uint8_t {
     Legacy,
 };
 
+enum class Apex6TriggerDecodeError : std::uint8_t {
+    None,
+    UnsupportedType,
+    InvalidParameters,
+};
+
 struct Apex6TriggerEffect {
     Apex6TriggerType type = Apex6TriggerType::Off;
     std::array<std::uint8_t, 10> zoneStrengths{};
@@ -42,7 +48,8 @@ struct Apex6TriggerRenderState {
 // An empty optional means an unsupported or malformed command; Off is explicit.
 [[nodiscard]] std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
     TriggerSide side, const std::array<std::uint8_t, 11>& effect,
-    std::uint8_t fallbackMotor) noexcept;
+    std::uint8_t fallbackMotor,
+    Apex6TriggerDecodeError* error = nullptr) noexcept;
 
 [[nodiscard]] std::array<std::int8_t, 8> renderApex6TriggerEffect(
     const Apex6TriggerEffect& effect, std::uint8_t position,

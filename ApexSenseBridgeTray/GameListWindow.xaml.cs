@@ -1,6 +1,7 @@
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using ApexSenseBridgeTray.Services;
+using ApexSenseBridge.Common;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -40,6 +41,16 @@ namespace ApexSenseBridgeTray
         private readonly GamepadNavigationService gamepadNav;
         private int currentTabIndex = 0;
         private int selectedGameIndex = -1;
+        private bool updatingEffectSettings;
+        private bool updatingExecutables;
+        private bool preparedLaunchPending;
+        private readonly System.Windows.Threading.DispatcherTimer statusTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+
+        private sealed class ExecutableChoice
+        {
+            public string Path { get; set; }
+            public string Label { get; set; }
+        }
 
         public GameListWindow(
             CloudGameListService gameListService,
@@ -81,7 +92,7 @@ namespace ApexSenseBridgeTray
 
             if (learningService != null)
             {
-                learningService.StateChanged += () => Dispatcher.BeginInvoke(new Action(LoadLearnedItems));
+                learningService.StateChanged += () => Dispatcher.BeginInvoke(new Action(() => { LoadLearnedItems(); UpdateExecutableChoices(); }));
             }
 
             if (sessionManager != null)
@@ -105,6 +116,8 @@ namespace ApexSenseBridgeTray
             controllerDetection.StatusChanged += status => Dispatcher.BeginInvoke(
                 new Action(() => UpdateControllerStatus(status)));
             UpdateControllerStatus("disconnected");
+            statusTimer.Tick += (s, e) => UpdateDashboardStatus();
+            statusTimer.Start();
 
             if (string.Equals(initialTab, "games", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(initialTab, "certified", StringComparison.OrdinalIgnoreCase))
@@ -901,6 +914,7 @@ namespace ApexSenseBridgeTray
             bool isApex5 = string.Equals(status, "apex5", StringComparison.OrdinalIgnoreCase);
             bool isApex6 = string.Equals(status, "apex6", StringComparison.OrdinalIgnoreCase);
             bool isConnected = isApex4 || isApex5 || isApex6;
+            sessionManager?.UpdateRecoveryController(isConnected);
 
             string fullLabel;
             string shortLabel;
@@ -988,21 +1002,52 @@ namespace ApexSenseBridgeTray
 
         private void UpdateDashboardStatus()
         {
+            sessionManager?.UpdateRecoveryController(lastControllerStatus == "apex4" || lastControllerStatus == "apex5" || lastControllerStatus == "apex6");
+            var recovery = sessionManager != null ? sessionManager.Recovery : null;
+            UpdateRecoveryPanel(recovery);
             bool isActive = sessionManager != null && sessionManager.IsSessionActive;
+            var external = !isActive ? BridgeSession.ReadActiveSession() : null;
+            string phase = external != null ? external.Phase.ToString() : sessionManager != null ? sessionManager.StateName : "Stopped";
+            bool unknownExternal = !isActive && external == null && phase != "Starting" && phase != "Stopping" && sessionManager != null && sessionManager.HasExternalSession;
+            if (unknownExternal) phase = "External";
+            bool anyActive = isActive || external != null || unknownExternal;
             if (BadgeDashboardStatus != null)
             {
-                BadgeDashboardStatus.Background = (Brush)FindResource(isActive ? "BadgeActiveBg" : "BadgeStandbyBg");
+                BadgeDashboardStatus.Background = (Brush)FindResource(anyActive ? "BadgeActiveBg" : "BadgeStandbyBg");
             }
             if (TxtDashboardStatus != null)
             {
-                TxtDashboardStatus.Text = LocalizationManager.Get(isActive ? "Loc_StatusBadgeActive" : "Loc_StatusBadgeStandby");
-                TxtDashboardStatus.Foreground = (Brush)FindResource(isActive ? "BadgeActiveFg" : "BadgeStandbyFg");
+                TxtDashboardStatus.Text = LocalizationManager.Get(recovery != null && recovery.Pending && !recovery.Resuming && external == null
+                    ? "Loc_SessionInterrupted" : "Loc_Session" + phase);
+                TxtDashboardStatus.Foreground = (Brush)FindResource(anyActive ? "BadgeActiveFg" : "BadgeStandbyFg");
+            }
+
+            if (external != null && TxtDashboardGameTitle != null)
+                TxtDashboardGameTitle.Text = string.IsNullOrWhiteSpace(external.Game) ? LocalizationManager.Get("Loc_NotificationGame") : external.Game;
+            else if (phase == "Starting" || phase == "Failed")
+                TxtDashboardGameTitle.Text = sessionManager.ActiveGameTitle;
+            if (TxtDashboardHint != null)
+            {
+                string profile = external != null ? external.Profile : unknownExternal ? null : sessionManager != null ? sessionManager.ActiveProfile : null;
+                string selectedController = external != null ? external.Controller : unknownExternal ? null : sessionManager != null ? sessionManager.ActiveController : null;
+                string owner = external != null ? external.Owner : unknownExternal ? LocalizationManager.Get("Loc_ExternalOwner") : recovery != null && recovery.Pending ? recovery.Owner : (isActive || phase == "Starting") ? "Tray" : "—";
+                string reason = external != null ? (external.Phase == SessionPhase.Ready ? null : external.Message) : unknownExternal ? null : sessionManager != null ? sessionManager.LastReason : null;
+                TxtDashboardHint.Text = LocalizationManager.Format("Loc_SessionDetails", owner, string.IsNullOrWhiteSpace(profile) || profile == "none" ? "—" : profile,
+                    string.IsNullOrWhiteSpace(selectedController) ? "—" : selectedController);
+                if (!string.IsNullOrWhiteSpace(reason))
+                {
+                    string readable = reason.StartsWith("Loc_") ? LocalizationManager.Get(reason) : reason;
+                    if (reason.StartsWith("Temporary APEX isolation failed:", StringComparison.Ordinal))
+                        readable = LocalizationManager.Get("Loc_RefusedIsolation") + "\n" + reason;
+                    TxtDashboardHint.Text += "\n" + LocalizationManager.Get("Loc_SessionReason") + " " + readable;
+                }
+                TxtDashboardHint.Visibility = Visibility.Visible;
+                TxtDashboardHint.ToolTip = TxtDashboardHint.Text;
             }
 
             if (isActive && sessionManager != null)
             {
                 if (TxtDashboardGameTitle != null) TxtDashboardGameTitle.Text = sessionManager.ActiveGameTitle ?? LocalizationManager.Get("Loc_NotificationGame");
-                if (TxtDashboardHint != null) TxtDashboardHint.Text = LocalizationManager.Format("Loc_DashboardProfileHint", sessionManager.ActiveProfile ?? LocalizationManager.Get("Loc_ProfileStandard"));
 
                 var activeGame = allGameViewModels.FirstOrDefault(g => string.Equals(g.Title, sessionManager.ActiveGameTitle, StringComparison.OrdinalIgnoreCase));
                 if (activeGame != null && activeGame.HasCoverImage && ImgDashboardActiveCover != null)
@@ -1023,8 +1068,7 @@ namespace ApexSenseBridgeTray
             }
             else
             {
-                if (TxtDashboardGameTitle != null) TxtDashboardGameTitle.Text = LocalizationManager.Get("Loc_NoActiveGame");
-                if (TxtDashboardHint != null) TxtDashboardHint.Text = LocalizationManager.Get("Loc_WaitingHint");
+                if (TxtDashboardGameTitle != null && external == null && phase != "Starting" && phase != "Failed") TxtDashboardGameTitle.Text = LocalizationManager.Get("Loc_NoActiveGame");
                 if (PnlDashboardActiveCover != null) PnlDashboardActiveCover.Visibility = Visibility.Collapsed;
                 if (PnlDashboardStandbyCover != null) PnlDashboardStandbyCover.Visibility = Visibility.Visible;
                 if (BadgeDashAdaptive != null) BadgeDashAdaptive.Visibility = Visibility.Collapsed;
@@ -1034,6 +1078,43 @@ namespace ApexSenseBridgeTray
 
             UpdateManualBridgeTile();
             UpdateTabTitles();
+        }
+
+        private void UpdateRecoveryPanel(SessionRecoveryState recovery)
+        {
+            if (PnlSessionRecovery == null || PnlDashboardCounts == null) return;
+            bool visible = recovery != null && (recovery.Pending || recovery.Recovered);
+            PnlSessionRecovery.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            PnlDashboardCounts.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
+            if (!visible) return;
+            TxtRecoveryTitle.Text = LocalizationManager.Get(recovery.Recovered ? "Loc_RecoveryReady" : recovery.Resuming ? "Loc_RecoveryStarting" : "Loc_RecoveryInterrupted");
+            var steps = new[] { "Loc_RecoveryController", "Loc_RecoveryVirtual", "Loc_RecoveryIsolation", "Loc_RecoveryRuntime" };
+            TxtRecoverySteps.Text = string.Join("   ·   ", steps.Select((key, index) =>
+                ((recovery.Stages & (1u << index)) != 0 ? "✓ " : "○ ") + LocalizationManager.Get(key)));
+            TxtRecoveryHint.Text = LocalizationManager.Get(recovery.Owner != "Tray" ? "Loc_RecoveryPlaynite" : recovery.Recovered ? "Loc_RecoveryGameHint" : recovery.Resuming ? "Loc_RecoveryChecking" :
+                recovery.ControllerAvailable ? "Loc_RecoveryControllerFound" : "Loc_RecoveryWaiting");
+            BtnResumeSession.Visibility = recovery.Pending && recovery.Owner == "Tray" ? Visibility.Visible : Visibility.Collapsed;
+            BtnResumeSession.IsEnabled = !recovery.Resuming;
+            BtnDismissRecovery.IsEnabled = !recovery.Resuming;
+        }
+
+        private async void OnResumeSessionClick(object sender, RoutedEventArgs e)
+        {
+            if (sessionManager == null || settings == null) return;
+            if (MessageBox.Show(this, LocalizationManager.Get("Loc_RecoveryConfirm"), "ApexSenseBridge",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            string error = null;
+            BtnResumeSession.IsEnabled = false;
+            bool success = await Task.Run(() => sessionManager.ResumeSession(settings, out error));
+            if (!success) MessageBox.Show(this, error != null && error.StartsWith("Loc_") ? LocalizationManager.Get(error) : error,
+                "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+            UpdateDashboardStatus();
+        }
+
+        private void OnDismissRecoveryClick(object sender, RoutedEventArgs e)
+        {
+            sessionManager?.DismissRecovery();
+            UpdateDashboardStatus();
         }
 
         private void UpdateManualBridgeTile()
@@ -1057,10 +1138,10 @@ namespace ApexSenseBridgeTray
             ToggleManualBridge();
         }
 
-        private void OnPreparedLaunchClick(object sender, RoutedEventArgs e)
+        private async void OnPreparedLaunchClick(object sender, RoutedEventArgs e)
         {
             if (settings == null || sessionManager == null) return;
-            if (sessionManager.IsSessionActive)
+            if (preparedLaunchPending || sessionManager.IsSessionActive)
             {
                 MessageBox.Show(this, LocalizationManager.Get("Loc_PreparedLaunchBusy"),
                     "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1075,11 +1156,25 @@ namespace ApexSenseBridgeTray
             };
             if (picker.ShowDialog(this) != true) return;
 
+            SupportedGame launchGame = null;
+            string gameKey;
+            if (settings.TryGetGameForExecutable(picker.FileName, out gameKey))
+                gameListService.TryFindExactGame(gameKey, out launchGame);
+            if (launchGame == null && learningService != null)
+                learningService.TryResolve(picker.FileName, gameListService, out launchGame);
+            var title = launchGame != null ? launchGame.Title : System.IO.Path.GetFileNameWithoutExtension(picker.FileName);
+            var profile = launchGame != null ? launchGame.Profile : "standard";
+            var slot = launchGame != null ? settings.GetApexProfileSlot(launchGame.Normalized) : 0;
             settings.ForcedProfile = "standard";
-            string error;
-            if (!sessionManager.StartSession(
-                System.IO.Path.GetFileNameWithoutExtension(picker.FileName),
-                "standard", settings, out error))
+            preparedLaunchPending = true;
+            string error = null;
+            bool started = false;
+            try
+            {
+                started = await Task.Run(() => sessionManager.StartSession(title, profile, settings, slot, out error));
+            }
+            finally { preparedLaunchPending = false; }
+            if (!started)
             {
                 settings.ForcedProfile = "none";
                 MessageBox.Show(this, error, "ApexSenseBridge",
@@ -1116,6 +1211,8 @@ namespace ApexSenseBridgeTray
 
             if (enable)
             {
+                if (sessionManager != null && sessionManager.AutomaticActivationBlocked)
+                    sessionManager.StopSession("Fresh manual activation requested");
                 if (sessionManager != null && sessionManager.IsSessionActive)
                 {
                     MessageBox.Show(this, LocalizationManager.Get("Loc_PreparedLaunchBusy"),
@@ -1355,6 +1452,7 @@ namespace ApexSenseBridgeTray
             if (BadgeDetailManualFix != null) BadgeDetailManualFix.Visibility = game.ManualFixVisibility;
 
             if (TxtDetailApexProfile != null) TxtDetailApexProfile.Text = game.SelectedApexProfileDisplay;
+            UpdateExecutableChoices();
 
             if (TxtDetailExcludeAction != null)
             {
@@ -1362,6 +1460,54 @@ namespace ApexSenseBridgeTray
                     ? LocalizationManager.Get("Loc_StateIncluded")
                     : LocalizationManager.Get("Loc_BtnExcludeCurrent");
             }
+        }
+
+        private void UpdateExecutableChoices()
+        {
+            if (CmbGameExecutable == null || SelectedGame == null || settings == null) return;
+            updatingExecutables = true;
+            try
+            {
+                var game = SelectedGame;
+                var configured = settings.GetGameExecutable(game.Normalized);
+                var choices = new List<ExecutableChoice> { new ExecutableChoice { Path = string.Empty, Label = LocalizationManager.Get("Loc_ExecutableAutomatic") } };
+                if (!string.IsNullOrWhiteSpace(configured))
+                    choices.Add(new ExecutableChoice { Path = configured, Label = System.IO.Path.GetFileName(configured) + " — " + LocalizationManager.Get("Loc_ExecutableSelected") });
+                if (learningService != null)
+                    foreach (var binding in learningService.GetBindings())
+                    {
+                        if (!string.Equals(binding.GameNormalized, game.Normalized, StringComparison.OrdinalIgnoreCase) &&
+                            !(game.Game.SteamAppIdVerified && binding.SteamAppId > 0 && binding.SteamAppId == game.Game.SteamAppId)) continue;
+                        if (choices.Any(x => string.Equals(x.Path, binding.Path, StringComparison.OrdinalIgnoreCase))) continue;
+                        choices.Add(new ExecutableChoice { Path = binding.Path, Label = System.IO.Path.GetFileName(binding.Path) + " — " + LocalizationManager.Get("Loc_ExecutableLearned") + " — " + binding.Path });
+                    }
+                CmbGameExecutable.ItemsSource = choices;
+                CmbGameExecutable.SelectedItem = choices.FirstOrDefault(x => string.Equals(x.Path, configured, StringComparison.OrdinalIgnoreCase)) ?? choices[0];
+                TxtExecutablePath.Text = configured + (!string.IsNullOrWhiteSpace(configured) && !File.Exists(configured) ? "\n" + LocalizationManager.Get("Loc_ExecutableMissing") : string.Empty);
+            }
+            finally { updatingExecutables = false; }
+        }
+
+        private void OnGameExecutableChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (updatingExecutables || SelectedGame == null || settings == null) return;
+            var choice = CmbGameExecutable.SelectedItem as ExecutableChoice;
+            if (choice == null) return;
+            settings.SetGameExecutable(SelectedGame.Normalized, choice.Path);
+            settings.Save();
+            UpdateExecutableChoices();
+            monitorService?.ForceCheck();
+        }
+
+        private void OnBrowseGameExecutable(object sender, RoutedEventArgs e)
+        {
+            if (SelectedGame == null || settings == null) return;
+            var picker = new OpenFileDialog { Filter = "Programs (*.exe)|*.exe", CheckFileExists = true, Multiselect = false };
+            if (picker.ShowDialog(this) != true) return;
+            settings.SetGameExecutable(SelectedGame.Normalized, picker.FileName);
+            settings.Save();
+            UpdateExecutableChoices();
+            monitorService?.ForceCheck();
         }
 
         private void OnGameCardClicked(object sender, MouseButtonEventArgs e)
@@ -1601,6 +1747,13 @@ namespace ApexSenseBridgeTray
         private void UpdateSettingsView()
         {
             if (settings == null) return;
+            updatingEffectSettings = true;
+            SliderTriggerStrength.Value = settings.TriggerStrengthPercent;
+            SliderVibrationStrength.Value = settings.VibrationStrengthPercent;
+            SliderVibrationThreshold.Value = settings.HapticThresholdPercent;
+            ChkGripVibrations.IsChecked = settings.EnableRumble;
+            UpdateEffectLabels();
+            updatingEffectSettings = false;
 
             UpdateSettingToggle(BadgeSettingAutoDetect, DotSettingAutoDetect, settings.AutoDetectGames);
             UpdateSettingToggle(BadgeSettingAdaptive, DotSettingAdaptive, settings.TriggerOnAdaptiveTriggers);
@@ -1620,6 +1773,31 @@ namespace ApexSenseBridgeTray
             {
                 TxtVersionInfo.Text = string.Format("ApexSenseBridge v{0}", updateChecker.GetCurrentVersion());
             }
+        }
+
+        private void UpdateEffectLabels()
+        {
+            if (TxtTriggerStrength == null || SliderTriggerStrength == null || SliderVibrationStrength == null || SliderVibrationThreshold == null) return;
+            TxtTriggerStrength.Text = ((int)SliderTriggerStrength.Value) + " %";
+            TxtVibrationStrength.Text = ((int)SliderVibrationStrength.Value) + " %";
+            TxtVibrationThreshold.Text = ((int)SliderVibrationThreshold.Value) + " %";
+        }
+
+        private void OnEffectSettingChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (updatingEffectSettings || settings == null || !IsLoaded) return;
+            settings.TriggerStrengthPercent = (int)SliderTriggerStrength.Value;
+            settings.VibrationStrengthPercent = (int)SliderVibrationStrength.Value;
+            settings.HapticThresholdPercent = (int)SliderVibrationThreshold.Value;
+            settings.Save();
+            UpdateEffectLabels();
+        }
+
+        private void OnGripVibrationsChanged(object sender, RoutedEventArgs e)
+        {
+            if (settings == null) return;
+            settings.EnableRumble = ChkGripVibrations.IsChecked == true;
+            settings.Save();
         }
 
         private void UpdateLanguageDisplay()
@@ -1871,6 +2049,7 @@ namespace ApexSenseBridgeTray
 
         protected override void OnClosed(EventArgs e)
         {
+            statusTimer.Stop();
             controllerDetection?.Dispose();
             gamepadNav?.Dispose();
             base.OnClosed(e);

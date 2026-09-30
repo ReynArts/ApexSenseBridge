@@ -30,6 +30,8 @@ namespace ApexSenseBridgeTray
         private ExecutableLearningService learningService;
         private ProcessMonitorService monitorService;
         private UpdateCheckerService updateChecker;
+        private EventWaitHandle showDashboardEvent;
+        private RegisteredWaitHandle showDashboardWait;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -67,8 +69,15 @@ namespace ApexSenseBridgeTray
                 singleInstanceMutex = new Mutex(true, AppMutexName, out isNewInstance);
                 if (!isNewInstance)
                 {
-                    MessageBox.Show(LocalizationManager.Get("Loc_AlreadyRunning"),
-                                    LocalizationManager.Get("Loc_AppName"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    try
+                    {
+                        using (var show = EventWaitHandle.OpenExisting("Local\\ApexSenseBridge.Tray.ShowDashboard.v1")) show.Set();
+                    }
+                    catch
+                    {
+                        MessageBox.Show(LocalizationManager.Get("Loc_AlreadyRunning"),
+                                        LocalizationManager.Get("Loc_AppName"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
                     Shutdown();
                     return;
                 }
@@ -86,6 +95,9 @@ namespace ApexSenseBridgeTray
                 learningService.InitializeAsync();
 
                 InitializeNotifyIcon();
+                showDashboardEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\ApexSenseBridge.Tray.ShowDashboard.v1");
+                showDashboardWait = ThreadPool.RegisterWaitForSingleObject(showDashboardEvent,
+                    (state, timedOut) => Dispatcher.BeginInvoke(new Action(ShowMainWindow)), null, Timeout.Infinite, false);
 
                 LocalizationManager.LanguageChanged += () =>
                 {
@@ -167,7 +179,13 @@ namespace ApexSenseBridgeTray
                 {
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        try { UpdateTrayStatus(); } catch { }
+                        try
+                        {
+                            UpdateTrayStatus();
+                            if (sessionManager.Recovery.Pending && settings.EnableNotifications && notifyIcon != null)
+                                notifyIcon.ShowBalloonTip(4000, "ApexSenseBridge", LocalizationManager.Get("Loc_RecoveryNotification"), ToolTipIcon.Warning);
+                        }
+                        catch { }
                     }));
                 };
 
@@ -228,6 +246,7 @@ namespace ApexSenseBridgeTray
                 {
                     try { await updateChecker.CheckForUpdatesAsync(true); } catch { }
                 });
+                if (Array.IndexOf(e.Args, "--show") >= 0) ShowMainWindow();
             }
             catch (Exception ex)
             {
@@ -588,9 +607,12 @@ namespace ApexSenseBridgeTray
 
         protected override void OnExit(ExitEventArgs e)
         {
+            if (showDashboardWait != null) showDashboardWait.Unregister(null);
+            if (showDashboardEvent != null) showDashboardEvent.Dispose();
             if (monitorService != null) monitorService.Dispose();
             if (learningService != null) learningService.Dispose();
             if (sessionManager != null) sessionManager.StopSession("Tray app closing");
+            if (sessionManager != null) sessionManager.Dispose();
 
             if (notifyIcon != null) notifyIcon.Dispose();
             if (singleInstanceMutex != null) singleInstanceMutex.Dispose();

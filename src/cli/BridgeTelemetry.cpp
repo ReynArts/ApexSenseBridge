@@ -7,6 +7,51 @@
 #include <ostream>
 
 namespace asb::cli {
+namespace {
+
+void writeTriggerEntry(std::ostream& output,
+                       const asb::dualsense::Apex6TriggerTraceEntry& entry) {
+    output << "{\"ms\": " << entry.elapsedMilliseconds
+           << ", \"side\": \"" << (entry.side == TriggerSide::Left ? "lt" : "rt")
+           << "\", \"status\": \"" << asb::dualsense::apex6TriggerTraceStatusName(entry.status)
+           << "\", \"position\": " << static_cast<unsigned>(entry.position)
+           << ", \"enable_bits\": " << static_cast<unsigned>(entry.enableBits)
+           << ", \"bytes\": [";
+    for (std::size_t index = 0; index < entry.bytes.size(); ++index) {
+        if (index != 0) output << ',';
+        output << static_cast<unsigned>(entry.bytes[index]);
+    }
+    output << "]}";
+}
+
+void writeOptionalTriggerEntry(std::ostream& output,
+    const std::optional<asb::dualsense::Apex6TriggerTraceEntry>& entry) {
+    if (entry) writeTriggerEntry(output, *entry);
+    else output << "null";
+}
+
+} // namespace
+
+void writeApex6TriggerTrace(std::ostream& output,
+                           const asb::dualsense::Apex6HapticBridgeStats& stats) {
+    const auto print = [&output](std::string_view key,
+        const std::optional<asb::dualsense::Apex6TriggerTraceEntry>& entry) {
+        output << key << '=';
+        if (entry) writeTriggerEntry(output, *entry);
+        else output << "none";
+        output << '\n';
+    };
+    print("apex6_last_active_lt", stats.lastActiveLeft);
+    print("apex6_last_active_rt", stats.lastActiveRight);
+    print("apex6_last_rejected_lt", stats.lastRejectedLeft);
+    print("apex6_last_rejected_rt", stats.lastRejectedRight);
+    output << "apex6_trigger_trace_overwritten=" << stats.triggerTraceOverwritten << '\n';
+    for (std::size_t index = 0; index < stats.triggerTraceCount; ++index) {
+        output << "apex6_trigger_trace_" << index << '=';
+        writeTriggerEntry(output, stats.triggerTrace[index]);
+        output << '\n';
+    }
+}
 
 void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry) {
     const auto& virtualStats = telemetry.virtualStats;
@@ -99,6 +144,8 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
                << "    \"trigger_active_updates\": " << stats.triggerActiveUpdates << ",\n"
                << "    \"trigger_stops\": " << stats.triggerStops << ",\n"
                << "    \"trigger_unsupported\": " << stats.triggerUnsupported << ",\n"
+               << "    \"trigger_malformed\": " << stats.triggerMalformed << ",\n"
+               << "    \"trigger_rejected_stops\": " << stats.triggerRejectedStops << ",\n"
                << "    \"weapon_breaks\": " << stats.weaponBreaks << ",\n"
                << "    \"rumble_updates\": " << stats.rumbleUpdates << ",\n"
                << "    \"audio_envelope_reports\": " << stats.audioEnvelopeReports << ",\n"
@@ -111,11 +158,39 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
                << "    \"waveform_maximum_age_us\": " << stats.waveformMaximumAgeUs << ",\n"
                << "    \"waveform_left_peak\": " << stats.waveformLeftPeak << ",\n"
                << "    \"waveform_right_peak\": " << stats.waveformRightPeak << ",\n"
+               << "    \"waveform_silent_blocks\": " << stats.waveformSilentBlocks << ",\n"
+               << "    \"waveform_left_thresholded\": " << stats.waveformLeftThresholded << ",\n"
+               << "    \"waveform_right_thresholded\": " << stats.waveformRightThresholded << ",\n"
+               << "    \"waveform_active_drops\": " << stats.waveformActiveDrops << ",\n"
+               << "    \"waveform_left_active_rms\": " << stats.waveformLeftActiveRms << ",\n"
+               << "    \"waveform_right_active_rms\": " << stats.waveformRightActiveRms << ",\n"
+               << "    \"raw_audio_measured_blocks\": " << stats.rawAudioMeasuredBlocks << ",\n"
+               << "    \"raw_audio_frames\": " << stats.rawAudioFrames << ",\n"
+               << "    \"raw_speaker_left_peak\": " << stats.rawAudioPeaks[0] << ",\n"
+               << "    \"raw_speaker_right_peak\": " << stats.rawAudioPeaks[1] << ",\n"
+               << "    \"raw_haptic_left_peak\": " << stats.rawAudioPeaks[2] << ",\n"
+               << "    \"raw_haptic_right_peak\": " << stats.rawAudioPeaks[3] << ",\n"
+               << "    \"raw_haptic_left_rms\": " << stats.rawHapticLeftRms << ",\n"
+               << "    \"raw_haptic_right_rms\": " << stats.rawHapticRightRms << ",\n"
                << "    \"haptic_frames\": " << stats.framesWritten << ",\n"
                << "    \"haptic_enables\": " << stats.hapticEnables << ",\n"
                << "    \"haptic_disables\": " << stats.hapticDisables << ",\n"
-               << "    \"write_failures\": " << stats.writeFailures << "\n"
-               << "  }";
+               << "    \"write_failures\": " << stats.writeFailures << ",\n"
+               << "    \"last_active_lt\": ";
+        writeOptionalTriggerEntry(output, stats.lastActiveLeft);
+        output << ",\n    \"last_active_rt\": ";
+        writeOptionalTriggerEntry(output, stats.lastActiveRight);
+        output << ",\n    \"last_rejected_lt\": ";
+        writeOptionalTriggerEntry(output, stats.lastRejectedLeft);
+        output << ",\n    \"last_rejected_rt\": ";
+        writeOptionalTriggerEntry(output, stats.lastRejectedRight);
+        output << ",\n    \"trigger_trace_overwritten\": " << stats.triggerTraceOverwritten
+               << ",\n    \"trigger_trace\": [";
+        for (std::size_t index = 0; index < stats.triggerTraceCount; ++index) {
+            if (index != 0) output << ',';
+            writeTriggerEntry(output, stats.triggerTrace[index]);
+        }
+        output << "]\n  }";
     }
     output << "\n}\n";
 }

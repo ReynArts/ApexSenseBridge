@@ -97,12 +97,31 @@ int main() {
     telemetry.apex6Stats = asb::dualsense::Apex6HapticBridgeStats{};
     telemetry.apex6Stats->hidReports = 17;
     telemetry.apex6Stats->waveformLeftActiveBlocks = 9;
+    telemetry.apex6Stats->triggerMalformed = 2;
+    telemetry.apex6Stats->rawAudioMeasuredBlocks = 1;
+    telemetry.apex6Stats->rawAudioPeaks = {1234, 5678, 10000, 32768};
+    asb::dualsense::Apex6TriggerTraceEntry entry{};
+    entry.elapsedMilliseconds = 42;
+    entry.status = asb::dualsense::Apex6TriggerTraceStatus::Active;
+    entry.bytes = {0x26, 0xFF, 0x03, 0, 0, 0, 0, 0, 0, 150, 0};
+    telemetry.apex6Stats->lastActiveLeft = entry;
+    telemetry.apex6Stats->triggerTrace[0] = entry;
+    telemetry.apex6Stats->triggerTraceCount = 1;
     std::ostringstream apex6Output;
     asb::cli::writeBridgeTelemetry(apex6Output, telemetry);
     assert(apex6Output.str().find("\"apex6\": {") != std::string::npos);
     assert(apex6Output.str().find("\"hid_reports\": 17") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_left_active\": 9") != std::string::npos);
+    assert(apex6Output.str().find("\"trigger_malformed\": 2") != std::string::npos);
+    assert(apex6Output.str().find("\"raw_audio_measured_blocks\": 1") != std::string::npos);
+    assert(apex6Output.str().find("\"raw_haptic_right_peak\": 32768") != std::string::npos);
+    assert(apex6Output.str().find("\"bytes\": [38,255,3,0,0,0,0,0,0,150,0]") != std::string::npos);
+    assert(apex6Output.str().find("\"last_rejected_lt\": null") != std::string::npos);
     assert(apex6Output.str().find(",\n}\n") == std::string::npos);
+    std::ostringstream traceOutput;
+    asb::cli::writeApex6TriggerTrace(traceOutput, *telemetry.apex6Stats);
+    assert(traceOutput.str().find("apex6_trigger_trace_0={\"ms\": 42") != std::string::npos);
+    assert(traceOutput.str().find("apex6_last_rejected_lt=none") != std::string::npos);
 
     return 0;
 }

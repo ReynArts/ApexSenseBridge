@@ -47,6 +47,8 @@ struct BridgeTelemetry {
 };
 
 void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry);
+void writeApex6TriggerTrace(std::ostream& output,
+                           const asb::dualsense::Apex6HapticBridgeStats& stats);
 [[nodiscard]] bool writeBridgeTelemetryFile(
     const std::filesystem::path& path,
     const BridgeTelemetry& telemetry,

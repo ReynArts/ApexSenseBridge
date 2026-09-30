@@ -14,6 +14,9 @@ namespace ApexSenseBridgeTray.Models
         public bool EnableRumble { get; set; }
         public bool SyncLightbar { get; set; }
         public int HapticThresholdPercent { get; set; }
+        public int TriggerStrengthPercent { get; set; }
+        public int VibrationStrengthPercent { get; set; }
+        public Dictionary<string, string> GameExecutables { get; set; }
         public int InitializationTimeoutSeconds { get; set; }
         // Manual bridge mode describes the current process session, not a
         // durable preference. Persisting it leaves automatic detection paused
@@ -33,6 +36,9 @@ namespace ApexSenseBridgeTray.Models
             EnableRumble = true;
             SyncLightbar = false;
             HapticThresholdPercent = 12;
+            TriggerStrengthPercent = 100;
+            VibrationStrengthPercent = 100;
+            GameExecutables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";
             Language = "auto";
@@ -132,6 +138,56 @@ namespace ApexSenseBridgeTray.Models
             ForcedProfile = "none";
         }
 
+        public string GetGameExecutable(string game)
+        {
+            var current = GameExecutables;
+            if (current == null || string.IsNullOrWhiteSpace(game)) return string.Empty;
+            foreach (var entry in current)
+                if (string.Equals(entry.Key, game, StringComparison.OrdinalIgnoreCase)) return entry.Value ?? string.Empty;
+            return string.Empty;
+        }
+
+        public void SetGameExecutable(string game, string executable)
+        {
+            if (string.IsNullOrWhiteSpace(game)) return;
+            var path = string.IsNullOrWhiteSpace(executable) ? string.Empty : NormalizeExecutable(executable);
+            if (!string.IsNullOrWhiteSpace(executable) && path == null)
+                throw new ArgumentException("Select an absolute .exe path.", "executable");
+            var next = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (GameExecutables != null)
+                foreach (var item in GameExecutables) next[item.Key] = item.Value;
+            next.Remove(game);
+            if (path.Length > 0) next[game] = path;
+            GameExecutables = next;
+        }
+
+        public bool TryGetGameForExecutable(string executable, out string game)
+        {
+            game = null;
+            var path = NormalizeExecutable(executable);
+            var current = GameExecutables;
+            if (path == null || current == null) return false;
+            foreach (var item in current)
+            {
+                if (!string.Equals(path, NormalizeExecutable(item.Value), StringComparison.OrdinalIgnoreCase)) continue;
+                // A path assigned to several games is ambiguous.
+                if (game != null) { game = null; return false; }
+                game = item.Key;
+            }
+            return game != null;
+        }
+
+        private static string NormalizeExecutable(string path)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path) ||
+                    !string.Equals(Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase)) return null;
+                return Path.GetFullPath(path.Trim());
+            }
+            catch { return null; }
+        }
+
         private static string SettingsFilePath
         {
             get
@@ -154,6 +210,10 @@ namespace ApexSenseBridgeTray.Models
                     if (settings != null)
                     {
                         settings.ResetTransientState();
+                        settings.TriggerStrengthPercent = Math.Max(0, Math.Min(100, settings.TriggerStrengthPercent));
+                        settings.VibrationStrengthPercent = Math.Max(0, Math.Min(100, settings.VibrationStrengthPercent));
+                        settings.HapticThresholdPercent = Math.Max(0, Math.Min(95, settings.HapticThresholdPercent));
+                        if (settings.GameExecutables == null) settings.GameExecutables = new Dictionary<string, string>();
                         if (settings.ExcludedGames == null) settings.ExcludedGames = new List<string>();
                         if (settings.ApexProfileSlots == null)
                         {

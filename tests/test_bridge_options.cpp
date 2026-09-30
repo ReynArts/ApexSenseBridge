@@ -102,6 +102,12 @@ int main() {
     assert(!parse({"--session-owner-pid", "42"}).succeeded);
     assert(!parse({"--session-token", "not-a-token"}).succeeded);
     assert(!parse({"--unknown"}).succeeded);
+    assert(parse({"--trigger-strength", "0", "--vibration-strength", "50"}).options.triggerStrengthPercent == 0);
+    assert(parse({"--vibration-strength", "50"}).options.vibrationStrengthPercent == 50);
+    assert(!parse({"--trigger-strength", "101"}).succeeded);
+    assert(!parse({"--vibration-strength", "-1"}).succeeded);
+    assert(!parse({"--vibration-strength", "50junk"}).succeeded);
+    assert(!parse({"--trigger-strength"}).succeeded);
 
     return 0;
 }

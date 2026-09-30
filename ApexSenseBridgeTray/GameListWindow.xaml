@@ -13,6 +13,51 @@
         FontFamily="Segoe UI Variable Display, Segoe UI, sans-serif">
 
     <Window.Resources>
+        <Style x:Key="EffectSlider" TargetType="Slider">
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Margin="0,2">
+                            <Border Height="4" CornerRadius="2" Background="{DynamicResource ControlBackground}" VerticalAlignment="Center"/>
+                            <Track x:Name="PART_Track" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}">
+                                <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge" Opacity="0" Focusable="False"/></Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="16" Height="16">
+                                        <Thumb.Template><ControlTemplate TargetType="Thumb"><Ellipse Fill="{DynamicResource PlayStationBlue}" Stroke="{DynamicResource TextPrimary}" StrokeThickness="1"/></ControlTemplate></Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Opacity="0" Focusable="False"/></Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ExecutableCombo" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value><Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/><Setter Property="Padding" Value="8"/></Style></Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border CornerRadius="6" Background="{DynamicResource ControlBackground}" Padding="10" BorderThickness="1" BorderBrush="{DynamicResource ControlBorder}"><TextBlock Text="⌄" HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimary}"/></Border></ControlTemplate></ToggleButton.Template>
+                            </ToggleButton>
+                            <TextBlock Text="{Binding SelectedItem.Label, RelativeSource={RelativeSource TemplatedParent}}" Foreground="{TemplateBinding Foreground}" IsHitTestVisible="False" TextTrimming="CharacterEllipsis" Margin="10,0,26,0" VerticalAlignment="Center"/>
+                            <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+                                <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="500" MaxHeight="240">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="XboxBtnA" TargetType="Border">
             <Setter Property="Width" Value="20"/>
             <Setter Property="Height" Value="20"/>
@@ -514,7 +559,7 @@
                                            FontSize="20" FontWeight="Bold"
                                            Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8" TextWrapping="Wrap"/>
 
-                                <TextBlock x:Name="TxtDashboardHint" Visibility="Collapsed"
+                                <TextBlock x:Name="TxtDashboardHint" TextWrapping="Wrap" Margin="0,0,0,8"
                                            FontSize="12" Foreground="{DynamicResource TextMuted}"/>
 
                                 <WrapPanel x:Name="PnlDashboardFeatures" Orientation="Horizontal">
@@ -568,20 +613,31 @@
 
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{DynamicResource Loc_ManualBridge}" FontSize="13" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                                   TextWrapping="Wrap" MaxWidth="170" Foreground="{DynamicResource TextPrimary}"/>
                                     </StackPanel>
                                 </DockPanel>
-                                <Button Content="{DynamicResource Loc_PreparedLaunch}"
-                                        ToolTip="{DynamicResource Loc_PreparedLaunchHint}"
-                                        Style="{StaticResource BtnSecondary}" Margin="0,10,0,0"
-                                        Click="OnPreparedLaunchClick"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
                     </Border>
 
                     <!-- CENTRAL HUB CARDS: Jeux Certifiés & Exécutables Appris -->
-                    <Grid Grid.Row="1" Margin="0,0,0,12">
+                    <Border x:Name="PnlSessionRecovery" Grid.Row="1" Visibility="Collapsed" Margin="0,0,0,12" Padding="18,14"
+                            CornerRadius="10" Background="{DynamicResource CardBackground}">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock x:Name="TxtRecoveryTitle" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="TxtRecoverySteps" FontSize="12" Foreground="{DynamicResource PlayStationBlue}" Margin="0,7,0,5" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="TxtRecoveryHint" FontSize="12" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <Button x:Name="BtnResumeSession" Content="{DynamicResource Loc_RecoveryResume}" Style="{StaticResource BtnPrimary}" Click="OnResumeSessionClick" Margin="0,0,0,8"/>
+                                <Button x:Name="BtnDismissRecovery" Content="{DynamicResource Loc_RecoveryDismiss}" Style="{StaticResource BtnSecondary}" Click="OnDismissRecoveryClick"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Grid x:Name="PnlDashboardCounts" Grid.Row="1" Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="14"/>
@@ -879,7 +935,7 @@
                             <ScrollViewer x:Name="ScrollDetail" VerticalScrollBarVisibility="Auto" Focusable="False">
                                 <StackPanel x:Name="PnlDetailContent">
                                     <!-- High-Res Cover Poster -->
-                                    <Border Width="130" Height="185" CornerRadius="8"
+                                    <Border Width="85" Height="120" CornerRadius="8"
                                             BorderBrush="Transparent" BorderThickness="0"
                                             ClipToBounds="True" HorizontalAlignment="Center" Margin="0,0,0,16">
                                         <Grid>
@@ -965,6 +1021,11 @@
                                     </Border>
 
                                     <!-- Exclude / Include Quick Button -->
+                                    <TextBlock Text="{DynamicResource Loc_GameExecutable}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{DynamicResource Loc_GameExecutableHint}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMuted}" Margin="0,5,0,8"/>
+                                    <ComboBox x:Name="CmbGameExecutable" Style="{StaticResource ExecutableCombo}" DisplayMemberPath="Label" SelectionChanged="OnGameExecutableChanged" Margin="0,0,0,8" ToolTip="{Binding SelectedItem.Path, RelativeSource={RelativeSource Self}}"/>
+                                    <TextBlock x:Name="TxtExecutablePath" Foreground="{DynamicResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                    <Button Content="{DynamicResource Loc_BrowseExecutable}" Style="{StaticResource BtnSecondary}" Click="OnBrowseGameExecutable" Margin="0,0,0,8"/>
                                     <Button x:Name="BtnDetailToggleExclude" Style="{StaticResource BtnSecondary}"
                                             Padding="14,8" HorizontalAlignment="Stretch"
                                             Click="OnDetailToggleExcludeClick">
@@ -1318,6 +1379,18 @@
                                         </DockPanel>
                                     </Border>
 
+                                    <TextBlock Text="{DynamicResource Loc_ControllerEffects}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"/>
+                                    <TextBlock Text="{DynamicResource Loc_TriggerStrength}" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock x:Name="TxtTriggerStrength" Foreground="{DynamicResource PlayStationBlue}"/>
+                                    <Slider x:Name="SliderTriggerStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                    <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock x:Name="TxtVibrationStrength" Foreground="{DynamicResource PlayStationBlue}"/>
+                                    <Slider x:Name="SliderVibrationStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                    <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock x:Name="TxtVibrationThreshold" Foreground="{DynamicResource PlayStationBlue}"/>
+                                    <Slider x:Name="SliderVibrationThreshold" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,8"/>
+                                    <TextBlock Text="{DynamicResource Loc_EffectsHint}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,8"/>
+                                    <CheckBox x:Name="ChkGripVibrations" Content="{DynamicResource Loc_EnableRumble}" Foreground="{DynamicResource TextPrimary}" Click="OnGripVibrationsChanged" Margin="0,0,0,16"/>
                                     <!-- Language Switcher -->
                                     <Border x:Name="TileSettingLanguage" CornerRadius="8" Background="{DynamicResource ControlBackground}"
                                             BorderBrush="Transparent" BorderThickness="2" Cursor="Hand"
@@ -1347,6 +1420,7 @@
                                 <StackPanel>
                                     <TextBlock Text="{DynamicResource Loc_SectionControllerDiagnostic}" FontSize="14.5" FontWeight="Bold"
                                                Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"/>
+                                    <Button Content="{DynamicResource Loc_PreparedLaunch}" ToolTip="{DynamicResource Loc_PreparedLaunchHint}" Style="{StaticResource BtnSecondary}" Click="OnPreparedLaunchClick" HorizontalAlignment="Left" Margin="0,0,0,10"/>
                                     <TextBlock Text="{DynamicResource Loc_ControllerDiagnosticDesc}" FontSize="12"
                                                Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                     <Button Content="{DynamicResource Loc_BtnOpenControllerTest}" Style="{StaticResource BtnPrimary}"

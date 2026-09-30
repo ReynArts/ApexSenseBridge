@@ -19,6 +19,7 @@ namespace ApexSenseBridgeTray.Services
         private readonly ExecutableLearningService learningService;
         private readonly TraySettings settings;
         private readonly Timer pollTimer;
+        private readonly bool monitoringEnabled;
         private readonly Dictionary<uint, DateTime> retryCooldowns = new Dictionary<uint, DateTime>();
         private readonly Dictionary<uint, long> evaluatedProcesses = new Dictionary<uint, long>();
         private readonly HashSet<uint> manualFixWarningProcesses = new HashSet<uint>();
@@ -31,6 +32,7 @@ namespace ApexSenseBridgeTray.Services
         private bool isDisposed;
         private bool isStoppingDetectedSession;
         private int isPolling;
+        private bool recoveryWasBlocked;
         private DateTime nextProcessSweepUtc;
         private DateTime nextForegroundCheckUtc;
 
@@ -43,15 +45,23 @@ namespace ApexSenseBridgeTray.Services
             EngineSessionManager sessionManager,
             ExecutableLearningService learningService,
             TraySettings settings)
+            : this(gameListService, sessionManager, learningService, settings, true) { }
+
+        internal ProcessMonitorService(CloudGameListService gameListService,
+            EngineSessionManager sessionManager, ExecutableLearningService learningService,
+            TraySettings settings, bool monitoringEnabled)
         {
             this.gameListService = gameListService;
             this.sessionManager = sessionManager;
             this.learningService = learningService;
             this.settings = settings;
+            this.monitoringEnabled = monitoringEnabled;
 
-            InitializeWmiWatchers();
-
-            pollTimer = new Timer(OnPollTick, null, 100, 250);
+            if (monitoringEnabled)
+            {
+                InitializeWmiWatchers();
+                pollTimer = new Timer(OnPollTick, null, 100, 250);
+            }
         }
 
         private void InitializeWmiWatchers()
@@ -108,6 +118,13 @@ namespace ApexSenseBridgeTray.Services
 
                 if (settings == null || !settings.AutoDetectGames) return;
                 bool passiveLearning = IsManualBridgeMode();
+                bool recoveryBlocked = sessionManager.AutomaticActivationBlocked;
+                if (recoveryBlocked && !recoveryWasBlocked)
+                {
+                    lock (evaluatedProcesses) evaluatedProcesses.Clear();
+                    nextProcessSweepUtc = DateTime.MinValue;
+                }
+                recoveryWasBlocked = recoveryBlocked;
 
                 CheckCandidateProcess(
                     pid, processName, null, detectionStartedAt, processEventUtc, "WMI",
@@ -155,6 +172,7 @@ namespace ApexSenseBridgeTray.Services
                 evaluatedProcesses.Clear();
             }
             nextProcessSweepUtc = DateTime.MinValue;
+            if (!monitoringEnabled) return;
             ThreadPool.QueueUserWorkItem(_ => OnPollTick(null));
         }
 
@@ -173,6 +191,8 @@ namespace ApexSenseBridgeTray.Services
 
                 if (settings == null || !settings.AutoDetectGames)
                 {
+                    if (!IsManualBridgeMode() && sessionManager.AutomaticActivationBlocked)
+                        sessionManager.StopSession("Automatic detection disabled during recovery");
                     ResetTrackedSessionOnly();
                     ResetPendingLearning();
                     return;
@@ -186,7 +206,7 @@ namespace ApexSenseBridgeTray.Services
                     ResetTrackedSessionOnly();
                 }
 
-                if (!passiveLearning && HasTrackedSession() && !sessionManager.IsSessionActive)
+                if (!passiveLearning && HasTrackedSession() && !sessionManager.IsSessionActive && !sessionManager.AutomaticActivationBlocked)
                 {
                     ResetTrackedSessionOnly();
                 }
@@ -386,9 +406,28 @@ namespace ApexSenseBridgeTray.Services
             string matchedBy;
             if (TryResolveGame(exePath, exeTitle, folderName, fileName, out matchedGame, out matchedBy))
             {
+                if (sessionManager.AutomaticActivationBlocked)
+                {
+                    var recovery = sessionManager.Recovery;
+                    // Keep tracking only the interrupted game's lifetime (and
+                    // launcher PID handoffs). Never start or take over its engine.
+                    if (!IsManualBridgeMode() && string.Equals(matchedGame.Title, recovery.Game, StringComparison.OrdinalIgnoreCase))
+                    {
+                        lock (sessionStateLock)
+                        {
+                            if (!isStoppingDetectedSession)
+                            {
+                                if (!processSession.HasSession) processSession.Start(matchedGame, pid, exePath);
+                                else if (processSession.IsSameGame(matchedGame)) processSession.TryAttach(matchedGame, pid, exePath);
+                            }
+                        }
+                    }
+                    return;
+                }
                 if (GameActivationPolicy.IsBlockedByManualFix(
                     matchedGame, settings, exeTitle, folderName, fileName))
                 {
+                    sessionManager.ReportActivationRefused(matchedGame.Title, "Loc_RefusedManualFix");
                     bool firstWarning;
                     lock (manualFixWarningProcesses)
                     {
@@ -420,6 +459,13 @@ namespace ApexSenseBridgeTray.Services
                             matchedGame, pid, exePath, matchedBy, detectionStartedAt,
                             processEventUtc, detectionSource);
                     }
+                }
+                else
+                {
+                    var excluded = settings.IsGameExcluded(matchedGame.Normalized) || settings.IsGameExcluded(matchedGame.Title) ||
+                        settings.IsGameExcluded(exeTitle) || settings.IsGameExcluded(folderName) || settings.IsGameExcluded(fileName) ||
+                        (matchedGame.SteamAppIdVerified && settings.IsGameExcluded(matchedGame.SteamAppId.ToString()));
+                    sessionManager.ReportActivationRefused(matchedGame.Title, excluded ? "Loc_RefusedExcluded" : "Loc_RefusedCriteria");
                 }
             }
         }
@@ -457,6 +503,14 @@ namespace ApexSenseBridgeTray.Services
             game = null;
             matchedBy = null;
             if (gameListService == null) return false;
+
+            string configuredGame;
+            if (settings != null && settings.TryGetGameForExecutable(exePath, out configuredGame) &&
+                gameListService.TryFindExactGame(configuredGame, out game))
+            {
+                matchedBy = "configured exact path '" + exePath + "'";
+                return true;
+            }
 
             if (learningService != null &&
                 learningService.TryResolve(exePath, gameListService, out game))
@@ -559,7 +613,7 @@ namespace ApexSenseBridgeTray.Services
 
                 lock (sessionStateLock)
                 {
-                    if (isStoppingDetectedSession) return;
+                    if (isStoppingDetectedSession || sessionManager.AutomaticActivationBlocked) return;
 
                     if (processSession.HasSession && !sessionManager.IsSessionActive)
                     {

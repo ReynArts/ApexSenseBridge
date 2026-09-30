@@ -8,12 +8,9 @@
 
 namespace asb::dualsense {
 
-// Translate a DualSense trigger's [type + 10 parameters] block using the
-// mappings measured by OpenFlydigi. Unknown effects deliberately mean
-// "leave the current effect unchanged", not "clear".
 std::optional<ForceTriggerCommand> translateAdaptiveTrigger(
     TriggerSide side,
     const std::array<std::uint8_t, 11>& effect,
-    std::uint8_t leftMotor);
+    std::uint8_t);
 
 } // namespace asb::dualsense

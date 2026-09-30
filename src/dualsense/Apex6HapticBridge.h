@@ -17,9 +17,37 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 
 namespace asb::dualsense {
+
+enum class Apex6TriggerTraceStatus : std::uint8_t {
+    Active,
+    Off,
+    Unsupported,
+    Malformed,
+};
+
+struct Apex6TriggerTraceEntry {
+    std::uint64_t elapsedMilliseconds = 0;
+    TriggerSide side = TriggerSide::Left;
+    Apex6TriggerTraceStatus status = Apex6TriggerTraceStatus::Off;
+    std::uint8_t position = 0;
+    std::uint8_t enableBits = 0;
+    std::array<std::uint8_t, 11> bytes{};
+};
+
+[[nodiscard]] constexpr std::string_view apex6TriggerTraceStatusName(
+    Apex6TriggerTraceStatus status) noexcept {
+    switch (status) {
+    case Apex6TriggerTraceStatus::Active: return "active";
+    case Apex6TriggerTraceStatus::Off: return "off";
+    case Apex6TriggerTraceStatus::Unsupported: return "unsupported";
+    case Apex6TriggerTraceStatus::Malformed: return "malformed";
+    }
+    return "unknown";
+}
 
 struct Apex6HapticBridgeStats {
     std::uint64_t hidReports = 0;
@@ -28,6 +56,8 @@ struct Apex6HapticBridgeStats {
     std::uint64_t triggerActiveUpdates = 0;
     std::uint64_t triggerStops = 0;
     std::uint64_t triggerUnsupported = 0;
+    std::uint64_t triggerMalformed = 0;
+    std::uint64_t triggerRejectedStops = 0;
     std::uint64_t triggerDeduplicated = 0;
     std::uint64_t weaponBreaks = 0;
     std::uint8_t lastLeftTriggerType = 0;
@@ -40,6 +70,17 @@ struct Apex6HapticBridgeStats {
     std::uint64_t waveformRightActiveBlocks = 0;
     std::uint64_t waveformLeftPeak = 0;
     std::uint64_t waveformRightPeak = 0;
+    std::uint64_t waveformSilentBlocks = 0;
+    std::uint64_t waveformLeftThresholded = 0;
+    std::uint64_t waveformRightThresholded = 0;
+    std::uint64_t waveformActiveDrops = 0;
+    double waveformLeftActiveRms = 0.0;
+    double waveformRightActiveRms = 0.0;
+    std::uint64_t rawAudioMeasuredBlocks = 0;
+    std::uint64_t rawAudioFrames = 0;
+    std::array<std::uint64_t, 4> rawAudioPeaks{};
+    double rawHapticLeftRms = 0.0;
+    double rawHapticRightRms = 0.0;
     std::uint64_t framesWritten = 0;
     std::uint64_t waveformBlocks = 0;
     std::uint64_t waveformBlocksRendered = 0;
@@ -65,13 +106,21 @@ struct Apex6HapticBridgeStats {
     std::uint64_t bothTriggerFrames = 0;
     std::uint64_t hapticEnables = 0;
     std::uint64_t hapticDisables = 0;
+    std::optional<Apex6TriggerTraceEntry> lastActiveLeft;
+    std::optional<Apex6TriggerTraceEntry> lastActiveRight;
+    std::optional<Apex6TriggerTraceEntry> lastRejectedLeft;
+    std::optional<Apex6TriggerTraceEntry> lastRejectedRight;
+    std::array<Apex6TriggerTraceEntry, 64> triggerTrace{};
+    std::size_t triggerTraceCount = 0;
+    std::uint64_t triggerTraceOverwritten = 0;
 };
 
 class Apex6HapticBridge {
 public:
     explicit Apex6HapticBridge(flydigi::Apex5Device& device,
                                haptics::HapticConfig config = {},
-                               bool routeGrips = true);
+                               bool routeGrips = true, unsigned triggerStrengthPercent = 100,
+                               unsigned vibrationStrengthPercent = 100);
     ~Apex6HapticBridge();
 
     Apex6HapticBridge(const Apex6HapticBridge&) = delete;
@@ -106,10 +155,14 @@ private:
         bool& triggerEnabled,
         Clock::time_point now) noexcept;
     void recordError(std::string error) noexcept;
+    void handleTrigger(TriggerSide side, const DualSenseFeedback& feedback);
 
     flydigi::Apex5Device& device_;
     haptics::HapticProcessor hapticProcessor_;
     bool routeGrips_ = true;
+    unsigned triggerStrengthPercent_ = 100;
+    unsigned vibrationStrengthPercent_ = 100;
+    double activationThreshold_ = 0.12;
     mutable std::mutex stateMutex_;
     std::condition_variable stopSignal_;
     std::thread worker_;
@@ -133,6 +186,17 @@ private:
     bool routeRightNext_ = false;
     double leftGripPhase_ = 0.0;
     double rightGripPhase_ = 0.0;
+    Clock::time_point traceStartedAt_ = Clock::now();
+    std::array<Apex6TriggerTraceEntry, 64> triggerTrace_{};
+    std::size_t triggerTraceCount_ = 0;
+    std::size_t triggerTraceNext_ = 0;
+    std::uint64_t triggerTraceOverwritten_ = 0;
+    std::optional<Apex6TriggerTraceEntry> lastLeftRequest_;
+    std::optional<Apex6TriggerTraceEntry> lastRightRequest_;
+    std::optional<Apex6TriggerTraceEntry> lastActiveLeft_;
+    std::optional<Apex6TriggerTraceEntry> lastActiveRight_;
+    std::optional<Apex6TriggerTraceEntry> lastRejectedLeft_;
+    std::optional<Apex6TriggerTraceEntry> lastRejectedRight_;
 
     mutable std::mutex errorMutex_;
     std::string error_;
@@ -143,6 +207,8 @@ private:
     std::atomic_uint64_t triggerActiveUpdates_{0};
     std::atomic_uint64_t triggerStops_{0};
     std::atomic_uint64_t triggerUnsupported_{0};
+    std::atomic_uint64_t triggerMalformed_{0};
+    std::atomic_uint64_t triggerRejectedStops_{0};
     std::atomic_uint64_t triggerDeduplicated_{0};
     std::atomic_uint64_t weaponBreaks_{0};
     std::atomic_uint8_t lastLeftTriggerType_{0};
@@ -155,6 +221,17 @@ private:
     std::atomic_uint64_t waveformRightActiveBlocks_{0};
     std::atomic_uint64_t waveformLeftPeak_{0};
     std::atomic_uint64_t waveformRightPeak_{0};
+    std::atomic_uint64_t waveformSilentBlocks_{0};
+    std::atomic_uint64_t waveformLeftThresholded_{0};
+    std::atomic_uint64_t waveformRightThresholded_{0};
+    std::atomic_uint64_t waveformActiveDrops_{0};
+    std::atomic_uint64_t waveformLeftSumSquares_{0};
+    std::atomic_uint64_t waveformRightSumSquares_{0};
+    std::atomic_uint64_t rawAudioMeasuredBlocks_{0};
+    std::atomic_uint64_t rawAudioFrames_{0};
+    std::array<std::atomic_uint64_t, 4> rawAudioPeaks_{};
+    std::atomic_uint64_t rawHapticLeftSumSquares_{0};
+    std::atomic_uint64_t rawHapticRightSumSquares_{0};
     std::atomic_uint64_t framesWritten_{0};
     std::atomic_uint64_t waveformBlocks_{0};
     std::atomic_uint64_t waveformBlocksRendered_{0};

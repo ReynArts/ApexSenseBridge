@@ -153,10 +153,10 @@ index 0000000..09018dd
 +}
 diff --git a/device/dualsense/asb_extensions.go b/device/dualsense/asb_extensions.go
 new file mode 100644
-index 0000000..81081d9
+index 0000000..f5dcbc6
 --- /dev/null
 +++ b/device/dualsense/asb_extensions.go
-@@ -0,0 +1,501 @@
+@@ -0,0 +1,526 @@
 +package dualsense
 +
 +import (
@@ -227,15 +227,27 @@ index 0000000..81081d9
 +	Sequence uint32
 +	Left     [8]int16
 +	Right    [8]int16
++	// Measurements precede decimation and do not change the haptic samples.
++	RawPeaks           [4]uint16 // speaker L/R, haptic L/R
++	RawLeftSumSquares  uint64
++	RawRightSumSquares uint64
++	RawFrames          uint32
 +}
 +
 +func (s *AudioWaveformState) MarshalBinary() ([]byte, error) {
-+	b := make([]byte, 36)
++	// The original 36-byte prefix stays compatible with older ASB clients.
++	b := make([]byte, 64)
 +	binary.LittleEndian.PutUint32(b[0:4], s.Sequence)
 +	for i := 0; i < 8; i++ {
 +		binary.LittleEndian.PutUint16(b[4+i*4:6+i*4], uint16(s.Left[i]))
 +		binary.LittleEndian.PutUint16(b[6+i*4:8+i*4], uint16(s.Right[i]))
 +	}
++	for i, peak := range s.RawPeaks {
++		binary.LittleEndian.PutUint16(b[36+i*2:38+i*2], peak)
++	}
++	binary.LittleEndian.PutUint64(b[44:52], s.RawLeftSumSquares)
++	binary.LittleEndian.PutUint64(b[52:60], s.RawRightSumSquares)
++	binary.LittleEndian.PutUint32(b[60:64], s.RawFrames)
 +	return b, nil
 +}
 +
@@ -511,6 +523,15 @@ index 0000000..81081d9
 +		d.audioLeftSum += uint64(left)
 +		d.audioRightSum += uint64(right)
 +		if waveformEnabled {
++			peaks := [4]uint16{frontLeft, frontRight, left, right}
++			for channel, peak := range peaks {
++				if peak > d.audioRawPeaks[channel] {
++					d.audioRawPeaks[channel] = peak
++				}
++			}
++			d.audioRawLeftSquares += uint64(int64(leftSigned) * int64(leftSigned))
++			d.audioRawRightSquares += uint64(int64(rightSigned) * int64(rightSigned))
++			d.audioRawFrames++
 +			d.audioDecimateLeft += int64(leftSigned)
 +			d.audioDecimateRight += int64(rightSigned)
 +			d.audioDecimateFrames++
@@ -550,10 +571,14 @@ index 0000000..81081d9
 +	d.audioWaveSeq++
 +	frame := FeedbackFrame{Type: FeedbackFrameAudioWaveform, Waveform: AudioWaveformState{
 +		Sequence: d.audioWaveSeq, Left: d.audioWaveLeft, Right: d.audioWaveRight,
++		RawPeaks: d.audioRawPeaks, RawLeftSumSquares: d.audioRawLeftSquares,
++		RawRightSumSquares: d.audioRawRightSquares, RawFrames: d.audioRawFrames,
 +	}}
 +	d.audioWaveSamples = 0
 +	d.audioWaveLeft = [8]int16{}
 +	d.audioWaveRight = [8]int16{}
++	d.audioRawPeaks = [4]uint16{}
++	d.audioRawLeftSquares, d.audioRawRightSquares, d.audioRawFrames = 0, 0, 0
 +	d.emitRawOutput(frame)
 +}
 +
@@ -660,10 +685,10 @@ index 0000000..81081d9
 +}
 diff --git a/device/dualsense/asb_extensions_test.go b/device/dualsense/asb_extensions_test.go
 new file mode 100644
-index 0000000..e5095f2
+index 0000000..1ac0587
 --- /dev/null
 +++ b/device/dualsense/asb_extensions_test.go
-@@ -0,0 +1,292 @@
+@@ -0,0 +1,342 @@
 +package dualsense
 +
 +import (
@@ -929,9 +954,55 @@ index 0000000..e5095f2
 +	if err != nil {
 +		t.Fatal(err)
 +	}
-+	if len(encoded) != 39 || encoded[0] != FeedbackFrameAudioWaveform ||
-+		binary.LittleEndian.Uint16(encoded[1:3]) != 36 {
++	if len(encoded) != 67 || encoded[0] != FeedbackFrameAudioWaveform ||
++		binary.LittleEndian.Uint16(encoded[1:3]) != 64 {
 +		t.Fatalf("unexpected waveform framing: %x", encoded)
++	}
++	if waveform.Waveform.RawFrames != 384 ||
++		waveform.Waveform.RawPeaks != [4]uint16{0, 0, 4800, 9600} ||
++		binary.LittleEndian.Uint64(encoded[47:55]) != 384*4800*4800 ||
++		binary.LittleEndian.Uint64(encoded[55:63]) != 384*9600*9600 ||
++		binary.LittleEndian.Uint32(encoded[63:67]) != 384 {
++		t.Fatalf("raw audio measurements lost or misaligned: %+v", waveform.Waveform)
++	}
++}
++
++func TestASBRawAudioDiagnosticsSurviveDecimationAndReset(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var waveform AudioWaveformState
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) {
++		if frame.Type == FeedbackFrameAudioWaveform {
++			waveform = frame.Waveform
++		}
++	})
++	input := make([]byte, asbInputStateSize)
++	input[32] = 0x80
++	if err := ds.UpdateASBInputState(input); err != nil {
++		t.Fatal(err)
++	}
++	pcm := make([]byte, 384*8)
++	for i := 0; i < 384; i++ {
++		binary.LittleEndian.PutUint16(pcm[i*8:i*8+2], 1234)
++		binary.LittleEndian.PutUint16(pcm[i*8+2:i*8+4], 5678)
++		value := int16(10000)
++		if i%2 == 1 {
++			value = -value
++		}
++		binary.LittleEndian.PutUint16(pcm[i*8+4:i*8+6], uint16(value))
++		binary.LittleEndian.PutUint16(pcm[i*8+6:i*8+8], 0x8000)
++	}
++	ds.consumeAudioHaptics(pcm)
++	if waveform.Left != [8]int16{} || waveform.RawPeaks != [4]uint16{1234, 5678, 10000, 32768} ||
++		waveform.RawLeftSumSquares != 384*10000*10000 || waveform.RawRightSumSquares != 384*32768*32768 {
++		t.Fatalf("pre-filter signal is not distinguishable from silence: %+v", waveform)
++	}
++	ds.consumeAudioHaptics(make([]byte, len(pcm)))
++	if waveform.Sequence != 2 || waveform.RawFrames != 384 || waveform.RawPeaks != [4]uint16{} ||
++		waveform.RawLeftSumSquares != 0 || waveform.RawRightSumSquares != 0 || waveform.Right != [8]int16{} {
++		t.Fatalf("raw measurements leaked between blocks: %+v", waveform)
 +	}
 +}
 +
@@ -954,6 +1025,10 @@ index 0000000..e5095f2
 +	ds.HandleIsoTransfer(1, usbip.DirOut, pcm, packets)
 +	if waveformFrames != 0 {
 +		t.Fatalf("waveform emitted without opt-in: %d", waveformFrames)
++	}
++	if ds.audioRawFrames != 0 || ds.audioRawLeftSquares != 0 || ds.audioRawRightSquares != 0 ||
++		ds.audioRawPeaks != [4]uint16{} {
++		t.Fatal("raw audio diagnostics ran without the APEX 6 waveform opt-in")
 +	}
 +}
 diff --git a/device/dualsense/const.go b/device/dualsense/const.go
@@ -980,10 +1055,10 @@ index 530b457..8bc5366 100644
  
  const (
 diff --git a/device/dualsense/device.go b/device/dualsense/device.go
-index 5dd1d2c..1182164 100644
+index 5dd1d2c..eae742d 100644
 --- a/device/dualsense/device.go
 +++ b/device/dualsense/device.go
-@@ -19,15 +19,41 @@ type DualSense struct {
+@@ -19,15 +19,45 @@ type DualSense struct {
  	inputState *InputState
  	metaState  *MetaState
  
@@ -1006,30 +1081,34 @@ index 5dd1d2c..1182164 100644
 +	mtx        sync.Mutex
 +	callbackMu sync.RWMutex
 +
-+	interfaceAlt        [4]uint8
-+	audioMu             sync.Mutex
-+	audioSeq            uint32
-+	audioFrames         uint32
-+	audioFrontSum       uint64
-+	audioLeftSum        uint64
-+	audioRightSum       uint64
-+	audioFrontPeak      uint16
-+	audioLeftPeak       uint16
-+	audioRightPeak      uint16
-+	audioLastLeft       uint16
-+	audioLastRight      uint16
-+	audioDecimateFrames uint32
-+	audioDecimateLeft   int64
-+	audioDecimateRight  int64
-+	audioWaveLeft       [8]int16
-+	audioWaveRight      [8]int16
-+	audioWaveSamples    uint8
-+	audioWaveSeq        uint32
-+	audioWaveEnabled    atomic.Bool
++	interfaceAlt         [4]uint8
++	audioMu              sync.Mutex
++	audioSeq             uint32
++	audioFrames          uint32
++	audioFrontSum        uint64
++	audioLeftSum         uint64
++	audioRightSum        uint64
++	audioFrontPeak       uint16
++	audioLeftPeak        uint16
++	audioRightPeak       uint16
++	audioLastLeft        uint16
++	audioLastRight       uint16
++	audioDecimateFrames  uint32
++	audioDecimateLeft    int64
++	audioDecimateRight   int64
++	audioWaveLeft        [8]int16
++	audioWaveRight       [8]int16
++	audioWaveSamples     uint8
++	audioWaveSeq         uint32
++	audioWaveEnabled     atomic.Bool
++	audioRawPeaks        [4]uint16
++	audioRawLeftSquares  uint64
++	audioRawRightSquares uint64
++	audioRawFrames       uint32
  }
  
  func New(o *device.CreateOptions) (*DualSense, error) {
-@@ -84,13 +110,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
+@@ -84,13 +114,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
  	}
  
  	d := &DualSense{
@@ -1046,7 +1125,7 @@ index 5dd1d2c..1182164 100644
  	}
  
  	if o != nil {
-@@ -124,9 +152,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
+@@ -124,9 +156,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
  }
  
  func (d *DualSense) SetOutputCallback(f func(OutputState)) {
@@ -1082,7 +1161,7 @@ index 5dd1d2c..1182164 100644
  func (d *DualSense) UpdateInputState(state *InputState) {
  	d.mtx.Lock()
  	defer d.mtx.Unlock()
-@@ -169,8 +223,10 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
+@@ -169,8 +227,10 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
  
  	if dir == usbip.DirOut && ep == 3 {
  		if len(out) >= 48 && out[0] == ReportIDOutput {
@@ -1095,7 +1174,7 @@ index 5dd1d2c..1182164 100644
  			}
  		}
  	}
-@@ -221,14 +277,22 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
+@@ -221,14 +281,22 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
  			case reportType == reportTypeFeature:
  				return nil, true
  			case reportType == reportTypeOutput && reportID == ReportIDOutput && len(data) >= 48:
@@ -1120,7 +1199,7 @@ index 5dd1d2c..1182164 100644
  	slog.Warn("DualSense control request unhandled",
  		"bmRequestType", bmRequestType,
  		"bRequest", bRequest,
-@@ -310,36 +374,20 @@ func (d *DualSense) featureReportPairing() []byte {
+@@ -310,36 +378,20 @@ func (d *DualSense) featureReportPairing() []byte {
  }
  
  func (d *DualSense) featureReportFirmware() []byte {
@@ -1171,7 +1250,7 @@ index 5dd1d2c..1182164 100644
  }
  
  func (d *DualSense) featureReportCommandResponse() []byte {
-@@ -439,8 +487,20 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
+@@ -439,8 +491,20 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
  	b[37] = touch2
  	encodeTouchCoords(b[38:41], s.Touch2X, s.Touch2Y)
  
@@ -2052,7 +2131,7 @@ index 0000000..9b7bea7
 +	}
 +}
 diff --git a/lib/viiper/dualsense.go b/lib/viiper/dualsense.go
-index 05a7849..e0305e0 100644
+index 05a7849..82bad63 100644
 --- a/lib/viiper/dualsense.go
 +++ b/lib/viiper/dualsense.go
 @@ -93,10 +93,16 @@ typedef struct {
@@ -2080,10 +2159,18 @@ index 05a7849..e0305e0 100644
  
  	"github.com/Alia5/VIIPER/device"
  	"github.com/Alia5/VIIPER/device/dualsense"
-@@ -285,6 +292,28 @@ func SetDualSenseDeviceState(handle C.DSDeviceHandle, state C.DSDeviceState) boo
+@@ -285,6 +292,36 @@ func SetDualSenseDeviceState(handle C.DSDeviceHandle, state C.DSDeviceState) boo
  	return true
  }
  
++// GetVIIPERASBPatchVersion identifies the ASB extension without changing the
++// required upstream or ASB exports. Older DLLs remain usable by ASB clients.
++//
++//export GetVIIPERASBPatchVersion
++func GetVIIPERASBPatchVersion() C.uint32_t {
++	return 13
++}
++
 +// SetDualSenseASBInputState updates a DualSense from ApexSenseBridge's compact
 +// 33-byte input format. This extension preserves the exact behavior of the
 +// patched sidecar when libVIIPER is hosted in-process.
@@ -2109,7 +2196,7 @@ index 05a7849..e0305e0 100644
  // SetDualSenseOutputCallback sets a callback to be invoked when the host sends output (rumble/LED) commands to the device.
  // @param handle Handle to the DualSense device.
  // @param callback Callback receiving rumbleSmall, rumbleLarge, ledRed, ledGreen, ledBlue, playerLeds. Pass NULL to clear.
-@@ -317,6 +346,42 @@ func SetDualSenseOutputCallback(handle C.DSDeviceHandle, cb C.DSOutputCallback)
+@@ -317,6 +354,42 @@ func SetDualSenseOutputCallback(handle C.DSDeviceHandle, cb C.DSOutputCallback)
  	return true
  }
  

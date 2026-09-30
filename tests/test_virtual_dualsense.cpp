@@ -326,6 +326,33 @@ int main() {
     assert(feedback.leftHapticSamples.back() == 1007);
     assert(feedback.rightHapticSamples.front() == -1000);
     assert(feedback.rightHapticSamples.back() == -1007);
+    assert(!feedback.hasRawAudioMeasurements);
+    std::array<std::uint8_t, 64> measuredWaveform{};
+    std::copy(waveformPayload.begin(), waveformPayload.end(), measuredWaveform.begin());
+    const auto putLittleEndian = [&measuredWaveform](std::size_t offset,
+                                                    std::uint64_t value, std::size_t size) {
+        for (std::size_t byte = 0; byte < size; ++byte) {
+            measuredWaveform[offset + byte] = static_cast<std::uint8_t>(value >> (byte * 8));
+        }
+    };
+    putLittleEndian(36, 1234, 2);
+    putLittleEndian(38, 5678, 2);
+    putLittleEndian(40, 10000, 2);
+    putLittleEndian(42, 32768, 2);
+    putLittleEndian(44, 384ULL * 10000 * 10000, 8);
+    putLittleEndian(52, 384ULL * 32768 * 32768, 8);
+    putLittleEndian(60, 384, 4);
+    assert(decodeViiperFeedbackFrame(0x03, measuredWaveform, feedback));
+    assert(feedback.hasRawAudioMeasurements && feedback.rawAudioFrames == 384);
+    assert((feedback.rawAudioPeaks == std::array<std::uint16_t, 4>{1234, 5678, 10000, 32768}));
+    assert(feedback.rawHapticLeftSumSquares == 384ULL * 10000 * 10000);
+    assert(feedback.rawHapticRightSumSquares == 384ULL * 32768 * 32768);
+    assert(feedback.leftHapticSamples.front() == 1000);
+    assert(decodeViiperFeedbackFrame(0x03, waveformPayload, feedback));
+    assert(!feedback.hasRawAudioMeasurements && feedback.rawAudioFrames == 0);
+    assert(decodeViiperFeedbackFrame(0x03,
+        std::span<const std::uint8_t>(measuredWaveform).first(63), feedback));
+    assert(!feedback.hasRawAudioMeasurements);
     assert(!decodeViiperFeedbackFrame(
         0x03, std::span<const std::uint8_t>(waveformPayload).first(35), feedback));
     assert(!feedback.hasRumble());

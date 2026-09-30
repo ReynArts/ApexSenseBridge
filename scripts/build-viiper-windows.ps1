@@ -8,7 +8,7 @@ $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $sourceDirectory = Join-Path $projectRoot ".tmp-viiper-build-source"
 $patchPath = Join-Path $projectRoot "third_party\viiper-patches\viiper-v0.7.0-asb.patch"
 $expectedCommit = "6b71b148a2243fab77ee1a46f4e22e00bd7d5a04"
-$version = "v0.7.0-asb10"
+$version = "v0.7.0-asb11"
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $OutputPath = Join-Path $projectRoot "build-win\Release\viiper.exe"
@@ -53,8 +53,8 @@ try {
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
     $linkerFlags = "-s -w " +
         "-X main.Version=$version " +
-        "-X main.Commit=6b71b14+asb10 " +
-        "-X main.Date=2026-09-06 " +
+        "-X main.Commit=6b71b14+asb11 " +
+        "-X main.Date=2026-09-30 " +
         "-X github.com/Alia5/VIIPER/internal/codegen/common.Version=$version"
     go build -trimpath -buildvcs=false -ldflags $linkerFlags -o $OutputPath ./cmd/viiper
     if ($LASTEXITCODE -ne 0) { throw "VIIPER compilation failed." }

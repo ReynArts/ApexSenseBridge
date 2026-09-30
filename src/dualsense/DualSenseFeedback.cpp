@@ -17,6 +17,11 @@ std::uint32_t readU32(std::span<const std::uint8_t> data, std::size_t offset) {
            (static_cast<std::uint32_t>(data[offset + 3]) << 24);
 }
 
+std::uint64_t readU64(std::span<const std::uint8_t> data, std::size_t offset) {
+    return static_cast<std::uint64_t>(readU32(data, offset)) |
+           (static_cast<std::uint64_t>(readU32(data, offset + 4)) << 32);
+}
+
 } // namespace
 
 bool DualSenseFeedback::hasRumble() const {
@@ -107,6 +112,15 @@ bool decodeViiperFeedbackFrame(std::uint8_t frameType,
                 readU16(payload, 4 + index * 4));
             decoded.rightHapticSamples[index] = static_cast<std::int16_t>(
                 readU16(payload, 6 + index * 4));
+        }
+        if (payload.size() >= 64) {
+            decoded.hasRawAudioMeasurements = true;
+            for (std::size_t index = 0; index < decoded.rawAudioPeaks.size(); ++index) {
+                decoded.rawAudioPeaks[index] = readU16(payload, 36 + index * 2);
+            }
+            decoded.rawHapticLeftSumSquares = readU64(payload, 44);
+            decoded.rawHapticRightSumSquares = readU64(payload, 52);
+            decoded.rawAudioFrames = readU32(payload, 60);
         }
         feedback = decoded;
         return true;

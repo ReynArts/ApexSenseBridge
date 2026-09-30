@@ -77,14 +77,14 @@ int commandBridgeTriggers(int argc, char** argv) {
         sessionControl = asb::platform::connectSessionControl(
             *options.sessionToken, options.sessionOwnerProcessId, error);
         if (!sessionControl) {
-            std::cerr << "Playnite session IPC connection failed: " << error << '\n';
+            std::cerr << "Bridge session IPC connection failed: " << error << '\n';
             return 13;
         }
         if (!sessionControl->publish(asb::platform::SessionPhase::Starting, 0,
                                      "Bridge initialization started.", error)) {
             std::string ignored;
             (void)sessionControl->signalReady(ignored);
-            std::cerr << "Playnite session status initialization failed: " << error << '\n';
+            std::cerr << "Bridge session status initialization failed: " << error << '\n';
             return 13;
         }
     }
@@ -122,6 +122,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(3, message);
     }
     const bool apex6Pro = device->identity() && device->identity()->isApex6();
+    if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::ControllerVerified);
     const bool apex5 = device->identity() && device->identity()->isApex5();
 
     std::optional<asb::flydigi::ProfileStatus> originalProfile;
@@ -255,17 +256,17 @@ int commandBridgeTriggers(int argc, char** argv) {
     hapticConfig.activationThreshold =
         static_cast<double>(options.hapticThresholdPercent) / 100.0;
     auto adaptiveBridge = !apex6Pro
-        ? std::make_unique<asb::dualsense::AdaptiveTriggerBridge>(*device)
+        ? std::make_unique<asb::dualsense::AdaptiveTriggerBridge>(*device, options.triggerStrengthPercent)
         : std::unique_ptr<asb::dualsense::AdaptiveTriggerBridge>{};
     auto apex6Bridge = apex6Pro
         ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
-              *device, hapticConfig, options.routeRumble)
+              *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent, options.vibrationStrengthPercent)
         : std::unique_ptr<asb::dualsense::Apex6HapticBridge>{};
     if (apex6Bridge) {
         apex6Bridge->updateTriggerPositions(initialInput.l2, initialInput.r2);
     }
     auto rumbleBridge = options.routeRumble && !apex6Pro
-        ? std::make_unique<asb::dualsense::RumbleBridge>(*device, hapticConfig)
+        ? std::make_unique<asb::dualsense::RumbleBridge>(*device, hapticConfig, options.vibrationStrengthPercent)
         : std::unique_ptr<asb::dualsense::RumbleBridge>{};
     const auto lightbarSlot = options.apexProfileSlot.value_or(
         originalProfile ? originalProfile->slot : 0);
@@ -394,6 +395,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
 
     asb::platform::TemporaryPhysicalControllerIsolation physicalIsolation;
+    if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::VirtualReady);
     if (!physicalIsolation.activate(
             device->info(), options.sessionToken.value_or(""),
             profileSwitchRequired
@@ -405,6 +407,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(11, "Temporary APEX isolation failed: " + error);
     }
     const auto isolationReadyAt = std::chrono::steady_clock::now();
+    if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::IsolationVerified);
 
     std::unique_ptr<asb::ApexProfileRestoreGuard> profileRestoreOnExit;
     const auto restoreTemporaryApexProfile =
@@ -586,8 +589,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
 
     if (sessionControl) {
-        if (!sessionControl->publish(asb::platform::SessionPhase::Ready, 0,
-                                     "Bridge ready; game launch may continue.", error) ||
+        const bool readyPublished = sessionControl->publish(asb::platform::SessionPhase::Ready, 0,
+                                     "ASB_READY|" + device->identity()->describe(), error);
+        if (readyPublished) sessionControl->markProgress(asb::platform::SessionProgress::RuntimeReady);
+        if (!readyPublished ||
             !sessionControl->signalReady(error)) {
             virtualDualSense->close();
             const std::string signalError = error;
@@ -602,7 +607,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                 profileRestoreOnExit->dismiss();
             }
             std::string message =
-                "Playnite session ready signal failed: " + signalError;
+                "Bridge session ready signal failed: " + signalError;
             if (!profileRolledBack) {
                 message += "; original profile rollback failed: " +
                            profileRollbackError;
@@ -676,7 +681,7 @@ int commandBridgeTriggers(int argc, char** argv) {
               << (physicalIsolation.active()
                       ? "The original APEX game interface is hidden for this bridge session only.\n"
                       : "")
-              << (sessionControl ? "Playnite session IPC is ready.\n" : "")
+              << (sessionControl ? "Bridge session IPC is ready.\n" : "")
               << (rumbleBridge
                       ? "Audio-haptics activation threshold: " +
                             std::to_string(options.hapticThresholdPercent) + "%\n"
@@ -798,6 +803,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         } else if (inputStatus == asb::platform::PhysicalInputStatus::Timeout) {
             if (inputSource->eventDriven() && inputFreshness.expired(inputObservedAt)) {
                 inputProxyFailed = true;
+                if (sessionControl) sessionControl->markInterrupted(asb::platform::SessionInterruption::InputStreamLost);
                 inputProxyError =
                     "The mandatory physical APEX input stream produced no fresh "
                     "report for one second.";
@@ -814,6 +820,9 @@ int commandBridgeTriggers(int argc, char** argv) {
             }
         } else {
             inputProxyFailed = true;
+            if (sessionControl) sessionControl->markInterrupted(inputStatus == asb::platform::PhysicalInputStatus::Disconnected
+                ? asb::platform::SessionInterruption::PhysicalDisconnected
+                : asb::platform::SessionInterruption::InputStreamLost);
             if (inputProxyError.empty()) {
                 inputProxyError = inputStatus == asb::platform::PhysicalInputStatus::Disconnected
                     ? "The mandatory physical APEX input source disconnected."
@@ -905,12 +914,30 @@ int commandBridgeTriggers(int argc, char** argv) {
                     (std::max)(virtualMaximumRightStickY, virtualInputBuffer[4]);
             }
         }
-        if (!virtualDualSense->connected()) { disconnected = true; break; }
+        if (!virtualDualSense->connected()) {
+            disconnected = true;
+            if (sessionControl) sessionControl->markInterrupted(asb::platform::SessionInterruption::VirtualDisconnected);
+            break;
+        }
         if (options.duration && std::chrono::steady_clock::now() - started >= *options.duration) break;
     }
     const auto runtimeMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started).count();
     const auto trackingFinishedAt = std::chrono::steady_clock::now();
+    // A feedback writer can notice unplugging before the input reader does.
+    // Only classify it as physical loss after a successful enumeration proves
+    // that this exact selected interface disappeared. Never infer it from an
+    // arbitrary write error, nor from an explicit owner/user stop.
+    if (sessionControl && !g_stopRequested.load(std::memory_order_relaxed) &&
+        !globalSessionStop->stopRequested() && !sessionControl->stopRequested() &&
+        (inputProxyFailed || (adaptiveBridge && adaptiveBridge->failed()) ||
+         (apex6Bridge && apex6Bridge->failed()) || (rumbleBridge && rumbleBridge->failed()) || !asyncWriteError.empty())) {
+        std::string enumerationError;
+        const auto devices = asb::platform::enumerateHidDevices(enumerationError);
+        if (enumerationError.empty() && std::none_of(devices.begin(), devices.end(),
+            [&device](const auto& candidate) { return candidate.path == device->info().path; }))
+            sessionControl->markInterrupted(asb::platform::SessionInterruption::PhysicalDisconnected);
+    }
     mappedTouchpadHold.finish(trackingFinishedAt);
     virtualTouchpadHold.finish(trackingFinishedAt);
     const bool audioProtectionOk = audioProtectionFuture.get();
@@ -1227,6 +1254,8 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_trigger_active_updates=" << apex6Stats.triggerActiveUpdates << '\n'
               << "apex6_trigger_stops=" << apex6Stats.triggerStops << '\n'
               << "apex6_trigger_unsupported=" << apex6Stats.triggerUnsupported << '\n'
+              << "apex6_trigger_malformed=" << apex6Stats.triggerMalformed << '\n'
+              << "apex6_trigger_rejected_stops=" << apex6Stats.triggerRejectedStops << '\n'
               << "apex6_trigger_deduplicated=" << apex6Stats.triggerDeduplicated << '\n'
               << "apex6_weapon_breaks=" << apex6Stats.weaponBreaks << '\n'
               << "apex6_last_left_trigger_type="
@@ -1244,6 +1273,20 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_waveform_right_active=" << apex6Stats.waveformRightActiveBlocks << '\n'
               << "apex6_waveform_left_peak=" << apex6Stats.waveformLeftPeak << '\n'
               << "apex6_waveform_right_peak=" << apex6Stats.waveformRightPeak << '\n'
+              << "apex6_waveform_silent_blocks=" << apex6Stats.waveformSilentBlocks << '\n'
+              << "apex6_waveform_left_thresholded=" << apex6Stats.waveformLeftThresholded << '\n'
+              << "apex6_waveform_right_thresholded=" << apex6Stats.waveformRightThresholded << '\n'
+              << "apex6_waveform_active_drops=" << apex6Stats.waveformActiveDrops << '\n'
+              << "apex6_waveform_left_active_rms=" << apex6Stats.waveformLeftActiveRms << '\n'
+              << "apex6_waveform_right_active_rms=" << apex6Stats.waveformRightActiveRms << '\n'
+              << "apex6_raw_audio_measured_blocks=" << apex6Stats.rawAudioMeasuredBlocks << '\n'
+              << "apex6_raw_audio_frames=" << apex6Stats.rawAudioFrames << '\n'
+              << "apex6_raw_speaker_left_peak=" << apex6Stats.rawAudioPeaks[0] << '\n'
+              << "apex6_raw_speaker_right_peak=" << apex6Stats.rawAudioPeaks[1] << '\n'
+              << "apex6_raw_haptic_left_peak=" << apex6Stats.rawAudioPeaks[2] << '\n'
+              << "apex6_raw_haptic_right_peak=" << apex6Stats.rawAudioPeaks[3] << '\n'
+              << "apex6_raw_haptic_left_rms=" << apex6Stats.rawHapticLeftRms << '\n'
+              << "apex6_raw_haptic_right_rms=" << apex6Stats.rawHapticRightRms << '\n'
               << "apex6_waveform_active_rendered=" << apex6Stats.waveformActiveRendered << '\n'
               << "apex6_grip_envelope_frames=" << apex6Stats.gripEnvelopeFrames << '\n'
               << "apex6_grip_rumble_frames=" << apex6Stats.gripRumbleFrames << '\n'
@@ -1272,6 +1315,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                       ? 0 : apex6Stats.totalWriteDurationUs / apex6Stats.framesWritten)
               << '\n'
               << "apex6_maximum_write_us=" << apex6Stats.maximumWriteDurationUs << '\n';
+        writeApex6TriggerTrace(std::cout, apex6Stats);
     }
     std::cout << "rumble_routing="
               << ((rumbleBridge || (apex6Bridge && options.routeRumble))
@@ -1411,7 +1455,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     if (sessionControl &&
         !sessionControl->publish(asb::platform::SessionPhase::Stopped, 0,
                                  "Bridge stopped and controller state restored.", error)) {
-        std::cerr << "Playnite session completion status failed: " << error << '\n';
+        std::cerr << "Bridge session completion status failed: " << error << '\n';
         return 13;
     }
     std::cout << (apex6Pro

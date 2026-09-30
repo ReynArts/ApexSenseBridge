@@ -88,6 +88,21 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 error = "--haptic-threshold requires an integer percentage from 0 to 95.";
                 return false;
             }
+        } else if (value == "--trigger-strength" || value == "--vibration-strength") {
+            if (++i >= argc) {
+                error = std::string(value) + " requires an integer percentage from 0 to 100.";
+                return false;
+            }
+            try {
+                std::size_t consumed = 0;
+                const auto parsed = std::stoul(argv[i], &consumed);
+                if (consumed != std::string_view(argv[i]).size() || parsed > 100 || argv[i][0] == '-')
+                    throw std::out_of_range("strength");
+                (value == "--trigger-strength" ? options.triggerStrengthPercent : options.vibrationStrengthPercent) = static_cast<unsigned>(parsed);
+            } catch (...) {
+                error = std::string(value) + " requires an integer percentage from 0 to 100.";
+                return false;
+            }
         } else if (value == "--verify-virtual-input") {
             options.verifyVirtualInput = true;
         } else if (value == "--touchpad-profile") {
@@ -202,6 +217,7 @@ std::string_view bridgeCommandUsage() noexcept {
            "[--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
            "[--sync-lightbar] [--haptic-threshold 0..95] "
+           "[--trigger-strength 0..100] [--vibration-strength 0..100] "
            "[--verify-virtual-input] [--touchpad-profile NAME] "
            "[--view-hold-swipe-up] [--apex-profile 1..4] "
            "[--session-token 32HEX] [--session-owner-pid PID]";

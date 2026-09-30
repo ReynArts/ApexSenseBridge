@@ -1,5 +1,32 @@
 # ApexSenseBridge 1.0.0
 
+Open **ApexSenseBridgeTray.exe**, the main application (system tray, games,
+controller settings and diagnostics). **ApexSenseBridge.exe** is the engine;
+opening it without a command now opens the Tray application. Named commands
+remain available for command-line diagnostics.
+
+Each game has an optional executable selector in its details. A configured full
+path takes priority over learned paths and catalogue detection; learned executables
+are offered in that selector too. Leaving it empty preserves automatic detection.
+The diagnostic panel contains the prepared `.exe` launch tool, which waits for
+bridge readiness before starting the game. Its manual session can be stopped from
+the home toggle or tray.
+
+The home page shows session phase, owner (Tray or Playnite), game, controller,
+profile and refusal/stop reason. Global controller-feel settings live in Tray
+preferences: trigger strength, vibration strength (0–100%) and audio-haptic
+threshold (0–95%). They apply on the next Tray session; 100% preserves original
+strength and 0% mutes the effect. Standard rumble is not gated by the audio threshold.
+
+After a confirmed runtime disconnection, Tray pauses automatic activation for
+the interrupted session. The home page offers a voluntary **Resume bridge**
+action and shows real controller, virtual-device, isolation and runtime checks.
+Recovery retains the game/profile/APEX slot and never closes or relaunches the
+game. A game that cannot reacquire the recreated DualSense must be restarted.
+Playnite-owned sessions show guidance to resume from Playnite; Tray does not
+take over. Dismissing the notice keeps detection paused for that game until it
+closes; a fresh manual activation can also clear the pause.
+
 > **Bridge your Flydigi APEX 4, APEX 5, or APEX 6 Pro controller into a native virtual PlayStation 5 DualSense on Windows.**
 > Experience FORCEADAPT on APEX 4/5, four-actuator voice-coil haptics on APEX 6 Pro, motion gestures, and verified touchpad shortcuts with sub-2 ms input latency.
 
@@ -27,7 +54,7 @@
 - **🔎 Detection and Touchpad Fixes:** Short titles such as `Control` no longer match utilities such as Controlify, and the standard `View` → touchpad-click path remains immediate during rapid consecutive presses.
 - **📚 More Reliable Executable Learning:** Concurrent game processes are tracked independently, repeated sightings no longer restart the 30-second stability window, elevated executable paths use a restricted Windows query fallback, and validated bindings are flushed during Tray shutdown.
 - **🧰 Installer Verification Fix:** Corrects the registry-key escaping bug that could report a successful USBip installation as failed, then misclassify it as unregistered driver remnants on the next setup run.
-- **🏎️ Blazing Fast Initialization (0.28s):** Built-in in-process `libVIIPER v0.7.0-asb12` backend with sub-millisecond USB attachment and loopback-only communication.
+- **🏎️ Integrated Virtual Controller:** Built-in in-process `libVIIPER v0.7.0-asb13` backend with loopback-only communication and measured initialization timings. Startup time depends on the host's USB/audio enumeration.
 
 See the [complete 0.6.3 release notes](RELEASE_NOTES_0.6.3.md) for upgrade
 instructions, compatibility notes and validation details.

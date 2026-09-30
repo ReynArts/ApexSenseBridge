@@ -118,10 +118,10 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: 
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\RunOnce"; ValueName: "!ApexSenseBridgeRestoreControllerVisibility"; Flags: uninsdeletevalue
 
 [Icons]
-Name: "{group}\ApexSenseBridge Tray (Barre des tâches)"; Filename: "{app}\ApexSenseBridgeTray.exe"; WorkingDir: "{app}"
+Name: "{group}\ApexSenseBridge — Application principale (Tray)"; Filename: "{app}\ApexSenseBridgeTray.exe"; WorkingDir: "{app}"
 Name: "{group}\ApexSenseBridge — Contrôle et diagnostic"; Filename: "{app}\ApexSenseBridgeControl.exe"; WorkingDir: "{app}"
 Name: "{group}\Désinstaller ApexSenseBridge"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\ApexSenseBridge Tray"; Filename: "{app}\ApexSenseBridgeTray.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{commondesktop}\ApexSenseBridge — Application principale"; Filename: "{app}\ApexSenseBridgeTray.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [UninstallRun]
 ; Request the normal neutralize/detach/restore path first. taskkill is retained

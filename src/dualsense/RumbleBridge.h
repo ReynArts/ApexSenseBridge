@@ -43,7 +43,7 @@ struct RumbleBridgeStats {
 class RumbleBridge {
 public:
     explicit RumbleBridge(flydigi::Apex5Device& device,
-                          haptics::HapticConfig hapticConfig = {});
+                          haptics::HapticConfig hapticConfig = {}, unsigned strengthPercent = 100);
 
     void handle(const DualSenseFeedback& feedback);
     [[nodiscard]] bool failed() const noexcept;
@@ -61,6 +61,7 @@ private:
 
     flydigi::Apex5Device& device_;
     haptics::HapticProcessor hapticProcessor_;
+    unsigned strengthPercent_ = 100;
     RumbleLevels standard_{};
     RumbleLevels audio_{};
     std::optional<RumbleLevels> previous_{RumbleLevels{}};

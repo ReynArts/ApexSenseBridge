@@ -17,8 +17,14 @@ internal static class TrayLearningTests
 {
     private static int assertions;
 
-    public static int Main()
+    public static int Main(string[] args)
     {
+        if (args.Length > 0 && (args[0] == "--fake-session" || args.Contains("--session-token"))) return RunFakeSession(args);
+        if (args.Length == 1 && args[0] == "--show")
+        {
+            using (var shown = EventWaitHandle.OpenExisting(Environment.GetEnvironmentVariable("ASB_TEST_SHOW_EVENT"))) shown.Set();
+            return 0;
+        }
         var testRoot = Path.Combine(
             Path.GetTempPath(),
             "ApexSenseBridge-LearningTests-" + Guid.NewGuid().ToString("N"));
@@ -46,6 +52,14 @@ internal static class TrayLearningTests
             TestPerGameApexProfileSettings();
             TestManualBridgeModeIsNotPersisted();
             TestSharedBridgeArguments();
+            TestGameExecutableSettings();
+            TestSessionStatusDiscovery();
+            TestRecoveryPolicy();
+            TestInterruptedSessionRecovery();
+            TestExternalRecoveryOwnership();
+            TestRecoveryCancelledDuringStartup();
+            TestRecoveryGameLifetimeTracking();
+            TestEngineMainEntry(testRoot);
             TestGameProcessSessionPidHandoff();
             TestPlatformClientsNeverCountAsGameProcesses();
             TestPidTrackingFastPathPerformance();
@@ -562,15 +576,271 @@ internal static class TrayLearningTests
     private static void TestSharedBridgeArguments()
     {
         Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3) ==
-               "bridge-triggers --touchpad-profile spider-man-2 --rumble " +
+               "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 --rumble " +
                "--haptic-threshold 12 --sync-lightbar --apex-profile 3",
             "The shared bridge argument contract changed for a complete profile.");
         Assert(BridgeArguments.Build("unknown", true, 999, false, 9) ==
-               "bridge-triggers --touchpad-profile none --rumble --haptic-threshold 95",
+               "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100 --rumble --haptic-threshold 95",
             "The shared bridge argument contract did not normalize invalid settings.");
         Assert(BridgeArguments.Build(null, false, -1, false, 0) ==
-               "bridge-triggers --touchpad-profile none",
+               "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100",
             "The shared bridge argument contract did not preserve minimal defaults.");
+    }
+
+    private static void TestGameExecutableSettings()
+    {
+        var settings = new TraySettings();
+        string game;
+        Assert(settings.TriggerStrengthPercent == 100 && settings.VibrationStrengthPercent == 100, "Default strengths changed.");
+        settings.SetGameExecutable("alpha", @"D:\Games\Alpha\game.EXE");
+        Assert(settings.TryGetGameForExecutable(@"d:\games\alpha\GAME.exe", out game) && game == "alpha", "Configured absolute path did not resolve.");
+        Assert(!settings.TryGetGameForExecutable(@"D:\Other\game.exe", out game), "Configured path matched by basename.");
+        settings.SetGameExecutable("beta", @"D:\Games\Alpha\game.EXE");
+        Assert(!settings.TryGetGameForExecutable(@"D:\Games\Alpha\game.exe", out game), "Ambiguous configured path resolved.");
+        settings.SetGameExecutable("beta", null);
+        Assert(settings.TryGetGameForExecutable(@"D:\Games\Alpha\game.exe", out game) && game == "alpha", "Clearing optional association failed.");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(restored.GetGameExecutable("ALPHA") == @"D:\Games\Alpha\game.EXE", "Executable did not survive serialization.");
+        var legacy = serializer.Deserialize<TraySettings>("{\"AutoDetectGames\":true}");
+        Assert(legacy.TriggerStrengthPercent == 100 && legacy.VibrationStrengthPercent == 100, "Legacy settings lost default strengths.");
+        Assert(BridgeArguments.Build("none", true, 20, false, 0, 35, 60).Contains("--trigger-strength 35 --vibration-strength 60"), "Strength values did not reach engine arguments.");
+    }
+
+    private static int RunFakeSession(string[] args)
+    {
+        var tokenIndex = Array.IndexOf(args, "--session-token");
+        var prefix = "Local\\ApexSenseBridge.Session." + args[tokenIndex + 1];
+        using (var mapping = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(prefix + ".Status"))
+        using (var view = mapping.CreateViewAccessor())
+        using (var progressMap = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(prefix + ".Progress"))
+        using (var progress = progressMap.CreateViewAccessor())
+        using (var ready = EventWaitHandle.OpenExisting(prefix + ".Ready"))
+        using (var stop = EventWaitHandle.OpenExisting(prefix + ".Stop"))
+        {
+            bool fail = Array.IndexOf(args, "--fail") >= 0;
+            progress.Write(0, 0x50534241u);
+            progress.Write(4, 1u);
+            foreach (uint stages in new uint[] { 1, 3, 7 })
+            {
+                progress.Write(8, stages);
+                Thread.Sleep(150);
+            }
+            progress.Write(8, fail ? 7u : 15u);
+            var bytes = Encoding.UTF8.GetBytes(fail ? "Isolation impossible (test)." : "ASB_READY|APEX test USB");
+            view.Write(0, 0x53425341u);
+            view.Write(4, (ushort)1);
+            view.Write(6, (ushort)(fail ? 5 : 2));
+            view.Write(8, fail ? 11 : 0);
+            view.Write(12, (uint)bytes.Length);
+            view.WriteArray(16, bytes, 0, bytes.Length);
+            ready.Set();
+            if (fail) return 11;
+            if (Array.IndexOf(args, "--disconnect") >= 0 && !stop.WaitOne(900))
+            {
+                progress.Write(12, 1u);
+                var failure = Encoding.UTF8.GetBytes("Controller disconnected; cleanup requires reconnect (test).");
+                view.Write(6, (ushort)5);
+                view.Write(8, 11); // Cleanup can fail after a real disconnect.
+                view.Write(12, (uint)failure.Length);
+                view.WriteArray(16, failure, 0, failure.Length);
+                return 11;
+            }
+            if (Array.IndexOf(args, "--disconnect") < 0) stop.WaitOne(10000);
+            view.Write(6, (ushort)4);
+            return 0;
+        }
+    }
+
+    private static void TestEngineMainEntry(string testRoot)
+    {
+        var root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", ".."));
+        var engine = Path.Combine(root, "build-win", "Release", "ApexSenseBridge.exe");
+        if (!File.Exists(engine)) return; // Standalone C# test runs may precede the native build.
+        var fixture = Path.Combine(testRoot, "main-entry");
+        Directory.CreateDirectory(fixture);
+        File.Copy(engine, Path.Combine(fixture, "ApexSenseBridge.exe"));
+        File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(fixture, "ApexSenseBridgeTray.exe"));
+        var eventName = "Local\\ASB.EntryTest." + Guid.NewGuid().ToString("N");
+        using (var shown = new EventWaitHandle(false, EventResetMode.ManualReset, eventName))
+        {
+            var start = new ProcessStartInfo { FileName = Path.Combine(fixture, "ApexSenseBridge.exe"), UseShellExecute = false, CreateNoWindow = true };
+            Environment.SetEnvironmentVariable("ASB_TEST_SHOW_EVENT", eventName);
+            using (var process = Process.Start(start))
+            {
+                Assert(shown.WaitOne(3000), "Opening the engine without arguments did not forward to the main Tray.");
+                Assert(process.WaitForExit(3000) && process.ExitCode == 0, "Main-entry forwarding did not exit successfully.");
+            }
+            Environment.SetEnvironmentVariable("ASB_TEST_SHOW_EVENT", null);
+        }
+    }
+
+    private static void TestSessionStatusDiscovery()
+    {
+        // Real IPC with a child test process, never a controller/driver session.
+        string error;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.SessionTest." + Guid.NewGuid().ToString("N");
+        var stages = new HashSet<uint>();
+        using (var session = BridgeSession.TryStart(executable, "--fake-session", TimeSpan.FromSeconds(3), null, null, out error, "Alpha", "standard / APEX 2", discovery, status => stages.Add(status.Stages)))
+        {
+            Assert(session != null, "Fake IPC session failed: " + error);
+            var info = BridgeSession.ReadActiveSession(discovery);
+            Assert(info != null && info.Game == "Alpha" && info.Controller == "APEX test USB", "Active session discovery lost game/controller.");
+            Assert(info.Phase == SessionPhase.Ready && info.Profile == "standard / APEX 2", "Active session phase/profile was wrong.");
+            Assert(info.Stages == 15 && info.Interruption == 0, "External progress was not read from the token-scoped mapping.");
+            Assert(stages.Contains(1) && stages.Contains(3) && stages.Contains(7) && stages.Contains(15), "Startup verification stages were lost.");
+            Assert(session.StopAndWait(TimeSpan.FromSeconds(3)), "Graceful fake session shutdown failed.");
+            Assert(session.ReadStatus().Phase == SessionPhase.Stopped, "Final session phase was lost.");
+        }
+        Assert(BridgeSession.ReadActiveSession(discovery) == null, "Disposed IPC session remained visible.");
+        using (var failedSession = BridgeSession.TryStart(executable, "--fake-session --fail", TimeSpan.FromSeconds(3), null, null, out error))
+            Assert(failedSession == null && error == "Isolation impossible (test).", "Initialization failure reason was lost.");
+    }
+
+    private static void TestRecoveryPolicy()
+    {
+        var recovery = new SessionRecoveryState();
+        Assert(!recovery.Offer("Alpha", "standard", 2, 0, 15), "A deliberate stop/generic failure offered recovery.");
+        Assert(!recovery.Offer("Alpha", "standard", 2, 1, 7), "A startup failure offered runtime recovery.");
+        Assert(!recovery.Offer("Alpha", "standard", 2, 99, 15), "An unknown interruption offered recovery.");
+        Assert(recovery.Offer("Alpha", "standard", 2, 1, 15), "A confirmed physical disconnect did not offer recovery.");
+        Assert(recovery.Pending && recovery.BlocksAutomaticActivation && !recovery.Resuming, "Recovery restarted without consent.");
+        Assert(recovery.Game == "Alpha" && recovery.Profile == "standard" && recovery.ApexSlot == 2, "Recovery lost its original session context.");
+        recovery.ControllerDetected(true);
+        Assert(recovery.ControllerAvailable && recovery.Stages == 0, "Presence was incorrectly presented as verified isolation/readiness.");
+        Assert(recovery.Begin() && !recovery.Begin(), "Duplicate recovery was accepted.");
+        recovery.Observe(1); recovery.Observe(2);
+        Assert(recovery.Stages == 3, "Observed recovery stages are not cumulative.");
+        recovery.Dismiss();
+        Assert(recovery.Pending && recovery.Resuming, "A running recovery was dismissed.");
+        recovery.Complete(false);
+        Assert(recovery.Pending && recovery.BlocksAutomaticActivation && !recovery.Recovered, "A failed recovery resumed automation or claimed success.");
+        Assert(recovery.Begin() && recovery.Stages == 0, "A retry reused verification results from the failed attempt.");
+        recovery.Observe(15); recovery.Complete(true);
+        Assert(recovery.Recovered && !recovery.Pending && !recovery.BlocksAutomaticActivation, "Successful recovery stayed blocked.");
+        var snapshot = recovery.Snapshot(); recovery.Clear();
+        Assert(snapshot.Recovered && !recovery.Recovered, "Recovery snapshots mutate with the service state.");
+        Assert(recovery.Offer("Alpha", "standard", 0, 2, 15, "Playnite"), "Virtual disconnection was not recognized.");
+        Assert(!recovery.Begin() && recovery.Pending, "Tray took ownership of a Playnite recovery.");
+        recovery.Dismiss();
+        Assert(!recovery.Pending && recovery.BlocksAutomaticActivation, "Dismissing the notice silently restarted the bridge.");
+        recovery.Clear();
+        Assert(!recovery.BlocksAutomaticActivation && recovery.Game == null, "Closing the game left a pending recovery.");
+        Assert(recovery.Offer("Alpha", "standard", 0, 3, 15), "Loss of input while the dongle remains attached did not offer recovery.");
+    }
+
+    private static void TestInterruptedSessionRecovery()
+    {
+        string error;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.RecoveryTest." + Guid.NewGuid().ToString("N");
+        using (var session = BridgeSession.TryStart(executable, "--fake-session --disconnect", TimeSpan.FromSeconds(3), null, null, out error, "Alpha", "standard", discovery))
+        {
+            Assert(session != null, "Fake interrupted session did not start: " + error);
+            var manager = new EngineSessionManager(() => executable, discovery, () => false);
+            try
+            {
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                typeof(EngineSessionManager).GetField("activeSession", flags).SetValue(manager, session);
+                typeof(EngineSessionManager).GetField("activeGameTitle", flags).SetValue(manager, "Alpha");
+                typeof(EngineSessionManager).GetField("activeProfileName", flags).SetValue(manager, "standard");
+                typeof(EngineSessionManager).GetField("activeApexSlot", flags).SetValue(manager, 3);
+                WaitUntil(() => manager.Recovery.Pending, TimeSpan.FromSeconds(3), "Interrupted engine did not offer recovery.");
+                Assert(!manager.IsSessionActive && manager.AutomaticActivationBlocked, "A dead session was retained or automatically retried.");
+                Assert(manager.Recovery.ApexSlot == 3 && manager.LastReason.Contains("cleanup"), "Recovery lost the slot or masked a cleanup failure.");
+                Assert(!manager.StartSession("Alpha", "standard", new TraySettings(), out error), "Automatic startup bypassed recovery consent.");
+                Assert(manager.ResumeSession(new TraySettings(), out error), "Controlled recovery failed: " + error);
+                Assert(manager.IsSessionActive && manager.Recovery.Recovered && !manager.AutomaticActivationBlocked, "Recovered session was not ready or remained blocked.");
+                Assert(manager.Recovery.Stages == 15 && manager.ActiveProfile == "standard / APEX 3", "Resume lost verified stages or the original APEX slot.");
+                manager.StopSession("Recovery test stopped");
+                var state = (SessionRecoveryState)typeof(EngineSessionManager).GetField("recovery", flags).GetValue(manager);
+                state.Offer("Alpha", "standard", 3, 1, 15);
+                manager.DismissRecovery();
+                Assert(manager.AutomaticActivationBlocked, "Dismissing the recovery restarted automation.");
+                manager.StopSession("Game closed");
+                Assert(!manager.AutomaticActivationBlocked, "Game shutdown did not clear the recovery gate.");
+            }
+            finally { manager.Dispose(); }
+        }
+        Assert(BridgeSession.ReadSessionStatus("invalid") == null, "Invalid status token was accepted.");
+    }
+
+    private static void TestExternalRecoveryOwnership()
+    {
+        string error;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ExternalRecoveryTest." + Guid.NewGuid().ToString("N");
+        using (var session = BridgeSession.TryStart(executable, "--fake-session --disconnect", TimeSpan.FromSeconds(3), null, null, out error, "Alpha", "standard", discovery))
+        {
+            Assert(session != null, "Fake external session did not start: " + error);
+            var info = BridgeSession.ReadActiveSession(discovery);
+            info.Owner = "Playnite";
+            using (var mapping = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(discovery))
+            using (var view = mapping.CreateViewAccessor())
+            {
+                var bytes = Encoding.UTF8.GetBytes(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(info));
+                view.Write(0, 0); view.WriteArray(4, bytes, 0, bytes.Length); view.Write(0, bytes.Length);
+            }
+            var manager = new EngineSessionManager(() => executable, discovery, () => false);
+            try
+            {
+                WaitUntil(() => manager.Recovery.Pending, TimeSpan.FromSeconds(3), "External interruption was not observed.");
+                Assert(manager.Recovery.Owner == "Playnite" && manager.Recovery.Game == "Alpha", "External recovery lost its owner/game.");
+                Assert(!manager.ResumeSession(new TraySettings(), out error) && !manager.IsSessionActive, "Tray took over a Playnite session.");
+                Assert(manager.AutomaticActivationBlocked, "Automatic Tray activation took over an interrupted external session.");
+            }
+            finally { manager.Dispose(); }
+        }
+    }
+
+    private static void TestRecoveryCancelledDuringStartup()
+    {
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.CancelRecoveryTest." + Guid.NewGuid().ToString("N");
+        var manager = new EngineSessionManager(() => executable, discovery, () => false);
+        try
+        {
+            var state = (SessionRecoveryState)typeof(EngineSessionManager).GetField("recovery", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(manager);
+            state.Offer("Alpha", "standard", 2, 1, 15);
+            string error = null;
+            var resume = System.Threading.Tasks.Task.Run(() => manager.ResumeSession(new TraySettings(), out error));
+            WaitUntil(() => manager.StateName == "Starting", TimeSpan.FromSeconds(2), "Recovery never entered startup.");
+            manager.StopSession("Game exited during recovery");
+            Assert(resume.Wait(TimeSpan.FromSeconds(4)) && !resume.Result, "Recovery ignored cancellation during startup.");
+            Assert(!manager.IsSessionActive && !manager.Recovery.Pending && !manager.AutomaticActivationBlocked, "Cancelled recovery left an active engine or a stale gate.");
+        }
+        finally { manager.Dispose(); }
+    }
+
+    private static void TestRecoveryGameLifetimeTracking()
+    {
+        var catalog = CreateGameList("{\"games\":[{\"title\":\"Alpha Game\",\"normalized\":\"alphagame\",\"profile\":\"standard\",\"adaptiveTriggers\":true}]}");
+        var settings = new TraySettings();
+        settings.SetGameExecutable("alphagame", @"C:\Fake\Alpha.exe");
+        int launchAttempts = 0;
+        var manager = new EngineSessionManager(() => { launchAttempts++; return null; }, "Local\\ASB.LifetimeTest." + Guid.NewGuid().ToString("N"), () => false);
+        using (var monitor = new ProcessMonitorService(catalog, manager, null, settings, false))
+        {
+            try
+            {
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var recovery = (SessionRecoveryState)typeof(EngineSessionManager).GetField("recovery", flags).GetValue(manager);
+                recovery.Offer("Alpha Game", "standard", 0, 1, 15, "Playnite");
+                var check = typeof(ProcessMonitorService).GetMethod("CheckCandidateProcess", flags);
+                check.Invoke(monitor, new object[] { 1001u, "Alpha.exe", @"C:\Fake\Alpha.exe", 0L, null, "test", false });
+                var tracker = (GameProcessSessionTracker)typeof(ProcessMonitorService).GetField("processSession", flags).GetValue(monitor);
+                Assert(tracker.Contains(1001) && launchAttempts == 0, "Interrupted external game was not tracked without taking ownership.");
+                tracker.Remove(1001, DateTime.UtcNow, TimeSpan.FromSeconds(2));
+                check.Invoke(monitor, new object[] { 1002u, "Alpha.exe", @"C:\Fake\Alpha.exe", 0L, null, "test", false });
+                Assert(tracker.Contains(1002) && !tracker.IsAwaitingReplacement && launchAttempts == 0, "PID handoff during recovery restarted or lost the session.");
+                manager.DismissRecovery();
+                tracker.Remove(1002, DateTime.UtcNow.AddSeconds(-3), TimeSpan.FromSeconds(2));
+                bool stopped = (bool)typeof(ProcessMonitorService).GetMethod("TryStopExpiredSession", flags).Invoke(monitor, null);
+                Assert(stopped && !manager.AutomaticActivationBlocked && !manager.Recovery.Pending && launchAttempts == 0, "Closing the interrupted game failed to clear recovery without launching an engine.");
+            }
+            finally { manager.Dispose(); }
+        }
     }
 
     private static void TestDatabaseExecutableResolutionAndCollisions()

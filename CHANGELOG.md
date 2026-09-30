@@ -1,5 +1,64 @@
 # Changelog
 
+## Unreleased
+
+## 1.0.0 — local release preparation
+
+- **Guided disconnection recovery**: after a confirmed runtime controller or
+  virtual-stream disconnection, or physical-input stream loss (including sleep
+  with a dongle still connected), Tray pauses automatic activation and offers a
+  voluntary bridge restart with the original game, profile and APEX slot.
+  Controller identity, virtual DualSense readiness, HidHide isolation and final
+  runtime readiness are displayed from token-scoped structured IPC. A failed
+  retry remains paused; dismissing the notice does not silently restart it.
+  Games are never terminated or relaunched automatically and may need restarting
+  to reacquire the recreated DualSense. Playnite-owned interruptions remain
+  owned by Playnite and display guidance rather than a Tray takeover.
+
+- **APEX 6 trigger-vibration decoding ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  reads native `0x26` frequency from effect byte 9, not reserved byte 10. Empty
+  native zone masks and zero-frequency vibration are valid stop requests rather
+  than rejected effects. This corrects a confirmed beta.8 decoding defect;
+  Endfield's zipline effect still needs an in-game hardware retest.
+- **APEX 6 feedback evidence**: keeps a bounded 64-transition trace with raw
+  trigger bytes, elapsed time, side, position and acceptance status, plus the
+  last active/rejected request for each side even after an off command. Reports
+  malformed parameters separately from unsupported types and rejection-induced
+  stops separately from explicit stops. Adds pre-filter 48 kHz audio peaks/RMS,
+  filtered active-block RMS, thresholded channels and active queue-drop counts.
+  The optional audio trailer is backward compatible; its collection is limited
+  to waveform-enabled sessions. The integrated backend identifies its actual
+  ASB patch version instead of printing a hard-coded label. No PCM gain, USB
+  descriptor, driver installation or APEX 4/5 motor routing is changed by these
+  fixes. The reported ZZZ freeze remains unconfirmed and is not marked fixed.
+- **Tray game settings and session status**: optional per-game executable path,
+  learned-path choices and exact configured-path detection; explicit session
+  phases, owner, controller, game/profile and refusal/stop reasons, including
+  sessions managed by the updated Playnite extension. Prepared `.exe` launching
+  is now in controller diagnostics rather than the dashboard.
+- **Controller feel**: global Tray trigger/vibration strength (0–100%) and
+  audio-haptic threshold (0–95%), applied at next session startup on APEX 4/5/6.
+  Output scaling preserves effect travel, timing and frequency; zero strength
+  stops the corresponding effect. APEX 6 PCM channels now honor the threshold.
+- **Clear main entry point**: launching the engine without arguments opens the
+  Tray application. Windows file descriptions, installer shortcuts and usage
+  distinguish the main Tray application from the command-line engine.
+
+- **Adaptive-trigger translation fixes for Horizon reports on APEX 4/5 ([#22](https://github.com/ReynArts/ApexSenseBridge/issues/22))**:
+  corrects defects in the existing adaptive-trigger support identified while
+  investigating continuous left-trigger twitching in Horizon Zero Dawn
+  Remastered and missing left-trigger effects in Horizon Forbidden West on
+  APEX 5. Valid left-trigger vibration effects are no longer discarded or tied
+  to grip rumble; native effect zones and strengths are decoded consistently
+  for LT and RT, and empty native effects or zero-frequency vibration reset
+  the corresponding trigger to Normal. Native weapon effects use the length
+  of the resistance interval rather than its absolute end position, matching
+  Space Station's breakthrough parameter. These shared translation fixes apply
+  to all games using the affected effects on APEX 4/5, rather than a
+  Horizon-specific profile. The current APEX 4/5 mapping still approximates
+  multi-zone effects with a single start and peak strength. Resolution of the
+  reported Horizon symptoms remains pending hardware validation in both games.
+
 ## 1.0.0-beta.8
 
 - **APEX 6 DualSense trigger fidelity ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:

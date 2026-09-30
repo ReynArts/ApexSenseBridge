@@ -25,6 +25,8 @@ struct BridgeCommandOptions {
     asb::dualsense::TouchpadGestureProfile touchpadProfile =
         asb::dualsense::TouchpadGestureProfile::None;
     unsigned int hapticThresholdPercent = 12;
+    unsigned int triggerStrengthPercent = 100;
+    unsigned int vibrationStrengthPercent = 100;
     bool hapticThresholdExplicit = false;
     std::optional<unsigned int> xinputIndex;
     std::optional<std::string> sessionToken;

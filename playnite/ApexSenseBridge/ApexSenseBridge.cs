@@ -150,7 +150,7 @@ namespace ApexSenseBridge
                     TimeSpan.FromSeconds(settings.Settings.InitializationTimeoutSeconds),
                     msg => logger.Info(msg),
                     msg => logger.Error(msg),
-                    out error);
+                    out error, args.Game.Name, profile.ProfileType + " / APEX " + profile.ApexProfileSlot);
                 if (session == null)
                 {
                     CancelStartup(args, error);

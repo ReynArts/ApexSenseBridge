@@ -46,6 +46,7 @@ namespace asb::cli {
 void printUsage() {
     std::cout
         << "ApexSenseBridge 1.0.0\n\n"
+        << "Engine / command-line diagnostics. Main application: ApexSenseBridgeTray.exe\n\n"
         << "Commands:\n"
         << "  list                         List APEX 4/5/6 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
@@ -62,6 +63,7 @@ void printUsage() {
         << "                  [--rumble]\n"
         << "                  [--sync-lightbar]\n"
         << "                  [--haptic-threshold 0..95]\n"
+        << "                  [--trigger-strength 0..100] [--vibration-strength 0..100]\n"
         << "                  [--verify-virtual-input]\n"
         << "                  [--virtual-backend auto|integrated|sidecar]\n"
         << "                  [--touchpad-profile NAME]\n"
@@ -98,6 +100,24 @@ int run(int argc, char** argv) {
     installConsoleHandler();
 
     if (argc < 2) {
+#ifdef _WIN32
+        wchar_t executablePath[32768]{};
+        const auto length = GetModuleFileNameW(nullptr, executablePath, 32768);
+        if (length > 0 && length < 32768) {
+            const auto tray = std::filesystem::path(executablePath).parent_path() / L"ApexSenseBridgeTray.exe";
+            std::wstring commandLine = L"\"" + tray.wstring() + L"\" --show";
+            STARTUPINFOW startup{};
+            startup.cb = sizeof(startup);
+            PROCESS_INFORMATION launched{};
+            if (std::filesystem::exists(tray) && CreateProcessW(tray.c_str(), commandLine.data(), nullptr,
+                    nullptr, FALSE, 0, nullptr, tray.parent_path().c_str(), &startup, &launched)) {
+                CloseHandle(launched.hThread);
+                CloseHandle(launched.hProcess);
+                return 0;
+            }
+        }
+        std::cerr << "Open ApexSenseBridgeTray.exe (main application). The engine accepts diagnostic commands only.\n";
+#endif
         printUsage();
         return 0;
     }

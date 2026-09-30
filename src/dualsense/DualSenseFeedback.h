@@ -37,6 +37,14 @@ struct DualSenseFeedback {
     std::array<std::int16_t, 8> leftHapticSamples{};
     std::array<std::int16_t, 8> rightHapticSamples{};
 
+    // Optional asb13 diagnostics, measured before 48 kHz -> 1 kHz filtering.
+    // Channel order: speaker L/R, haptic L/R. Older backends omit the trailer.
+    bool hasRawAudioMeasurements = false;
+    std::array<std::uint16_t, 4> rawAudioPeaks{};
+    std::uint64_t rawHapticLeftSumSquares = 0;
+    std::uint64_t rawHapticRightSumSquares = 0;
+    std::uint32_t rawAudioFrames = 0;
+
     std::uint8_t lightbarRed = 0;
     std::uint8_t lightbarGreen = 0;
     std::uint8_t lightbarBlue = 0;

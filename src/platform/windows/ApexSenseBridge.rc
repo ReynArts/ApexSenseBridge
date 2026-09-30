@@ -29,7 +29,7 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "ApexSenseBridge contributors\0"
-            VALUE "FileDescription", "ApexSenseBridge native application\0"
+            VALUE "FileDescription", "ApexSenseBridge engine and command-line diagnostics\0"
             VALUE "FileVersion", ASB_VERSION_STRING ".0\0"
             VALUE "ProductName", "ApexSenseBridge\0"
             VALUE "ProductVersion", ASB_VERSION_STRING ".0\0"

@@ -112,6 +112,28 @@ int main(int argc, char** argv) {
     assert(status->message.back() == '\0');
 
     control.reset();
+    // Progress is optional: the original launcher above has no extra mapping.
+    const auto progressName = widen("Local\\ApexSenseBridge.Session." + std::string(token) + ".Progress");
+    HANDLE progressMapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
+                                               sizeof(SessionProgressBlock), progressName.c_str());
+    assert(progressMapping);
+    auto* progress = static_cast<SessionProgressBlock*>(MapViewOfFile(progressMapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(SessionProgressBlock)));
+    assert(progress);
+    control = connectSessionControl(token, std::nullopt, error);
+    assert(control && progress->magic == 0x50534241 && progress->version == 1);
+    assert(progress->stages == 0 && progress->interruption == 0);
+    control->markProgress(SessionProgress::ControllerVerified);
+    control->markProgress(SessionProgress::VirtualReady);
+    control->markProgress(SessionProgress::IsolationVerified);
+    control->markProgress(SessionProgress::RuntimeReady);
+    assert(progress->stages == 15);
+    control->markInterrupted(SessionInterruption::PhysicalDisconnected);
+    assert(progress->interruption == 1);
+    assert(control->publish(SessionPhase::Failed, 11, "Cleanup failed after disconnect", error));
+    assert(progress->interruption == 1); // Cleanup must not mask the disconnect.
+    control.reset();
+    UnmapViewOfFile(progress);
+    CloseHandle(progressMapping);
     UnmapViewOfFile(status);
     CloseHandle(mapping);
     CloseHandle(stop);

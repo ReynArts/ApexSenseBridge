@@ -54,6 +54,7 @@ using SetDualSenseASBRawOutputCallbackFn = ViiperBool(__cdecl*)(
     RawOutputCallback,
     std::uintptr_t);
 using RemoveDualSenseDeviceFn = ViiperBool(__cdecl*)(ViiperHandle);
+using GetASBPatchVersionFn = std::uint32_t(__cdecl*)();
 
 std::filesystem::path executableDirectory() {
     std::vector<wchar_t> buffer(32768);
@@ -201,7 +202,11 @@ public:
             return false;
         }
 
-        backendVersion_ = "libVIIPER v0.7.0-asb12 (integrated)";
+        const auto patchVersion = reinterpret_cast<GetASBPatchVersionFn>(
+            GetProcAddress(library_, "GetVIIPERASBPatchVersion"));
+        backendVersion_ = patchVersion
+            ? "libVIIPER v0.7.0-asb" + std::to_string(patchVersion()) + " (integrated)"
+            : "libVIIPER v0.7.0 (integrated, ASB patch version unavailable)";
         connected_.store(true, std::memory_order_release);
         error.clear();
         return true;
