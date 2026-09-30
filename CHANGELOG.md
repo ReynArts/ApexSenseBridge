@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.9
+
+### Touchpad & Motion
 
 - **Death Stranding 2 touchpad remapping ([#5](https://github.com/ReynArts/ApexSenseBridge/issues/5))**:
   `View/Back` sends a right-side touchpad click immediately and preserves the
@@ -18,8 +20,6 @@
   yaw/roll instructions. Gyro gains are empirical estimates, not factory
   calibration; on-device direction/sensitivity and in-game behavior still
   require tester validation. See `APEX4_GYRO_VALIDATION.md`.
-
-## 1.0.0 — local release preparation
 
 ### Tray application and shared features — APEX 4/5/6
 
@@ -67,6 +67,17 @@
   fixes. The reported ZZZ freeze remains unconfirmed and is not marked fixed.
 
 ### APEX 4/5-specific fixes
+
+- **APEX 5 simultaneous LT/RT stream guard**: combined-axis HID sessions now
+  verify a live independent operator stream before announcing readiness, even
+  when the requested onboard profile is already active. Missing or stalled
+  streams receive one temporary raw-routing restart at startup and one at
+  runtime; settings are snapshotted before changes and restored by the existing
+  session/watchdog recovery. Runtime recovery neutralizes virtual input first;
+  repeated loss stops cleanly instead of silently canceling aim while firing.
+  Cached vendor pairs expire, mapped Space Station controls remain authoritative,
+  and separate-axis, APEX 4/6 and explicit XInput sources are unchanged. Recovery
+  attempts are logged. Call of Duty hardware validation is still required.
 
 - **Adaptive-trigger translation fixes for Horizon reports on APEX 4/5 ([#22](https://github.com/ReynArts/ApexSenseBridge/issues/22))**:
   corrects defects in the existing adaptive-trigger support identified while

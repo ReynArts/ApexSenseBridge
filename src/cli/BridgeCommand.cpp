@@ -189,6 +189,15 @@ int commandBridgeTriggers(int argc, char** argv) {
             originalInputTransport = transport;
         }
     }
+    if (originalInputTransport) {
+        std::cout << "Apex 5 input transport snapshot: controller_data="
+                  << originalInputTransport->controllerData
+                  << ", raw_data=" << originalInputTransport->rawData
+                  << ", keyboard_data=" << originalInputTransport->keyboardData
+                  << ", mouse_data=" << originalInputTransport->mouseData
+                  << ", third_party_control=" << originalInputTransport->thirdPartyControl
+                  << std::endl;
+    }
     std::unique_ptr<asb::TriggerResetGuard> resetOnExit;
     if (!apex6Pro) {
         if (!device->clearAll(error)) {
@@ -447,17 +456,33 @@ int commandBridgeTriggers(int argc, char** argv) {
             return failSession(exitCode, message);
         };
 
+    asb::platform::PhysicalInputSourceStats retiredInputStats{};
+    bool inputTransportRecoveryArmed = false;
+    unsigned int independentTriggerStartupRecoveries = 0;
+    unsigned int independentTriggerRuntimeRecoveries = 0;
+    const auto armInputTransportRecovery = [&]() {
+        if (inputTransportRecoveryArmed) return true;
+        if (!originalInputTransport) {
+            error = "The original Apex 5 input transport is unknown; LT/RT recovery "
+                    "was refused to preserve controller settings.";
+            return false;
+        }
+        if (!physicalIsolation.armApexInputTransportRestore(
+                originalInputTransport->controllerData,
+                originalInputTransport->rawData, error)) return false;
+        inputTransportRecoveryArmed = true;
+        return true;
+    };
     const bool inputTransportRefreshRequired =
         apex5 && originalInputTransport &&
         (profileSwitchRequired || !originalInputTransport->controllerData ||
          !originalInputTransport->rawData);
     if (inputTransportRefreshRequired) {
-        if (!physicalIsolation.armApexInputTransportRestore(
-                originalInputTransport->controllerData,
-                originalInputTransport->rawData, error)) {
+        if (!armInputTransportRecovery()) {
             return rollbackFailedProfileStartup(
                 11, "Could not arm Apex 5 input-transport recovery: " + error);
         }
+        accumulatePhysicalInputStats(retiredInputStats, inputSource->stats());
         inputSource.reset();
     }
 
@@ -570,7 +595,61 @@ int commandBridgeTriggers(int argc, char** argv) {
                        error);
         }
     }
-    if (apex5 && inputSource->stats().vendorStates == 0) {
+    // Reuse the existing temporary-transport recovery and restore marker. An
+    // ACK/readback saying rawData=true does not prove operator reports are live.
+    // Reopen before changing routing so the new reader observes the restart.
+    const auto restartIndependentTriggerStream =
+        [&](asb::dualsense::DualSenseInputState& refreshed, std::string& restartError) {
+            if (!armInputTransportRecovery()) {
+                restartError = error;
+                return false;
+            }
+            accumulatePhysicalInputStats(retiredInputStats, inputSource->stats());
+            inputSource.reset();
+            inputSource = asb::platform::openPhysicalInputSource(
+                device->info(), options.xinputIndex, restartError);
+            if (!inputSource) return false;
+            if (device->identity()) inputSource->setBatteryState(
+                device->identity()->batteryPercent(), device->identity()->chargeState());
+            // Never disable controllerData or switch onboard profiles here.
+            if (!device->setInputTransport(true, false, restartError) ||
+                !device->setInputTransport(true, true, restartError)) return false;
+            const auto status = inputSource->waitForState(
+                refreshed, std::chrono::milliseconds(1000), restartError);
+            if (status != asb::platform::PhysicalInputStatus::State) {
+                if (restartError.empty()) restartError = "No mapped input state arrived after LT/RT stream restart.";
+                return false;
+            }
+            // A generic XInput fallback must not masquerade as recovery of the
+            // selected mapped/vendor source, especially under Full Screen Experience.
+            if (!inputSource->requiresIndependentTriggers()) {
+                restartError = "LT/RT recovery did not reacquire the Apex 5 combined-axis mapped/vendor source.";
+                return false;
+            }
+            inputBackend = std::string(inputSource->backendName());
+            return validateIndependentTriggerStream(
+                *inputSource, refreshed, std::chrono::milliseconds(1000), restartError);
+        };
+    if (apex5 && inputSource->requiresIndependentTriggers()) {
+        std::string triggerValidationError;
+        if (!validateIndependentTriggerStream(
+                *inputSource, initialInput, std::chrono::milliseconds(1000),
+                triggerValidationError)) {
+            std::cerr << "Apex 5 independent LT/RT stream unavailable; attempting one "
+                         "temporary routing restart: " << triggerValidationError << std::endl;
+            ++independentTriggerStartupRecoveries;
+            if (!restartIndependentTriggerStream(initialInput, triggerValidationError)) {
+                return rollbackFailedProfileStartup(
+                    8, "Apex 5 independent LT/RT validation failed after one restart: " +
+                           triggerValidationError);
+            }
+        }
+        if (!virtualDualSense->updateInput(initialInput, error)) {
+            return rollbackFailedProfileStartup(
+                8, "Virtual DualSense LT/RT resynchronization failed: " + error);
+        }
+        std::cout << "Apex 5 independent LT/RT stream verified." << std::endl;
+    } else if (apex5 && inputSource->stats().vendorStates == 0) {
         std::cerr << "Warning: the Apex 5 vendor motion stream produced no state "
                      "during initialization. Standard controls remain active; "
                      "motion data will be merged if the stream resumes.\n";
@@ -762,8 +841,40 @@ int commandBridgeTriggers(int argc, char** argv) {
         const auto inputWait = inputSource->eventDriven()
             ? std::chrono::milliseconds(8)
             : std::chrono::milliseconds(1);
-        const auto inputStatus = inputSource->waitForState(
+        auto inputStatus = inputSource->waitForState(
             input, inputWait, inputProxyError);
+        if ((inputStatus == asb::platform::PhysicalInputStatus::State ||
+             inputStatus == asb::platform::PhysicalInputStatus::Timeout) &&
+            inputSource->requiresIndependentTriggers() &&
+            !inputSource->independentTriggersReady()) {
+            // Mapped traffic cannot keep a missing independent stream "healthy".
+            // Stop forwarding before any canceled or stale trigger state leaks.
+            bool recovered = false;
+            if (independentTriggerRuntimeRecoveries == 0) {
+                ++independentTriggerRuntimeRecoveries;
+                std::cerr << "Apex 5 independent LT/RT stream lost; attempting one "
+                             "temporary routing restart." << std::endl;
+                asb::dualsense::DualSenseInputState neutral{};
+                neutral.batteryPercent = input.batteryPercent;
+                neutral.chargeState = input.chargeState;
+                if (virtualDualSense->updateInput(neutral, inputProxyError)) {
+                    lastForwardedInput = neutral;
+                    recovered = restartIndependentTriggerStream(input, inputProxyError);
+                }
+            } else {
+                inputProxyError = "The independent Apex 5 LT/RT stream was lost again "
+                                  "after its single runtime recovery.";
+            }
+            if (!recovered) {
+                inputProxyFailed = true;
+                if (sessionControl) sessionControl->markInterrupted(
+                    asb::platform::SessionInterruption::InputStreamLost);
+                if (inputProxyError.empty()) inputProxyError = "Independent Apex 5 LT/RT recovery failed.";
+                break;
+            }
+            inputStatus = asb::platform::PhysicalInputStatus::State;
+            std::cout << "Apex 5 independent LT/RT stream recovered." << std::endl;
+        }
         bool forwardInput = false;
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
@@ -986,7 +1097,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     const bool rumbleResetOk = !rumbleBridge || device->stopRumble(rumbleResetError);
     if (rumbleResetOk && rumbleResetOnExit) rumbleResetOnExit->dismiss();
     // Observe a stable release while the raw stream is still owned and live.
-    const bool physicalControlsReleased = waitForPhysicalControlsReleased(
+    const bool physicalControlsReleased = inputSource && waitForPhysicalControlsReleased(
         *inputSource, std::chrono::milliseconds(1500));
     std::string resetError;
     const bool resetOk = apex6Pro ? apex6ResetOk : device->clearAll(resetError);
@@ -1006,7 +1117,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         profileRestored = true;
         profileRestoreOnExit->dismiss();
     }
-    const auto inputSourceStats = inputSource->stats();
+    auto inputSourceStats = retiredInputStats;
+    if (inputSource) accumulatePhysicalInputStats(inputSourceStats, inputSource->stats());
     const auto processUsageFinished = processUsageSnapshot();
     const double runtimeSeconds = runtimeMilliseconds > 0
         ? static_cast<double>(runtimeMilliseconds) / 1000.0
@@ -1041,6 +1153,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         telemetry.physicalStats = inputSourceStats;
         telemetry.processUsage = processUsageFinished;
         telemetry.inputBackend = inputBackend;
+        telemetry.independentTriggerStartupRecoveries = independentTriggerStartupRecoveries;
+        telemetry.independentTriggerRuntimeRecoveries = independentTriggerRuntimeRecoveries;
         telemetry.virtualInputMonitorEnabled = virtualInputMonitor != nullptr;
         telemetry.startupAttempts = startupResult.attempts;
         telemetry.initializationMilliseconds = initializationMilliseconds;
@@ -1087,7 +1201,9 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "virtual_backend=" << virtualStats.backendVersion << '\n'
               << "input_mode=mandatory-full-proxy\n"
               << "input_backend=" << inputBackend << '\n'
-              << "input_event_driven=" << (inputSource->eventDriven() ? "yes" : "no") << '\n'
+              << "input_event_driven=" << (inputSource && inputSource->eventDriven() ? "yes" : "no") << '\n'
+              << "independent_trigger_startup_recoveries=" << independentTriggerStartupRecoveries << '\n'
+              << "independent_trigger_runtime_recoveries=" << independentTriggerRuntimeRecoveries << '\n'
               << "input_vendor_reports=" << inputSourceStats.vendorReports << '\n'
               << "input_vendor_states=" << inputSourceStats.vendorStates << '\n'
               << "input_vendor_parse_failures="

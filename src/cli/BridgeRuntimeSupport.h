@@ -57,6 +57,13 @@ struct ProcessUsageSnapshot {
 [[nodiscard]] bool waitForPhysicalControlsReleased(
     asb::platform::PhysicalInputSource& input,
     std::chrono::milliseconds maximumWait) noexcept;
+[[nodiscard]] bool validateIndependentTriggerStream(
+    asb::platform::PhysicalInputSource& input,
+    asb::dualsense::DualSenseInputState& latest,
+    std::chrono::milliseconds maximumWait,
+    std::string& error);
+void accumulatePhysicalInputStats(asb::platform::PhysicalInputSourceStats& total,
+                                  const asb::platform::PhysicalInputSourceStats& added) noexcept;
 
 class ButtonHoldTracker {
 public:

@@ -63,6 +63,10 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << jsonEscape(virtualStats.backendVersion) << "\",\n"
            << "  \"input_mode\": \"mandatory-full-proxy\",\n"
            << "  \"input_backend\": \"" << jsonEscape(telemetry.inputBackend) << "\",\n"
+           << "  \"independent_trigger_startup_recoveries\": "
+           << telemetry.independentTriggerStartupRecoveries << ",\n"
+           << "  \"independent_trigger_runtime_recoveries\": "
+           << telemetry.independentTriggerRuntimeRecoveries << ",\n"
            << "  \"virtual_input_monitor\": \""
            << (telemetry.virtualInputMonitorEnabled ? "enabled" : "disabled")
            << "\",\n"

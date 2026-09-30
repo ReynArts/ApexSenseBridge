@@ -27,6 +27,8 @@ int main() {
     telemetry.physicalStats.reports = 21;
     telemetry.physicalStats.vendorReports = 22;
     telemetry.inputBackend = "hid\\vendor";
+    telemetry.independentTriggerStartupRecoveries = 1;
+    telemetry.independentTriggerRuntimeRecoveries = 1;
     telemetry.virtualInputMonitorEnabled = true;
     telemetry.startupAttempts = 2;
     telemetry.runtimeMilliseconds = 3000;
@@ -62,6 +64,8 @@ int main() {
     assert(json.find("\"dualsense_trigger_reports\": 12") !=
            std::string::npos);
     assert(json.find(",\n}\n") == std::string::npos);
+    assert(json.find("\"independent_trigger_startup_recoveries\": 1") != std::string::npos);
+    assert(json.find("\"independent_trigger_runtime_recoveries\": 1") != std::string::npos);
 
     constexpr std::array requiredKeys{
         "schema", "virtual_backend", "input_mode", "input_backend",

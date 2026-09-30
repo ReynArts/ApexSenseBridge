@@ -146,6 +146,15 @@ int main() {
     assert(enableRaw[7] == 0xFF && enableRaw[8] == 0xFF &&
            enableRaw[9] == 0xFF);
     assert(enableRaw[10] == 0x16);
+    // Recovery toggles only raw input, never controller output or keyboard,
+    // mouse and third-party ownership. The same builder restores saved flags.
+    const auto restartRawOff = buildSetInputTransport(true, false);
+    const auto restartRawOn = buildSetInputTransport(true, true);
+    assert(restartRawOff[5] == 1 && restartRawOff[6] == 0);
+    assert(restartRawOn[5] == 1 && restartRawOn[6] == 1);
+    for (std::size_t index = 7; index <= 9; ++index) {
+        assert(restartRawOff[index] == 0xFF && restartRawOn[index] == 0xFF);
+    }
 
     std::array<std::uint8_t, 32> transportReply{};
     transportReply[0] = kReportIdIn;
@@ -304,6 +313,33 @@ int main() {
     assert((composedLeftOnly.buttons & dualsense::button::kL2) != 0);
     assert((composedLeftOnly.buttons & dualsense::button::kR2) != 0);
     assert((composedLeftOnly.buttons & dualsense::button::kCircle) != 0);
+
+    // Reproduce LT held -> RT pressed on a centered HID axis. Mapped controls
+    // are neutral when the triggers cancel, but a live operator pair recovers
+    // both; releasing RT restores the mapped LT and preserves other mappings.
+    dualsense::DualSenseInputState aimMapped{};
+    aimMapped.l2 = 220;
+    aimMapped.buttons = dualsense::button::kL2 | dualsense::button::kCircle;
+    auto aimVendor = vendorLeftOnly;
+    aimVendor.l2 = 220;
+    const auto aiming = composeApex5InputState(aimMapped, aimVendor, 74, 2);
+    assert(aiming.l2 == 220 && aiming.r2 == 0);
+    auto canceledMapped = aimMapped;
+    canceledMapped.l2 = 0;
+    canceledMapped.buttons = dualsense::button::kCircle;
+    auto firingVendor = aimVendor;
+    firingVendor.r2 = 210;
+    const auto aimingAndFiring = composeApex5InputState(canceledMapped, firingVendor, 74, 2);
+    assert(aimingAndFiring.l2 == 220 && aimingAndFiring.r2 == 210);
+    assert((aimingAndFiring.buttons & dualsense::button::kL2) != 0);
+    assert((aimingAndFiring.buttons & dualsense::button::kR2) != 0);
+    assert((aimingAndFiring.buttons & dualsense::button::kCircle) != 0);
+    const auto firingReleased = composeApex5InputState(aimMapped, aimVendor, 74, 2);
+    assert(firingReleased.l2 == 220 && firingReleased.r2 == 0);
+    assert((firingReleased.buttons & dualsense::button::kR2) == 0);
+    const auto stalePairDropped = composeApex5InputState(canceledMapped, std::nullopt, 74, 2);
+    assert(stalePairDropped.l2 == 0 && stalePairDropped.r2 == 0);
+    assert(stalePairDropped.buttons == dualsense::button::kCircle);
 
     assert(!decodeApex5InputReport(
         std::span<const std::uint8_t>(apex5Input.data(), 29)));

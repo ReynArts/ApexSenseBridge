@@ -11,6 +11,47 @@
 
 namespace asb::cli {
 
+bool validateIndependentTriggerStream(
+    asb::platform::PhysicalInputSource& input,
+    asb::dualsense::DualSenseInputState& latest,
+    std::chrono::milliseconds maximumWait,
+    std::string& error) {
+    error.clear();
+    if (!input.requiresIndependentTriggers()) return true;
+    const auto deadline = std::chrono::steady_clock::now() + maximumWait;
+    while (std::chrono::steady_clock::now() < deadline) {
+        asb::dualsense::DualSenseInputState observed{};
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now());
+        const auto status = input.waitForState(
+            observed, (std::min)(remaining, std::chrono::milliseconds(25)), error);
+        if (status == asb::platform::PhysicalInputStatus::Disconnected ||
+            status == asb::platform::PhysicalInputStatus::Error) {
+            if (error.empty()) error = "The physical Apex 5 input stream disconnected during LT/RT validation.";
+            return false;
+        }
+        if (status == asb::platform::PhysicalInputStatus::State) {
+            latest = observed;
+            if (input.independentTriggersReady()) return true;
+        }
+    }
+    error = "The Apex 5 combined HID trigger axis has no live independent LT/RT "
+            "stream. Wake the controller and close Flydigi Space Station before retrying.";
+    return false;
+}
+
+void accumulatePhysicalInputStats(asb::platform::PhysicalInputSourceStats& total,
+                                  const asb::platform::PhysicalInputSourceStats& added) noexcept {
+    total.reports += added.reports;
+    total.timeouts += added.timeouts;
+    total.parseFailures += added.parseFailures;
+    total.mappedReports += added.mappedReports;
+    total.vendorReports += added.vendorReports;
+    total.vendorStates += added.vendorStates;
+    total.vendorParseFailures += added.vendorParseFailures;
+    total.vendorReadFailures += added.vendorReadFailures;
+}
+
 ProcessUsageSnapshot processUsageSnapshot() noexcept {
     ProcessUsageSnapshot snapshot{};
 #ifdef _WIN32
@@ -67,7 +108,10 @@ bool waitForPhysicalControlsReleased(
             error);
         const auto now = std::chrono::steady_clock::now();
         if (status == asb::platform::PhysicalInputStatus::State) {
-            if (gameplayControlsReleased(state)) {
+            // A neutral combined axis can also mean LT and RT are both held.
+            // Never use it as proof of release when independent input is lost.
+            if ((!input.requiresIndependentTriggers() || input.independentTriggersReady()) &&
+                gameplayControlsReleased(state)) {
                 if (!releasedAt) releasedAt = now;
                 if (now - *releasedAt >= kStableRelease) return true;
             } else {

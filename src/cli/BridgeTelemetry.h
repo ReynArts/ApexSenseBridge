@@ -19,6 +19,8 @@ struct BridgeTelemetry {
     asb::platform::PhysicalInputSourceStats physicalStats;
     ProcessUsageSnapshot processUsage;
     std::string inputBackend;
+    unsigned int independentTriggerStartupRecoveries = 0;
+    unsigned int independentTriggerRuntimeRecoveries = 0;
     bool virtualInputMonitorEnabled = false;
     std::size_t startupAttempts = 0;
     std::int64_t initializationMilliseconds = 0;

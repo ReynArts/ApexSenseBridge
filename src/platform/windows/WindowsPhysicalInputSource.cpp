@@ -7,6 +7,7 @@
 #include <hidpi.h>
 
 #include "platform/PhysicalInputSource.h"
+#include "platform/PhysicalInputFreshnessWatchdog.h"
 
 #include "flydigi/Apex4Input.h"
 #include "flydigi/Apex4Protocol.h"
@@ -272,6 +273,7 @@ public:
     std::string_view backendName() const noexcept override { return "apex-hid-event"; }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override { return stats_; }
+    [[nodiscard]] bool hasCombinedTriggerAxis() const noexcept { return combinedTriggerAxis_; }
     void setBatteryState(std::uint8_t batteryPercent,
                          std::uint8_t chargeState) noexcept override {
         currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
@@ -349,6 +351,7 @@ private:
             error = details.str();
             return false;
         }
+        combinedTriggerAxis_ = !hasValue(kUsageRz) && hasCombinedTriggerAxis();
         return true;
     }
 
@@ -518,6 +521,7 @@ private:
     std::vector<std::uint8_t> report_;
     std::vector<HIDP_VALUE_CAPS> valueCaps_;
     std::vector<HIDP_BUTTON_CAPS> buttonCaps_;
+    bool combinedTriggerAxis_ = false;
     PhysicalInputSourceStats stats_{};
     std::atomic<std::uint8_t> currentBatteryPercent_{100};
     std::atomic<std::uint8_t> currentChargeState_{0};
@@ -929,7 +933,7 @@ public:
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex5-v8-mapped+vendor-simultaneous";
+        return "apex5-v9-mapped+vendor-guarded";
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override {
@@ -942,6 +946,12 @@ public:
         result.vendorParseFailures = vendorParseFailures_;
         result.vendorReadFailures = vendorReadFailures_;
         return result;
+    }
+    bool requiresIndependentTriggers() const noexcept override {
+        return mappedGamepad_->hasCombinedTriggerAxis();
+    }
+    bool independentTriggersReady() const noexcept override {
+        return mappedInputObserved_ && !vendorUnavailable_ && independentTriggerFreshness_.ready();
     }
     void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept override {
         currentBatteryPercent_.store(batteryPercent, std::memory_order_relaxed);
@@ -1023,6 +1033,7 @@ private:
             return false;
         }
         lastVendorState_ = *decoded;
+        independentTriggerFreshness_.observe();
         ++vendorStates_;
         return true;
     }
@@ -1053,7 +1064,7 @@ private:
 
     void composeState(dualsense::DualSenseInputState& state) const noexcept {
         state = flydigi::composeApex5InputState(
-            *lastMappedState_, lastVendorState_,
+            *lastMappedState_, independentTriggersReady() ? lastVendorState_ : std::nullopt,
             currentBatteryPercent_.load(std::memory_order_relaxed),
             currentChargeState_.load(std::memory_order_relaxed));
     }
@@ -1080,6 +1091,7 @@ private:
     bool readPending_ = false;
     std::vector<std::uint8_t> report_;
     std::optional<dualsense::DualSenseInputState> lastVendorState_;
+    IndependentTriggerStreamFreshness independentTriggerFreshness_;
     std::uint64_t vendorReports_ = 0;
     std::uint64_t vendorStates_ = 0;
     std::uint64_t vendorParseFailures_ = 0;

@@ -595,6 +595,7 @@ bool Apex5Device::applyProfile(std::uint8_t slot, std::string& error) {
 bool Apex5Device::readInputTransportStatus(InputTransportStatus& status,
                                            std::string& error) {
     if (!mayControlProfiles(error)) return false;
+    const auto lock = acquireWriteLock();
     const auto reply = exchangeCommand(
         *transport_, buildInputTransportStatusRequest(),
         kCmdReadInputTransport, error);
@@ -611,6 +612,9 @@ bool Apex5Device::readInputTransportStatus(InputTransportStatus& status,
 bool Apex5Device::setInputTransport(bool controllerData, bool rawData,
                                     std::string& error) {
     if (!mayControlProfiles(error)) return false;
+    // Runtime recovery shares this transport with feedback writes. Keep the
+    // request, ACK and readback atomic with respect to that callback.
+    const auto lock = acquireWriteLock();
     if (!exchangeCommand(
             *transport_, buildSetInputTransport(controllerData, rawData),
             kCmdSetInputTransport, error)) {
