@@ -575,6 +575,21 @@ internal static class TrayLearningTests
 
     private static void TestSharedBridgeArguments()
     {
+        var cachedGames = CreateGameList("{\"games\":[{\"title\":\"Death Stranding 2: On the Beach\",\"profile\":\"standard\"}]}");
+        Assert(FindGame(cachedGames, "Death Stranding 2: On the Beach").Profile == "death-stranding-2",
+            "An older cached catalogue lost the embedded Death Stranding 2 remapping.");
+        foreach (var explicitProfile in new[] { "none", "warframe" })
+        {
+            var explicitGames = CreateGameList("{\"games\":[{\"title\":\"Death Stranding 2: On the Beach\",\"profile\":\"" + explicitProfile + "\"}]}");
+            Assert(FindGame(explicitGames, "Death Stranding 2: On the Beach").Profile == explicitProfile,
+                "An explicit cloud profile was overwritten by the embedded fallback.");
+        }
+        var originalDeathStranding = CreateGameList("{\"games\":[{\"title\":\"Death Stranding Director's Cut\",\"profile\":\"standard\"}]}");
+        Assert(FindGame(originalDeathStranding, "Death Stranding Director's Cut").Profile == "standard",
+            "The Death Stranding 2 profile leaked into the original game.");
+        Assert(BridgeArguments.Build("death-stranding-2", false, 12, false, 0).Contains(
+            "--touchpad-profile death-stranding-2"),
+            "The shared launcher dropped the Death Stranding 2 touchpad profile.");
         Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3) ==
                "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 --rumble " +
                "--haptic-threshold 12 --sync-lightbar --apex-profile 3",

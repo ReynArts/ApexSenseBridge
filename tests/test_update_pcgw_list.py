@@ -12,6 +12,17 @@ SPEC.loader.exec_module(UPDATER)
 
 
 class DiscordExecutableTests(unittest.TestCase):
+    def test_death_stranding_2_profile_survives_catalogue_regeneration(self):
+        for title in ("Death Stranding 2", "Death Stranding 2: On the Beach"):
+            self.assertEqual(
+                "death-stranding-2",
+                UPDATER.get_special_profile(UPDATER.normalize_title(title)),
+            )
+        for title in ("Death Stranding", "Death Stranding Director's Cut"):
+            self.assertEqual(
+                "standard", UPDATER.get_special_profile(UPDATER.normalize_title(title))
+            )
+
     def test_pcgw_support_parser_preserves_manual_fix_state_and_page_url(self):
         markup = """
         <table><tbody>

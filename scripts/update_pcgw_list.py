@@ -37,6 +37,8 @@ SPECIAL_PROFILES = {
     "ghostoftsushima": "ghost-of-tsushima",
     "ghostoftsushimadirectorscut": "ghost-of-tsushima",
     "warframe": "warframe",
+    "deathstranding2": "death-stranding-2",
+    "deathstranding2onthebeach": "death-stranding-2",
 }
 
 BUILTIN_GAMES = [

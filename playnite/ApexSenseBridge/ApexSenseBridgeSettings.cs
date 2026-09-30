@@ -17,7 +17,8 @@ namespace ApexSenseBridge
         MilesMorales,
         GhostOfTsushima,
         Warframe,
-        Disabled
+        Disabled,
+        DeathStranding2
     }
 
     public enum BridgeActivationMode
@@ -34,7 +35,8 @@ namespace ApexSenseBridge
         SpiderMan2,
         MilesMorales,
         GhostOfTsushima,
-        Warframe
+        Warframe,
+        DeathStranding2
     }
 
     public class GameBridgeProfile : ObservableObject
@@ -116,6 +118,8 @@ namespace ApexSenseBridge
                     return "Ghost of Tsushima";
                 case BridgeProfileType.Warframe:
                     return "Warframe (layout Xbox par défaut)";
+                case BridgeProfileType.DeathStranding2:
+                    return "Death Stranding 2: On the Beach";
                 case BridgeProfileType.Disabled:
                     return "Désactivé (override manuel)";
                 default:
@@ -150,6 +154,8 @@ namespace ApexSenseBridge
                     return "Ghost of Tsushima";
                 case TouchpadRemappingMode.Warframe:
                     return "Warframe";
+                case TouchpadRemappingMode.DeathStranding2:
+                    return "Death Stranding 2: On the Beach";
                 default:
                     return "Automatique";
             }
@@ -334,6 +340,8 @@ namespace ApexSenseBridge
                     return TouchpadRemappingMode.GhostOfTsushima;
                 case BridgeProfileType.Warframe:
                     return TouchpadRemappingMode.Warframe;
+                case BridgeProfileType.DeathStranding2:
+                    return TouchpadRemappingMode.DeathStranding2;
                 default:
                     // Standard already auto-detected special remappings in 0.6.1.
                     return TouchpadRemappingMode.Automatic;
@@ -352,6 +360,8 @@ namespace ApexSenseBridge
                     return BridgeProfileType.GhostOfTsushima;
                 case TouchpadRemappingMode.Warframe:
                     return BridgeProfileType.Warframe;
+                case TouchpadRemappingMode.DeathStranding2:
+                    return BridgeProfileType.DeathStranding2;
                 default:
                     return BridgeProfileType.StandardDualSense;
             }

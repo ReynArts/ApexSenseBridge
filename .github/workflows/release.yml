@@ -72,14 +72,52 @@ jobs:
           }
           .\scripts\verify-version-consistency.ps1 @verifyParams
 
+      - name: Extract Release Notes from CHANGELOG
+        shell: powershell
+        run: |
+          $raw = Get-Content -LiteralPath "CHANGELOG.md" -Raw
+          $tag = $env:GITHUB_REF_NAME
+          if ([string]::IsNullOrWhiteSpace($tag) -and $env:GITHUB_REF -and $env:GITHUB_REF.StartsWith("refs/tags/")) {
+            $tag = $env:GITHUB_REF.Substring("refs/tags/".Length)
+          }
+          $cleanTag = if (-not [string]::IsNullOrWhiteSpace($tag)) { $tag.Trim().TrimStart('v', 'V') } else { "" }
+          $lines = $raw -split '\r?\n'
+          $collecting = $false
+          $extracted = @()
+          if (-not [string]::IsNullOrWhiteSpace($cleanTag)) {
+            $headerPattern = '(?m)^##\s+' + [regex]::Escape($cleanTag) + '(?:\s+.*)?$'
+            foreach ($line in $lines) {
+              if ($collecting) {
+                if ($line -match '^##\s+') { break }
+                $extracted += $line
+              } elseif ($line -match $headerPattern) {
+                $collecting = $true
+              }
+            }
+          }
+          if ($extracted.Count -eq 0) {
+            foreach ($line in $lines) {
+              if ($collecting) {
+                if ($line -match '^##\s+') { break }
+                $extracted += $line
+              } elseif ($line -match '^##\s+') {
+                $collecting = $true
+              }
+            }
+          }
+          $notes = ($extracted -join [Environment]::NewLine).Trim()
+          [System.IO.File]::WriteAllText("dist/release-notes.md", $notes, (New-Object System.Text.UTF8Encoding($false)))
+          Write-Host "Extracted release notes ($($notes.Length) characters) to dist/release-notes.md"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          body_path: dist/release-notes.md
           files: |
             dist/ApexSenseBridge-Setup.exe
             dist/ApexSenseBridge-Portable.zip
             dist/*.pext
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Death Stranding 2 touchpad remapping ([#5](https://github.com/ReynArts/ApexSenseBridge/issues/5))**:
+  `View/Back` sends a right-side touchpad click immediately and preserves the
+  physical hold duration for Likes, communication and changing the Like icon.
+  `LB + Menu` sends a left-side click for Photo Mode, consuming the chord until
+  both buttons are released. Automatic Tray/Playnite selection and manual
+  profile selection are supported; older standard catalogue entries inherit
+  the embedded remapping. Other games remain unchanged. In-game validation
+  is still required.
+
 - **Experimental APEX 4 motion decoding**: use the native signed 16-bit gyro
   fields found in the 2026-09-30 USB and dongle captures, including split yaw
   bytes 18/20, instead of firmware mouse deltas. Correct accelerometer axis

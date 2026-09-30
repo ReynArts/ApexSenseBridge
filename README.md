@@ -163,7 +163,7 @@ drivers and data unless `/REMOVEUSERDATA` is explicitly supplied for data only.
 
 ## 👆 Touchpad Gesture Emulation
 
-For games that use DualSense touchpad swipes for in-game mechanics, ApexSenseBridge translates intuitive physical controller shortcuts:
+For games that use DualSense touchpad regions or swipes, ApexSenseBridge translates physical controller shortcuts:
 
 | Game Profile | Controller Action | Virtual DualSense Touch Output |
 |---|---|---|
@@ -171,7 +171,17 @@ For games that use DualSense touchpad swipes for in-game mechanics, ApexSenseBri
 | **Miles Morales** | Hold `View` | Swipe Left (FNSM App) |
 | **Ghost of Tsushima** | Hold `D-pad Right` + Flick Right Stick | Directional Wind Swipe in flick direction |
 | **Warframe** | Hold `RB` + Press `A/B/X/Y` | Ability Swipes (Up / Down / Left / Right) |
+| **Death Stranding 2** | Press/hold `View/Back` / `LB + Menu` | Right-side Click/Hold (Likes, Communication, Like Icon) / Left-side Click (Photo Mode) |
 | **Standard DualSense** | Press `View` | Touchpad Click (no directional swipe) |
+
+Death Stranding 2 uses the default Xbox layout: `View/Back` is forwarded without
+an artificial hold delay, and the Photo Mode chord is consumed until both
+buttons are released. `LB` and `Menu` alone retain their ordinary actions.
+The left-side Photo Mode gesture is documented in the
+[PlayStation guide](https://www.playstation.com/en-id/games/death-stranding-2-on-the-beach/death-stranding-2-on-the-beach-guide/);
+the Xbox `LB + Menu` shortcut is corroborated by
+[players on Steam](https://steamcommunity.com/app/3280350/discussions/1/809097865497552734/).
+This profile still needs in-game validation.
 
 Rear buttons M1–M4 are not independent controls in a standard DualSense input
 report. Assign them to standard controller buttons or keyboard/mouse inputs in

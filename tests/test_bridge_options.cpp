@@ -90,6 +90,9 @@ int main() {
            Backend::Integrated);
     assert(parse({"--view-hold-swipe-up"}).options.touchpadProfile ==
            Profile::LegacyViewHoldSwipeUp);
+    const auto deathStranding = parse({"--touchpad-profile", "death-stranding-2"});
+    assert(deathStranding.succeeded);
+    assert(deathStranding.options.touchpadProfile == Profile::DeathStranding2);
 
     // Numeric options must consume their entire argument. std::stoul alone
     // accepts these malformed values, which could silently select a setting.

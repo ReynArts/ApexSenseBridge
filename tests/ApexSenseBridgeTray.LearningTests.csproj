@@ -79,4 +79,9 @@
     </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <EmbeddedResource Include="..\data\supported_games.json">
+      <LogicalName>ApexSenseBridgeTray.supported_games.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

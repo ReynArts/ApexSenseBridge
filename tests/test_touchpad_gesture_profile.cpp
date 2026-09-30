@@ -26,6 +26,73 @@ int main() {
     assert((input.buttons & button::kTouchpadClick) != 0);
     assert(!input.touch1Active);
 
+    assert(parseTouchpadGestureProfile("death-stranding-2") == TouchpadGestureProfile::DeathStranding2);
+    assert(touchpadGestureProfileName(TouchpadGestureProfile::DeathStranding2) == "death-stranding-2");
+    TouchpadGestureMapper deathStranding(TouchpadGestureProfile::DeathStranding2);
+    for (const auto elapsed : {0ms, 20ms, 400ms, 2000ms, 5000ms}) {
+        input = {};
+        input.buttons = button::kTouchpadClick | button::kCross;
+        input.rx = 41;
+        input.r2 = 180;
+        input.gyroY = 123;
+        deathStranding.transform(input, start + elapsed);
+        assert(input.buttons == (button::kTouchpadClick | button::kCross));
+        assert(input.touch1Active && input.touch1X == 1600 && input.touch1Y == 540);
+        assert(input.rx == 41 && input.r2 == 180 && input.gyroY == 123);
+    }
+    input = {};
+    deathStranding.transform(input, start + 6s);
+    assert(!input.touch1Active && input.buttons == 0);
+    assert(input.touch1X == 1600);
+    input = {};
+    input.buttons = button::kTouchpadClick;
+    deathStranding.transform(input, start + 6001ms);
+    assert(input.touch1Active && input.buttons == button::kTouchpadClick);
+    assert(deathStranding.stats().swipes == 0 && deathStranding.stats().replayedTaps == 0);
+
+    for (const auto individual : {button::kL1, button::kOptions}) {
+        TouchpadGestureMapper photo(TouchpadGestureProfile::DeathStranding2);
+        input = {};
+        input.buttons = individual;
+        photo.transform(input, start);
+        assert(input.buttons == individual && !input.touch1Active);
+        for (const auto elapsed : {20ms, 400ms, 2000ms}) {
+            input = {};
+            input.buttons = button::kL1 | button::kOptions | button::kCross;
+            photo.transform(input, start + elapsed);
+            assert(input.buttons == (button::kTouchpadClick | button::kCross));
+            assert(input.touch1Active && input.touch1X == 320 && input.touch1Y == 540);
+        }
+        input = {};
+        input.buttons = individual;
+        photo.transform(input, start + 2010ms);
+        assert(input.buttons == 0 && !input.touch1Active && input.touch1X == 320);
+        input = {};
+        photo.transform(input, start + 2020ms);
+        assert(input.buttons == 0 && !input.touch1Active && input.touch1X == 320);
+        input = {};
+        input.buttons = individual;
+        photo.transform(input, start + 2030ms);
+        assert(input.buttons == individual && !input.touch1Active);
+        input = {};
+        input.buttons = button::kTouchpadClick;
+        photo.transform(input, start + 2040ms);
+        assert(input.touch1Active && input.touch1X == 1600);
+    }
+    TouchpadGestureMapper simultaneousPhoto(TouchpadGestureProfile::DeathStranding2);
+    input = {};
+    input.buttons = button::kL1 | button::kOptions | button::kTouchpadClick;
+    simultaneousPhoto.transform(input, start);
+    assert(input.buttons == button::kTouchpadClick);
+    assert(input.touch1Active && input.touch1X == 320);
+    input = {};
+    simultaneousPhoto.transform(input, start + 10ms);
+    assert(!input.touch1Active && input.touch1X == 320);
+    input = {};
+    input.buttons = button::kL1 | button::kOptions;
+    simultaneousPhoto.transform(input, start + 20ms);
+    assert(input.touch1Active && input.touch1X == 320);
+
     // Miles preserves View tap as touchpad click and maps View hold to the
     // documented right-to-left FNSM swipe.
     TouchpadGestureMapper miles(TouchpadGestureProfile::MilesMorales);

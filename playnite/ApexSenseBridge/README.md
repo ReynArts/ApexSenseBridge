@@ -29,9 +29,16 @@ virtuelle standard ne peut pas les exposer comme quatre boutons indépendants.
 Le profil Spider-Man 2 ajoute uniquement les gestes tactiles vérifiés. Il ne modifie aucun réglage du jeu et fonctionne lorsque Steam est déjà ouvert.
 
 Les profils tactiles disponibles sont Spider-Man 2, Miles Morales, Ghost of
-Tsushima et Warframe. Un jeu inconnu ne reçoit aucun swipe synthétique : `View`
+Tsushima, Warframe et Death Stranding 2. Un jeu inconnu ne reçoit aucun swipe synthétique : `View`
 reste simplement le clic du touchpad. Le profil Warframe suppose le layout Xbox
 par défaut et doit rester désactivé si les boutons du jeu ont été remappés.
+
+Dans Death Stranding 2, `View/Back` clique sur la moitié droite du pavé tactile
+et transmet le maintien sans délai pour les Likes, la communication et le
+changement d'icône. `LB + Menu` clique sur la moitié gauche pour le mode photo ;
+la combinaison reste consommée jusqu'au relâchement des deux touches. `LB` et
+`Menu` seuls restent inchangés. Le profil suppose les commandes par défaut et
+reste à valider en jeu.
 
 Dans Spider-Man 2, un appui long sur D-pad haut ouvre l'appareil photo par swipe
 up ; l'appui long suivant le range par swipe down. Cette alternance est
