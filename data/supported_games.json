@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-29T10:26:54.382052+00:00",
+  "updatedAt": "2026-09-30T10:19:12.338393+00:00",
   "totalGames": 214,
   "discordExecutableGames": 130,
   "games": [
@@ -2311,7 +2311,7 @@
       "title": "The Witcher 3: Wild Hunt",
       "normalized": "thewitcher3wildhunt",
       "adaptiveTriggers": true,
-      "hapticFeedback": false,
+      "hapticFeedback": true,
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
