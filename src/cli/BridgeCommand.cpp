@@ -1010,9 +1010,11 @@ int commandBridgeTriggers(int argc, char** argv) {
     if (!options.telemetryJson.empty()) {
         BridgeTelemetry telemetry{};
         telemetry.virtualStats = virtualStats;
+        if (apex6Pro) telemetry.apex6Stats = apex6Stats;
         telemetry.physicalStats = inputSourceStats;
         telemetry.processUsage = processUsageFinished;
         telemetry.inputBackend = inputBackend;
+        telemetry.virtualInputMonitorEnabled = virtualInputMonitor != nullptr;
         telemetry.startupAttempts = startupResult.attempts;
         telemetry.initializationMilliseconds = initializationMilliseconds;
         telemetry.physicalInputInitializationMilliseconds =
@@ -1128,7 +1130,10 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->chargeState : initialInput.chargeState)
               << '\n'
               << "dualsense_output_reports=" << virtualStats.outputReports << '\n'
+              << "dualsense_trigger_reports=" << virtualStats.triggerReports << '\n'
               << "dualsense_rumble_reports=" << virtualStats.rumbleReports << '\n'
+              << "dualsense_malformed_feedback_frames=" << virtualStats.malformedFrames << '\n'
+              << "dualsense_unknown_feedback_frames=" << virtualStats.unknownFrames << '\n'
               << "audio_haptics_frames=" << virtualStats.audioHapticsFrames << '\n'
               << "audio_haptics_delivered=" << virtualStats.audioHapticsDelivered << '\n'
               << "audio_haptics_coalesced=" << virtualStats.audioHapticsCoalesced << '\n'
@@ -1169,6 +1174,8 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "right_stick_y_range="
               << static_cast<unsigned>(minimumRightStickY)
               << ',' << static_cast<unsigned>(maximumRightStickY) << '\n'
+              << "virtual_input_monitor="
+              << (virtualInputMonitor ? "enabled" : "disabled") << '\n'
               << "virtual_input_reports=" << virtualInputReports << '\n'
               << "virtual_seen_face=0x" << std::hex << std::uppercase
               << static_cast<unsigned>(virtualSeenFace) << std::dec << '\n'
@@ -1203,14 +1210,45 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "virtual_right_stick_y_range="
               << (virtualInputReports == 0
                       ? 0 : static_cast<unsigned>(virtualMinimumRightStickY))
-              << ',' << static_cast<unsigned>(virtualMaximumRightStickY) << '\n'
-              << "translated_effects=" << bridgeStats.translated << '\n'
-              << "active_effects=" << bridgeStats.active << '\n'
-              << "normal_effects=" << bridgeStats.normal << '\n'
-              << "deduplicated_effects=" << bridgeStats.deduplicated << '\n'
-              << "neutral_requests=" << bridgeStats.neutral << '\n'
-              << "unsupported_effects=" << bridgeStats.unsupported << '\n'
-              << "write_failures=" << bridgeStats.writeFailures << '\n'
+              << ',' << static_cast<unsigned>(virtualMaximumRightStickY) << '\n';
+    if (!apex6Pro) {
+        std::cout << "translated_effects=" << bridgeStats.translated << '\n'
+                  << "active_effects=" << bridgeStats.active << '\n'
+                  << "normal_effects=" << bridgeStats.normal << '\n'
+                  << "deduplicated_effects=" << bridgeStats.deduplicated << '\n'
+                  << "neutral_requests=" << bridgeStats.neutral << '\n'
+                  << "unsupported_effects=" << bridgeStats.unsupported << '\n'
+                  << "write_failures=" << bridgeStats.writeFailures << '\n';
+    }
+    if (apex6Pro) {
+        std::cout << "apex6_hid_reports=" << apex6Stats.hidReports << '\n'
+              << "apex6_trigger_left_updates=" << apex6Stats.triggerLeftUpdates << '\n'
+              << "apex6_trigger_right_updates=" << apex6Stats.triggerRightUpdates << '\n'
+              << "apex6_trigger_active_updates=" << apex6Stats.triggerActiveUpdates << '\n'
+              << "apex6_trigger_stops=" << apex6Stats.triggerStops << '\n'
+              << "apex6_trigger_unsupported=" << apex6Stats.triggerUnsupported << '\n'
+              << "apex6_trigger_deduplicated=" << apex6Stats.triggerDeduplicated << '\n'
+              << "apex6_weapon_breaks=" << apex6Stats.weaponBreaks << '\n'
+              << "apex6_last_left_trigger_type="
+              << static_cast<unsigned>(apex6Stats.lastLeftTriggerType) << '\n'
+              << "apex6_last_right_trigger_type="
+              << static_cast<unsigned>(apex6Stats.lastRightTriggerType) << '\n'
+              << "apex6_trigger_left_frames=" << apex6Stats.leftTriggerFrames << '\n'
+              << "apex6_trigger_right_frames=" << apex6Stats.rightTriggerFrames << '\n'
+              << "apex6_trigger_both_frames=" << apex6Stats.bothTriggerFrames << '\n'
+              << "apex6_rumble_updates=" << apex6Stats.rumbleUpdates << '\n'
+              << "apex6_rumble_active_updates=" << apex6Stats.rumbleActiveUpdates << '\n'
+              << "apex6_audio_envelope_reports=" << apex6Stats.audioEnvelopeReports << '\n'
+              << "apex6_audio_envelope_active=" << apex6Stats.audioEnvelopeActive << '\n'
+              << "apex6_waveform_left_active=" << apex6Stats.waveformLeftActiveBlocks << '\n'
+              << "apex6_waveform_right_active=" << apex6Stats.waveformRightActiveBlocks << '\n'
+              << "apex6_waveform_left_peak=" << apex6Stats.waveformLeftPeak << '\n'
+              << "apex6_waveform_right_peak=" << apex6Stats.waveformRightPeak << '\n'
+              << "apex6_waveform_active_rendered=" << apex6Stats.waveformActiveRendered << '\n'
+              << "apex6_grip_envelope_frames=" << apex6Stats.gripEnvelopeFrames << '\n'
+              << "apex6_grip_rumble_frames=" << apex6Stats.gripRumbleFrames << '\n'
+              << "apex6_haptic_enables=" << apex6Stats.hapticEnables << '\n'
+              << "apex6_haptic_disables=" << apex6Stats.hapticDisables << '\n'
               << "apex6_haptic_frames=" << apex6Stats.framesWritten << '\n'
               << "apex6_waveform_blocks=" << apex6Stats.waveformBlocks << '\n'
               << "apex6_waveform_rendered=" << apex6Stats.waveformBlocksRendered << '\n'
@@ -1221,26 +1259,34 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_waveform_out_of_order=" << apex6Stats.waveformOutOfOrder << '\n'
               << "apex6_waveform_underruns=" << apex6Stats.waveformUnderruns << '\n'
               << "apex6_waveform_overflow_drops=" << apex6Stats.waveformOverflowDrops << '\n'
+              << "apex6_waveform_stale_drops=" << apex6Stats.waveformStaleDrops << '\n'
+              << "apex6_waveform_average_age_us="
+              << (apex6Stats.waveformBlocksRendered == 0 ? 0
+                  : apex6Stats.waveformTotalAgeUs / apex6Stats.waveformBlocksRendered) << '\n'
+              << "apex6_waveform_maximum_age_us="
+              << apex6Stats.waveformMaximumAgeUs << '\n'
               << "apex6_deadline_overruns=" << apex6Stats.deadlineOverruns << '\n'
               << "apex6_write_failures=" << apex6Stats.writeFailures << '\n'
               << "apex6_average_write_us="
               << (apex6Stats.framesWritten == 0
                       ? 0 : apex6Stats.totalWriteDurationUs / apex6Stats.framesWritten)
               << '\n'
-              << "apex6_maximum_write_us=" << apex6Stats.maximumWriteDurationUs << '\n'
-              << "rumble_routing="
+              << "apex6_maximum_write_us=" << apex6Stats.maximumWriteDurationUs << '\n';
+    }
+    std::cout << "rumble_routing="
               << ((rumbleBridge || (apex6Bridge && options.routeRumble))
                       ? "enabled" : "disabled") << '\n'
-              << "rumble_updates=" << rumbleStats.updates << '\n'
+              << "audio_haptics_routing="
+              << ((rumbleBridge || (apex6Bridge && options.routeRumble))
+                      ? "enabled" : "disabled") << '\n';
+    if (!apex6Pro) {
+        std::cout << "rumble_updates=" << rumbleStats.updates << '\n'
               << "rumble_writes=" << rumbleStats.writes << '\n'
               << "rumble_stops=" << rumbleStats.stops << '\n'
               << "rumble_deduplicated=" << rumbleStats.deduplicated << '\n'
               << "rumble_write_failures=" << rumbleStats.writeFailures << '\n'
               << "last_rumble_low=" << static_cast<unsigned>(rumbleStats.lastLowFrequency) << '\n'
               << "last_rumble_high=" << static_cast<unsigned>(rumbleStats.lastHighFrequency) << '\n'
-              << "audio_haptics_routing="
-              << ((rumbleBridge || (apex6Bridge && options.routeRumble))
-                      ? "enabled" : "disabled") << '\n'
               << "audio_haptics_processed=" << rumbleStats.audioFrames << '\n'
               << "audio_haptics_active=" << rumbleStats.audioActiveFrames << '\n'
               << "audio_haptics_active_percent=" << std::fixed << std::setprecision(2)
@@ -1265,6 +1311,7 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(rumbleStats.lastAudioLowFrequency) << '\n'
               << "last_audio_high="
               << static_cast<unsigned>(rumbleStats.lastAudioHighFrequency) << '\n';
+    }
     std::cout << "lightbar_routing=" << (lightbarBridge ? "enabled" : "disabled") << '\n';
     if (lightbarBridge) {
         std::cout << "lightbar_updates=" << lightbarStats.updates << '\n'
@@ -1288,12 +1335,14 @@ int commandBridgeTriggers(int argc, char** argv) {
         for (const auto byte : command->params) std::cout << ',' << static_cast<unsigned>(byte);
         std::cout << '\n';
     };
-    printLast("lt", bridgeStats.lastLeftDualSenseType, bridgeStats.lastLeftCommand);
-    printLast("rt", bridgeStats.lastRightDualSenseType, bridgeStats.lastRightCommand);
-    printLast("active_lt", bridgeStats.lastActiveLeftDualSenseType,
-              bridgeStats.lastActiveLeftCommand);
-    printLast("active_rt", bridgeStats.lastActiveRightDualSenseType,
-              bridgeStats.lastActiveRightCommand);
+    if (!apex6Pro) {
+        printLast("lt", bridgeStats.lastLeftDualSenseType, bridgeStats.lastLeftCommand);
+        printLast("rt", bridgeStats.lastRightDualSenseType, bridgeStats.lastRightCommand);
+        printLast("active_lt", bridgeStats.lastActiveLeftDualSenseType,
+                  bridgeStats.lastActiveLeftCommand);
+        printLast("active_rt", bridgeStats.lastActiveRightDualSenseType,
+                  bridgeStats.lastActiveRightCommand);
+    }
     if (!resetOk) {
         const std::string prefix = apex6Pro
             ? "Apex 6 haptic shutdown failed: "

@@ -25,6 +25,7 @@ add_library(asb_core STATIC
     src/dualsense/ViewTouchpadGesture.cpp
     src/dualsense/AdaptiveTriggerTranslation.cpp
     src/dualsense/AdaptiveTriggerBridge.cpp
+    src/dualsense/Apex6TriggerEffect.cpp
     src/dualsense/Apex6HapticBridge.cpp
     src/dualsense/RumbleBridge.cpp
     src/dualsense/LightbarBridge.cpp

@@ -1,7 +1,26 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.8
 
+- **APEX 6 DualSense trigger fidelity ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  decodes native feedback, weapon, and vibration effects using their packed
+  per-zone strengths. Frequency no longer raises trigger drive strength, weapon
+  break is a short retriggerable pulse, and explicit off commands stop the
+  corresponding actuator. The renderer remains specific to the APEX 6 voice
+  coils; APEX 4/5 FORCEADAPT translation is unchanged.
+- **APEX 6 haptic signal and session diagnostics**: reports actual trigger
+  requests, supported effects, rumble updates, non-silent left/right PCM blocks,
+  waveform peaks, output source, queue age, stale drops, route usage, and motor
+  enable/disable counts. APEX 6 summaries no longer present inapplicable APEX
+  4/5 effect and audio counters as zeros. The JSON telemetry gains an optional
+  `apex6` object without changing the existing schema for other controllers.
+- **APEX 6 grip routing**: a silent PCM channel no longer hides an active HID
+  rumble request on that side. Blocks older than 24 ms are discarded rather
+  than replayed after a transport stall.
+- **Prepared game launch**: the Tray dashboard can select a game executable,
+  wait for the bridge to become ready, then launch the game. Manual activation
+  remains in effect until the user turns it off, accommodating launchers that
+  exit before their child game process.
 - **Experimental APEX 4 motion decoding ([#10](https://github.com/ReynArts/ApexSenseBridge/issues/10))**:
   decodes the legacy `04 FE` report's packed yaw/pitch rates, roll, and three
   accelerometer axes into the virtual DualSense input path. The capture tool

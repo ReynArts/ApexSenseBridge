@@ -1057,6 +1057,58 @@ namespace ApexSenseBridgeTray
             ToggleManualBridge();
         }
 
+        private void OnPreparedLaunchClick(object sender, RoutedEventArgs e)
+        {
+            if (settings == null || sessionManager == null) return;
+            if (sessionManager.IsSessionActive)
+            {
+                MessageBox.Show(this, LocalizationManager.Get("Loc_PreparedLaunchBusy"),
+                    "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var picker = new OpenFileDialog
+            {
+                Filter = "Programs (*.exe)|*.exe",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+            if (picker.ShowDialog(this) != true) return;
+
+            settings.ForcedProfile = "standard";
+            string error;
+            if (!sessionManager.StartSession(
+                System.IO.Path.GetFileNameWithoutExtension(picker.FileName),
+                "standard", settings, out error))
+            {
+                settings.ForcedProfile = "none";
+                MessageBox.Show(this, error, "ApexSenseBridge",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                UpdateManualBridgeTile();
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = picker.FileName,
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(picker.FileName),
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                sessionManager.StopSession("Prepared game launch failed");
+                settings.ForcedProfile = "none";
+                MessageBox.Show(this,
+                    LocalizationManager.Format("Loc_PreparedLaunchError", ex.Message),
+                    "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            UpdateManualBridgeTile();
+            UpdateDashboardStatus();
+        }
+
         private void ToggleManualBridge()
         {
             if (settings == null) return;
@@ -1064,6 +1116,13 @@ namespace ApexSenseBridgeTray
 
             if (enable)
             {
+                if (sessionManager != null && sessionManager.IsSessionActive)
+                {
+                    MessageBox.Show(this, LocalizationManager.Get("Loc_PreparedLaunchBusy"),
+                        "ApexSenseBridge", MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
                 settings.ForcedProfile = "standard";
                 settings.Save();
                 if (sessionManager != null && !sessionManager.IsSessionActive)

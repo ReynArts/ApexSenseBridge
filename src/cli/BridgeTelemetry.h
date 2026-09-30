@@ -1,21 +1,25 @@
 #pragma once
 
 #include "cli/BridgeRuntimeSupport.h"
+#include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/VirtualDualSense.h"
 #include "platform/PhysicalInputSource.h"
 
 #include <cstdint>
 #include <filesystem>
 #include <iosfwd>
+#include <optional>
 #include <string>
 
 namespace asb::cli {
 
 struct BridgeTelemetry {
     asb::dualsense::VirtualDualSenseStats virtualStats;
+    std::optional<asb::dualsense::Apex6HapticBridgeStats> apex6Stats;
     asb::platform::PhysicalInputSourceStats physicalStats;
     ProcessUsageSnapshot processUsage;
     std::string inputBackend;
+    bool virtualInputMonitorEnabled = false;
     std::size_t startupAttempts = 0;
     std::int64_t initializationMilliseconds = 0;
     std::int64_t physicalInputInitializationMilliseconds = 0;

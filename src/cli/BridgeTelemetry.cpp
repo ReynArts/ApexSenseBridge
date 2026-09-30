@@ -18,6 +18,9 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << jsonEscape(virtualStats.backendVersion) << "\",\n"
            << "  \"input_mode\": \"mandatory-full-proxy\",\n"
            << "  \"input_backend\": \"" << jsonEscape(telemetry.inputBackend) << "\",\n"
+           << "  \"virtual_input_monitor\": \""
+           << (telemetry.virtualInputMonitorEnabled ? "enabled" : "disabled")
+           << "\",\n"
            << "  \"virtual_startup_attempts\": " << telemetry.startupAttempts << ",\n"
            << "  \"initialization_ms\": " << telemetry.initializationMilliseconds << ",\n"
            << "  \"initialization_physical_input_ms\": "
@@ -78,9 +81,43 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << static_cast<double>(telemetry.processUsage.peakWorkingSetBytes) /
                   (1024.0 * 1024.0) << ",\n"
            << "  \"audio_haptics_received\": " << virtualStats.audioHapticsFrames << ",\n"
+           << "  \"dualsense_output_reports\": " << virtualStats.outputReports << ",\n"
+           << "  \"dualsense_trigger_reports\": " << virtualStats.triggerReports << ",\n"
+           << "  \"dualsense_rumble_reports\": " << virtualStats.rumbleReports << ",\n"
+           << "  \"dualsense_malformed_feedback_frames\": "
+           << virtualStats.malformedFrames << ",\n"
+           << "  \"dualsense_unknown_feedback_frames\": "
+           << virtualStats.unknownFrames << ",\n"
            << "  \"audio_haptics_delivered\": " << virtualStats.audioHapticsDelivered << ",\n"
-           << "  \"audio_haptics_coalesced\": " << virtualStats.audioHapticsCoalesced << "\n"
-           << "}\n";
+           << "  \"audio_haptics_coalesced\": " << virtualStats.audioHapticsCoalesced;
+    if (telemetry.apex6Stats) {
+        const auto& stats = *telemetry.apex6Stats;
+        output << ",\n  \"apex6\": {\n"
+               << "    \"hid_reports\": " << stats.hidReports << ",\n"
+               << "    \"trigger_left_updates\": " << stats.triggerLeftUpdates << ",\n"
+               << "    \"trigger_right_updates\": " << stats.triggerRightUpdates << ",\n"
+               << "    \"trigger_active_updates\": " << stats.triggerActiveUpdates << ",\n"
+               << "    \"trigger_stops\": " << stats.triggerStops << ",\n"
+               << "    \"trigger_unsupported\": " << stats.triggerUnsupported << ",\n"
+               << "    \"weapon_breaks\": " << stats.weaponBreaks << ",\n"
+               << "    \"rumble_updates\": " << stats.rumbleUpdates << ",\n"
+               << "    \"audio_envelope_reports\": " << stats.audioEnvelopeReports << ",\n"
+               << "    \"waveform_blocks\": " << stats.waveformBlocks << ",\n"
+               << "    \"waveform_left_active\": " << stats.waveformLeftActiveBlocks << ",\n"
+               << "    \"waveform_right_active\": " << stats.waveformRightActiveBlocks << ",\n"
+               << "    \"waveform_active_rendered\": " << stats.waveformActiveRendered << ",\n"
+               << "    \"waveform_rendered\": " << stats.waveformBlocksRendered << ",\n"
+               << "    \"waveform_stale_drops\": " << stats.waveformStaleDrops << ",\n"
+               << "    \"waveform_maximum_age_us\": " << stats.waveformMaximumAgeUs << ",\n"
+               << "    \"waveform_left_peak\": " << stats.waveformLeftPeak << ",\n"
+               << "    \"waveform_right_peak\": " << stats.waveformRightPeak << ",\n"
+               << "    \"haptic_frames\": " << stats.framesWritten << ",\n"
+               << "    \"haptic_enables\": " << stats.hapticEnables << ",\n"
+               << "    \"haptic_disables\": " << stats.hapticDisables << ",\n"
+               << "    \"write_failures\": " << stats.writeFailures << "\n"
+               << "  }";
+    }
+    output << "\n}\n";
 }
 
 bool writeBridgeTelemetryFile(

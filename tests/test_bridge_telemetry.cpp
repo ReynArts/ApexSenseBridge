@@ -23,9 +23,11 @@ int main() {
     telemetry.virtualStats.audioHapticsFrames = 71;
     telemetry.virtualStats.audioHapticsDelivered = 72;
     telemetry.virtualStats.audioHapticsCoalesced = 73;
+    telemetry.virtualStats.triggerReports = 12;
     telemetry.physicalStats.reports = 21;
     telemetry.physicalStats.vendorReports = 22;
     telemetry.inputBackend = "hid\\vendor";
+    telemetry.virtualInputMonitorEnabled = true;
     telemetry.startupAttempts = 2;
     telemetry.runtimeMilliseconds = 3000;
     telemetry.latencyP50Us = 40;
@@ -55,10 +57,15 @@ int main() {
     assert(json.find("\"working_set_mib\": 3.000") != std::string::npos);
     assert(json.find("\"maximum_simultaneous_triggers\": 2") !=
            std::string::npos);
+    assert(json.find("\"virtual_input_monitor\": \"enabled\"") !=
+           std::string::npos);
+    assert(json.find("\"dualsense_trigger_reports\": 12") !=
+           std::string::npos);
     assert(json.find(",\n}\n") == std::string::npos);
 
     constexpr std::array requiredKeys{
         "schema", "virtual_backend", "input_mode", "input_backend",
+        "virtual_input_monitor",
         "virtual_startup_attempts", "initialization_ms",
         "initialization_physical_input_ms", "initialization_virtual_input_ms",
         "initialization_firmware_ms", "initialization_isolation_ms",
@@ -75,7 +82,10 @@ int main() {
         "simultaneous_trigger_reports", "virtual_maximum_simultaneous_triggers",
         "virtual_simultaneous_trigger_reports", "battery_percent", "charge_state",
         "cpu_percent_total", "working_set_mib", "peak_working_set_mib",
-        "audio_haptics_received", "audio_haptics_delivered",
+        "audio_haptics_received", "dualsense_output_reports",
+        "dualsense_trigger_reports", "dualsense_rumble_reports",
+        "dualsense_malformed_feedback_frames", "dualsense_unknown_feedback_frames",
+        "audio_haptics_delivered",
         "audio_haptics_coalesced"};
     for (const std::string_view key : requiredKeys) {
         const std::string token = "\"" + std::string(key) + "\":";
@@ -83,6 +93,16 @@ int main() {
         assert(first != std::string::npos);
         assert(json.find(token, first + token.size()) == std::string::npos);
     }
+
+    telemetry.apex6Stats = asb::dualsense::Apex6HapticBridgeStats{};
+    telemetry.apex6Stats->hidReports = 17;
+    telemetry.apex6Stats->waveformLeftActiveBlocks = 9;
+    std::ostringstream apex6Output;
+    asb::cli::writeBridgeTelemetry(apex6Output, telemetry);
+    assert(apex6Output.str().find("\"apex6\": {") != std::string::npos);
+    assert(apex6Output.str().find("\"hid_reports\": 17") != std::string::npos);
+    assert(apex6Output.str().find("\"waveform_left_active\": 9") != std::string::npos);
+    assert(apex6Output.str().find(",\n}\n") == std::string::npos);
 
     return 0;
 }
