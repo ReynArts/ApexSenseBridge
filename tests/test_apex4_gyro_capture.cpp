@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "diagnostics/Apex4GyroCapture.h"
 
 #include <array>
@@ -54,8 +58,23 @@ int main() {
     assert(isKnownApex4ControlOffset(24));
     assert(!isKnownApex4ControlOffset(25));
     assert(isKnownApex4MotionOffset(4));
+    assert(isKnownApex4MotionOffset(18));
+    assert(isKnownApex4MotionOffset(20));
+    assert(isKnownApex4MotionOffset(26));
+    assert(isKnownApex4MotionOffset(27));
+    assert(!isKnownApex4MotionOffset(19));
     assert(isKnownApex4MotionOffset(30));
     assert(!isKnownApex4MotionOffset(28));
+
+    Apex4MotionPhaseCapture nativeOnly("pitch", "tilt", 2);
+    std::array<std::uint8_t, 32> nativeReport{};
+    nativeReport[0] = 4;
+    nativeReport[1] = 0xFE;
+    assert(nativeOnly.addReport(nativeReport, 0));
+    assert(!nativeOnly.motionDataObserved());
+    nativeReport[26] = 1;
+    assert(nativeOnly.addReport(nativeReport, 100));
+    assert(nativeOnly.motionDataObserved());
 
     Apex4GyroCaptureMetadata metadata{};
     metadata.model = "APEX 4";

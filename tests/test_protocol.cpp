@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdint>
 #include <iostream>
+#include <string_view>
 
 int main() {
     using namespace asb;
@@ -328,7 +329,7 @@ int main() {
     apex4Input[23] = 40;
     apex4Input[24] = 0;
     // Motion is emitted only when the active Apex 4 profile has gyro mapping
-    // enabled. yaw=-100 and pitch=+500 are packed as signed 12-bit values.
+    // enabled. Mouse fields must not override the native 16-bit IMU channels.
     apex4Input[4] = 0x9C;
     apex4Input[5] = 0xF4;
     apex4Input[6] = 0xF1;
@@ -338,6 +339,10 @@ int main() {
     apex4Input[14] = 0xFF;
     apex4Input[15] = 0x20; // accel Z = +800 (approximately 1 g)
     apex4Input[16] = 0x03;
+    apex4Input[18] = 0x9C; // yaw=-100, high byte at 20 (19 is a stick).
+    apex4Input[20] = 0xFF;
+    apex4Input[26] = 0xF4; // pitch=+500
+    apex4Input[27] = 0x01;
     apex4Input[29] = 0xD4; // roll = -300
     apex4Input[30] = 0xFE;
     const auto decoded = decodeApex4InputReport(apex4Input);
@@ -354,18 +359,95 @@ int main() {
     assert((decoded->buttons & dualsense::button::kTriangle) != 0);
     assert((decoded->buttons & dualsense::button::kL1) != 0);
     assert((decoded->buttons & dualsense::button::kL2) != 0);
-    assert(decoded->gyroX == -1000);
-    assert(decoded->gyroY == 1600);
-    assert(decoded->gyroZ == 300);
+    assert(decoded->gyroX == 4500);
+    assert(decoded->gyroY == -500);
+    assert(decoded->gyroZ == 720);
     assert(decoded->accelX == -1250);
-    assert(decoded->accelY == -2500);
-    assert(decoded->accelZ == 10000);
+    assert(decoded->accelY == 10000);
+    assert(decoded->accelZ == -2500);
     assert(decoded->batteryPercent == 100);
     assert(decoded->chargeState == 0);
     const auto decodedApex4Custom = decodeApex4InputReport(apex4Input, 40, 4);
     assert(decodedApex4Custom);
     assert(decodedApex4Custom->batteryPercent == 40);
     assert(decodedApex4Custom->chargeState == 4);
+
+    // Replay actual reports from the 2026-09-30 captures, including both
+    // dongle byte-3 variants. Expected outputs lock the experimental gains.
+    struct MotionFixture {
+        std::string_view hex;
+        std::array<std::int16_t, 6> expected;
+    };
+    constexpr std::array<MotionFixture, 6> motionFixtures{{
+        {"04FE6600000000000000000000000021037F007F007F7F000000000054000000",
+         {0, 0, 0, 0, 10012, 0}},
+        {"04FE66000050FB0000000025004A002F037E017F007F7F000000960054070000",
+         {1350, 5, -16, -462, 10187, 925}},
+        {"04FE6600505FFF000000000000DDFF35037F617F017F7F00000016005478FF00",
+         {198, 1765, 326, 0, 10262, -437}},
+        {"04FE660000000000000000000002001E037F007F007F7F000000000000000000",
+         {0, 0, 0, 0, 9975, 25}},
+        {"04FE66800140060000000002009DFEEE027FFE7FFF7F7F00000037FF00F6FF00",
+         {-1809, -10, 24, -25, 9375, -4437}},
+        {"04FE66807FAF01000000005900DCFF2B037F027F017F7F000000CCFF0099FF00",
+         {-468, 1290, 247, -1112, 10137, -450}},
+    }};
+    const auto hexDigit = [](char digit) {
+        return digit <= '9' ? digit - '0' : digit - 'A' + 10;
+    };
+    for (const auto& fixture : motionFixtures) {
+        assert(fixture.hex.size() == 64);
+        std::array<std::uint8_t, 32> report{};
+        for (std::size_t index = 0; index < report.size(); ++index) {
+            report[index] = static_cast<std::uint8_t>(
+                (hexDigit(fixture.hex[index * 2]) << 4) |
+                hexDigit(fixture.hex[index * 2 + 1]));
+        }
+        const auto result = decodeApex4InputReport(report);
+        assert(result);
+        const std::array<std::int16_t, 6> actual{
+            result->gyroX, result->gyroY, result->gyroZ,
+            result->accelX, result->accelY, result->accelZ};
+        assert(actual == fixture.expected);
+    }
+
+    auto changedControls = apex4Input;
+    changedControls[17] = 0;
+    changedControls[19] = 255;
+    changedControls[4] = changedControls[5] = changedControls[6] = 0;
+    const auto unchangedMotion = decodeApex4InputReport(changedControls);
+    assert(unchangedMotion);
+    assert(unchangedMotion->gyroX == decoded->gyroX);
+    assert(unchangedMotion->gyroY == decoded->gyroY);
+    assert(unchangedMotion->gyroZ == decoded->gyroZ);
+
+    std::array<std::uint8_t, 32> extremeMotion{};
+    extremeMotion[0] = 4;
+    extremeMotion[1] = 0xFE;
+    extremeMotion[20] = extremeMotion[27] = extremeMotion[30] = 0x80;
+    extremeMotion[12] = extremeMotion[14] = extremeMotion[16] = 0x80;
+    const auto saturatedMotion = decodeApex4InputReport(extremeMotion);
+    assert(saturatedMotion);
+    assert(saturatedMotion->gyroX == -32768);
+    assert(saturatedMotion->gyroY == -32768);
+    assert(saturatedMotion->gyroZ == 32767);
+    assert(saturatedMotion->accelX == 32767);
+    assert(saturatedMotion->accelY == -32768);
+    assert(saturatedMotion->accelZ == -32768);
+
+    extremeMotion.fill(0);
+    extremeMotion[0] = 4;
+    extremeMotion[1] = 0xFE;
+    const auto disabledMotion = decodeApex4InputReport(extremeMotion);
+    assert(disabledMotion);
+    assert(disabledMotion->gyroX == 0 && disabledMotion->gyroY == 0 &&
+           disabledMotion->gyroZ == 0);
+    assert(disabledMotion->accelX == 0 && disabledMotion->accelY == 0 &&
+           disabledMotion->accelZ == 0);
+    assert(!decodeApex4InputReport(
+        std::span<const std::uint8_t>(extremeMotion.data(), 31)));
+    extremeMotion[1] = 0xFF;
+    assert(!decodeApex4InputReport(extremeMotion));
 
     apex4Input[1] = 0;
     assert(!decodeApex4InputReport(apex4Input));

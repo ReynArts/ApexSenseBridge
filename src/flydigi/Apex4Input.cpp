@@ -24,12 +24,6 @@ std::int16_t signedLittleEndian(std::span<const std::uint8_t> report,
     return static_cast<std::int16_t>(raw);
 }
 
-std::int16_t signed12(std::uint8_t low, std::uint16_t high) noexcept {
-    auto raw = static_cast<std::uint16_t>(low | high);
-    if ((raw & 0x0800U) != 0) raw |= 0xF000U;
-    return static_cast<std::int16_t>(raw);
-}
-
 std::int16_t scaleSigned(std::int32_t value,
                          std::int32_t numerator,
                          std::int32_t denominator = 1) noexcept {
@@ -42,31 +36,34 @@ std::int16_t scaleSigned(std::int32_t value,
 
 void decodeMotion(std::span<const std::uint8_t> report,
                   dualsense::DualSenseInputState& state) noexcept {
-    // Hardware captures of the legacy 04 FE stream show two signed 12-bit
-    // angular rates packed into bytes 4..6, roll as signed LE at 29, and the
-    // three accelerometer axes as signed LE at 11, 13 and 15. The firmware
-    // emits these fields only while the active profile's gyro mapping is not
-    // Off; an inactive stream therefore decodes to a neutral IMU.
-    const auto yaw = signed12(
-        report[4], static_cast<std::uint16_t>(report[6] & 0xF0U) << 4U);
-    const auto pitch = signed12(
-        report[5], static_cast<std::uint16_t>(report[6] & 0x0FU) << 8U);
+    // The 2026-09-30 wired/dongle captures expose signed 16-bit channels:
+    // pitch at 26/27, yaw at NON-CONTIGUOUS bytes 18/20, roll at 29/30.
+    // Bytes 4..6 are firmware mouse channels; interpreting them as raw yaw
+    // introduces discontinuities around +/-256. Never consume adjacent stick
+    // bytes 17 or 19 as part of the yaw sensor value.
+    const auto yawRaw = static_cast<std::uint16_t>(
+        report[18] | static_cast<std::uint16_t>(report[20]) << 8U);
+    const auto yaw = static_cast<std::int16_t>(yawRaw);
+    const auto pitch = signedLittleEndian(report, 26);
     const auto roll = signedLittleEndian(report, 29);
 
-    // The legacy firmware's yaw and pitch channels use different gains. On
-    // measured hardware pitch is approximately eight times as sensitive as
-    // yaw for the same slow rotation. Normalize that asymmetry before feeding
-    // the virtual DualSense calibration (20 raw units per degree/second).
-    state.gyroX = scaleSigned(-static_cast<std::int32_t>(pitch), 2);
-    state.gyroY = scaleSigned(-static_cast<std::int32_t>(yaw), 16);
-    state.gyroZ = scaleSigned(-static_cast<std::int32_t>(roll), 1);
+    // Experimental gains estimated by fitting the changing gravity vector to
+    // these captures: ~0.45, ~0.25 and ~0.12 degrees/s per pitch/yaw/roll count.
+    // Express these in the existing ASB motion scale (20 units per degree/s).
+    // These are NOT factory calibration; yaw is the least constrained axis.
+    // See APEX4_GYRO_VALIDATION.md for evidence and remaining limitations.
+    state.gyroX = scaleSigned(pitch, 9);
+    state.gyroY = scaleSigned(yaw, 5);
+    state.gyroZ = scaleSigned(-static_cast<std::int32_t>(roll), 12, 5);
 
-    // A stationary, face-up Apex 4 reports approximately +800 on Z. The
-    // virtual DualSense advertises 10000 raw units per g.
+    // Captured face-up gravity is ~800 on the physical Z channel. Rotate the
+    // sensor frame into Sony coordinates: (-physical X, physical Z, physical Y).
+    // In particular, gravity belongs on Sony Y, not Sony Z. Disabled gyro
+    // mapping leaves all sensor bytes zero, which remains a neutral IMU here.
     state.accelX = scaleSigned(
         -static_cast<std::int32_t>(signedLittleEndian(report, 11)), 25, 2);
-    state.accelY = scaleSigned(signedLittleEndian(report, 13), 25, 2);
-    state.accelZ = scaleSigned(signedLittleEndian(report, 15), 25, 2);
+    state.accelY = scaleSigned(signedLittleEndian(report, 15), 25, 2);
+    state.accelZ = scaleSigned(signedLittleEndian(report, 13), 25, 2);
 }
 
 } // namespace

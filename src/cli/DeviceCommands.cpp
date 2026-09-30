@@ -1087,9 +1087,9 @@ int commandApex4GyroCapture(int argc, char** argv) {
     };
     constexpr std::array<PhaseDefinition, 4> definitions{{
         {"still", "Place the controller flat and do not touch it."},
-        {"yaw", "Keep buttons and sticks untouched; rotate the controller left and right repeatedly."},
+        {"yaw", "Keep the controller flat, face up; turn it left/right around a vertical axis, without tilting the grips."},
         {"pitch", "Keep buttons and sticks untouched; tilt the front edge up and down repeatedly."},
-        {"roll", "Keep buttons and sticks untouched; roll the controller clockwise and counterclockwise repeatedly."},
+        {"roll", "Raise one grip while lowering the other, then reverse; do not turn the controller left/right."},
     }};
 
     std::cout

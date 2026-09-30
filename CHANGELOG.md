@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+- **Experimental APEX 4 motion decoding**: use the native signed 16-bit gyro
+  fields found in the 2026-09-30 USB and dongle captures, including split yaw
+  bytes 18/20, instead of firmware mouse deltas. Correct accelerometer axis
+  orientation, add captured-report regression tests, and clarify diagnostic
+  yaw/roll instructions. Gyro gains are empirical estimates, not factory
+  calibration; on-device direction/sensitivity and in-game behavior still
+  require tester validation. See `APEX4_GYRO_VALIDATION.md`.
+
 ## 1.0.0 — local release preparation
+
+### Tray application and shared features — APEX 4/5/6
 
 - **Guided disconnection recovery**: after a confirmed runtime controller or
   virtual-stream disconnection, or physical-input stream loss (including sleep
@@ -14,6 +24,21 @@
   Games are never terminated or relaunched automatically and may need restarting
   to reacquire the recreated DualSense. Playnite-owned interruptions remain
   owned by Playnite and display guidance rather than a Tray takeover.
+
+- **Tray game settings and session status**: optional per-game executable path,
+  learned-path choices and exact configured-path detection; explicit session
+  phases, owner, controller, game/profile and refusal/stop reasons, including
+  sessions managed by the updated Playnite extension. Prepared `.exe` launching
+  is now in controller diagnostics rather than the dashboard.
+- **Controller feel**: global Tray trigger/vibration strength (0–100%) and
+  audio-haptic threshold (0–95%), applied at next session startup on APEX 4/5/6.
+  Output scaling preserves effect travel, timing and frequency; zero strength
+  stops the corresponding effect. APEX 6 PCM channels now honor the threshold.
+- **Clear main entry point**: launching the engine without arguments opens the
+  Tray application. Windows file descriptions, installer shortcuts and usage
+  distinguish the main Tray application from the command-line engine.
+
+### APEX 6-specific fixes
 
 - **APEX 6 trigger-vibration decoding ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
   reads native `0x26` frequency from effect byte 9, not reserved byte 10. Empty
@@ -31,18 +56,8 @@
   ASB patch version instead of printing a hard-coded label. No PCM gain, USB
   descriptor, driver installation or APEX 4/5 motor routing is changed by these
   fixes. The reported ZZZ freeze remains unconfirmed and is not marked fixed.
-- **Tray game settings and session status**: optional per-game executable path,
-  learned-path choices and exact configured-path detection; explicit session
-  phases, owner, controller, game/profile and refusal/stop reasons, including
-  sessions managed by the updated Playnite extension. Prepared `.exe` launching
-  is now in controller diagnostics rather than the dashboard.
-- **Controller feel**: global Tray trigger/vibration strength (0–100%) and
-  audio-haptic threshold (0–95%), applied at next session startup on APEX 4/5/6.
-  Output scaling preserves effect travel, timing and frequency; zero strength
-  stops the corresponding effect. APEX 6 PCM channels now honor the threshold.
-- **Clear main entry point**: launching the engine without arguments opens the
-  Tray application. Windows file descriptions, installer shortcuts and usage
-  distinguish the main Tray application from the command-line engine.
+
+### APEX 4/5-specific fixes
 
 - **Adaptive-trigger translation fixes for Horizon reports on APEX 4/5 ([#22](https://github.com/ReynArts/ApexSenseBridge/issues/22))**:
   corrects defects in the existing adaptive-trigger support identified while

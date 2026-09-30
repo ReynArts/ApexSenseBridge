@@ -30,9 +30,11 @@ Run:
 The diagnostic guides the tester through four five-second phases:
 
 1. Leave the controller flat and completely still.
-2. Rotate it left and right repeatedly (yaw).
+2. Keep it flat, face up, and turn it left/right around a vertical axis without
+   tilting the grips (yaw).
 3. Tilt its front edge up and down repeatedly (pitch).
-4. Roll it clockwise and counterclockwise repeatedly (roll).
+4. Raise one grip while lowering the other, then reverse; do not turn the
+   controller left/right (roll).
 
 Do not press buttons, move either stick, or pull the triggers during the test.
 The tool prints `GO` when each recording phase begins.

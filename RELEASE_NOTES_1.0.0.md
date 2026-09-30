@@ -2,7 +2,9 @@
 
 This package is prepared locally; it has not been published to GitHub.
 
-## Main application and game detection
+## Tray application and shared features — APEX 4/5/6
+
+### Main application and game detection
 
 - Open `ApexSenseBridgeTray.exe`, the main application. Opening the engine
   without a command now opens Tray instead of leaving an unexplained console.
@@ -12,14 +14,14 @@ This package is prepared locally; it has not been published to GitHub.
   profile and refusal/stop reason. Prepared executable launching is available
   only in diagnostics and waits for bridge readiness before launching the game.
 
-## Controller feel
+### Controller feel
 
 - Global Tray controls adjust trigger strength, vibration strength and the
   audio-haptic threshold. Changes apply at the next Tray session startup.
 - Strength reduction preserves effect travel, timing and frequency. The audio
   threshold does not suppress standard rumble. These are not per-game presets.
 
-## Guided recovery after disconnection
+### Guided recovery after disconnection
 
 - A confirmed runtime disconnection or physical-input stream loss pauses
   automatic activation for that session, including sleep with the dongle attached.
@@ -35,7 +37,7 @@ This package is prepared locally; it has not been published to GitHub.
   restarting to recognize the recreated DualSense; live reacquisition is not
   guaranteed. Physical disconnect/reconnect gameplay validation remains needed.
 
-## Existing controller fixes and limits
+## APEX 4/5-specific fixes and limits
 
 The included APEX 4/5 trigger translation fixes preserve valid left-trigger
 effects and correct packed native zones and weapon interval lengths. Multi-zone
