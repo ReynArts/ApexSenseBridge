@@ -80,6 +80,12 @@ bool Apex4MotionPhaseCapture::addReport(
     const auto captured = report.first(capturedSize);
 
     for (std::size_t offset = 0; offset < captured.size(); ++offset) {
+        if (isKnownApex4MotionOffset(offset) && captured[offset] != 0) {
+            motionDataObserved_ = true;
+        }
+    }
+
+    for (std::size_t offset = 0; offset < captured.size(); ++offset) {
         const auto value = captured[offset];
         minimum_[offset] = (std::min)(minimum_[offset], value);
         maximum_[offset] = (std::max)(maximum_[offset], value);
@@ -145,11 +151,21 @@ std::uint64_t Apex4MotionPhaseCapture::droppedSamples() const noexcept {
 std::size_t Apex4MotionPhaseCapture::maximumObservedReportSize() const noexcept {
     return maximumObservedReportSize_;
 }
+bool Apex4MotionPhaseCapture::motionDataObserved() const noexcept {
+    return motionDataObserved_;
+}
 
 bool isKnownApex4ControlOffset(std::size_t offset) noexcept {
     // Header, Guide/buttons, sticks and triggers decoded by Apex4Input.cpp.
     constexpr std::array<std::size_t, 11> known{
         0, 1, 8, 9, 10, 17, 19, 21, 22, 23, 24};
+    return std::find(known.begin(), known.end(), offset) != known.end();
+}
+
+bool isKnownApex4MotionOffset(std::size_t offset) noexcept {
+    // yaw/pitch packing, accelerometer X/Y/Z and roll respectively.
+    constexpr std::array<std::size_t, 11> known{
+        4, 5, 6, 11, 12, 13, 14, 15, 16, 29, 30};
     return std::find(known.begin(), known.end(), offset) != known.end();
 }
 
@@ -172,6 +188,7 @@ std::string formatApex4GyroCaptureJson(
            << "  \"phase_seconds\": " << metadata.phaseSeconds << ",\n"
            << "  \"interrupted\": " << (metadata.interrupted ? "true" : "false") << ",\n"
            << "  \"known_control_offsets\": [0, 1, 8, 9, 10, 17, 19, 21, 22, 23, 24],\n"
+           << "  \"known_motion_offsets\": [4, 5, 6, 11, 12, 13, 14, 15, 16, 29, 30],\n"
            << "  \"phases\": [\n";
 
     for (std::size_t phaseIndex = 0; phaseIndex < phases.size(); ++phaseIndex) {
@@ -190,6 +207,8 @@ std::string formatApex4GyroCaptureJson(
                << "      \"dropped_samples\": " << phase.droppedSamples() << ",\n"
                << "      \"maximum_observed_report_length\": "
                << phase.maximumObservedReportSize() << ",\n"
+               << "      \"motion_data_observed\": "
+               << (phase.motionDataObserved() ? "true" : "false") << ",\n"
                << "      \"byte_activity\": [";
         for (std::size_t activityIndex = 0;
              activityIndex < activity.size(); ++activityIndex) {

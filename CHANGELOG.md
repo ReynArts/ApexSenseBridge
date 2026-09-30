@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Experimental APEX 4 motion decoding ([#10](https://github.com/ReynArts/ApexSenseBridge/issues/10))**:
+  decodes the legacy `04 FE` report's packed yaw/pitch rates, roll, and three
+  accelerometer axes into the virtual DualSense input path. The capture tool
+  now detects the firmware's all-zero IMU state and explains that gyro mapping
+  must be enabled in the active onboard profile before recording.
+- **APEX 5 Xbox Mode / AnyFSE trigger routing**: uses the controller's existing
+  NewXInput `0xEF` vendor stream to recover confirmed simultaneous LT+RT presses
+  in both Desktop and FSE. Mapped HID remains authoritative for profile-aware
+  controls and either trigger used alone, while ordinary XInput remains a
+  startup-only fallback and cannot collapse aim-and-fire input.
+
 ## 1.0.0-beta.7
 
 - **APEX 5 simultaneous-trigger regression**:

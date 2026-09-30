@@ -1099,6 +1099,9 @@ int commandApex4GyroCapture(int argc, char** argv) {
         << (device->identity()->isWired() ? "wired" : "dongle") << '\n'
         << "This diagnostic reads controller HID input only. It does not change "
            "profiles, mappings, firmware, or onboard settings.\n"
+        << "Required: in the active onboard profile, set gyro mapping to Mouse "
+           "and leave it always enabled. Apex 4 firmware sends no IMU data while "
+           "gyro mapping is Off.\n"
         << "Do not press buttons, move sticks, or pull triggers during the four phases.\n"
         << "Output: " << outputPath.string() << "\n\n";
 
@@ -1202,6 +1205,17 @@ int commandApex4GyroCapture(int argc, char** argv) {
     if (metadata.interrupted) {
         std::cerr << "The capture is partial but was saved for inspection.\n";
         return 6;
+    }
+    const bool motionDataObserved = std::any_of(
+        phases.begin(), phases.end(),
+        [](const auto& phase) { return phase.motionDataObserved(); });
+    if (!motionDataObserved) {
+        std::cerr
+            << "No Apex 4 IMU bytes were present. The capture was saved, but it "
+               "cannot validate gyro compatibility. Set the active profile's "
+               "gyro mapping to Mouse (always enabled), apply the profile, and "
+               "run the capture again.\n";
+        return 7;
     }
     std::cout << "Please attach this JSON file to GitHub issue #10.\n";
     return 0;

@@ -49,6 +49,7 @@ public:
     [[nodiscard]] std::uint64_t truncatedReports() const noexcept;
     [[nodiscard]] std::uint64_t droppedSamples() const noexcept;
     [[nodiscard]] std::size_t maximumObservedReportSize() const noexcept;
+    [[nodiscard]] bool motionDataObserved() const noexcept;
 
 private:
     std::string name_;
@@ -67,6 +68,7 @@ private:
     std::uint64_t droppedSamples_ = 0;
     std::size_t maximumObservedReportSize_ = 0;
     bool initialized_ = false;
+    bool motionDataObserved_ = false;
 };
 
 struct Apex4GyroCaptureMetadata {
@@ -81,6 +83,7 @@ struct Apex4GyroCaptureMetadata {
 };
 
 [[nodiscard]] bool isKnownApex4ControlOffset(std::size_t offset) noexcept;
+[[nodiscard]] bool isKnownApex4MotionOffset(std::size_t offset) noexcept;
 [[nodiscard]] std::string formatApex4GyroCaptureJson(
     const Apex4GyroCaptureMetadata& metadata,
     const std::vector<Apex4MotionPhaseCapture>& phases);

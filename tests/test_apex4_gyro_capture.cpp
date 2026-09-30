@@ -14,10 +14,11 @@ int main() {
     first[1] = 0xFE;
     first[2] = 0x10;
     first[9] = 0x00;
+    first[15] = 0x20; // Known accelerometer Z byte.
     assert(phase.addReport(first, 100));
 
     auto second = first;
-    second[2] = 0x20; // Unknown byte: possible sensor data.
+    second[2] = 0x20; // Unknown byte retained for discovery.
     second[9] = 0x01; // Known button byte.
     assert(phase.addReport(second, 200));
 
@@ -26,6 +27,7 @@ int main() {
     assert(phase.addReport(third, 300));
     assert(phase.samples().size() == 2);
     assert(phase.droppedSamples() == 1);
+    assert(phase.motionDataObserved());
 
     std::array<std::uint8_t, 32> unrelated{};
     unrelated[0] = 0x04;
@@ -51,6 +53,9 @@ int main() {
     assert(activity[1].knownControl);
     assert(isKnownApex4ControlOffset(24));
     assert(!isKnownApex4ControlOffset(25));
+    assert(isKnownApex4MotionOffset(4));
+    assert(isKnownApex4MotionOffset(30));
+    assert(!isKnownApex4MotionOffset(28));
 
     Apex4GyroCaptureMetadata metadata{};
     metadata.model = "APEX 4";
@@ -65,6 +70,7 @@ int main() {
     assert(json.find("\"tool\": \"ApexSenseBridge apex4-gyro-capture\"") !=
            std::string::npos);
     assert(json.find("\"offset\": 2") != std::string::npos);
+    assert(json.find("\"motion_data_observed\": true") != std::string::npos);
     assert(json.find("0410") == std::string::npos);
     assert(json.find("04FE10") != std::string::npos);
     assert(json.find("keyboard") != std::string::npos);

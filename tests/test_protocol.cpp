@@ -283,13 +283,26 @@ int main() {
     const auto composedState = composeApex5InputState(
         mappedHidState, decodedApex5Custom, 74, 2);
     assert(composedState.lx == mappedHidState.lx);
-    assert(composedState.l2 == mappedHidState.l2);
-    assert(composedState.r2 == mappedHidState.r2);
+    assert(composedState.l2 == decodedApex5Custom->l2);
+    assert(composedState.r2 == decodedApex5Custom->r2);
     assert(composedState.buttons ==
            (mappedHidState.buttons | dualsense::button::kPs));
     assert(composedState.gyroX == decodedApex5Custom->gyroX);
     assert(composedState.batteryPercent == 74);
     assert(composedState.chargeState == 2);
+
+    // A single raw vendor trigger must not bypass the mapped Space Station
+    // behavior. Only a confirmed simultaneous press uses the independent pair.
+    auto vendorLeftOnly = *decodedApex5Custom;
+    vendorLeftOnly.l2 = 200;
+    vendorLeftOnly.r2 = 0;
+    const auto composedLeftOnly = composeApex5InputState(
+        mappedHidState, vendorLeftOnly, 74, 2);
+    assert(composedLeftOnly.l2 == mappedHidState.l2);
+    assert(composedLeftOnly.r2 == mappedHidState.r2);
+    assert((composedLeftOnly.buttons & dualsense::button::kL2) != 0);
+    assert((composedLeftOnly.buttons & dualsense::button::kR2) != 0);
+    assert((composedLeftOnly.buttons & dualsense::button::kCircle) != 0);
 
     assert(!decodeApex5InputReport(
         std::span<const std::uint8_t>(apex5Input.data(), 29)));
@@ -314,6 +327,19 @@ int main() {
     apex4Input[22] = 0x7F;
     apex4Input[23] = 40;
     apex4Input[24] = 0;
+    // Motion is emitted only when the active Apex 4 profile has gyro mapping
+    // enabled. yaw=-100 and pitch=+500 are packed as signed 12-bit values.
+    apex4Input[4] = 0x9C;
+    apex4Input[5] = 0xF4;
+    apex4Input[6] = 0xF1;
+    apex4Input[11] = 0x64; // accel X = +100
+    apex4Input[12] = 0x00;
+    apex4Input[13] = 0x38; // accel Y = -200
+    apex4Input[14] = 0xFF;
+    apex4Input[15] = 0x20; // accel Z = +800 (approximately 1 g)
+    apex4Input[16] = 0x03;
+    apex4Input[29] = 0xD4; // roll = -300
+    apex4Input[30] = 0xFE;
     const auto decoded = decodeApex4InputReport(apex4Input);
     assert(decoded);
     assert(decoded->lx == 0x80);
@@ -328,6 +354,12 @@ int main() {
     assert((decoded->buttons & dualsense::button::kTriangle) != 0);
     assert((decoded->buttons & dualsense::button::kL1) != 0);
     assert((decoded->buttons & dualsense::button::kL2) != 0);
+    assert(decoded->gyroX == -1000);
+    assert(decoded->gyroY == 1600);
+    assert(decoded->gyroZ == 300);
+    assert(decoded->accelX == -1250);
+    assert(decoded->accelY == -2500);
+    assert(decoded->accelZ == 10000);
     assert(decoded->batteryPercent == 100);
     assert(decoded->chargeState == 0);
     const auto decodedApex4Custom = decodeApex4InputReport(apex4Input, 40, 4);

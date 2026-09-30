@@ -104,6 +104,16 @@ dualsense::DualSenseInputState composeApex5InputState(
     std::uint8_t chargeState) noexcept {
     auto state = vendorState.value_or(mappedState);
     mergeApex5MappedControls(state, mappedState);
+    if (vendorState &&
+        vendorState->l2 > platform::xinputButton::kTriggerThreshold &&
+        vendorState->r2 > platform::xinputButton::kTriggerThreshold) {
+        // The NewXInput 0xEF report exposes independent LT/RT bytes in both
+        // Desktop and Xbox FSE. Use it only to recover a confirmed simultaneous
+        // press, preserving Space Station's mapped-HID behavior for either
+        // trigger used alone.
+        platform::mergeIndependentTriggers(
+            vendorState->l2, vendorState->r2, state);
+    }
     state.batteryPercent = batteryPercent;
     state.chargeState = chargeState;
     return state;

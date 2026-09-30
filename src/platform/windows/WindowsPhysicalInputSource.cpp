@@ -787,10 +787,10 @@ public:
             return {};
         }
 
-        // Keep the mapped HID collection authoritative for every standard
-        // control. XInput supplies independent LT/RT bytes because the mapped
-        // HID trigger representation cannot reliably preserve both at once;
-        // it also bootstraps installations whose HID never reports at all.
+        // Keep mapped HID authoritative for profile-aware controls and use the
+        // vendor stream's independent LT/RT bytes when available. Xbox Mode /
+        // AnyFSE can expose ordinary XInput with incompatible trigger semantics,
+        // so full-state XInput only bootstraps a mapped HID that never reports.
         std::string xinputError;
         auto xinputGamepad = openXInputGamepadForDevice(
             vendorInterface.vendorId, vendorInterface.productId,
@@ -890,7 +890,6 @@ public:
                             mappedError + ").";
                     return mappedStatus;
                 }
-                mergeIndependentXInputTriggers(mappedState);
                 mappedInputObserved_ = true;
                 lastMappedState_ = mappedState;
                 xinputFallbackActive_ = false;
@@ -930,7 +929,7 @@ public:
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex5-v5-mapped+xinput-triggers";
+        return "apex5-v8-mapped+vendor-simultaneous";
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override {
@@ -1057,15 +1056,6 @@ private:
             *lastMappedState_, lastVendorState_,
             currentBatteryPercent_.load(std::memory_order_relaxed),
             currentChargeState_.load(std::memory_order_relaxed));
-    }
-
-    void mergeIndependentXInputTriggers(
-        dualsense::DualSenseInputState& mappedState) noexcept {
-        if (!xinputGamepad_) return;
-        dualsense::DualSenseInputState xinputState{};
-        std::string ignored;
-        if (!xinputGamepad_->poll(xinputState, ignored)) return;
-        mergeIndependentTriggers(xinputState.l2, xinputState.r2, mappedState);
     }
 
     bool pollXInputFallback(dualsense::DualSenseInputState& state) noexcept {

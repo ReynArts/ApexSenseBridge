@@ -19,8 +19,9 @@ decodeApex5InputReport(std::span<const std::uint8_t> report,
 
 // Replaces the raw controls from the vendor stream with the controller's
 // mapped game-controller HID state. Space Station stores its profile onboard,
-// so this HID collection is the source of truth for standard controls while
-// the vendor stream remains authoritative for PS, motion and battery data.
+// so this HID collection is the source of truth for standard controls. The
+// higher-level composer uses the vendor stream to recover confirmed simultaneous
+// LT/RT presses plus PS, motion and battery data.
 void mergeApex5MappedControls(
     dualsense::DualSenseInputState& vendorState,
     const dualsense::DualSenseInputState& mappedState) noexcept;

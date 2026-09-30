@@ -13,6 +13,14 @@ paths.
 
 Close any active ApexSenseBridge game session, connect the APEX 4 in DInput
 mode, and open a terminal in the folder containing `ApexSenseBridge.exe`.
+
+Before running the tool, edit the active onboard profile in Flydigi Space
+Station: set the gyro mapping to **Mouse**, configure it as always enabled (no
+activation key), and apply the profile. The APEX 4 firmware leaves every IMU
+field at zero while the profile's gyro mapping is Off. The diagnostic remains
+read-only and will not change or restore this profile setting itself. The mouse
+pointer may move during this standalone capture.
+
 Run:
 
 ```powershell
@@ -28,6 +36,10 @@ The diagnostic guides the tester through four five-second phases:
 
 Do not press buttons, move either stick, or pull the triggers during the test.
 The tool prints `GO` when each recording phase begins.
+
+If no IMU bytes are observed, the JSON is still saved for investigation but
+the command exits with code 7 and asks for a new capture with gyro mapping
+enabled.
 
 If possible, repeat the procedure over wired USB:
 
