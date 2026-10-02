@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-01T10:45:32.373537+00:00",
-  "totalGames": 214,
+  "updatedAt": "2026-10-02T10:20:23.199844+00:00",
+  "totalGames": 215,
   "discordExecutableGames": 130,
   "games": [
     {
@@ -26,6 +26,16 @@
       "executables": [
         "aplaguetalerequiem_x64.exe"
       ]
+    },
+    {
+      "title": "Ace Combat 8: Wings of Theve",
+      "normalized": "acecombat8wingsoftheve",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 2288340,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2288340/library_600x900.jpg"
     },
     {
       "title": "Alan Wake II",
