@@ -35,7 +35,7 @@
   "Loc_VibrationStrength": "Fuerza de las vibraciones",
   "Loc_VibrationThreshold": "Umbral de activación háptica",
   "Loc_EnableRumble": "Activar vibraciones y háptica",
-  "Loc_EffectsHint": "Ajustes globales para la próxima sesión Tray. 100 % conserva la fuerza original; 0 % desactiva el efecto. El umbral filtra audio háptico débil, no la vibración clásica.",
+  "Loc_EffectsHint": "Ajustes globales para la próxima sesión Tray. 100 % conserva la fuerza original; 0 % desactiva el efecto. El umbral filtra estimaciones de audio, no la vibración clásica ni el PCM háptico nativo de APEX 6 Pro.",
   "Loc_SessionDetails": "Propietario: {0}\nPerfil: {1}\nMando utilizado: {2}",
   "Loc_SessionReason": "Motivo:",
   "Loc_SessionStarting": "Preparando el bridge",

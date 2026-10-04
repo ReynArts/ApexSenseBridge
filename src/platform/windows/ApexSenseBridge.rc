@@ -8,6 +8,10 @@
 #define ASB_VERSION_STRING "1.0.0"
 #endif
 
+#ifndef ASB_RELEASE_LABEL
+#define ASB_RELEASE_LABEL ASB_VERSION_STRING
+#endif
+
 // Application Icon
 1 ICON "../../../assets/app.ico"
 
@@ -32,7 +36,7 @@ BEGIN
             VALUE "FileDescription", "ApexSenseBridge engine and command-line diagnostics\0"
             VALUE "FileVersion", ASB_VERSION_STRING ".0\0"
             VALUE "ProductName", "ApexSenseBridge\0"
-            VALUE "ProductVersion", ASB_VERSION_STRING ".0\0"
+            VALUE "ProductVersion", ASB_RELEASE_LABEL "\0"
         END
     END
     BLOCK "VarFileInfo"

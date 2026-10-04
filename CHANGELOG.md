@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.0.0-beta.10
+
+### APEX 6 Pro fixes ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))
+
+- **Known Pro variants**: accept the official `0x98` Phantom Blade Zero identity
+  alongside `0x96`, retaining checksum and grip/trigger capability checks.
+  Non-Pro `0x95` and unknown models remain refused before motor writes. A valid
+  but unsupported identity reply is reported explicitly instead of a timeout.
+- **Simultaneous trigger carriers**: continuous native feedback/vibration uses
+  a shared 1 kHz sample clock, including muted zones and independently installed
+  effects. Identical effects no longer remain phase-shifted after asymmetric
+  presses and unnecessarily fall back to alternating half-duty routing.
+  Different effects/strengths still require the protocol's alternating route.
+  This fixes a reproducible renderer defect; Endfield's reported progressive
+  weakening still needs an on-controller before/after comparison.
+- **Native Bow `0x22`**: decode the captured zones and independent draw/snap
+  strengths. Render a bounded draw-progress texture and a single 16 ms snap,
+  rearmed after release, including start zone zero. A held trigger does not
+  repeat the snap. This is a tactile approximation, not mechanical resistance.
+- **Quiet native grip haptics**: preserve native PCM at unity gain instead of
+  discarding each quiet 8 ms block below the global audio activation threshold.
+  The threshold still controls envelope fallback; strength/mute settings still
+  apply. No automatic boost, clipping, speaker-audio substitution or firmware
+  change is introduced. Historical PCM threshold-drop counters remain zero;
+  telemetry identifies the new `native-pcm-preserved` policy.
+- **Windows audio preflight**: inspect the newly observed virtual controller's
+  mix channels and speaker masks before announcing APEX 6 PCM-session readiness.
+  Stereo, unknown and missing endpoints produce actionable quadriphonic-setup
+  guidance and diagnostics. Inspection is read-only; ASB does not overwrite
+  Windows audio formats or select the virtual controller as the default output.
+  Automatic quadriphonic configuration and live game-audio reacquisition after
+  bridge recreation are not claimed fixed.
+
+### Release identification and validation
+
+- **Catalogue packaging regression**: restore the 29 manual-fix flags and
+  PCGamingWiki guidance URLs lost in the supported-games merge, from the last
+  pre-merge catalogue. Current games, capabilities, profiles, covers and
+  executable mappings are preserved; no new compatibility claim is invented.
+- Engine help, Windows product versions, Tray/Playnite informational versions
+  and setup display identify `1.0.0-beta.10`; numeric `1.0.0` versions, install
+  identity and user settings remain compatible. Release checks verify the full
+  candidate label as well as the numeric version. Setup and portable include
+  the updated APEX 6 validation checklist under `Docs`.
+- APEX 4/5 input, FORCEADAPT translation, rumble and audio timing paths remain
+  unchanged. The multichannel preflight is requested only for APEX 6 grip-PCM
+  sessions. Hardware/game validation and clean-VM installation remain release
+  gates; automated tests do not establish physical fidelity.
+
 ## 1.0.0-beta.9
 
 ### Touchpad & Motion

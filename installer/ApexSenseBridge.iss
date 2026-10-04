@@ -1,6 +1,7 @@
 #define AppName "ApexSenseBridge"
 #define AppVersion "1.0.0"
 #define AppPublisher "ApexSenseBridge contributors"
+#define AppReleaseLabel "1.0.0-beta.10"
 #define AppId "{{5F8B1901-93E1-41E2-96B4-F1B278A5A630}"
 #define ExtensionId "ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4"
 ; Inno sections require "{{" to encode a literal opening brace, whereas
@@ -18,7 +19,8 @@
 AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppVerName={#AppName} {#AppVersion}
+AppVerName={#AppName} {#AppReleaseLabel}
+VersionInfoProductTextVersion={#AppReleaseLabel}
 AppPublisher={#AppPublisher}
 DefaultDirName={autopf}\ApexSenseBridge
 DefaultGroupName=ApexSenseBridge
@@ -59,6 +61,8 @@ Name: "startwithwindows"; Description: "Démarrer ApexSenseBridge Tray au démar
 Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau pour ApexSenseBridge Tray"; GroupDescription: "Raccourcis :"; Flags: unchecked
 
 [Files]
+Source: "..\APEX6_DUALSENSE_VALIDATION.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
+Source: "..\RELEASE_NOTES_1.0.0.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeControl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe"; DestDir: "{app}"; Flags: ignoreversion

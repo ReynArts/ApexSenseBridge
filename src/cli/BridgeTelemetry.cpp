@@ -141,7 +141,13 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << "  \"audio_haptics_coalesced\": " << virtualStats.audioHapticsCoalesced;
     if (telemetry.apex6Stats) {
         const auto& stats = *telemetry.apex6Stats;
+        const auto audio = telemetry.apex6AudioFormat.value_or(asb::platform::HapticAudioFormat{});
         output << ",\n  \"apex6\": {\n"
+               << "    \"audio_format\": \""
+               << asb::platform::hapticAudioFormatStatusName(audio.status) << "\",\n"
+               << "    \"audio_mix_channels\": " << audio.channels << ",\n"
+               << "    \"audio_channel_mask\": " << audio.channelMask << ",\n"
+               << "    \"audio_physical_speaker_mask\": " << audio.physicalSpeakerMask << ",\n"
                << "    \"hid_reports\": " << stats.hidReports << ",\n"
                << "    \"trigger_left_updates\": " << stats.triggerLeftUpdates << ",\n"
                << "    \"trigger_right_updates\": " << stats.triggerRightUpdates << ",\n"
@@ -151,6 +157,8 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
                << "    \"trigger_malformed\": " << stats.triggerMalformed << ",\n"
                << "    \"trigger_rejected_stops\": " << stats.triggerRejectedStops << ",\n"
                << "    \"weapon_breaks\": " << stats.weaponBreaks << ",\n"
+               << "    \"bow_breaks\": " << stats.bowBreaks << ",\n"
+               << "    \"waveform_threshold_policy\": \"native-pcm-preserved\",\n"
                << "    \"rumble_updates\": " << stats.rumbleUpdates << ",\n"
                << "    \"audio_envelope_reports\": " << stats.audioEnvelopeReports << ",\n"
                << "    \"waveform_blocks\": " << stats.waveformBlocks << ",\n"

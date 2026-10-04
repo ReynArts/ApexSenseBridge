@@ -102,8 +102,7 @@ Apex6HapticBridge::Apex6HapticBridge(flydigi::Apex5Device& device,
                                      bool routeGrips, unsigned triggerStrengthPercent,
                                      unsigned vibrationStrengthPercent)
     : device_(device), hapticProcessor_(config), routeGrips_(routeGrips),
-      triggerStrengthPercent_(triggerStrengthPercent), vibrationStrengthPercent_(vibrationStrengthPercent),
-      activationThreshold_(config.activationThreshold) {}
+      triggerStrengthPercent_(triggerStrengthPercent), vibrationStrengthPercent_(vibrationStrengthPercent) {}
 
 Apex6HapticBridge::~Apex6HapticBridge() {
     std::string ignored;
@@ -150,6 +149,7 @@ bool Apex6HapticBridge::stop(std::string& error) noexcept {
         rightTrigger_ = {};
         leftTriggerState_.reset();
         rightTriggerState_.reset();
+        triggerSampleOffset_ = 0;
         leftPosition_ = 0;
         rightPosition_ = 0;
         leftGripPhase_ = 0.0;
@@ -211,15 +211,10 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         if (leftPeak == 0 && rightPeak == 0) {
             waveformSilentBlocks_.fetch_add(1, std::memory_order_relaxed);
         }
-        // Gate each channel before scaling; never amplify the original PCM.
-        if (leftPeak / 32768.0 < activationThreshold_) {
-            block.left.fill(0);
-            if (leftPeak != 0) waveformLeftThresholded_.fetch_add(1, std::memory_order_relaxed);
-        }
-        if (rightPeak / 32768.0 < activationThreshold_) {
-            block.right.fill(0);
-            if (rightPeak != 0) waveformRightThresholded_.fetch_add(1, std::memory_order_relaxed);
-        }
+        // This is the game's native haptic PCM, not an audio-energy estimate.
+        // A block-level activation gate removes quiet textures and decay tails.
+        // Preserve it at unity gain; the user threshold still applies to the
+        // envelope fallback through HapticProcessor, and strength scales output.
         if (lastWaveformSequence_) {
             const auto delta = block.sequence - *lastWaveformSequence_;
             if (delta == 0) {
@@ -418,14 +413,17 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
         const auto leftPulseBefore = leftTriggerState_.pulseSamplesRemaining;
         const auto rightPulseBefore = rightTriggerState_.pulseSamplesRemaining;
         leftTrigger = renderApex6TriggerEffect(
-            leftTrigger_, leftPosition_, leftTriggerState_);
+            leftTrigger_, leftPosition_, leftTriggerState_, triggerSampleOffset_);
         rightTrigger = renderApex6TriggerEffect(
-            rightTrigger_, rightPosition_, rightTriggerState_);
+            rightTrigger_, rightPosition_, rightTriggerState_, triggerSampleOffset_);
+        triggerSampleOffset_ += leftTrigger.size();
         if (leftTriggerState_.pulseSamplesRemaining > leftPulseBefore) {
-            weaponBreaks_.fetch_add(1, std::memory_order_relaxed);
+            (leftTrigger_.type == Apex6TriggerType::Bow ? bowBreaks_ : weaponBreaks_)
+                .fetch_add(1, std::memory_order_relaxed);
         }
         if (rightTriggerState_.pulseSamplesRemaining > rightPulseBefore) {
-            weaponBreaks_.fetch_add(1, std::memory_order_relaxed);
+            (rightTrigger_.type == Apex6TriggerType::Bow ? bowBreaks_ : weaponBreaks_)
+                .fetch_add(1, std::memory_order_relaxed);
         }
     }
 
@@ -585,6 +583,7 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
     result.triggerRejectedStops = triggerRejectedStops_.load(std::memory_order_relaxed);
     result.triggerDeduplicated = triggerDeduplicated_.load(std::memory_order_relaxed);
     result.weaponBreaks = weaponBreaks_.load(std::memory_order_relaxed);
+    result.bowBreaks = bowBreaks_.load(std::memory_order_relaxed);
     result.lastLeftTriggerType = lastLeftTriggerType_.load(std::memory_order_relaxed);
     result.lastRightTriggerType = lastRightTriggerType_.load(std::memory_order_relaxed);
     result.rumbleUpdates = rumbleUpdates_.load(std::memory_order_relaxed);

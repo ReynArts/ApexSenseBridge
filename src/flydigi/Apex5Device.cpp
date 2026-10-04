@@ -310,6 +310,19 @@ bool Apex5Device::verifyIdentity(std::string& error) {
 
             const auto bytes = std::span<const std::uint8_t>(input.data(), bytesRead);
             if (apex4) apex4Observation.record(bytes);
+            if (apex6Pro) {
+                const auto info = apex6::parseDeviceInfo(bytes);
+                if (info && !apex6::isProDeviceType(info->deviceType)) {
+                    std::ostringstream message;
+                    message << "Identity refused: valid command 0x01 reply received with unsupported "
+                            << "APEX 6 DeviceType 0x" << std::hex << std::uppercase
+                            << static_cast<unsigned>(info->deviceType)
+                            << ", features 0x" << static_cast<unsigned>(info->features)
+                            << "; only verified Apex 6 Pro variants 0x96/0x98 may receive haptic writes.";
+                    error = message.str();
+                    return false;
+                }
+            }
             const auto parsed = apex4
                 ? Apex5Identity::parseApex4Reply(bytes)
                 : (apex6Pro ? Apex5Identity::parseApex6Reply(bytes)

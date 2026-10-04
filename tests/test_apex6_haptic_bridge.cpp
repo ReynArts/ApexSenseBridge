@@ -109,6 +109,62 @@ void testNativeTriggerEffects() {
     assert(error == Apex6TriggerDecodeError::UnsupportedType);
 }
 
+void testBowEffect() {
+    using namespace asb::dualsense;
+    std::array<std::uint8_t, 11> bytes{0x22, 1, 1, 55}; // Endfield: zones 0/8, force 8, snap 7.
+    Apex6TriggerDecodeError error{};
+    const auto bow = decodeApex6TriggerEffect(asb::TriggerSide::Left, bytes, 0, &error);
+    assert(bow && bow->type == Apex6TriggerType::Bow);
+    assert(error == Apex6TriggerDecodeError::None);
+    assert(bow->startZone == 0 && bow->endZone == 8);
+    assert(bow->strength == 8 && bow->snapStrength == 7);
+    Apex6TriggerRenderState state{};
+    for (unsigned cycle = 0; cycle < 20; ++cycle) {
+        assert(peak(renderApex6TriggerEffect(*bow, 0, state)) == 0);
+        assert(peak(renderApex6TriggerEffect(*bow, 100, state)) > 0);
+        assert(peak(renderApex6TriggerEffect(*bow, 220, state)) > 0);
+        assert(peak(renderApex6TriggerEffect(*bow, 220, state)) > 0);
+        assert(peak(renderApex6TriggerEffect(*bow, 220, state)) == 0);
+        assert(peak(renderApex6TriggerEffect(*bow, 255, state)) == 0);
+    }
+    // Receiving Bow while already held must not invent a crossing/snap.
+    state.reset();
+    assert(peak(renderApex6TriggerEffect(*bow, 255, state)) == 0);
+    for (const auto mask : {0x001U, 0x103U, 0x201U, 0x801U}) {
+        bytes[1] = static_cast<std::uint8_t>(mask);
+        bytes[2] = static_cast<std::uint8_t>(mask >> 8U);
+        assert(!decodeApex6TriggerEffect(asb::TriggerSide::Left, bytes, 0, &error));
+        assert(error == Apex6TriggerDecodeError::InvalidParameters);
+    }
+    bytes = {0x22, 1, 1, 0x40};
+    assert(!decodeApex6TriggerEffect(asb::TriggerSide::Left, bytes, 0, &error));
+    bytes = {0x22};
+    assert(decodeApex6TriggerEffect(asb::TriggerSide::Left, bytes, 0)->type == Apex6TriggerType::Off);
+}
+
+void testContinuousCarrierClock() {
+    using namespace asb::dualsense;
+    for (const auto type : {Apex6TriggerType::Feedback, Apex6TriggerType::Vibration}) {
+        for (const auto frequency : {1, 30, 85, 150, 180, 255}) {
+            Apex6TriggerEffect effect{};
+            effect.type = type;
+            effect.frequency = static_cast<std::uint8_t>(frequency);
+            effect.zoneStrengths[9] = 8;
+            Apex6TriggerRenderState left{}, right{};
+            for (std::uint64_t block = 0; block < 250; ++block) {
+                // Different press/release timing and independently installed effects.
+                if (block % 19 == 0) right.reset();
+                (void)renderApex6TriggerEffect(effect, 255, left, block * 8);
+                (void)renderApex6TriggerEffect(effect, block % 3 == 0 ? 0 : 255,
+                                               right, block * 8);
+                const auto lt = renderApex6TriggerEffect(effect, 255, left, block * 8 + 8);
+                const auto rt = renderApex6TriggerEffect(effect, 255, right, block * 8 + 8);
+                assert(lt == rt); // Identical effects remain eligible for Both, at full duty.
+            }
+        }
+    }
+}
+
 class FakeApex6Transport final : public asb::platform::HidTransport {
 public:
     FakeApex6Transport() {
@@ -178,14 +234,14 @@ void testTriggerDiagnostics() {
     feedback.leftTriggerEffect[2] = 0x80;
     bridge.handle(feedback);
     bridge.handle(feedback);
-    feedback.leftTriggerEffect[0] = 0x22;
+    feedback.leftTriggerEffect[0] = 0x7F;
     bridge.handle(feedback);
     auto stats = bridge.stats();
     assert(stats.triggerUnsupported == 3 && stats.triggerMalformed == 2);
     assert(stats.triggerRejectedStops == 1 && stats.triggerStops == 0);
     assert(stats.triggerTraceCount == 3);
     assert(stats.lastActiveLeft && stats.lastActiveLeft->bytes[9] == 90);
-    assert(stats.lastRejectedLeft && stats.lastRejectedLeft->bytes[0] == 0x22);
+    assert(stats.lastRejectedLeft && stats.lastRejectedLeft->bytes[0] == 0x7F);
     assert(stats.triggerTrace[1].status == Apex6TriggerTraceStatus::Malformed);
     assert(stats.triggerTrace[1].position == 200);
 
@@ -200,7 +256,7 @@ void testTriggerDiagnostics() {
     assert(stats.triggerTraceCount == 64 && stats.triggerTraceOverwritten == 10);
     assert(stats.triggerTrace[63].status == Apex6TriggerTraceStatus::Off);
     assert(stats.lastActiveLeft->bytes[9] == 70);
-    assert(stats.lastRejectedLeft->bytes[0] == 0x22);
+    assert(stats.lastRejectedLeft->bytes[0] == 0x7F);
     assert(stats.triggerUnsupported == 3 && stats.triggerStops == 1);
 
     DualSenseFeedback audio{};
@@ -233,7 +289,7 @@ void testTriggerDiagnostics() {
     assert(stats.waveformSilentBlocks == 2);
 }
 
-void testStrength(unsigned strength, double threshold) {
+void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000) {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
     auto* transport = new FakeApex6Transport();
@@ -252,8 +308,8 @@ void testStrength(unsigned strength, double threshold) {
     bridge.handle(trigger);
     DualSenseFeedback waveform{};
     waveform.kind = FeedbackKind::AudioHapticWaveform;
-    waveform.leftHapticSamples.fill(30000);
-    waveform.rightHapticSamples.fill(-30000);
+    waveform.leftHapticSamples.fill(static_cast<std::int16_t>(pcmAmplitude));
+    waveform.rightHapticSamples.fill(static_cast<std::int16_t>(-pcmAmplitude));
     for (unsigned sequence = 1; sequence <= 4; ++sequence) {
         waveform.audioSequence = sequence;
         bridge.handle(waveform);
@@ -270,16 +326,14 @@ void testStrength(unsigned strength, double threshold) {
             maximumTrigger = (std::max)(maximumTrigger, std::abs(int(report[6 + sample * 3]) - 128));
         }
     }
-    if (strength == 0 || threshold > 0.92) assert(maximumGrip == 0);
-    else assert(maximumGrip == (30000 * 127 / 32767) * int(strength) / 100);
+    if (strength == 0) assert(maximumGrip == 0);
+    else assert(maximumGrip == (pcmAmplitude * 127 / 32767) * int(strength) / 100);
     if (strength == 0) assert(maximumTrigger == 0);
     else assert(maximumTrigger > 0 && maximumTrigger <= int(strength));
     const auto stats = bridge.stats();
-    if (strength == 0 || threshold > 0.92) assert(stats.waveformActiveRendered == 0);
+    if (strength == 0) assert(stats.waveformActiveRendered == 0);
     else assert(stats.waveformActiveRendered > 0);
-    if (threshold > 0.92) {
-        assert(stats.waveformLeftThresholded == 4 && stats.waveformRightThresholded == 4);
-    }
+    assert(stats.waveformLeftThresholded == 0 && stats.waveformRightThresholded == 0);
 }
 
 void testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm() {
@@ -316,12 +370,16 @@ int main() {
     using namespace asb::flydigi;
 
     testNativeTriggerEffects();
+    testBowEffect();
+    testContinuousCarrierClock();
     testTriggerDiagnostics();
     testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm();
     testStrength(100, 0.0);
     testStrength(50, 0.0);
     testStrength(0, 0.0);
     testStrength(100, 0.95);
+    testStrength(100, 0.12, 1000); // Quiet native texture must survive the default threshold.
+    testStrength(100, 0.95, 1000);
 
     auto* transport = new FakeApex6Transport();
     Apex5Device device{TransportPtr(transport)};

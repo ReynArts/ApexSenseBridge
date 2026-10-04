@@ -1,8 +1,21 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "platform/AudioEndpointProtection.h"
 
 #include <cassert>
 
 int main() {
+    using namespace asb::platform;
+    assert(classifyHapticAudioFormat(4, 0x33, 0x33) == HapticAudioFormatStatus::Quadraphonic);
+    assert(classifyHapticAudioFormat(4, 0x33, 0) == HapticAudioFormatStatus::Quadraphonic);
+    assert(classifyHapticAudioFormat(2, 0x03, 0x03) == HapticAudioFormatStatus::NeedsConfiguration);
+    assert(classifyHapticAudioFormat(4, 0x33, 0x03) == HapticAudioFormatStatus::NeedsConfiguration);
+    assert(classifyHapticAudioFormat(4, 0x0F, 0x0F) == HapticAudioFormatStatus::NeedsConfiguration);
+    assert(classifyHapticAudioFormat(6, 0x3F, 0x3F) == HapticAudioFormatStatus::NeedsConfiguration);
+    assert(classifyHapticAudioFormat(0, 0, 0) == HapticAudioFormatStatus::Unknown);
+    assert(classifyHapticAudioFormat(4, 0, 0) == HapticAudioFormatStatus::Unknown);
     using asb::platform::detail::matchesVirtualDualSenseAudioIdentity;
 
     assert(matchesVirtualDualSenseAudioIdentity(

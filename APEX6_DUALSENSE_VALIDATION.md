@@ -1,9 +1,35 @@
-# Apex 6 Pro DualSense validation (unreleased candidate)
+# Apex 6 Pro DualSense validation — 1.0.0-beta.10 candidate
 
 This checklist is for hardware testing over the 2.4 GHz dongle. Keep Flydigi
 Space Station closed during the session. Record whether Steam Input is enabled
 for each game; when testing a game's native DualSense support, try its native
 controller path first.
+
+Beta.10 does not require installing Flydigi's beta firmware or X-Haptics engine.
+Keep both the Space Station and X-Haptics engine closed while using ASB. Record
+controller/dongle firmware versions without changing them for this comparison.
+Use the same connection, scene and 100% strength as your beta.9 reference.
+
+## Identity and Windows audio configuration
+
+- Run `ApexSenseBridge.exe --help` and confirm `Release: 1.0.0-beta.10`.
+- Run `ApexSenseBridge.exe identify`. The regular Pro (`DeviceType 150/0x96`)
+  and Phantom Blade Zero (`152/0x98`) are supported when both motor capabilities
+  are advertised. Attach the exact refusal message for any other identity;
+  ASB will not enable its motors. No firmware update is required to test this.
+- Start the bridge with grip haptics enabled before launching the game. The
+  startup log now reports `apex6_audio_format`, mix-channel count and channel
+  masks. `quadraphonic`, four channels and mask `51` (`0x33`) are the expected
+  layout; a stereo/missing/unknown result is not a successful audio check.
+- If configuration is needed, leave the bridge running. Press `Win + R`, run
+  `mmsys.cpl`, and select the **new virtual Wireless Controller** on the Playback
+  tab, then **Configure > Quadraphonic**. Do not change your normal speakers or
+  make the controller the default audio output. If similarly named real devices
+  exist, identify the endpoint that appears when ASB starts; do not guess.
+- The log is a startup snapshot, not a live monitor of subsequent manual changes.
+  Record the Windows configuration too. After changing it, restart the game while
+  leaving ASB running. Recheck configuration after a new bridge session because
+  a recreated endpoint may not retain it. ASB does not write these properties.
 
 ## Start the bridge before the game
 
@@ -21,6 +47,13 @@ the input path, not proof that haptic translation failed.
 2. In Arknights: Endfield, compare one repeatable menu movement, one short
    impact, and the zipline trigger effect with a genuine DualSense if available.
    Note whether each effect is absent, weak, delayed, too long, or buzzy.
+   For the zipline, repeat at least ten cycles: LT alone, RT alone, then LT+RT
+   with LT pressed first and again with RT pressed first. Fully release between
+   cycles, then hold both for several seconds. Compare the first and last cycle
+   and report whether weakening returns. Include `apex6_trigger_both_frames`,
+   left/right frame counts, the complete raw effect trace and firmware versions.
+   `0x22` Bow should no longer be rejected when it matches the captured valid
+   payload. A VCM provides a draw texture/snap, not DualSense static resistance.
 3. Test left and right grip events separately when the game offers them. Check
    that a quiet channel does not vibrate merely because the other is active.
 4. In Zenless Zone Zero, first confirm that entry into gameplay completes.
@@ -30,10 +63,16 @@ the input path, not proof that haptic translation failed.
    If nothing is felt, record the action and whether the game shows DualSense
    prompts. The new counters will distinguish non-silent PCM, trigger effects,
    and HID rumble from a stream of silent audio blocks.
+   Include the quadriphonic configuration and all four raw channel peaks.
+   Silence on the two haptic channels must not be confused with weak output.
 5. Run at least one longer session and several clean start/stop cycles. If
    Windows says a device is unrecognized, capture the exact device instance ID
    and the event time. Note whether the physical controller, dongle, or virtual
    DualSense disappeared.
+   Close the game before the normal bridge restart test, then start ASB first
+   and relaunch the game. If you also test restarting ASB with the game left
+   running, report that separately: live input/audio reacquisition is not fixed
+   or guaranteed, and the game may need restarting. Do not repeat a freeze.
 6. After closing both game and bridge, retest the physical controller alone in
    the same game and in a simple rumble tester. Report these separately: a
    working rumble tester does not establish that native game haptics recovered.
@@ -68,7 +107,12 @@ Raw RMS includes silence; filtered active RMS excludes wholly silent blocks,
 so these RMS values do not have identical denominators. Zero measured blocks
 means raw diagnostics are unavailable, not that the incoming audio was silent.
 Record trigger/vibration strength and audio threshold as well; use 100% strength
-for comparison, and repeat a weak event at 0% threshold to identify gating.
+for comparison. Beta.10 preserves native PCM regardless of the activation
+threshold: an optional 12% versus 0% comparison of the same scene should no
+longer remove quiet native details. The threshold still applies to envelope
+fallback, not native PCM or ordinary HID rumble. The historical PCM threshold
+counters now stay zero; include `apex6_waveform_threshold_policy` and
+`apex6_bow_breaks`, plus the audio preflight fields or complete telemetry JSON.
 
 Retest PRAGMATA's weapon break as a regression reference, and Endfield's zipline
 specifically to validate the corrected native vibration-frequency byte. Do not

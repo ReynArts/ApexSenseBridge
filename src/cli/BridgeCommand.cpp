@@ -320,8 +320,10 @@ int commandBridgeTriggers(int argc, char** argv) {
         };
     }
     std::future<bool> audioProtectionFuture;
+    bool audioProtectionOk = true;
     const auto probeFirmware = [&preexistingDualSensePaths, &audioProtection,
-                                &audioProtectionError, &audioProtectionFuture]
+                                &audioProtectionError, &audioProtectionFuture,
+                                inspectHapticFormat = apex6Pro && options.routeRumble]
         (std::string& probeError) {
         if (audioProtectionFuture.valid()) {
             const bool previousProtectionOk = audioProtectionFuture.get();
@@ -336,10 +338,10 @@ int commandBridgeTriggers(int argc, char** argv) {
         // recreation without delaying HID readiness verification.
         audioProtectionFuture = std::async(
             std::launch::async,
-            [&audioProtection, &audioProtectionError]() {
+            [&audioProtection, &audioProtectionError, inspectHapticFormat]() {
                 return !audioProtection.captured() ||
                        audioProtection.protectAfterVirtualDualSenseStart(
-                           std::chrono::milliseconds(2000), audioProtectionError);
+                           std::chrono::milliseconds(2000), audioProtectionError, inspectHapticFormat);
             });
         return readNewVirtualDualSenseFirmware(
             preexistingDualSensePaths, std::chrono::milliseconds(3000), probeError);
@@ -667,6 +669,24 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(11, "Could not start the Apex 6 haptic stream: " + error);
     }
 
+    if (apex6Pro && options.routeRumble && audioProtectionFuture.valid()) {
+        // Prepared launch must see the audio preflight result before the game
+        // opens this endpoint. APEX 4/5 retain their asynchronous startup path.
+        audioProtectionOk = audioProtectionFuture.get();
+        const auto format = audioProtection.hapticFormat();
+        std::cout << "apex6_audio_format="
+                  << asb::platform::hapticAudioFormatStatusName(format.status) << '\n'
+                  << "apex6_audio_mix_channels=" << format.channels << '\n'
+                  << "apex6_audio_channel_mask=" << format.channelMask << '\n'
+                  << "apex6_audio_physical_speaker_mask=" << format.physicalSpeakerMask << std::endl;
+        if (format.status != asb::platform::HapticAudioFormatStatus::Quadraphonic) {
+            std::cerr << "Warning: virtual DualSense quadraphonic audio is not verified. "
+                         "Native grip haptics may be silent. While the bridge is active, open "
+                         "mmsys.cpl > Playback > Wireless Controller > Configure > Quadraphonic. "
+                         "Keep your normal speakers as the default output, then restart the game "
+                         "after configuration (or after recreating the bridge).\n";
+        }
+    }
     if (sessionControl) {
         const bool readyPublished = sessionControl->publish(asb::platform::SessionPhase::Ready, 0,
                                      "ASB_READY|" + device->identity()->describe(), error);
@@ -1051,7 +1071,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     mappedTouchpadHold.finish(trackingFinishedAt);
     virtualTouchpadHold.finish(trackingFinishedAt);
-    const bool audioProtectionOk = audioProtectionFuture.get();
+    if (audioProtectionFuture.valid()) audioProtectionOk = audioProtectionFuture.get();
     if (!audioProtectionOk) {
         std::cerr << "Warning: Windows default-audio protection failed: "
                   << audioProtectionError << '\n';
@@ -1149,7 +1169,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     if (!options.telemetryJson.empty()) {
         BridgeTelemetry telemetry{};
         telemetry.virtualStats = virtualStats;
-        if (apex6Pro) telemetry.apex6Stats = apex6Stats;
+        if (apex6Pro) {
+            telemetry.apex6Stats = apex6Stats;
+            telemetry.apex6AudioFormat = audioProtection.hapticFormat();
+        }
         telemetry.physicalStats = inputSourceStats;
         telemetry.processUsage = processUsageFinished;
         telemetry.inputBackend = inputBackend;
@@ -1365,6 +1388,9 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (apex6Pro) {
         std::cout << "apex6_hid_reports=" << apex6Stats.hidReports << '\n'
+#ifdef ASB_RELEASE_LABEL
+              << "asb_release=" ASB_RELEASE_LABEL "\n"
+#endif
               << "apex6_trigger_left_updates=" << apex6Stats.triggerLeftUpdates << '\n'
               << "apex6_trigger_right_updates=" << apex6Stats.triggerRightUpdates << '\n'
               << "apex6_trigger_active_updates=" << apex6Stats.triggerActiveUpdates << '\n'
@@ -1374,6 +1400,8 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_trigger_rejected_stops=" << apex6Stats.triggerRejectedStops << '\n'
               << "apex6_trigger_deduplicated=" << apex6Stats.triggerDeduplicated << '\n'
               << "apex6_weapon_breaks=" << apex6Stats.weaponBreaks << '\n'
+              << "apex6_bow_breaks=" << apex6Stats.bowBreaks << '\n'
+              << "apex6_waveform_threshold_policy=native-pcm-preserved\n"
               << "apex6_last_left_trigger_type="
               << static_cast<unsigned>(apex6Stats.lastLeftTriggerType) << '\n'
               << "apex6_last_right_trigger_type="

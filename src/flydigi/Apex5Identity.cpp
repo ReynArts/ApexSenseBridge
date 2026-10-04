@@ -105,7 +105,7 @@ std::optional<Apex5Identity> Apex5Identity::parseApex4Reply(
 std::optional<Apex5Identity> Apex5Identity::parseApex6Reply(
     std::span<const std::uint8_t> report) {
     const auto parsed = apex6::parseDeviceInfo(report);
-    if (!parsed || parsed->deviceType != apex6::kDeviceType) {
+    if (!parsed || !apex6::isProDeviceType(parsed->deviceType)) {
         return std::nullopt;
     }
     return Apex5Identity(ApexProtocol::RealtimeV3, parsed->deviceType,

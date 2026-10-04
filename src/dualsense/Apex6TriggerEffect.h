@@ -14,6 +14,7 @@ enum class Apex6TriggerType : std::uint8_t {
     Weapon,
     Vibration,
     Legacy,
+    Bow,
 };
 
 enum class Apex6TriggerDecodeError : std::uint8_t {
@@ -29,6 +30,7 @@ struct Apex6TriggerEffect {
     std::uint8_t endZone = 0;
     std::uint8_t strength = 0;
     std::uint8_t frequency = 0;
+    std::uint8_t snapStrength = 0;
     ForceTriggerCommand legacy{};
 
     bool operator==(const Apex6TriggerEffect&) const = default;
@@ -53,6 +55,7 @@ struct Apex6TriggerRenderState {
 
 [[nodiscard]] std::array<std::int8_t, 8> renderApex6TriggerEffect(
     const Apex6TriggerEffect& effect, std::uint8_t position,
-    Apex6TriggerRenderState& state) noexcept;
+    Apex6TriggerRenderState& state,
+    std::optional<std::uint64_t> sampleOffset = std::nullopt) noexcept;
 
 } // namespace asb::dualsense

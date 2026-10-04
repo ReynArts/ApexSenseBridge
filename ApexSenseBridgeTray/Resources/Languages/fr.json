@@ -35,7 +35,7 @@
   "Loc_VibrationStrength": "Force des vibrations",
   "Loc_VibrationThreshold": "Seuil d’activation haptique",
   "Loc_EnableRumble": "Activer vibrations et haptique",
-  "Loc_EffectsHint": "Réglages globaux, appliqués à la prochaine session Tray. 100 % conserve la force d’origine ; 0 % désactive l’effet. Le seuil filtre les signaux audio haptiques faibles, pas les vibrations classiques du jeu.",
+  "Loc_EffectsHint": "Réglages globaux pour la prochaine session Tray. 100 % conserve la force d’origine ; 0 % désactive l’effet. Le seuil filtre les estimations audio, pas les vibrations classiques ni le PCM haptique natif de l’APEX 6 Pro.",
   "Loc_SessionDetails": "Propriétaire : {0}\nProfil : {1}\nManette utilisée : {2}",
   "Loc_SessionReason": "Raison :",
   "Loc_SessionStarting": "Préparation du bridge",

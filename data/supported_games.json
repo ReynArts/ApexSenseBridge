@@ -126,6 +126,9 @@
                   {
                       "title":  "Assetto Corsa",
                       "normalized":  "assettocorsa",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Assetto_Corsa",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -414,6 +417,9 @@
                   {
                       "title":  "Control",
                       "normalized":  "control",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Control",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -519,6 +525,9 @@
                   {
                       "title":  "Death Stranding",
                       "normalized":  "deathstranding",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Death_Stranding",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -575,6 +584,9 @@
                   {
                       "title":  "DiRT 4",
                       "normalized":  "dirt4",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/DiRT_4",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -585,6 +597,9 @@
                   {
                       "title":  "DiRT Rally",
                       "normalized":  "dirtrally",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/DiRT_Rally",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -595,6 +610,9 @@
                   {
                       "title":  "DiRT Rally 2.0",
                       "normalized":  "dirtrally20",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/DiRT_Rally_2.0",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -631,6 +649,9 @@
                   {
                       "title":  "Duck Game",
                       "normalized":  "duckgame",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Duck_Game",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -644,6 +665,10 @@
                   {
                       "title":  "Dying Light",
                       "normalized":  "dyinglight",
+                      "adaptiveTriggersManualFix":  true,
+                      "hapticFeedbackManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Dying_Light",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -680,6 +705,9 @@
                   {
                       "title":  "EA Sports WRC",
                       "normalized":  "easportswrc",
+                      "hapticFeedbackManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/EA_Sports_WRC",
                       "adaptiveTriggers":  false,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -703,6 +731,9 @@
                   {
                       "title":  "Euro Truck Simulator 2",
                       "normalized":  "eurotrucksimulator2",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Euro_Truck_Simulator_2",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -782,6 +813,9 @@
                   {
                       "title":  "Fallout 4",
                       "normalized":  "fallout4",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Fallout_4",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -904,6 +938,9 @@
                   {
                       "title":  "Forza Horizon 4",
                       "normalized":  "forzahorizon4",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Forza_Horizon_4",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -914,6 +951,9 @@
                   {
                       "title":  "Forza Horizon 5",
                       "normalized":  "forzahorizon5",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Forza_Horizon_5",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -927,6 +967,9 @@
                   {
                       "title":  "Forza Horizon 6",
                       "normalized":  "forzahorizon6",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Forza_Horizon_6",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -937,6 +980,9 @@
                   {
                       "title":  "Forza Motorsport 7",
                       "normalized":  "forzamotorsport7",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Forza_Motorsport_7",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -957,6 +1003,9 @@
                   {
                       "title":  "Genshin Impact",
                       "normalized":  "genshinimpact",
+                      "hapticFeedbackManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Genshin_Impact",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -993,6 +1042,9 @@
                   {
                       "title":  "God of War",
                       "normalized":  "godofwar",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/God_of_War",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -1032,6 +1084,9 @@
                   {
                       "title":  "Grand Theft Auto V",
                       "normalized":  "grandtheftautov",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto_V",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -1052,6 +1107,9 @@
                   {
                       "title":  "Grand Theft Auto: San Andreas",
                       "normalized":  "grandtheftautosanandreas",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto:_San_Andreas",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -1075,6 +1133,9 @@
                   {
                       "title":  "Half-Life: Alyx",
                       "normalized":  "halflifealyx",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Half-Life:_Alyx",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -1411,6 +1472,9 @@
                   {
                       "title":  "Metal Gear Solid V: Ground Zeroes",
                       "normalized":  "metalgearsolidvgroundzeroes",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_Ground_Zeroes",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -1424,6 +1488,9 @@
                   {
                       "title":  "Metal Gear Solid V: The Phantom Pain",
                       "normalized":  "metalgearsolidvthephantompain",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_The_Phantom_Pain",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -1605,6 +1672,10 @@
                   {
                       "title":  "Onimusha: Way of the Sword",
                       "normalized":  "onimushawayofthesword",
+                      "adaptiveTriggersManualFix":  true,
+                      "hapticFeedbackManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Onimusha:_Way_of_the_Sword",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -1714,6 +1785,9 @@
                   {
                       "title":  "Red Dead Redemption 2",
                       "normalized":  "reddeadredemption2",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Red_Dead_Redemption_2",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -1727,6 +1801,9 @@
                   {
                       "title":  "Resident Evil 5",
                       "normalized":  "residentevil5",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Resident_Evil_5",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -1806,6 +1883,9 @@
                   {
                       "title":  "Rocket League",
                       "normalized":  "rocketleague",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Rocket_League",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -2215,6 +2295,9 @@
                   {
                       "title":  "The Elder Scrolls V: Skyrim Special Edition",
                       "normalized":  "theelderscrollsvskyrimspecialedition",
+                      "adaptiveTriggersManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/The_Elder_Scrolls_V:_Skyrim_Special_Edition",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  false,
                       "profile":  "standard",
@@ -2349,6 +2432,10 @@
                   {
                       "title":  "Tomb Raider (2013)",
                       "normalized":  "tombraider2013",
+                      "adaptiveTriggersManualFix":  true,
+                      "hapticFeedbackManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Tomb_Raider_(2013)",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -2549,6 +2636,9 @@
                   {
                       "title":  "Zenless Zone Zero",
                       "normalized":  "zenlesszonezero",
+                      "hapticFeedbackManualFix":  true,
+                      "requiresManualFix":  true,
+                      "manualFixUrl":  "https://www.pcgamingwiki.com/wiki/Zenless_Zone_Zero",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  true,
                       "profile":  "standard",

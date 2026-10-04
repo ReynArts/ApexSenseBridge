@@ -46,6 +46,9 @@ namespace asb::cli {
 void printUsage() {
     std::cout
         << "ApexSenseBridge 1.0.0\n\n"
+#ifdef ASB_RELEASE_LABEL
+        << "Release: " ASB_RELEASE_LABEL "\n\n"
+#endif
         << "Engine / command-line diagnostics. Main application: ApexSenseBridgeTray.exe\n\n"
         << "Commands:\n"
         << "  list                         List APEX 4/5/6 vendor HID candidates\n"

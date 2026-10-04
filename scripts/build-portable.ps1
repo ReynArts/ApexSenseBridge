@@ -60,6 +60,9 @@ foreach ($name in @(
 
 Copy-RequiredFile (Join-Path $projectRoot "data\supported_games.json") `
     (Join-Path $stagingFull "Data\supported_games.json")
+foreach ($document in @("APEX6_DUALSENSE_VALIDATION.md", "RELEASE_NOTES_1.0.0.md")) {
+    Copy-RequiredFile (Join-Path $projectRoot $document) (Join-Path $stagingFull "Docs\$document")
+}
 Copy-RequiredFile (Join-Path $projectRoot "assets\app.ico") `
     (Join-Path $stagingFull "Resources\app.ico")
 

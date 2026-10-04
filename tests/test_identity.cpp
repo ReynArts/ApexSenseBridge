@@ -71,9 +71,10 @@ public:
             reply[3] = asb::flydigi::apex6::kCmdGetInfo;
             reply[4] = 1;
             reply[6] = deviceType_;
-            reply[30] = 0x9F;
+            reply[30] = apex6Features;
             reply[32] = asb::flydigi::apex6::checksum(
                 std::span<const std::uint8_t>(reply).subspan(1));
+            if (corruptApex6Checksum) reply[32] ^= 1;
             replies_.push_back(std::move(reply));
         } else if (!silent_ && !apex4_ && report.size() > 3 &&
                    report[3] == asb::flydigi::kCmdGetInfo) {
@@ -151,6 +152,8 @@ public:
     }
 
     std::vector<std::vector<std::uint8_t>> writes;
+    std::uint8_t apex6Features = 0x9F;
+    bool corruptApex6Checksum = false;
 
 private:
     asb::HidDeviceInfo info_{};
@@ -258,6 +261,39 @@ int main() {
     assert(apex6Device.enableApex6Haptics(error));
     assert(apex6Transport->writes.size() == 3);
     assert(apex6Transport->writes[1][3] == apex6::kCmdMotorRoute);
+
+    FakeTransport* variantTransport = nullptr;
+    auto variant = makeDevice(variantTransport, 0x98, false, false, 0, true);
+    error.clear();
+    assert(variant.verifyIdentity(error));
+    assert(variant.identity()->deviceType() == 0x98);
+    assert(variant.identity()->supportsRealtimeHaptics());
+    assert(!variant.setTrigger(effect, error)); // Never use APEX 4/5 FORCEADAPT on a K6 variant.
+    assert(variant.enableApex6Haptics(error));
+    for (const auto type : {0x95, 0x99}) {
+        FakeTransport* unknownTransport = nullptr;
+        auto unknown = makeDevice(unknownTransport, static_cast<std::uint8_t>(type),
+                                  false, false, 0, true);
+        assert(!unknown.verifyIdentity(error));
+        assert(error.find("valid command 0x01 reply received") != std::string::npos);
+        assert(!unknown.enableApex6Haptics(error));
+        assert(unknownTransport->writes.size() == 1);
+    }
+    for (const auto features : {0x10, 0x80, 0x00}) {
+        FakeTransport* incompleteTransport = nullptr;
+        auto incomplete = makeDevice(incompleteTransport, 0x98, false, false, 0, true);
+        incompleteTransport->apex6Features = static_cast<std::uint8_t>(features);
+        assert(!incomplete.verifyIdentity(error));
+        assert(error.find("Identity refused") != std::string::npos);
+        assert(!incomplete.enableApex6Haptics(error));
+        assert(incompleteTransport->writes.size() == 1);
+    }
+    FakeTransport* corruptTransport = nullptr;
+    auto corrupt = makeDevice(corruptTransport, 0x98, false, false, 0, true);
+    corruptTransport->corruptApex6Checksum = true;
+    assert(!corrupt.verifyIdentity(error));
+    assert(!corrupt.enableApex6Haptics(error));
+    assert(corruptTransport->writes.size() == 1);
 
     for (const auto deviceType : {84, 86, 87, 92, 93, 102, 103, 104}) {
         assert(Apex5Identity::isApex4DeviceType(static_cast<std::uint8_t>(deviceType)));

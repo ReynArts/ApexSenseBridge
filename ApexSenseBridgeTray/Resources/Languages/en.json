@@ -35,7 +35,7 @@
   "Loc_VibrationStrength": "Vibration strength",
   "Loc_VibrationThreshold": "Haptic activation threshold",
   "Loc_EnableRumble": "Enable vibration and haptics",
-  "Loc_EffectsHint": "Global settings, applied to the next Tray session. 100% preserves original strength; 0% disables the effect. The threshold filters faint audio haptics, not standard game rumble.",
+  "Loc_EffectsHint": "Global settings for the next Tray session. 100% preserves original strength; 0% disables the effect. The threshold filters audio-energy estimates, not game rumble or APEX 6 Pro native haptic PCM.",
   "Loc_SessionDetails": "Owner: {0}\nProfile: {1}\nController in use: {2}",
   "Loc_SessionReason": "Reason:",
   "Loc_SessionStarting": "Preparing bridge",

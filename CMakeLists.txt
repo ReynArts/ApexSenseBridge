@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(ApexSenseBridge VERSION 1.0.0 LANGUAGES CXX)
+set(ASB_RELEASE_LABEL "${PROJECT_VERSION}-beta.10")
+add_compile_definitions(ASB_RELEASE_LABEL="${ASB_RELEASE_LABEL}")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -372,6 +374,7 @@ if(BUILD_TESTING)
         tests/test_bridge_telemetry.cpp
         src/cli/BridgeTelemetry.cpp
         src/cli/JsonSupport.cpp
+        src/platform/AudioEndpointProtection.cpp
     )
     target_include_directories(ApexSenseBridgeBridgeTelemetryTests PRIVATE src)
     if(MSVC)

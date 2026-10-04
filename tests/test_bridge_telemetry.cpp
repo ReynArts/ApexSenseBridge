@@ -99,6 +99,9 @@ int main() {
     }
 
     telemetry.apex6Stats = asb::dualsense::Apex6HapticBridgeStats{};
+    telemetry.apex6AudioFormat = asb::platform::HapticAudioFormat{
+        asb::platform::HapticAudioFormatStatus::Quadraphonic, 4, 0x33, 0x33};
+    telemetry.apex6Stats->bowBreaks = 3;
     telemetry.apex6Stats->hidReports = 17;
     telemetry.apex6Stats->waveformLeftActiveBlocks = 9;
     telemetry.apex6Stats->triggerMalformed = 2;
@@ -115,6 +118,11 @@ int main() {
     asb::cli::writeBridgeTelemetry(apex6Output, telemetry);
     assert(apex6Output.str().find("\"apex6\": {") != std::string::npos);
     assert(apex6Output.str().find("\"hid_reports\": 17") != std::string::npos);
+    assert(apex6Output.str().find("\"audio_format\": \"quadraphonic\"") != std::string::npos);
+    assert(apex6Output.str().find("\"audio_mix_channels\": 4") != std::string::npos);
+    assert(apex6Output.str().find("\"audio_channel_mask\": 51") != std::string::npos);
+    assert(apex6Output.str().find("\"bow_breaks\": 3") != std::string::npos);
+    assert(apex6Output.str().find("\"waveform_threshold_policy\": \"native-pcm-preserved\"") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_left_active\": 9") != std::string::npos);
     assert(apex6Output.str().find("\"trigger_malformed\": 2") != std::string::npos);
     assert(apex6Output.str().find("\"raw_audio_measured_blocks\": 1") != std::string::npos);

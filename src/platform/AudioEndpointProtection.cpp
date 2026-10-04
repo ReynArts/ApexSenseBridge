@@ -33,6 +33,31 @@ const char* audioDefaultProtectionStatusName(
     return "unknown";
 }
 
+const char* hapticAudioFormatStatusName(HapticAudioFormatStatus status) noexcept {
+    switch (status) {
+    case HapticAudioFormatStatus::NotRequested: return "not-requested";
+    case HapticAudioFormatStatus::NotObserved: return "not-observed";
+    case HapticAudioFormatStatus::Unknown: return "unknown";
+    case HapticAudioFormatStatus::Quadraphonic: return "quadraphonic";
+    case HapticAudioFormatStatus::NeedsConfiguration: return "needs-quadraphonic-configuration";
+    }
+    return "unknown";
+}
+
+HapticAudioFormatStatus classifyHapticAudioFormat(
+    std::uint16_t channels, std::uint32_t channelMask,
+    std::uint32_t physicalSpeakerMask) noexcept {
+    constexpr std::uint32_t kQuadraphonic = 0x33; // FL/FR/BL/BR, in PCM channel order.
+    if (channels == 0) return HapticAudioFormatStatus::Unknown;
+    if (channels != 4) return HapticAudioFormatStatus::NeedsConfiguration;
+    if (channelMask == 0) return HapticAudioFormatStatus::Unknown;
+    if (channelMask != kQuadraphonic ||
+        (physicalSpeakerMask != 0 && physicalSpeakerMask != kQuadraphonic)) {
+        return HapticAudioFormatStatus::NeedsConfiguration;
+    }
+    return HapticAudioFormatStatus::Quadraphonic;
+}
+
 namespace detail {
 
 bool matchesVirtualDualSenseAudioIdentity(

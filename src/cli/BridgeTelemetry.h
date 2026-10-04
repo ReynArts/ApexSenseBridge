@@ -4,6 +4,7 @@
 #include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/VirtualDualSense.h"
 #include "platform/PhysicalInputSource.h"
+#include "platform/AudioEndpointProtection.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -16,6 +17,7 @@ namespace asb::cli {
 struct BridgeTelemetry {
     asb::dualsense::VirtualDualSenseStats virtualStats;
     std::optional<asb::dualsense::Apex6HapticBridgeStats> apex6Stats;
+    std::optional<asb::platform::HapticAudioFormat> apex6AudioFormat;
     asb::platform::PhysicalInputSourceStats physicalStats;
     ProcessUsageSnapshot processUsage;
     std::string inputBackend;

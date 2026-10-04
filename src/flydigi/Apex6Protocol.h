@@ -21,6 +21,11 @@ inline constexpr std::uint8_t kCmdMotorRoute = 0x53;
 inline constexpr std::uint8_t kCmdRealtimeMotor = 0x57;
 inline constexpr std::uint8_t kCmdOperatorData = 0xEF;
 inline constexpr std::uint8_t kDeviceType = 0x96;
+inline constexpr std::uint8_t kPhantomBladeZeroDeviceType = 0x98;
+// Official Space Station k6 model IDs: 0x95 is the non-Pro APEX 6.
+[[nodiscard]] constexpr bool isProDeviceType(std::uint8_t deviceType) noexcept {
+    return deviceType == kDeviceType || deviceType == kPhantomBladeZeroDeviceType;
+}
 inline constexpr std::uint8_t kFeatureHaptic = 0x80;
 inline constexpr std::uint8_t kFeatureTriggerHaptic = 0x10;
 

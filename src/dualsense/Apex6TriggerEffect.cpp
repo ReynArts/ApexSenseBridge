@@ -39,7 +39,7 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
     Apex6TriggerEffect result{};
     if (bytes[0] == 0 || bytes[0] == 0x05) return result;
 
-    if (bytes[0] == 0x21 || bytes[0] == 0x26 || bytes[0] == 0x25) {
+    if (bytes[0] == 0x21 || bytes[0] == 0x26 || bytes[0] == 0x25 || bytes[0] == 0x22) {
         const auto mask = static_cast<std::uint16_t>(bytes[1]) |
                           (static_cast<std::uint16_t>(bytes[2]) << 8U);
         if ((mask & ~std::uint16_t{0x03FF}) != 0) {
@@ -58,13 +58,19 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
         }
         result.startZone = static_cast<std::uint8_t>(first);
         result.endZone = static_cast<std::uint8_t>(last);
-        if (bytes[0] == 0x25) {
-            if (active != 2 || first >= last) {
+        if (bytes[0] == 0x25 || bytes[0] == 0x22) {
+            const bool bow = bytes[0] == 0x22;
+            const auto forcePair = static_cast<unsigned>(bytes[3]) |
+                                   (static_cast<unsigned>(bytes[4]) << 8U);
+            if (active != 2 || first >= last ||
+                (bow && (last > 8 || (forcePair & ~0x3FU) != 0))) {
                 if (error) *error = Apex6TriggerDecodeError::InvalidParameters;
                 return std::nullopt;
             }
-            result.type = Apex6TriggerType::Weapon;
+            result.type = bow ? Apex6TriggerType::Bow : Apex6TriggerType::Weapon;
             result.strength = static_cast<std::uint8_t>((bytes[3] & 0x07U) + 1U);
+            if (bow) result.snapStrength = static_cast<std::uint8_t>(
+                ((forcePair >> 3U) & 0x07U) + 1U);
             return result;
         }
 
@@ -97,7 +103,8 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
 
 std::array<std::int8_t, 8> renderApex6TriggerEffect(
     const Apex6TriggerEffect& effect, std::uint8_t position,
-    Apex6TriggerRenderState& state) noexcept {
+    Apex6TriggerRenderState& state,
+    std::optional<std::uint64_t> sampleOffset) noexcept {
     std::array<std::int8_t, 8> output{};
     std::uint8_t amplitude = 0;
     double frequency = 85.0;
@@ -117,10 +124,12 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
         frequency = effect.frequency;
         if (effect.frequency == 0) amplitude = 0;
         break;
+    case Apex6TriggerType::Bow:
     case Apex6TriggerType::Weapon: {
+        const bool bow = effect.type == Apex6TriggerType::Bow;
         const auto start = positionFor(effect.startZone);
         const auto end = positionFor(effect.endZone);
-        if (position < start) {
+        if (position <= start) {
             state.weaponArmed = true;
             state.pulseSamplesRemaining = 0;
         } else if (state.hasPreviousPosition && state.weaponArmed &&
@@ -129,10 +138,15 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
             state.weaponArmed = false;
         }
         if (state.pulseSamplesRemaining > 0) {
-            amplitude = static_cast<std::uint8_t>(effect.strength * 12U);
+            amplitude = static_cast<std::uint8_t>(
+                (bow ? effect.snapStrength : effect.strength) * 12U);
             frequency = 110.0;
         } else if (position >= start && position < end) {
-            amplitude = static_cast<std::uint8_t>(effect.strength * 5U);
+            // A VCM cannot reproduce static bow resistance. Encode draw
+            // progress as a bounded texture followed by one snap pulse.
+            amplitude = bow ? static_cast<std::uint8_t>(
+                static_cast<unsigned>(effect.strength) * 8U * (position - start) /
+                (end - start)) : static_cast<std::uint8_t>(effect.strength * 5U);
         }
         break;
     }
@@ -165,11 +179,25 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
 
     state.previousPosition = position;
     state.hasPreviousPosition = true;
-    if (amplitude == 0) return output;
+    const bool continuous = effect.type == Apex6TriggerType::Feedback ||
+                            effect.type == Apex6TriggerType::Vibration;
+    if (continuous && sampleOffset) {
+        // Native effects specify frequency, not phase. Anchor both carriers
+        // to one sample clock, including muted zones and late-installed
+        // effects, so identical held effects retain simultaneous routing.
+        state.phase = std::fmod(static_cast<double>(*sampleOffset % 1000U) *
+                               frequency / 1000.0, 1.0);
+    }
+    if (amplitude == 0) {
+        if (continuous) {
+            state.phase = std::fmod(state.phase + frequency * output.size() / 1000.0, 1.0);
+        }
+        return output;
+    }
     amplitude = (std::min)(amplitude, kMaximumDrive);
     for (auto& value : output) {
         value = sample(state.phase, frequency, amplitude);
-        if (effect.type == Apex6TriggerType::Weapon &&
+        if ((effect.type == Apex6TriggerType::Weapon || effect.type == Apex6TriggerType::Bow) &&
             state.pulseSamplesRemaining > 0) {
             --state.pulseSamplesRemaining;
         }

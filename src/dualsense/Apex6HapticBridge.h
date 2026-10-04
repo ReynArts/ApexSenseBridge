@@ -60,6 +60,7 @@ struct Apex6HapticBridgeStats {
     std::uint64_t triggerRejectedStops = 0;
     std::uint64_t triggerDeduplicated = 0;
     std::uint64_t weaponBreaks = 0;
+    std::uint64_t bowBreaks = 0;
     std::uint8_t lastLeftTriggerType = 0;
     std::uint8_t lastRightTriggerType = 0;
     std::uint64_t rumbleUpdates = 0;
@@ -162,7 +163,7 @@ private:
     bool routeGrips_ = true;
     unsigned triggerStrengthPercent_ = 100;
     unsigned vibrationStrengthPercent_ = 100;
-    double activationThreshold_ = 0.12;
+    std::uint64_t triggerSampleOffset_ = 0;
     mutable std::mutex stateMutex_;
     std::condition_variable stopSignal_;
     std::thread worker_;
@@ -211,6 +212,7 @@ private:
     std::atomic_uint64_t triggerRejectedStops_{0};
     std::atomic_uint64_t triggerDeduplicated_{0};
     std::atomic_uint64_t weaponBreaks_{0};
+    std::atomic_uint64_t bowBreaks_{0};
     std::atomic_uint8_t lastLeftTriggerType_{0};
     std::atomic_uint8_t lastRightTriggerType_{0};
     std::atomic_uint64_t rumbleUpdates_{0};
