@@ -27,6 +27,8 @@ struct BridgeCommandOptions {
     unsigned int hapticThresholdPercent = 12;
     unsigned int triggerStrengthPercent = 100;
     unsigned int vibrationStrengthPercent = 100;
+    unsigned int apex4GyroStrengthPercent = 100;
+    unsigned int apex4GyroYawStrengthPercent = 100;
     bool hapticThresholdExplicit = false;
     std::optional<unsigned int> xinputIndex;
     std::optional<std::string> sessionToken;

@@ -367,7 +367,11 @@ namespace ApexSenseBridge
                 settings.Settings.EnableRumble,
                 settings.Settings.HapticThresholdPercent,
                 settings.Settings.SyncLightbar,
-                profile.ApexProfileSlot);
+                profile.ApexProfileSlot,
+                100,
+                100,
+                settings.Settings.Apex4GyroStrengthPercent,
+                settings.Settings.Apex4GyroYawStrengthPercent);
         }
 
         private static string Mark(bool selected)
@@ -487,7 +491,7 @@ namespace ApexSenseBridge
             }
 
             logger.Info($"Stopping ApexSenseBridge session: {reason}.");
-            if (!session.StopAndWait(TimeSpan.FromSeconds(15)))
+            if (!session.StopAndEnsureExit(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5)))
             {
                 logger.Error("ApexSenseBridge did not stop within 15 seconds after the stop signal.");
             }

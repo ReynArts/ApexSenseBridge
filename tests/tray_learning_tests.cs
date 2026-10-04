@@ -591,14 +591,17 @@ internal static class TrayLearningTests
             "--touchpad-profile death-stranding-2"),
             "The shared launcher dropped the Death Stranding 2 touchpad profile.");
         Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3) ==
-               "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 --rumble " +
+               "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 " +
+               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100 --rumble " +
                "--haptic-threshold 12 --sync-lightbar --apex-profile 3",
             "The shared bridge argument contract changed for a complete profile.");
         Assert(BridgeArguments.Build("unknown", true, 999, false, 9) ==
-               "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100 --rumble --haptic-threshold 95",
+               "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100 " +
+               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100 --rumble --haptic-threshold 95",
             "The shared bridge argument contract did not normalize invalid settings.");
         Assert(BridgeArguments.Build(null, false, -1, false, 0) ==
-               "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100",
+               "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100 " +
+               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100",
             "The shared bridge argument contract did not preserve minimal defaults.");
     }
 
@@ -606,7 +609,9 @@ internal static class TrayLearningTests
     {
         var settings = new TraySettings();
         string game;
-        Assert(settings.TriggerStrengthPercent == 100 && settings.VibrationStrengthPercent == 100, "Default strengths changed.");
+        Assert(settings.TriggerStrengthPercent == 100 && settings.VibrationStrengthPercent == 100 &&
+               settings.Apex4GyroStrengthPercent == 100 && settings.Apex4GyroYawStrengthPercent == 100,
+            "Default strengths changed.");
         settings.SetGameExecutable("alpha", @"D:\Games\Alpha\game.EXE");
         Assert(settings.TryGetGameForExecutable(@"d:\games\alpha\GAME.exe", out game) && game == "alpha", "Configured absolute path did not resolve.");
         Assert(!settings.TryGetGameForExecutable(@"D:\Other\game.exe", out game), "Configured path matched by basename.");
@@ -618,8 +623,12 @@ internal static class TrayLearningTests
         var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
         Assert(restored.GetGameExecutable("ALPHA") == @"D:\Games\Alpha\game.EXE", "Executable did not survive serialization.");
         var legacy = serializer.Deserialize<TraySettings>("{\"AutoDetectGames\":true}");
-        Assert(legacy.TriggerStrengthPercent == 100 && legacy.VibrationStrengthPercent == 100, "Legacy settings lost default strengths.");
-        Assert(BridgeArguments.Build("none", true, 20, false, 0, 35, 60).Contains("--trigger-strength 35 --vibration-strength 60"), "Strength values did not reach engine arguments.");
+        Assert(legacy.TriggerStrengthPercent == 100 && legacy.VibrationStrengthPercent == 100 &&
+               legacy.Apex4GyroStrengthPercent == 100 && legacy.Apex4GyroYawStrengthPercent == 100,
+            "Legacy settings lost default strengths.");
+        Assert(BridgeArguments.Build("none", true, 20, false, 0, 35, 60, 175, 225).Contains(
+            "--trigger-strength 35 --vibration-strength 60 --apex4-gyro-strength 175 --apex4-gyro-yaw-strength 225"),
+            "Strength values did not reach engine arguments.");
     }
 
     private static int RunFakeSession(string[] args)
@@ -633,6 +642,11 @@ internal static class TrayLearningTests
         using (var ready = EventWaitHandle.OpenExisting(prefix + ".Ready"))
         using (var stop = EventWaitHandle.OpenExisting(prefix + ".Stop"))
         {
+            if (Array.IndexOf(args, "--ignore-stop") >= 0)
+            {
+                Thread.Sleep(30000);
+                return 0;
+            }
             bool fail = Array.IndexOf(args, "--fail") >= 0;
             progress.Write(0, 0x50534241u);
             progress.Write(4, 1u);
@@ -711,6 +725,15 @@ internal static class TrayLearningTests
         Assert(BridgeSession.ReadActiveSession(discovery) == null, "Disposed IPC session remained visible.");
         using (var failedSession = BridgeSession.TryStart(executable, "--fake-session --fail", TimeSpan.FromSeconds(3), null, null, out error))
             Assert(failedSession == null && error == "Isolation impossible (test).", "Initialization failure reason was lost.");
+        var forcedCleanupLogged = false;
+        using (var hungSession = BridgeSession.TryStart(
+            executable, "--fake-session --ignore-stop", TimeSpan.FromMilliseconds(200),
+            null, message => forcedCleanupLogged |= message.Contains("stale session"), out error))
+        {
+            Assert(hungSession == null, "A hung startup unexpectedly returned a session.");
+        }
+        Assert(forcedCleanupLogged,
+            "A hung startup was not forcibly reaped after its cooperative stop timeout.");
     }
 
     private static void TestRecoveryPolicy()

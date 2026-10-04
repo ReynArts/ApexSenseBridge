@@ -16,6 +16,8 @@ namespace ApexSenseBridgeTray.Models
         public int HapticThresholdPercent { get; set; }
         public int TriggerStrengthPercent { get; set; }
         public int VibrationStrengthPercent { get; set; }
+        public int Apex4GyroStrengthPercent { get; set; }
+        public int Apex4GyroYawStrengthPercent { get; set; }
         public Dictionary<string, string> GameExecutables { get; set; }
         public int InitializationTimeoutSeconds { get; set; }
         // Manual bridge mode describes the current process session, not a
@@ -38,6 +40,8 @@ namespace ApexSenseBridgeTray.Models
             HapticThresholdPercent = 12;
             TriggerStrengthPercent = 100;
             VibrationStrengthPercent = 100;
+            Apex4GyroStrengthPercent = 100;
+            Apex4GyroYawStrengthPercent = 100;
             GameExecutables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";
@@ -212,6 +216,8 @@ namespace ApexSenseBridgeTray.Models
                         settings.ResetTransientState();
                         settings.TriggerStrengthPercent = Math.Max(0, Math.Min(100, settings.TriggerStrengthPercent));
                         settings.VibrationStrengthPercent = Math.Max(0, Math.Min(100, settings.VibrationStrengthPercent));
+                        settings.Apex4GyroStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroStrengthPercent));
+                        settings.Apex4GyroYawStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroYawStrengthPercent));
                         settings.HapticThresholdPercent = Math.Max(0, Math.Min(95, settings.HapticThresholdPercent));
                         if (settings.GameExecutables == null) settings.GameExecutables = new Dictionary<string, string>();
                         if (settings.ExcludedGames == null) settings.ExcludedGames = new List<string>();

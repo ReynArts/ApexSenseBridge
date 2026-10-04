@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/DeviceInfo.h"
 #include "core/TriggerEffect.h"
 
 #include <array>
@@ -7,6 +8,13 @@
 #include <cstdint>
 
 namespace asb::flydigi {
+
+enum class Apex4TriggerInterfaceCapability {
+    NotApplicable,
+    Unknown,
+    Degraded32Byte,
+    Full64Byte,
+};
 
 // Apex 4 uses Flydigi's first-generation vendor protocol on USB interface 2.
 constexpr std::uint16_t kApex4VendorId = 0x04B4;
@@ -33,6 +41,8 @@ using Apex4RumbleReport = std::array<std::uint8_t, 4>;
 
 [[nodiscard]] bool isApex4Product(std::uint16_t vendorId,
                                   std::uint16_t productId) noexcept;
+[[nodiscard]] Apex4TriggerInterfaceCapability classifyApex4TriggerInterface(
+    const HidDeviceInfo& info) noexcept;
 [[nodiscard]] Apex4IdentityRequest buildApex4IdentityRequest();
 [[nodiscard]] Apex4ForceTriggerReport buildApex4ForceTrigger(
     const TriggerEffect& effect, bool apply = kApex4ApplyFlag);

@@ -24,6 +24,30 @@ int main() {
     assert(!isApex4Product(0x04B4, 0x2411));
     assert(!isApex4Product(0x37D7, 0x2412));
 
+    HidDeviceInfo apex4Descriptor{};
+    apex4Descriptor.vendorId = kApex4VendorId;
+    apex4Descriptor.productId = kApex4ProductId;
+    assert(classifyApex4TriggerInterface(apex4Descriptor) ==
+           Apex4TriggerInterfaceCapability::Unknown);
+    apex4Descriptor.outputReportLength = 32;
+    assert(classifyApex4TriggerInterface(apex4Descriptor) ==
+           Apex4TriggerInterfaceCapability::Degraded32Byte);
+    apex4Descriptor.outputReportLength = 64;
+    assert(classifyApex4TriggerInterface(apex4Descriptor) ==
+           Apex4TriggerInterfaceCapability::Full64Byte);
+    apex4Descriptor.productId = 0x2411;
+    assert(classifyApex4TriggerInterface(apex4Descriptor) ==
+           Apex4TriggerInterfaceCapability::NotApplicable);
+
+    dualsense::DualSenseInputState tunedGyro{};
+    tunedGyro.gyroX = 100;
+    tunedGyro.gyroY = -100;
+    tunedGyro.gyroZ = 20000;
+    tuneApex4Gyroscope(tunedGyro, 200, 150);
+    assert(tunedGyro.gyroX == 200);
+    assert(tunedGyro.gyroY == -300);
+    assert(tunedGyro.gyroZ == 32767);
+
     const auto apex4Identity = buildApex4IdentityRequest();
     assert(apex4Identity.size() == 12);
     assert(apex4Identity[0] == 0x05);

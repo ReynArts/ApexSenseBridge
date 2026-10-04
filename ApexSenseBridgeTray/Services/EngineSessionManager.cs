@@ -275,7 +275,7 @@ namespace ApexSenseBridgeTray.Services
                 }
                 if (cancelled)
                 {
-                    session.StopAndWait(TimeSpan.FromSeconds(15));
+                    session.StopAndEnsureExit(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
                     session.Dispose();
                     error = "Initialisation annulée.";
                     return false;
@@ -320,7 +320,8 @@ namespace ApexSenseBridgeTray.Services
             StateChanged?.Invoke();
             if (sessionToStop != null)
             {
-                var clean = sessionToStop.StopAndWait(TimeSpan.FromSeconds(15));
+                var clean = sessionToStop.StopAndEnsureExit(
+                    TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
                 var final = sessionToStop.ReadStatus();
                 lock (syncLock)
                 {
@@ -406,7 +407,9 @@ namespace ApexSenseBridgeTray.Services
                 settings != null && settings.SyncLightbar,
                 apexProfileSlot,
                 settings != null ? settings.TriggerStrengthPercent : 100,
-                settings != null ? settings.VibrationStrengthPercent : 100);
+                settings != null ? settings.VibrationStrengthPercent : 100,
+                settings != null ? settings.Apex4GyroStrengthPercent : 100,
+                settings != null ? settings.Apex4GyroYawStrengthPercent : 100);
         }
     }
 }

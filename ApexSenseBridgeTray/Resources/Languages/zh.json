@@ -33,6 +33,8 @@
   "Loc_ControllerEffects": "手柄反馈",
   "Loc_TriggerStrength": "扳机力度",
   "Loc_VibrationStrength": "振动力度",
+  "Loc_Apex4GyroStrength": "Apex 4 陀螺仪灵敏度",
+  "Loc_Apex4GyroYawStrength": "Apex 4 偏航修正",
   "Loc_VibrationThreshold": "触觉激活阈值",
   "Loc_EnableRumble": "启用振动和触觉",
   "Loc_EffectsHint": "全局设置，在下一次 Tray 会话生效。100% 保持原始力度；0% 关闭效果。阈值过滤音频能量估计，不影响游戏振动或 APEX 6 Pro 原生触觉 PCM。",

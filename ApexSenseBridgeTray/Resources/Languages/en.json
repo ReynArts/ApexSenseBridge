@@ -33,6 +33,8 @@
   "Loc_ControllerEffects": "Controller feel",
   "Loc_TriggerStrength": "Trigger strength",
   "Loc_VibrationStrength": "Vibration strength",
+  "Loc_Apex4GyroStrength": "Apex 4 gyro sensitivity",
+  "Loc_Apex4GyroYawStrength": "Apex 4 yaw correction",
   "Loc_VibrationThreshold": "Haptic activation threshold",
   "Loc_EnableRumble": "Enable vibration and haptics",
   "Loc_EffectsHint": "Global settings for the next Tray session. 100% preserves original strength; 0% disables the effect. The threshold filters audio-energy estimates, not game rumble or APEX 6 Pro native haptic PCM.",

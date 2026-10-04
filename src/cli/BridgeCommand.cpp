@@ -16,6 +16,8 @@
 #include "dualsense/RumbleBridge.h"
 #include "dualsense/LightbarBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
+#include "flydigi/Apex4Input.h"
+#include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Device.h"
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
@@ -124,6 +126,40 @@ int commandBridgeTriggers(int argc, char** argv) {
     const bool apex6Pro = device->identity() && device->identity()->isApex6();
     if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::ControllerVerified);
     const bool apex5 = device->identity() && device->identity()->isApex5();
+    const bool apex4 = device->identity() && device->identity()->isApex4();
+    const auto apex4TriggerCapability =
+        asb::flydigi::classifyApex4TriggerInterface(device->info());
+    if (apex4) {
+        const auto capabilityName =
+            apex4TriggerCapability ==
+                    asb::flydigi::Apex4TriggerInterfaceCapability::Full64Byte
+                ? "full"
+                : apex4TriggerCapability ==
+                          asb::flydigi::Apex4TriggerInterfaceCapability::Degraded32Byte
+                      ? "degraded"
+                      : "unknown";
+        std::cout << "Apex 4 trigger interface: output_report_length="
+                  << device->info().outputReportLength
+                  << ", capability=" << capabilityName << '\n'
+                  << "Apex 4 gyro tuning: overall="
+                  << options.apex4GyroStrengthPercent << "%, yaw="
+                  << options.apex4GyroYawStrengthPercent << "%\n";
+    }
+    if (apex4TriggerCapability ==
+        asb::flydigi::Apex4TriggerInterfaceCapability::Degraded32Byte) {
+        std::cerr
+            << "Warning: this Apex 4 is exposing the degraded 32-byte vendor "
+               "identity. LT may work while RT is unavailable even when HID "
+               "writes succeed. Reconnect the controller/receiver until "
+               "'identify' reports the full 64-byte trigger interface.\n";
+    }
+    const auto tunePhysicalInput = [&](asb::dualsense::DualSenseInputState& state) {
+        if (apex4) {
+            asb::flydigi::tuneApex4Gyroscope(
+                state, options.apex4GyroStrengthPercent,
+                options.apex4GyroYawStrengthPercent);
+        }
+    };
 
     std::optional<asb::flydigi::ProfileStatus> originalProfile;
     std::optional<asb::flydigi::InputTransportStatus> originalInputTransport;
@@ -251,6 +287,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << "Mandatory physical-input proxy validation failed: " << message << '\n';
         return failSession(8, "Mandatory physical-input proxy validation failed: " + message);
     }
+    tunePhysicalInput(initialInput);
     const auto physicalInputReadyAt = std::chrono::steady_clock::now();
 
     const auto preexistingDualSensePaths = snapshotDualSensePaths();
@@ -575,6 +612,7 @@ int commandBridgeTriggers(int argc, char** argv) {
             const auto status = inputSource->waitForState(
                 refreshedInput, std::chrono::milliseconds(100), validationError);
             if (status == asb::platform::PhysicalInputStatus::State) {
+                tunePhysicalInput(refreshedInput);
                 initialInput = refreshedInput;
                 ++freshReports;
             } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
@@ -898,6 +936,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         bool forwardInput = false;
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
+            tunePhysicalInput(input);
             inputFreshness.observeFreshState(inputObservedAt);
             if (apex6Bridge) {
                 apex6Bridge->updateTriggerPositions(input.l2, input.r2);

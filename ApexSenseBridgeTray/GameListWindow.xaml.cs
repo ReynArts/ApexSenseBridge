@@ -1750,6 +1750,8 @@ namespace ApexSenseBridgeTray
             updatingEffectSettings = true;
             SliderTriggerStrength.Value = settings.TriggerStrengthPercent;
             SliderVibrationStrength.Value = settings.VibrationStrengthPercent;
+            SliderApex4GyroStrength.Value = settings.Apex4GyroStrengthPercent;
+            SliderApex4GyroYawStrength.Value = settings.Apex4GyroYawStrengthPercent;
             SliderVibrationThreshold.Value = settings.HapticThresholdPercent;
             ChkGripVibrations.IsChecked = settings.EnableRumble;
             UpdateEffectLabels();
@@ -1777,9 +1779,13 @@ namespace ApexSenseBridgeTray
 
         private void UpdateEffectLabels()
         {
-            if (TxtTriggerStrength == null || SliderTriggerStrength == null || SliderVibrationStrength == null || SliderVibrationThreshold == null) return;
+            if (TxtTriggerStrength == null || SliderTriggerStrength == null ||
+                SliderVibrationStrength == null || SliderApex4GyroStrength == null ||
+                SliderApex4GyroYawStrength == null || SliderVibrationThreshold == null) return;
             TxtTriggerStrength.Text = ((int)SliderTriggerStrength.Value) + " %";
             TxtVibrationStrength.Text = ((int)SliderVibrationStrength.Value) + " %";
+            TxtApex4GyroStrength.Text = ((int)SliderApex4GyroStrength.Value) + " %";
+            TxtApex4GyroYawStrength.Text = ((int)SliderApex4GyroYawStrength.Value) + " %";
             TxtVibrationThreshold.Text = ((int)SliderVibrationThreshold.Value) + " %";
         }
 
@@ -1788,6 +1794,8 @@ namespace ApexSenseBridgeTray
             if (updatingEffectSettings || settings == null || !IsLoaded) return;
             settings.TriggerStrengthPercent = (int)SliderTriggerStrength.Value;
             settings.VibrationStrengthPercent = (int)SliderVibrationStrength.Value;
+            settings.Apex4GyroStrengthPercent = (int)SliderApex4GyroStrength.Value;
+            settings.Apex4GyroYawStrengthPercent = (int)SliderApex4GyroYawStrength.Value;
             settings.HapticThresholdPercent = (int)SliderVibrationThreshold.Value;
             settings.Save();
             UpdateEffectLabels();

@@ -68,6 +68,24 @@ void decodeMotion(std::span<const std::uint8_t> report,
 
 } // namespace
 
+void tuneApex4Gyroscope(dualsense::DualSenseInputState& state,
+                        unsigned int strengthPercent,
+                        unsigned int yawStrengthPercent) noexcept {
+    const auto scaled = [](std::int16_t value, std::uint64_t numerator) {
+        const auto result = static_cast<std::int64_t>(value) *
+                            static_cast<std::int64_t>(numerator) / 100;
+        return static_cast<std::int16_t>((std::clamp)(
+            result,
+            static_cast<std::int64_t>((std::numeric_limits<std::int16_t>::min)()),
+            static_cast<std::int64_t>((std::numeric_limits<std::int16_t>::max)())));
+    };
+    state.gyroX = scaled(state.gyroX, strengthPercent);
+    state.gyroY = scaled(
+        state.gyroY,
+        static_cast<std::uint64_t>(strengthPercent) * yawStrengthPercent / 100);
+    state.gyroZ = scaled(state.gyroZ, strengthPercent);
+}
+
 std::optional<dualsense::DualSenseInputState>
 decodeApex4InputReport(std::span<const std::uint8_t> report,
                        std::uint8_t batteryPercent,

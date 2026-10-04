@@ -13,7 +13,9 @@ namespace ApexSenseBridge.Common
             bool syncLightbar,
             int apexProfileSlot,
             int triggerStrengthPercent = 100,
-            int vibrationStrengthPercent = 100)
+            int vibrationStrengthPercent = 100,
+            int apex4GyroStrengthPercent = 100,
+            int apex4GyroYawStrengthPercent = 100)
         {
             var arguments = new List<string>
             {
@@ -26,6 +28,10 @@ namespace ApexSenseBridge.Common
             arguments.Add(Math.Max(0, Math.Min(100, triggerStrengthPercent)).ToString(CultureInfo.InvariantCulture));
             arguments.Add("--vibration-strength");
             arguments.Add(Math.Max(0, Math.Min(100, vibrationStrengthPercent)).ToString(CultureInfo.InvariantCulture));
+            arguments.Add("--apex4-gyro-strength");
+            arguments.Add(Math.Max(25, Math.Min(400, apex4GyroStrengthPercent)).ToString(CultureInfo.InvariantCulture));
+            arguments.Add("--apex4-gyro-yaw-strength");
+            arguments.Add(Math.Max(25, Math.Min(400, apex4GyroYawStrengthPercent)).ToString(CultureInfo.InvariantCulture));
 
             if (enableRumble)
             {

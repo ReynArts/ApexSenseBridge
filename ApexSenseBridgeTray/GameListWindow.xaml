@@ -1386,6 +1386,12 @@
                                     <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Foreground="{DynamicResource TextSecondary}"/>
                                     <TextBlock x:Name="TxtVibrationStrength" Foreground="{DynamicResource PlayStationBlue}"/>
                                     <Slider x:Name="SliderVibrationStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                    <TextBlock Text="{DynamicResource Loc_Apex4GyroStrength}" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock x:Name="TxtApex4GyroStrength" Foreground="{DynamicResource PlayStationBlue}"/>
+                                    <Slider x:Name="SliderApex4GyroStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                    <TextBlock Text="{DynamicResource Loc_Apex4GyroYawStrength}" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock x:Name="TxtApex4GyroYawStrength" Foreground="{DynamicResource PlayStationBlue}"/>
+                                    <Slider x:Name="SliderApex4GyroYawStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
                                     <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Foreground="{DynamicResource TextSecondary}"/>
                                     <TextBlock x:Name="TxtVibrationThreshold" Foreground="{DynamicResource PlayStationBlue}"/>
                                     <Slider x:Name="SliderVibrationThreshold" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,8"/>

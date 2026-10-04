@@ -278,7 +278,7 @@ namespace ApexSenseBridge.Common
 
                 if (!session.WaitUntilReady(timeout, token, gameTitle, profile, progressChanged, out error))
                 {
-                    session.StopAndWait(TimeSpan.FromSeconds(15));
+                    session.StopAndEnsureExit(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
                     session.Dispose();
                     return null;
                 }
@@ -289,7 +289,21 @@ namespace ApexSenseBridge.Common
             {
                 error = "Impossible de démarrer ApexSenseBridge : " + exception.Message;
                 if (logError != null) logError(error);
-                if (process != null) process.Dispose();
+                if (process != null)
+                {
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            process.Kill();
+                            process.WaitForExit(5000);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                    process.Dispose();
+                }
                 if (view != null) view.Dispose();
                 if (progressView != null) progressView.Dispose();
                 if (progressMapping != null) progressMapping.Dispose();
@@ -320,6 +334,46 @@ namespace ApexSenseBridge.Common
                 if (logError != null) logError("Failed to stop ApexSenseBridge session: " + exception.Message);
                 return false;
             }
+        }
+
+        // A launcher must never discard its only handle to a child that failed
+        // to honor the cooperative stop event. Such an orphan keeps the global
+        // bridge-session mutex and makes every later start look externally
+        // managed. The forced fallback is scoped to the exact process created
+        // by this BridgeSession; the return value remains false when cleanup was
+        // not cooperative so callers can still report an unclean shutdown.
+        public bool StopAndEnsureExit(TimeSpan cooperativeTimeout, TimeSpan forcedTimeout)
+        {
+            if (StopAndWait(cooperativeTimeout))
+            {
+                return true;
+            }
+            try
+            {
+                if (!process.HasExited)
+                {
+                    if (logError != null)
+                    {
+                        logError("ApexSenseBridge did not stop after the IPC request; " +
+                                 "terminating the launched child process to prevent a stale session.");
+                    }
+                    process.Kill();
+                    if (!process.WaitForExit((int)forcedTimeout.TotalMilliseconds) &&
+                        logError != null)
+                    {
+                        logError("The launched ApexSenseBridge child did not exit after forced termination.");
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                if (logError != null)
+                {
+                    logError("Failed to terminate the stale ApexSenseBridge child: " +
+                             exception.Message);
+                }
+            }
+            return false;
         }
 
         public void Dispose()

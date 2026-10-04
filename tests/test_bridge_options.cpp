@@ -54,13 +54,16 @@ int main() {
     assert(!defaults.options.duration);
     assert(defaults.options.virtualBackend == Backend::Auto);
     assert(defaults.options.hapticThresholdPercent == 12);
+    assert(defaults.options.apex4GyroStrengthPercent == 100);
+    assert(defaults.options.apex4GyroYawStrengthPercent == 100);
     assert(defaults.options.touchpadProfile == Profile::None);
 
     const auto complete = parse({
         "3", "--seconds", "42", "--viiper", "C:\\Tools\\Viiper.exe",
         "--virtual-backend", "sidecar", "--telemetry-json", "result.json",
         "--xinput-index", "2", "--rumble", "--sync-lightbar",
-        "--haptic-threshold", "25", "--verify-virtual-input",
+        "--haptic-threshold", "25", "--apex4-gyro-strength", "175",
+        "--apex4-gyro-yaw-strength", "225", "--verify-virtual-input",
         "--touchpad-profile", "warframe", "--apex-profile", "4",
         "--session-token", "0123456789abcdefABCDEF0123456789",
         "--session-owner-pid", "4294967295"});
@@ -74,6 +77,8 @@ int main() {
     assert(complete.options.routeRumble);
     assert(complete.options.syncLightbar);
     assert(complete.options.hapticThresholdPercent == 25);
+    assert(complete.options.apex4GyroStrengthPercent == 175);
+    assert(complete.options.apex4GyroYawStrengthPercent == 225);
     assert(complete.options.verifyVirtualInput);
     assert(complete.options.touchpadProfile == Profile::Warframe);
     assert(complete.options.apexProfileSlot == std::uint8_t{3});
@@ -111,6 +116,10 @@ int main() {
     assert(!parse({"--vibration-strength", "-1"}).succeeded);
     assert(!parse({"--vibration-strength", "50junk"}).succeeded);
     assert(!parse({"--trigger-strength"}).succeeded);
+    assert(!parse({"--apex4-gyro-strength", "24"}).succeeded);
+    assert(!parse({"--apex4-gyro-yaw-strength", "401"}).succeeded);
+    assert(!parse({"--apex4-gyro-strength", "100junk"}).succeeded);
+    assert(!parse({"--apex4-gyro-yaw-strength"}).succeeded);
 
     return 0;
 }

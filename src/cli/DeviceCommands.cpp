@@ -13,6 +13,7 @@
 #include "dualsense/RumbleBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
 #include "flydigi/Apex5Device.h"
+#include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
 #include "platform/AudioEndpointProtection.h"
@@ -361,8 +362,21 @@ int commandIdentify(int argc, char** argv) {
                   << " (" << static_cast<unsigned int>(identity->batteryPercent()) << "%)"
                   << (identity->isCharging() ? " (charging)" : "") << '\n';
     }
-    std::cout << "Adaptive triggers: "
-              << (identity->supportsAdaptiveTriggers() ? "yes" : "no") << '\n'
+    std::cout << "Adaptive triggers: ";
+    const auto apex4Capability =
+        asb::flydigi::classifyApex4TriggerInterface(device->info());
+    if (apex4Capability ==
+        asb::flydigi::Apex4TriggerInterfaceCapability::Degraded32Byte) {
+        std::cout << "partial (degraded 32-byte Apex 4 interface; LT may work, RT unavailable)\n"
+                  << "Action: reconnect the controller/receiver until this command reports "
+                     "the full 64-byte Apex 4 interface.\n";
+    } else if (apex4Capability ==
+               asb::flydigi::Apex4TriggerInterfaceCapability::Full64Byte) {
+        std::cout << "yes (full 64-byte Apex 4 interface)\n";
+    } else {
+        std::cout << (identity->supportsAdaptiveTriggers() ? "yes" : "no") << '\n';
+    }
+    std::cout
               << "Realtime voice-coil haptics: "
               << (identity->supportsRealtimeHaptics() ? "yes" : "no") << '\n';
     return 0;

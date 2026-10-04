@@ -33,6 +33,8 @@
   "Loc_ControllerEffects": "Ressenti de la manette",
   "Loc_TriggerStrength": "Force des gâchettes",
   "Loc_VibrationStrength": "Force des vibrations",
+  "Loc_Apex4GyroStrength": "Sensibilité du gyroscope Apex 4",
+  "Loc_Apex4GyroYawStrength": "Correction du lacet Apex 4",
   "Loc_VibrationThreshold": "Seuil d’activation haptique",
   "Loc_EnableRumble": "Activer vibrations et haptique",
   "Loc_EffectsHint": "Réglages globaux pour la prochaine session Tray. 100 % conserve la force d’origine ; 0 % désactive l’effet. Le seuil filtre les estimations audio, pas les vibrations classiques ni le PCM haptique natif de l’APEX 6 Pro.",

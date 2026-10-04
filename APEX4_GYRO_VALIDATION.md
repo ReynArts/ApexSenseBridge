@@ -4,8 +4,10 @@
 
 The new captures contain nonzero accelerometer and native gyro channels over
 both wired USB and the dongle. The decoder now uses these native channels,
-not the firmware mouse deltas. This is an experimental implementation, not
-confirmed in-game support or factory-calibrated sensor output.
+not the firmware mouse deltas. Hardware validation in Horizon Zero Dawn now
+confirms the three axes and virtual DualSense game path work. The remaining
+reported limitation is low sensitivity, especially yaw; the captures still do
+not constitute factory-calibrated sensor output.
 
 Both files identify one APEX 4 (`k2`, DeviceType 84, firmware `0x6837`). Other
 firmware versions and units have not been validated. The tester must enable
@@ -85,7 +87,14 @@ The phase named `yaw` changes gravity strongly and excites the roll channel;
 the phase named `roll` primarily excites yaw while gravity stays nearer flat.
 This suggests those two gestures were interchanged, rather than proving an
 axis assignment from their labels. Capture prompts now distinguish them.
-The proposed Sony-frame gyro signs still need a physical direction check.
+The Sony-frame directions were confirmed in game by the issue reporter.
+
+Because free-hand motion cannot establish an absolute degrees-per-second scale,
+the bridge keeps these provisional gains at 100% and exposes two bounded
+calibration controls. `--apex4-gyro-strength 25..400` scales pitch, yaw and
+roll; `--apex4-gyro-yaw-strength 25..400` applies an additional yaw-only trim.
+Both are available in Tray and Playnite and saturate safely at signed 16-bit
+limits. Existing users retain exactly the prior 100% behavior by default.
 
 ## Verification and remaining hardware checks
 
@@ -107,9 +116,11 @@ Leave it flat for several seconds, then separately pitch, yaw and roll in
 both directions. Expected: face-up acceleration is mainly Y, gyro returns
 near zero at rest, and each gesture primarily changes its corresponding
 gyro channel. Test USB and dongle separately. Then test the virtual DualSense
-in a gyro-capable game and report inverted axes, excessive/weak sensitivity,
-drift and unwanted mouse movement. `test-gyro` checks decoding, not virtual
-DualSense/game integration. Do not run the bridge concurrently with capture.
+in a gyro-capable game. Start with both bridge settings at 100%; raise overall
+sensitivity first, then use yaw correction only if yaw remains weaker than
+pitch/roll. Report the chosen values, drift and any unwanted mouse movement.
+`test-gyro` checks decoding, not virtual DualSense/game integration. Do not run
+the bridge concurrently with capture.
 
 For calibration follow-up, record well-separated movements with a known
 angle and duration (especially yaw), plus clearly described start/end poses

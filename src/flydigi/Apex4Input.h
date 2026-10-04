@@ -15,4 +15,11 @@ decodeApex4InputReport(std::span<const std::uint8_t> report,
                        std::uint8_t batteryPercent = 100,
                        std::uint8_t chargeState = 0) noexcept;
 
+// Applies user calibration after the capture-derived Apex 4 conversion. The
+// separate yaw trim compensates for the less constrained split-byte yaw axis
+// without forcing pitch and roll to use the same correction.
+void tuneApex4Gyroscope(dualsense::DualSenseInputState& state,
+                        unsigned int strengthPercent,
+                        unsigned int yawStrengthPercent) noexcept;
+
 } // namespace asb::flydigi

@@ -353,7 +353,7 @@ namespace ApexSenseBridgeTray.Services
                     {
                         if (session != null)
                         {
-                            session.StopAndWait(TimeSpan.FromSeconds(15));
+                            session.StopAndEnsureExit(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
                             lock (latencySessionLock)
                             {
                                 if (ReferenceEquals(activeLatencySession, session))
@@ -446,7 +446,7 @@ namespace ApexSenseBridgeTray.Services
             }
             if (session != null)
             {
-                session.StopAndWait(TimeSpan.FromSeconds(15));
+                session.StopAndEnsureExit(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
             }
         }
 

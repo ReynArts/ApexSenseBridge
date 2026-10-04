@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Open-issue fixes
+
+- **Apex 4 gyro completion ([#10](https://github.com/ReynArts/ApexSenseBridge/issues/10))**:
+  preserve the capture-derived calibration at 100% while exposing bounded
+  25–400% global sensitivity and a separate yaw correction in the engine,
+  Tray and Playnite. This addresses the hardware validation result that all
+  axes work in game but remain weak, especially yaw, without pretending the
+  available free-hand captures provide factory calibration.
+- **Stale external session after startup timeout ([#15](https://github.com/ReynArts/ApexSenseBridge/issues/15))**:
+  after a cooperative stop timeout, forcibly reap only the exact engine child
+  launched by Tray or Playnite. A failed initialization can no longer discard
+  its process handle while the orphan keeps the global session lock.
+- **Apex 4 degraded USB identity ([#26](https://github.com/ReynArts/ApexSenseBridge/issues/26))**:
+  classify the reported 32-byte output interface separately from the full
+  64-byte trigger interface. `identify` and bridge startup now state that HID
+  writes can succeed while RT remains unavailable, and advise reconnecting
+  instead of falsely reporting complete adaptive-trigger support.
+
 ## 1.0.0-beta.10
 
 ### APEX 6 Pro fixes ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))

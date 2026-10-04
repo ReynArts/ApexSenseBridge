@@ -103,6 +103,29 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 error = std::string(value) + " requires an integer percentage from 0 to 100.";
                 return false;
             }
+        } else if (value == "--apex4-gyro-strength" ||
+                   value == "--apex4-gyro-yaw-strength") {
+            if (++i >= argc) {
+                error = std::string(value) +
+                        " requires an integer percentage from 25 to 400.";
+                return false;
+            }
+            try {
+                std::size_t consumed = 0;
+                const auto parsed = std::stoul(argv[i], &consumed);
+                if (consumed != std::string_view(argv[i]).size() ||
+                    parsed < 25 || parsed > 400 || argv[i][0] == '-') {
+                    throw std::out_of_range("apex4-gyro-strength");
+                }
+                (value == "--apex4-gyro-strength"
+                     ? options.apex4GyroStrengthPercent
+                     : options.apex4GyroYawStrengthPercent) =
+                    static_cast<unsigned int>(parsed);
+            } catch (...) {
+                error = std::string(value) +
+                        " requires an integer percentage from 25 to 400.";
+                return false;
+            }
         } else if (value == "--verify-virtual-input") {
             options.verifyVirtualInput = true;
         } else if (value == "--touchpad-profile") {
@@ -218,6 +241,8 @@ std::string_view bridgeCommandUsage() noexcept {
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
            "[--sync-lightbar] [--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..100] "
+           "[--apex4-gyro-strength 25..400] "
+           "[--apex4-gyro-yaw-strength 25..400] "
            "[--verify-virtual-input] [--touchpad-profile NAME] "
            "[--view-hold-swipe-up] [--apex-profile 1..4] "
            "[--session-token 32HEX] [--session-owner-pid PID]";
