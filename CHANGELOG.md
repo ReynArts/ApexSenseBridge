@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.10
 
 ### Open-issue fixes
 
@@ -19,8 +19,6 @@
   64-byte trigger interface. `identify` and bridge startup now state that HID
   writes can succeed while RT remains unavailable, and advise reconnecting
   instead of falsely reporting complete adaptive-trigger support.
-
-## 1.0.0-beta.10
 
 ### APEX 6 Pro fixes ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))
 
