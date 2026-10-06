@@ -15,13 +15,23 @@ namespace ApexSenseBridgeTray.Common
         public const string LangFrench = "fr";
         public const string LangSpanish = "es";
         public const string LangChinese = "zh";
+        public const string LangRussian = "ru";
+        public const string LangKorean = "ko";
+        public const string LangVietnamese = "vi";
+        public const string LangJapanese = "ja";
+        public const string LangPortuguese = "pt";
 
         public static readonly string[] SupportedLanguages = new[]
         {
             LangEnglish,
             LangFrench,
             LangSpanish,
-            LangChinese
+            LangChinese,
+            LangRussian,
+            LangKorean,
+            LangVietnamese,
+            LangJapanese,
+            LangPortuguese
         };
 
         private static string currentLanguage = LangEnglish;
@@ -55,6 +65,11 @@ namespace ApexSenseBridgeTray.Common
                 if (iso == "fr") return LangFrench;
                 if (iso == "es") return LangSpanish;
                 if (iso == "zh") return LangChinese;
+                if (iso == "ru") return LangRussian;
+                if (iso == "ko") return LangKorean;
+                if (iso == "vi") return LangVietnamese;
+                if (iso == "ja") return LangJapanese;
+                if (iso == "pt") return LangPortuguese;
             }
             catch { }
             return LangEnglish;
@@ -118,6 +133,11 @@ namespace ApexSenseBridgeTray.Common
             if (lower.StartsWith("fr")) return LangFrench;
             if (lower.StartsWith("es")) return LangSpanish;
             if (lower.StartsWith("zh")) return LangChinese;
+            if (lower.StartsWith("ru")) return LangRussian;
+            if (lower.StartsWith("ko")) return LangKorean;
+            if (lower.StartsWith("vi")) return LangVietnamese;
+            if (lower.StartsWith("ja")) return LangJapanese;
+            if (lower.StartsWith("pt")) return LangPortuguese;
             return LangEnglish;
         }
 

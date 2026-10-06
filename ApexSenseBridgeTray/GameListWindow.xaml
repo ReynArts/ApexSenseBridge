@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ApexSenseBridge"
         Icon="Resources/app.ico"
-        Height="740" Width="1160"
-        MinHeight="640" MinWidth="980"
+        Height="804" Width="1224"
+        MinHeight="704" MinWidth="1044"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip"
         WindowStyle="None"
@@ -13,624 +13,45 @@
         FontFamily="Segoe UI Variable Display, Segoe UI, sans-serif">
 
     <Window.Resources>
-        <!-- ═══ Console palette (PS5-like) ═══
-             Local overrides of the shared theme keys: this window is a console
-             surface and always renders dark, whatever the Windows app theme. -->
-        <SolidColorBrush x:Key="WindowBackground" Color="#060A16"/>
-        <SolidColorBrush x:Key="CardBackground" Color="#B3111A31"/>
-        <SolidColorBrush x:Key="CardBorder" Color="#14FFFFFF"/>
-        <SolidColorBrush x:Key="FooterBackground" Color="#00000000"/>
-        <SolidColorBrush x:Key="ControlBackground" Color="#1B2540"/>
-        <SolidColorBrush x:Key="ControlBorder" Color="#3A4768"/>
-        <SolidColorBrush x:Key="TextPrimary" Color="#F4F6FB"/>
-        <SolidColorBrush x:Key="TextSecondary" Color="#AAB4CC"/>
-        <SolidColorBrush x:Key="TextMuted" Color="#68738F"/>
-        <SolidColorBrush x:Key="BadgeActiveBg" Color="#2610B981"/>
-        <SolidColorBrush x:Key="BadgeActiveFg" Color="#34D399"/>
-        <SolidColorBrush x:Key="BadgeStandbyBg" Color="#1F5B8CFF"/>
-        <SolidColorBrush x:Key="BadgeStandbyFg" Color="#8DB7FF"/>
-        <SolidColorBrush x:Key="FeaturePillBg" Color="#1AFFFFFF"/>
-        <SolidColorBrush x:Key="FeaturePillBorder" Color="#00000000"/>
-        <SolidColorBrush x:Key="PlayStationBlue" Color="#1E6FE8"/>
-        <SolidColorBrush x:Key="PlayStationBluePressed" Color="#185CC4"/>
-        <SolidColorBrush x:Key="PlayStationBlueActive" Color="#124A9E"/>
-        <SolidColorBrush x:Key="GamepadFocusBorder" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="TileHoverBorder" Color="#40FFFFFF"/>
-        <SolidColorBrush x:Key="TrackBackground" Color="#2A3552"/>
-
-        <LinearGradientBrush x:Key="ConsoleBackdrop" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#0E1D45" Offset="0"/>
-            <GradientStop Color="#081128" Offset="0.45"/>
-            <GradientStop Color="#04060E" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="SupportGradient" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#FF4D7E" Offset="0"/>
-            <GradientStop Color="#FF8A3D" Offset="1"/>
-        </LinearGradientBrush>
-        <LinearGradientBrush x:Key="SupportGradientHover" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#FF6A93" Offset="0"/>
-            <GradientStop Color="#FFA25E" Offset="1"/>
-        </LinearGradientBrush>
-
-        <!-- ═══ Icons ═══ -->
-        <Style x:Key="IconPath" TargetType="Path">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Stretch" Value="Uniform"/>
-            <Setter Property="Stroke" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="StrokeThickness" Value="1.8"/>
-            <Setter Property="StrokeStartLineCap" Value="Round"/>
-            <Setter Property="StrokeEndLineCap" Value="Round"/>
-            <Setter Property="StrokeLineJoin" Value="Round"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="IconBubble" TargetType="Border">
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="CornerRadius" Value="20"/>
-            <Setter Property="Background" Value="#1FFFFFFF"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <!-- ═══ Controls ═══ -->
-        <Style x:Key="EffectSlider" TargetType="Slider">
-            <Setter Property="Height" Value="26"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid x:Name="Root">
-                            <Border Height="6" CornerRadius="3" Background="{DynamicResource TrackBackground}" VerticalAlignment="Center"/>
-                            <Track x:Name="PART_Track" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
-                                        <RepeatButton.Template>
-                                            <ControlTemplate TargetType="RepeatButton">
-                                                <Border Height="6" CornerRadius="3" Background="{DynamicResource PlayStationBlue}" VerticalAlignment="Center"/>
-                                            </ControlTemplate>
-                                        </RepeatButton.Template>
-                                    </RepeatButton>
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Width="18" Height="18">
-                                        <Thumb.Template>
-                                            <ControlTemplate TargetType="Thumb">
-                                                <Ellipse Fill="White">
-                                                    <Ellipse.Effect>
-                                                        <DropShadowEffect BlurRadius="10" ShadowDepth="0" Color="#1E6FE8" Opacity="0.9"/>
-                                                    </Ellipse.Effect>
-                                                </Ellipse>
-                                            </ControlTemplate>
-                                        </Thumb.Template>
-                                    </Thumb>
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
-                                        <RepeatButton.Template>
-                                            <ControlTemplate TargetType="RepeatButton">
-                                                <Border Background="Transparent"/>
-                                            </ControlTemplate>
-                                        </RepeatButton.Template>
-                                    </RepeatButton>
-                                </Track.IncreaseRepeatButton>
-                            </Track>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.35"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- On/off switch rendered from the CheckBox state (grip vibrations). -->
-        <Style x:Key="SwitchCheckBox" TargetType="CheckBox">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CheckBox">
-                        <Border x:Name="Track" Width="44" Height="24" CornerRadius="12"
-                                Background="{DynamicResource ControlBackground}"
-                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1.5">
-                            <Ellipse x:Name="Knob" Width="16" Height="16" Margin="3,0,0,0"
-                                     HorizontalAlignment="Left" Fill="{DynamicResource TextMuted}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
-                                <Setter TargetName="Knob" Property="Margin" Value="0,0,3,0"/>
-                                <Setter TargetName="Knob" Property="Fill" Value="White"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.35"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ExecutableCombo" TargetType="ComboBox">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="ItemContainerStyle">
-                <Setter.Value><Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/><Setter Property="Padding" Value="8"/></Style></Setter.Value>
-            </Setter>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                                <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border CornerRadius="10" Background="{DynamicResource ControlBackground}" Padding="12,9" BorderThickness="1" BorderBrush="{DynamicResource ControlBorder}"><TextBlock Text="⌄" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondary}"/></Border></ControlTemplate></ToggleButton.Template>
-                            </ToggleButton>
-                            <TextBlock Text="{Binding SelectedItem.Label, RelativeSource={RelativeSource TemplatedParent}}" Foreground="{TemplateBinding Foreground}" IsHitTestVisible="False" TextTrimming="CharacterEllipsis" Margin="12,0,28,0" VerticalAlignment="Center"/>
-                            <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
-                                <Border Background="#121A30" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="10" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="500" MaxHeight="240">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ═══ Gamepad glyphs (Xbox layout of the physical APEX) ═══ -->
-        <Style x:Key="XboxBtnA" TargetType="Border">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="XboxTextA" TargetType="Rectangle">
-            <Setter Property="Fill" Value="#2EBB4F"/>
-            <Setter Property="OpacityMask">
-                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-a.png"/></Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="XboxBtnB" TargetType="Border">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="XboxTextB" TargetType="Rectangle">
-            <Setter Property="Fill" Value="#F05252"/>
-            <Setter Property="OpacityMask">
-                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-b.png"/></Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="XboxBtnX" TargetType="Border">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="XboxTextX" TargetType="Rectangle">
-            <Setter Property="Fill" Value="#3B82F6"/>
-            <Setter Property="OpacityMask">
-                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-x.png"/></Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="XboxBtnY" TargetType="Border">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="XboxTextY" TargetType="Rectangle">
-            <Setter Property="Fill" Value="#F5C542"/>
-            <Setter Property="OpacityMask">
-                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-y.png"/></Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="GamepadBadgePill" TargetType="Border">
-            <Setter Property="CornerRadius" Value="7"/>
-            <Setter Property="Background" Value="#14FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#59FFFFFF"/>
-            <Setter Property="BorderThickness" Value="1.3"/>
-            <Setter Property="Padding" Value="7,1"/>
-            <Setter Property="MinWidth" Value="26"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="GamepadBadgeText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="GamepadActionItem" TargetType="StackPanel">
-            <Setter Property="Orientation" Value="Horizontal"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,20,0"/>
-        </Style>
-        <Style x:Key="GamepadActionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="7,0,0,0"/>
-        </Style>
-
-        <Style x:Key="ModernCheckBox" TargetType="CheckBox">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CheckBox">
-                        <Border x:Name="Box" Width="22" Height="22" CornerRadius="11"
-                                Background="Transparent"
-                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1.6">
-                            <Path x:Name="Tick" Data="M 6,11 L 9.5,14.5 L 16,8" Stroke="White"
-                                  StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                  Visibility="Collapsed"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Box" Property="BorderBrush" Value="White"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ControllerIconPath" TargetType="Path">
-            <Setter Property="Width" Value="20"/>
-            <Setter Property="Height" Value="15"/>
-            <Setter Property="Stretch" Value="Uniform"/>
-            <Setter Property="StrokeThickness" Value="1.6"/>
-            <Setter Property="StrokeStartLineCap" Value="Round"/>
-            <Setter Property="StrokeEndLineCap" Value="Round"/>
-            <Setter Property="StrokeLineJoin" Value="Round"/>
-            <Setter Property="Data" Value="M 6,12 L 10,12 M 8,10 L 8,14 M 15,12.5 L 15.01,12.5 M 18,10.5 L 18.01,10.5 M 17.3,6 L 6.7,6 C 4.5,6 2.7,7.6 2.6,9.8 L 2,15 C 2,17.2 3.8,19 6,19 C 7.2,19 8.1,18.3 8.7,17.6 L 10.1,16.2 C 10.5,15.8 11.1,15.5 11.7,15.5 L 12.3,15.5 C 12.9,15.5 13.5,15.8 13.9,16.2 L 15.3,17.6 C 15.9,18.3 16.8,19 18,19 C 20.2,19 22,17.2 22,15 L 21.4,9.8 C 21.3,7.6 19.5,6 17.3,6 Z"/>
-        </Style>
-
-        <!-- Top-level console tabs: text + white underline on the active tab. -->
-        <Style x:Key="NavSegmentButton" TargetType="RadioButton">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="#8C97B2"/>
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="Margin" Value="0,0,30,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Grid Background="Transparent">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <ContentPresenter Margin="0,4,0,7" VerticalAlignment="Center"/>
-                            <Border x:Name="Underline" Grid.Row="1" Height="3" Width="26" CornerRadius="1.5"
-                                    Background="White" HorizontalAlignment="Left" Opacity="0"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Underline" Property="Opacity" Value="1"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsChecked" Value="False"/>
-                                    <Condition Property="IsMouseOver" Value="True"/>
-                                </MultiTrigger.Conditions>
-                                <Setter Property="Foreground" Value="#D5DBEA"/>
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="FilterTabButton" TargetType="RadioButton">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="TabBorder" CornerRadius="15" Padding="14,5" Margin="0,0,6,0"
-                                Background="#14FFFFFF" BorderBrush="Transparent" BorderThickness="1">
-                            <TextBlock x:Name="TabTxt" Text="{TemplateBinding Content}"
-                                       Foreground="{TemplateBinding Foreground}"
-                                       FontSize="{TemplateBinding FontSize}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="White"/>
-                                <Setter TargetName="TabTxt" Property="Foreground" Value="#0A1020"/>
-                                <Setter TargetName="TabTxt" Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource TileHoverBorder}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Buttons bind BorderBrush/BorderThickness so the gamepad focus ring is visible on every button. -->
-        <Style x:Key="BtnPrimary" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="Padding" Value="18,8"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="20"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBluePressed}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBlueActive}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="BtnSecondary" TargetType="Button">
-            <Setter Property="Background" Value="#1AFFFFFF"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="Padding" Value="16,7"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="20" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="#2EFFFFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="BtnDanger" TargetType="Button">
-            <Setter Property="Background" Value="#24EF4444"/>
-            <Setter Property="Foreground" Value="#FF8A8A"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="Padding" Value="14,7"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="20" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="#40EF4444"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.35"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Always-visible support call to action: warm gradient that stands out on the blue console. -->
-        <Style x:Key="BtnSupport" TargetType="Button">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" CornerRadius="20" Padding="14,7,16,7" Background="{DynamicResource SupportGradient}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Color="#FF5A78" Opacity="0.45"/>
-                            </Border.Effect>
-                            <ContentPresenter VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource SupportGradientHover}"/>
-                            </Trigger>
-                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                                <BeginStoryboard>
-                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                        <DoubleAnimation Storyboard.TargetName="bg" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
-                                                         From="0.25" To="0.8" Duration="0:0:1.6">
-                                            <DoubleAnimation.EasingFunction><SineEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="WindowCloseBtn" TargetType="Button">
-            <Setter Property="Width" Value="34"/>
-            <Setter Property="Height" Value="34"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="17">
-                            <TextBlock Text="{TemplateBinding Content}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="#24FFFFFF"/>
-                                <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Tile used by dashboard actions and settings rows (gamepad focus = white ring set from code). -->
-        <Style x:Key="ConsoleTile" TargetType="Border">
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Background" Value="{DynamicResource CardBackground}"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="Padding" Value="16,14"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-        <Style x:Key="SettingRow" TargetType="Border">
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Background" Value="#0FFFFFFF"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="Padding" Value="14,10"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-        <Style x:Key="SectionCard" TargetType="Border">
-            <Setter Property="CornerRadius" Value="18"/>
-            <Setter Property="Background" Value="{DynamicResource CardBackground}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="18,16,18,10"/>
-            <Setter Property="Margin" Value="0,0,0,14"/>
-        </Style>
-        <Style x:Key="SectionTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
-            <Setter Property="Margin" Value="4,0,0,12"/>
-        </Style>
-        <Style x:Key="RowLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13.5"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-        </Style>
-        <Style x:Key="ValueLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <Style x:Key="FeaturePill" TargetType="Border">
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Background" Value="{DynamicResource FeaturePillBg}"/>
-            <Setter Property="Padding" Value="10,3"/>
-            <Setter Property="Margin" Value="0,0,6,4"/>
-        </Style>
-
-        <Style x:Key="ConsoleCardItemStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Background" Value="#0DFFFFFF"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="Margin" Value="0,0,8,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#17FFFFFF"/>
-                </Trigger>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="BorderBrush" Value="White"/>
-                    <Setter Property="Background" Value="#26FFFFFF"/>
-                    <Setter Property="Effect">
-                        <Setter.Value>
-                            <DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="White" Opacity="0.35"/>
-                        </Setter.Value>
-                    </Setter>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Small feature icons shared by game cards (less text than labelled pills). -->
-        <Geometry x:Key="GeoTrigger">M 6,21 L 6,10 C 6,5.5 9,3 13,3 L 19,3 L 19,8 L 14,8 C 12,8 11,9 11,11 L 11,21 Z</Geometry>
-        <Geometry x:Key="GeoHaptic">M 2,12 C 4,6 6,6 8,12 C 10,18 12,18 14,12 C 16,6 18,6 20,12 C 21,15 22,15 22,15</Geometry>
-        <Geometry x:Key="GeoTouchpad">M 3,6 L 21,6 L 21,18 L 3,18 Z M 12,6 L 12,12</Geometry>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/ApexSenseBridgeTray;component/Themes/ConsoleTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <Border CornerRadius="18" Background="{StaticResource ConsoleBackdrop}"
-            BorderBrush="#26FFFFFF" BorderThickness="1" Margin="8">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="28" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.7"/>
-        </Border.Effect>
+    <Border Style="{StaticResource ConsoleWindowFrame}">
+
 
         <Grid>
-            <!-- Ambient light: soft blue halo in the upper right, like the PS5 home background. -->
-            <Ellipse Width="760" Height="520" HorizontalAlignment="Right" VerticalAlignment="Top"
-                     Margin="0,-220,-220,0" IsHitTestVisible="False">
-                <Ellipse.Fill>
-                    <RadialGradientBrush>
-                        <GradientStop Color="#552A6BFF" Offset="0"/>
-                        <GradientStop Color="#002A6BFF" Offset="1"/>
-                    </RadialGradientBrush>
-                </Ellipse.Fill>
-            </Ellipse>
-            <Ellipse Width="620" Height="420" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                     Margin="-240,0,0,-200" IsHitTestVisible="False">
-                <Ellipse.Fill>
-                    <RadialGradientBrush>
-                        <GradientStop Color="#33163C9E" Offset="0"/>
-                        <GradientStop Color="#00163C9E" Offset="1"/>
-                    </RadialGradientBrush>
-                </Ellipse.Fill>
-            </Ellipse>
+            <!-- Ambient light: soft blue halos, clipped to the rounded frame. -->
+            <Grid x:Name="Backdrop" IsHitTestVisible="False" ClipToBounds="True">
+                <Grid.OpacityMask>
+                    <VisualBrush>
+                        <VisualBrush.Visual>
+                            <Border Background="Black" CornerRadius="21"
+                                    Width="{Binding ActualWidth, ElementName=Backdrop}"
+                                    Height="{Binding ActualHeight, ElementName=Backdrop}"/>
+                        </VisualBrush.Visual>
+                    </VisualBrush>
+                </Grid.OpacityMask>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <RadialGradientBrush Center="0.88,0" GradientOrigin="0.88,0" RadiusX="0.45" RadiusY="0.7">
+                            <GradientStop Color="#552A6BFF" Offset="0"/>
+                            <GradientStop Color="#002A6BFF" Offset="1"/>
+                        </RadialGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <RadialGradientBrush Center="0,1" GradientOrigin="0,1" RadiusX="0.4" RadiusY="0.55">
+                            <GradientStop Color="#33163C9E" Offset="0"/>
+                            <GradientStop Color="#00163C9E" Offset="1"/>
+                        </RadialGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+            </Grid>
 
             <Grid>
                 <Grid.RowDefinitions>
@@ -648,18 +69,20 @@
                                     ToolTip="{DynamicResource Loc_SupportProjectDescription}"
                                     Margin="0,0,14,0" Click="OnSupportKofiClick">
                                 <StackPanel Orientation="Horizontal">
-                                    <Path Data="M 12,21 C 10,19 3,14 3,8.5 C 3,5.5 5.2,3.5 8,3.5 C 9.8,3.5 11.2,4.5 12,5.8 C 12.8,4.5 14.2,3.5 16,3.5 C 18.8,3.5 21,5.5 21,8.5 C 21,14 14,19 12,21 Z"
-                                          Fill="White" Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" Margin="0,1,8,0"/>
+                                    <Border Width="28" Height="28" CornerRadius="14" Background="White" Margin="0,0,9,0" VerticalAlignment="Center">
+                                        <Path Data="M 12,21 C 10,19 3,14 3,8.5 C 3,5.5 5.2,3.5 8,3.5 C 9.8,3.5 11.2,4.5 12,5.8 C 12.8,4.5 14.2,3.5 16,3.5 C 18.8,3.5 21,5.5 21,8.5 C 21,14 14,19 12,21 Z"
+                                              Fill="{DynamicResource SupportAccent}" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,1,0,0"/>
+                                    </Border>
                                     <TextBlock Text="{DynamicResource Loc_SupportShort}" VerticalAlignment="Center"/>
-                                    <Border x:Name="HintSupportMenu" Style="{StaticResource GamepadBadgePill}" Margin="10,0,0,0"
-                                            BorderBrush="#B3FFFFFF" Background="#26FFFFFF" Visibility="Collapsed">
+                                    <Border x:Name="HintSupportMenu" Style="{StaticResource GamepadBadgePill}" Margin="10,0,-6,0"
+                                            BorderBrush="#99FFFFFF" Background="#1FFFFFFF" Visibility="Collapsed">
                                         <TextBlock Text="&#x2630;" Style="{StaticResource GamepadBadgeText}" FontSize="10"/>
                                     </Border>
                                 </StackPanel>
                             </Button>
 
-                            <Border x:Name="BadgeHeaderController" CornerRadius="16"
-                                    Background="#14FFFFFF" Padding="12,6" Margin="0,0,14,0" VerticalAlignment="Center">
+                            <Border x:Name="BadgeHeaderController" CornerRadius="17" Height="34"
+                                    Background="#14FFFFFF" Padding="14,0" Margin="0,0,14,0" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <Path x:Name="IconHeaderController" Style="{StaticResource ControllerIconPath}"
                                           Stroke="{DynamicResource TextMuted}" Margin="0,0,8,0"/>
@@ -750,9 +173,9 @@
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="2,0,24,0">
-                                    <Border x:Name="BadgeDashboardStatus" CornerRadius="12" Padding="12,4" HorizontalAlignment="Left"
+                                    <Border x:Name="BadgeDashboardStatus" CornerRadius="13" Height="26" Padding="12,0" HorizontalAlignment="Left"
                                             Margin="0,0,0,10" Background="{DynamicResource BadgeStandbyBg}">
-                                        <TextBlock x:Name="TxtDashboardStatus" Text="{DynamicResource Loc_StatusBadgeStandby}"
+                                        <TextBlock x:Name="TxtDashboardStatus" Text="{DynamicResource Loc_StatusBadgeStandby}" VerticalAlignment="Center"
                                                    FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource BadgeStandbyFg}"/>
                                     </Border>
                                     <TextBlock x:Name="TxtDashboardGameTitle" Text="{DynamicResource Loc_NoActiveGame}"
@@ -761,25 +184,49 @@
                                     <WrapPanel x:Name="PnlDashboardFeatures" Orientation="Horizontal">
                                         <Border x:Name="BadgeDashAdaptive" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
                                             <StackPanel Orientation="Horizontal">
-                                                <Path Data="{StaticResource GeoTrigger}" Style="{StaticResource IconPath}" Width="11" Height="11" StrokeThickness="1.6" Margin="0,0,6,0"/>
-                                                <TextBlock Text="{DynamicResource Loc_PillTriggers}" FontSize="11.5" Foreground="{DynamicResource TextPrimary}"/>
+                                                <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_PillTriggers}" Style="{StaticResource FeaturePillText}"/>
                                             </StackPanel>
                                         </Border>
                                         <Border x:Name="BadgeDashHaptic" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
                                             <StackPanel Orientation="Horizontal">
-                                                <Path Data="{StaticResource GeoHaptic}" Style="{StaticResource IconPath}" Width="12" Height="11" StrokeThickness="1.6" Margin="0,0,6,0"/>
-                                                <TextBlock Text="{DynamicResource Loc_PillHaptics}" FontSize="11.5" Foreground="{DynamicResource TextPrimary}"/>
+                                                <Image Source="{StaticResource IconHaptic}" Style="{StaticResource FeaturePillIcon}"/>
+                                                <TextBlock Text="{DynamicResource Loc_PillHaptics}" Style="{StaticResource FeaturePillText}"/>
                                             </StackPanel>
                                         </Border>
                                         <Border x:Name="BadgeDashTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
                                             <StackPanel Orientation="Horizontal">
-                                                <Path Data="{StaticResource GeoTouchpad}" Style="{StaticResource IconPath}" Width="12" Height="10" StrokeThickness="1.6" Margin="0,0,6,0"/>
-                                                <TextBlock Text="{DynamicResource Loc_PillTouchpad}" FontSize="11.5" Foreground="{DynamicResource TextPrimary}"/>
+                                                <Image Source="{StaticResource IconTouchpad}" Style="{StaticResource FeaturePillIcon}"/>
+                                                <TextBlock Text="{DynamicResource Loc_PillTouchpad}" Style="{StaticResource FeaturePillText}"/>
                                             </StackPanel>
                                         </Border>
                                     </WrapPanel>
-                                    <TextBlock x:Name="TxtDashboardHint" TextWrapping="Wrap" FontSize="11.5" Margin="0,4,0,0"
-                                               Foreground="{DynamicResource TextMuted}" MaxHeight="64" TextTrimming="CharacterEllipsis"/>
+                                    <!-- Session details as compact chips (owner · APEX profile · controller); full labels in the tooltip. -->
+                                    <WrapPanel x:Name="PnlSessionChips" Orientation="Horizontal" Visibility="Collapsed">
+                                        <Border x:Name="ChipSessionOwner" Style="{StaticResource FeaturePill}" Background="#0FFFFFFF">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Data="M 12,4 A 4,4 0 1 1 11.99,4 Z M 4,21 C 4,16.5 7.5,14 12,14 C 16.5,14 20,16.5 20,21"
+                                                      Style="{StaticResource PillIconPath}"/>
+                                                <TextBlock x:Name="TxtSessionOwner" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border x:Name="ChipSessionProfile" Style="{StaticResource FeaturePill}" Background="#0FFFFFFF">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Data="M 4,7 L 20,7 M 4,12 L 20,12 M 4,17 L 20,17 M 9,5 L 9,9 M 15,10 L 15,14 M 7,15 L 7,19"
+                                                      Style="{StaticResource PillIconPath}"/>
+                                                <TextBlock x:Name="TxtSessionProfile" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border x:Name="ChipSessionController" Style="{StaticResource FeaturePill}" Background="#0FFFFFFF">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Style="{StaticResource ControllerIconPath}" Stroke="{DynamicResource TextSecondary}" Width="16" Height="12" StrokeThickness="1.4" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtSessionController" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </WrapPanel>
+                                    <!-- Only refusal / error reasons are spelled out. -->
+                                    <TextBlock x:Name="TxtDashboardHint" TextWrapping="Wrap" FontSize="12" Margin="2,2,0,0"
+                                               Foreground="#FCA5A5" MaxHeight="36" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
 
                                 <Grid Grid.Column="1" Width="300" Height="180" VerticalAlignment="Center">
@@ -793,19 +240,20 @@
                                         </Ellipse.Fill>
                                     </Ellipse>
                                     <!-- Faint silhouette while no exact controller picture is available. -->
-                                    <Path IsHitTestVisible="False" Width="190" Height="140">
-                                        <Path.Style>
-                                            <Style TargetType="Path" BasedOn="{StaticResource ControllerIconPath}">
-                                                <Setter Property="Stroke" Value="#2EFFFFFF"/>
-                                                <Setter Property="StrokeThickness" Value="1.2"/>
+                                    <Image x:Name="ImgDashboardPlaceholder" Source="Resources/controller-placeholder.png"
+                                           Width="250" Height="167" Stretch="Uniform" IsHitTestVisible="False"
+                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Opacity" Value="0.55"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Visibility, ElementName=ImgDashboardController}" Value="Visible">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </Path.Style>
-                                    </Path>
+                                        </Image.Style>
+                                    </Image>
                                     <Image x:Name="ImgDashboardController" Width="270" Height="170" Stretch="Uniform"
                                            RenderOptions.BitmapScalingMode="HighQuality" Visibility="Collapsed">
                                         <Image.Effect>
@@ -891,44 +339,51 @@
                             </Border>
                         </Grid>
 
-                        <!-- GAME SHELF -->
-                        <Grid Grid.Row="2">
+                        <!-- GAME SHELF: latest catalogue additions first (issue #29) -->
+                        <Grid Grid.Row="2" x:Name="ShelfHost" Background="Transparent">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Text="{DynamicResource Loc_NavCertifiedGames}" FontSize="15" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimary}" Margin="2,0,0,6"/>
+                            <TextBlock x:Name="TxtShelfTitle" Text="{DynamicResource Loc_NavCertifiedGames}" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}" Margin="2,0,0,2"/>
 
-                            <ScrollViewer x:Name="ScrollDashboardShelf" Grid.Row="1"
-                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Focusable="False">
-                                <ItemsControl x:Name="LstDashboardFeatured" Margin="4,8,4,4">
+                            <ScrollViewer x:Name="ScrollDashboardShelf" Grid.Row="1" CanContentScroll="False"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Focusable="False"
+                                          PreviewMouseWheel="OnShelfMouseWheel">
+                                <ItemsControl x:Name="LstDashboardFeatured" Margin="16,16,16,6">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Width="132" Margin="0,0,16,0" Cursor="Hand"
+                                            <StackPanel Width="132" Margin="0,0,16,0" Cursor="Hand" ToolTip="{Binding AddedTooltip}"
                                                         MouseLeftButtonDown="OnDashboardFeaturedGameClicked">
-                                                <Border x:Name="Poster" Height="176" CornerRadius="14" BorderThickness="2"
-                                                        RenderTransformOrigin="0.5,0.5">
-                                                    <Border.RenderTransform><ScaleTransform/></Border.RenderTransform>
+                                                <Grid x:Name="PosterHost" Height="176" RenderTransformOrigin="0.5,0.5">
+                                                    <!-- Focus zoom through a setter: template transforms are frozen and cannot be animated. -->
+                                                    <Grid.Style>
+                                                        <Style TargetType="Grid">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="RenderTransform">
+                                                                        <Setter.Value><ScaleTransform ScaleX="1.06" ScaleY="1.06"/></Setter.Value>
+                                                                    </Setter>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Grid.Style>
+                                                    <!-- Crisp focus ring detached from the cover (no blur, never clipped: the shelf keeps room around it) -->
+                                                    <Border Style="{StaticResource FocusRing}" CornerRadius="20"
+                                                            Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}"/>
+                                                <Border x:Name="Poster" CornerRadius="14" BorderThickness="2">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="BorderBrush" Value="Transparent"/>
                                                             <Setter Property="Background" Value="#161E36"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                    <Setter Property="BorderBrush" Value="White"/>
-                                                                    <Setter Property="RenderTransform">
-                                                                        <Setter.Value><ScaleTransform ScaleX="1.06" ScaleY="1.06"/></Setter.Value>
-                                                                    </Setter>
-                                                                    <Setter Property="Effect">
-                                                                        <Setter.Value>
-                                                                            <DropShadowEffect BlurRadius="22" ShadowDepth="0" Color="White" Opacity="0.4"/>
-                                                                        </Setter.Value>
-                                                                    </Setter>
-                                                                </DataTrigger>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource TileHoverBorder}"/>
+                                                                </Trigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Border.Style>
@@ -943,29 +398,51 @@
                                                                     <ImageBrush ImageSource="{Binding CoverImage}" Stretch="UniformToFill"/>
                                                                 </Border.Background>
                                                             </Border>
+                                                            <!-- Bottom fade keeps the feature chips readable on bright covers -->
+                                                            <Border CornerRadius="0,0,12,12" Height="52" VerticalAlignment="Bottom" IsHitTestVisible="False">
+                                                                <Border.Background>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                        <GradientStop Color="#00060A16" Offset="0"/>
+                                                                        <GradientStop Color="#B3060A16" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Border.Background>
+                                                            </Border>
+                                                            <Border Style="{StaticResource NewBadge}" Margin="7,7,0,0" Visibility="{Binding NewBadgeVisibility}">
+                                                                <TextBlock Text="{DynamicResource Loc_BadgeNew}" Style="{StaticResource NewBadgeText}"/>
+                                                            </Border>
                                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6">
-                                                                <Border Width="22" Height="22" CornerRadius="11" Background="#B3060A16" Margin="0,0,4,0"
-                                                                        Visibility="{Binding AdaptiveVisibility}" ToolTip="{DynamicResource Loc_PillTriggers}">
-                                                                    <Path Data="{StaticResource GeoTrigger}" Style="{StaticResource IconPath}" Width="10" Height="10" StrokeThickness="1.5"/>
+                                                                <Border Style="{StaticResource IconChip}" Visibility="{Binding AdaptiveVisibility}" ToolTip="{DynamicResource Loc_PillTriggers}">
+                                                                    <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                                                 </Border>
-                                                                <Border Width="22" Height="22" CornerRadius="11" Background="#B3060A16"
-                                                                        Visibility="{Binding HapticVisibility}" ToolTip="{DynamicResource Loc_PillHaptics}">
-                                                                    <Path Data="{StaticResource GeoHaptic}" Style="{StaticResource IconPath}" Width="11" Height="9" StrokeThickness="1.5"/>
+                                                                <Border Style="{StaticResource IconChip}" Visibility="{Binding HapticVisibility}" ToolTip="{DynamicResource Loc_PillHaptics}">
+                                                                    <Image Source="{StaticResource IconHaptic}" Width="17" Height="17"/>
                                                                 </Border>
                                                             </StackPanel>
                                                         </Grid>
                                                     </Border>
                                                 </Border>
-                                                <TextBlock Text="{Binding Title}" FontSize="12" Margin="2,8,2,0"
+                                                </Grid>
+                                                <TextBlock Text="{Binding Title}" FontSize="12" Margin="2,9,2,0"
                                                            Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
+
+                            <!-- Mouse: page the shelf with arrows that appear on hover -->
+                            <Button x:Name="BtnShelfLeft" Grid.Row="1" Style="{StaticResource ShelfArrowButton}" HorizontalAlignment="Left"
+                                    VerticalAlignment="Center" Margin="-8,0,0,24" Click="OnShelfLeftClick"
+                                    Visibility="{Binding IsMouseOver, ElementName=ShelfHost, Converter={StaticResource BoolToVisibility}}">
+                                <Path Data="{StaticResource GeoChevronLeft}" Style="{StaticResource ChevronPath}" Margin="0,0,2,0"/>
+                            </Button>
+                            <Button x:Name="BtnShelfRight" Grid.Row="1" Style="{StaticResource ShelfArrowButton}" HorizontalAlignment="Right"
+                                    VerticalAlignment="Center" Margin="0,0,-8,24" Click="OnShelfRightClick"
+                                    Visibility="{Binding IsMouseOver, ElementName=ShelfHost, Converter={StaticResource BoolToVisibility}}">
+                                <Path Data="{StaticResource GeoChevronRight}" Style="{StaticResource ChevronPath}" Margin="2,0,0,0"/>
+                            </Button>
                         </Grid>
                     </Grid>
-
                     <!-- ────────── TAB 1 : CERTIFIED GAMES ────────── -->
                     <Grid x:Name="PanelCertifiedGames" Visibility="Collapsed" Margin="26,0,26,4">
                         <Grid.ColumnDefinitions>
@@ -981,7 +458,7 @@
                             </Grid.RowDefinitions>
 
                             <StackPanel Grid.Row="0" Margin="0,0,0,12">
-                                <Border CornerRadius="20" Background="#14FFFFFF" Padding="14,8" Margin="0,0,0,10">
+                                <Border CornerRadius="20" Height="40" Background="#14FFFFFF" Padding="16,0,12,0" Margin="0,0,0,10">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -997,8 +474,8 @@
                                         <TextBlock x:Name="TxtSearchPlaceholder" Grid.Column="1" Text="{DynamicResource Loc_SearchPlaceholder}"
                                                    FontSize="13" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
                                                    IsHitTestVisible="False"/>
-                                        <Button x:Name="BtnClearSearch" Grid.Column="2" Content="&#x2715;" Style="{StaticResource BtnSecondary}"
-                                                Padding="6,1" FontSize="9" Visibility="Collapsed" Click="OnClearSearchClick"/>
+                                        <Button x:Name="BtnClearSearch" Grid.Column="2" Content="&#x2715;" Style="{StaticResource BtnTinyRound}"
+                                                Visibility="Collapsed" Click="OnClearSearchClick"/>
                                         <Border Grid.Column="3" Style="{StaticResource XboxBtnY}" Margin="8,0,0,0">
                                             <Rectangle Style="{StaticResource XboxTextY}"/>
                                         </Border>
@@ -1006,7 +483,7 @@
                                 </Border>
 
                                 <DockPanel>
-                                    <TextBlock x:Name="TxtStats" Text="&#x2014;" FontSize="11.5"
+                                    <TextBlock x:Name="TxtStats" Text="" FontSize="11.5"
                                                Foreground="{DynamicResource TextMuted}" DockPanel.Dock="Right" VerticalAlignment="Center"/>
                                     <StackPanel Orientation="Horizontal">
                                         <RadioButton x:Name="RadAll" Content="{DynamicResource Loc_TabAll}" Style="{StaticResource FilterTabButton}"
@@ -1022,12 +499,15 @@
                             </StackPanel>
 
                             <ScrollViewer x:Name="ScrollCertified" Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
-                                <ItemsControl x:Name="LstGames">
+                                <ItemsControl x:Name="LstGames" Margin="8,8,4,8">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
+                                            <Grid Margin="0,0,10,8">
+                                            <Border Style="{StaticResource FocusRing}" CornerRadius="22"
+                                                    Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}"/>
                                             <Border Style="{StaticResource ConsoleCardItemStyle}"
                                                     Opacity="{Binding CardOpacity}"
                                                     MouseLeftButtonDown="OnGameCardClicked">
@@ -1048,21 +528,25 @@
                                                     </Border>
 
                                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
-                                                        <Border CornerRadius="10" Background="#26F59E0B" Padding="8,2" Margin="0,0,6,0"
+                                                        <Border Style="{StaticResource StatusTag}" Background="{DynamicResource SupportGradient}"
+                                                                ToolTip="{Binding AddedTooltip}" Visibility="{Binding NewBadgeVisibility}">
+                                                            <TextBlock Text="{DynamicResource Loc_BadgeNew}" FontSize="10.5" Foreground="White" FontWeight="Bold"/>
+                                                        </Border>
+                                                        <Border Style="{StaticResource StatusTag}" Background="#26F59E0B"
                                                                 ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="{Binding ManualFixVisibility}">
-                                                            <TextBlock Text="{DynamicResource Loc_PillManualFix}" FontSize="10.5" Foreground="#FBBF24" FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{DynamicResource Loc_PillManualFix}" FontSize="10.5" Foreground="#FBBF24" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                                         </Border>
-                                                        <Border CornerRadius="10" Background="#26EF4444" Padding="8,2" Margin="0,0,6,0"
+                                                        <Border Style="{StaticResource StatusTag}" Background="#26EF4444"
                                                                 Visibility="{Binding ExcludedBadgeVisibility}">
-                                                            <TextBlock Text="{DynamicResource Loc_StateExcluded}" FontSize="10.5" Foreground="#FF8A8A" FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{DynamicResource Loc_StateExcluded}" FontSize="10.5" Foreground="#FF8A8A" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                                         </Border>
-                                                        <Border Width="26" Height="26" CornerRadius="13" Background="#14FFFFFF" Margin="0,0,4,0"
+                                                        <Border Style="{StaticResource IconChip}" Background="#17FFFFFF"
                                                                 Visibility="{Binding AdaptiveVisibility}" ToolTip="{DynamicResource Loc_PillTriggers}">
-                                                            <Path Data="{StaticResource GeoTrigger}" Style="{StaticResource IconPath}" Width="11" Height="11" StrokeThickness="1.5"/>
+                                                            <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                                         </Border>
-                                                        <Border Width="26" Height="26" CornerRadius="13" Background="#14FFFFFF"
+                                                        <Border Style="{StaticResource IconChip}" Background="#17FFFFFF"
                                                                 Visibility="{Binding HapticVisibility}" ToolTip="{DynamicResource Loc_PillHaptics}">
-                                                            <Path Data="{StaticResource GeoHaptic}" Style="{StaticResource IconPath}" Width="12" Height="10" StrokeThickness="1.5"/>
+                                                            <Image Source="{StaticResource IconHaptic}" Width="17" Height="17"/>
                                                         </Border>
                                                     </StackPanel>
 
@@ -1070,6 +554,7 @@
                                                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                                 </DockPanel>
                                             </Border>
+                                            </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -1112,28 +597,26 @@
                                                 <TextBlock x:Name="TxtDetailTitle" Text="Game Title" FontSize="20" FontWeight="SemiBold"
                                                            Foreground="White" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                                 <WrapPanel>
-                                                    <Border x:Name="BadgeDetailAdaptive" Style="{StaticResource FeaturePill}">
+                                                    <Border x:Name="BadgeDetailAdaptive" Style="{StaticResource FeaturePill}" ToolTip="{DynamicResource Loc_CriteriaAdaptive}">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <Path Data="{StaticResource GeoTrigger}" Style="{StaticResource IconPath}" Width="11" Height="11" StrokeThickness="1.6" Margin="0,0,6,0"/>
-                                                            <TextBlock Text="{DynamicResource Loc_PillTriggers}" FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                                                                       ToolTip="{DynamicResource Loc_CriteriaAdaptive}"/>
+                                                            <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                                            <TextBlock Text="{DynamicResource Loc_PillTriggers}" Style="{StaticResource FeaturePillText}"/>
                                                         </StackPanel>
                                                     </Border>
-                                                    <Border x:Name="BadgeDetailHaptic" Style="{StaticResource FeaturePill}">
+                                                    <Border x:Name="BadgeDetailHaptic" Style="{StaticResource FeaturePill}" ToolTip="{DynamicResource Loc_CriteriaHaptic}">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <Path Data="{StaticResource GeoHaptic}" Style="{StaticResource IconPath}" Width="12" Height="10" StrokeThickness="1.6" Margin="0,0,6,0"/>
-                                                            <TextBlock Text="{DynamicResource Loc_PillHaptics}" FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                                                                       ToolTip="{DynamicResource Loc_CriteriaHaptic}"/>
+                                                            <Image Source="{StaticResource IconHaptic}" Style="{StaticResource FeaturePillIcon}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_PillHaptics}" Style="{StaticResource FeaturePillText}"/>
                                                         </StackPanel>
                                                     </Border>
                                                     <Border x:Name="BadgeDetailManualFix" Style="{StaticResource FeaturePill}" Background="#26F59E0B"
                                                             ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="Collapsed">
-                                                        <TextBlock Text="{DynamicResource Loc_PillManualFix}" FontSize="11" Foreground="#FBBF24" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{DynamicResource Loc_PillManualFix}" Style="{StaticResource FeaturePillText}" Foreground="#FBBF24" FontWeight="SemiBold"/>
                                                     </Border>
                                                     <Border x:Name="BadgeDetailTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <Path Data="{StaticResource GeoTouchpad}" Style="{StaticResource IconPath}" Width="12" Height="10" StrokeThickness="1.6" Margin="0,0,6,0"/>
-                                                            <TextBlock Text="{DynamicResource Loc_PillTouchpad}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
+                                                            <Image Source="{StaticResource IconTouchpad}" Style="{StaticResource FeaturePillIcon}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_PillTouchpad}" Style="{StaticResource FeaturePillText}"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </WrapPanel>
@@ -1141,7 +624,7 @@
                                         </Grid>
 
                                         <!-- APEX profile: D-pad left/right -->
-                                        <Border CornerRadius="16" Background="#12FFFFFF" Padding="8" Margin="0,0,0,10"
+                                        <Border CornerRadius="26" Height="52" Background="#12FFFFFF" Padding="8" Margin="0,0,0,10"
                                                 ToolTip="{DynamicResource Loc_ApexProfileHint}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -1149,10 +632,8 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <Button x:Name="BtnProfileLeft" Grid.Column="0" Style="{StaticResource BtnSecondary}"
-                                                        Width="36" Height="36" Padding="0" Click="OnCycleProfileLeftClick">
-                                                    <Path Data="M 9,2 L 4,7 L 9,12" Stroke="White" StrokeThickness="2"
-                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                                                <Button x:Name="BtnProfileLeft" Grid.Column="0" Style="{StaticResource BtnRound}" Click="OnCycleProfileLeftClick">
+                                                    <Path Data="{StaticResource GeoChevronLeft}" Style="{StaticResource ChevronPath}" Margin="0,0,2,0"/>
                                                 </Button>
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center">
                                                     <TextBlock Text="{DynamicResource Loc_ApexProfile}" FontSize="10.5"
@@ -1160,16 +641,14 @@
                                                     <TextBlock x:Name="TxtDetailApexProfile" Text="{DynamicResource Loc_ApexProfileKeep}"
                                                                FontSize="14" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
                                                 </StackPanel>
-                                                <Button x:Name="BtnProfileRight" Grid.Column="2" Style="{StaticResource BtnSecondary}"
-                                                        Width="36" Height="36" Padding="0" Click="OnCycleProfileRightClick">
-                                                    <Path Data="M 4,2 L 9,7 L 4,12" Stroke="White" StrokeThickness="2"
-                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                                                <Button x:Name="BtnProfileRight" Grid.Column="2" Style="{StaticResource BtnRound}" Click="OnCycleProfileRightClick">
+                                                    <Path Data="{StaticResource GeoChevronRight}" Style="{StaticResource ChevronPath}" Margin="2,0,0,0"/>
                                                 </Button>
                                             </Grid>
                                         </Border>
 
                                         <Button x:Name="BtnDetailToggleExclude" Style="{StaticResource BtnSecondary}"
-                                                Padding="14,9" HorizontalAlignment="Stretch" Margin="0,0,0,18"
+                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,18"
                                                 Click="OnDetailToggleExcludeClick">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                 <Border Style="{StaticResource XboxBtnX}" Margin="0,0,8,0">
@@ -1189,7 +668,7 @@
                                         <TextBlock x:Name="TxtExecutablePath" Foreground="{DynamicResource TextMuted}" FontSize="10.5"
                                                    TextWrapping="Wrap" Margin="4,0,0,8"/>
                                         <Button Content="{DynamicResource Loc_BrowseExecutable}" Style="{StaticResource BtnSecondary}"
-                                                HorizontalAlignment="Left" Padding="14,6" FontSize="11.5" Click="OnBrowseGameExecutable"/>
+                                                HorizontalAlignment="Left" FontSize="11.5" Click="OnBrowseGameExecutable"/>
                                     </StackPanel>
                                 </ScrollViewer>
                             </Grid>
@@ -1204,7 +683,7 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-                            <Border CornerRadius="20" Background="#14FFFFFF" Padding="14,8" Margin="0,0,0,10">
+                            <Border CornerRadius="20" Height="40" Background="#14FFFFFF" Padding="16,0,12,0" Margin="0,0,0,10">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -1221,8 +700,8 @@
                                                Text="{DynamicResource Loc_LearnedSearchPlaceholder}"
                                                FontSize="13" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
                                                IsHitTestVisible="False"/>
-                                    <Button x:Name="BtnClearSearchLearned" Grid.Column="2" Content="&#x2715;" Style="{StaticResource BtnSecondary}"
-                                            Padding="6,1" FontSize="9" Visibility="Collapsed" Click="OnClearSearchLearnedClick"/>
+                                    <Button x:Name="BtnClearSearchLearned" Grid.Column="2" Content="&#x2715;" Style="{StaticResource BtnTinyRound}"
+                                            Visibility="Collapsed" Click="OnClearSearchLearnedClick"/>
                                     <Border Grid.Column="3" Style="{StaticResource XboxBtnY}" Margin="8,0,0,0">
                                         <Rectangle Style="{StaticResource XboxTextY}"/>
                                     </Border>
@@ -1230,7 +709,7 @@
                             </Border>
 
                             <DockPanel LastChildFill="False">
-                                <TextBlock x:Name="TxtLearnedStats" Text="&#x2014;" FontSize="11.5"
+                                <TextBlock x:Name="TxtLearnedStats" Text="" FontSize="11.5"
                                            Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="4,0,0,0"/>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                     <Button x:Name="BtnSelectAllLearned" Content="{DynamicResource Loc_BtnSelectAll}" Style="{StaticResource BtnSecondary}"
@@ -1246,13 +725,16 @@
 
                         <ScrollViewer x:Name="ScrollLearned" Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
                             <Grid>
-                                <ItemsControl x:Name="LstLearned">
+                                <ItemsControl x:Name="LstLearned" Margin="8,8,4,8">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border CornerRadius="14" Padding="14,11" Margin="0,0,8,8" Cursor="Hand"
+                                            <Grid Margin="0,0,10,8">
+                                            <Border Style="{StaticResource FocusRing}" CornerRadius="20"
+                                                    Visibility="{Binding IsGamepadFocused, Converter={StaticResource BoolToVisibility}}"/>
+                                            <Border CornerRadius="14" Padding="14,11" Cursor="Hand"
                                                     MouseLeftButtonDown="OnLearnedItemClicked">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
@@ -1264,13 +746,7 @@
                                                                 <Setter Property="Background" Value="#17FFFFFF"/>
                                                             </Trigger>
                                                             <DataTrigger Binding="{Binding IsGamepadFocused}" Value="True">
-                                                                <Setter Property="BorderBrush" Value="White"/>
-                                                                <Setter Property="Background" Value="#26FFFFFF"/>
-                                                                <Setter Property="Effect">
-                                                                    <Setter.Value>
-                                                                        <DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="White" Opacity="0.35"/>
-                                                                    </Setter.Value>
-                                                                </Setter>
+                                                                <Setter Property="Background" Value="{DynamicResource GamepadFocusFill}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -1278,7 +754,7 @@
                                                 <DockPanel LastChildFill="True">
                                                     <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Style="{StaticResource ModernCheckBox}"
                                                               VerticalAlignment="Center" Margin="0,0,14,0" DockPanel.Dock="Left"/>
-                                                    <Button Style="{StaticResource BtnDanger}" Padding="9,5" DockPanel.Dock="Right"
+                                                    <Button Style="{StaticResource BtnDanger}" Width="36" Height="36" Padding="0" DockPanel.Dock="Right"
                                                             VerticalAlignment="Center" Margin="10,0,0,0"
                                                             ToolTip="{DynamicResource Loc_BtnDeleteSingle}" Click="OnDeleteSingleLearnedItemClick">
                                                         <TextBlock Text="&#x2715;" FontSize="10"/>
@@ -1294,8 +770,8 @@
                                                     <StackPanel VerticalAlignment="Center">
                                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
                                                             <TextBlock Text="{Binding GameTitle}" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
-                                                            <Border CornerRadius="8" Background="#261E6FE8" Padding="7,1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding Executable}" FontSize="11" FontFamily="Cascadia Mono, Consolas, Segoe UI"
+                                                            <Border CornerRadius="10" Height="20" Background="#261E6FE8" Padding="8,0" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Executable}" FontSize="11" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas, Segoe UI"
                                                                            Foreground="#8DB7FF"/>
                                                             </Border>
                                                         </StackPanel>
@@ -1304,6 +780,7 @@
                                                     </StackPanel>
                                                 </DockPanel>
                                             </Border>
+                                            </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -1365,8 +842,7 @@
                                                         <Ellipse x:Name="DotSettingAdaptive" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
                                                                  Fill="{DynamicResource TextMuted}"/>
                                                     </Border>
-                                                    <Path DockPanel.Dock="Left" Data="{StaticResource GeoTrigger}" Style="{StaticResource IconPath}"
-                                                          Width="15" Height="15" Margin="0,0,12,0"/>
+                                                    <ContentControl DockPanel.Dock="Left" Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                                     <TextBlock Text="{DynamicResource Loc_CriteriaAdaptive}" Style="{StaticResource RowLabel}" FontSize="13"/>
                                                 </DockPanel>
                                             </Border>
@@ -1379,8 +855,7 @@
                                                         <Ellipse x:Name="DotSettingHaptic" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
                                                                  Fill="{DynamicResource TextMuted}"/>
                                                     </Border>
-                                                    <Path DockPanel.Dock="Left" Data="{StaticResource GeoHaptic}" Style="{StaticResource IconPath}"
-                                                          Width="16" Height="13" Margin="0,0,12,0"/>
+                                                    <Image DockPanel.Dock="Left" Source="{StaticResource IconHaptic}" Width="19" Height="19" Margin="0,0,11,0" VerticalAlignment="Center"/>
                                                     <TextBlock Text="{DynamicResource Loc_CriteriaHaptic}" Style="{StaticResource RowLabel}" FontSize="13"/>
                                                 </DockPanel>
                                             </Border>
@@ -1598,6 +1073,44 @@
                     </ScrollViewer>
                 </Border>
             </Grid>
-        </Grid>
+
+            <!-- First-run callout under the support button (shown once, positioned from code). -->
+            <Grid x:Name="SupportHintLayer" Visibility="Collapsed" Width="340" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Grid.RenderTransform><TranslateTransform x:Name="SupportHintSlide"/></Grid.RenderTransform>
+                <Path x:Name="SupportHintArrow" Data="M 0,10 L 10,0 L 20,10 Z" Fill="#141E3A" Width="20" Height="10"
+                      HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                <Border Margin="0,9,0,0" CornerRadius="20" Background="#141E3A" BorderThickness="1.5" Padding="18,16,16,14">
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#99E0285F" Offset="0"/>
+                            <GradientStop Color="#33FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="26" ShadowDepth="8" Direction="270" Color="#000000" Opacity="0.55"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <DockPanel>
+                            <Border Width="38" Height="38" CornerRadius="19" Background="{DynamicResource SupportGradient}" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Path Data="M 12,21 C 10,19 3,14 3,8.5 C 3,5.5 5.2,3.5 8,3.5 C 9.8,3.5 11.2,4.5 12,5.8 C 12.8,4.5 14.2,3.5 16,3.5 C 18.8,3.5 21,5.5 21,8.5 C 21,14 14,19 12,21 Z"
+                                      Fill="White" Width="17" Height="17" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,1,0,0"/>
+                            </Border>
+                            <TextBlock Text="{DynamicResource Loc_SupportHintTitle}" FontSize="15.5" FontWeight="SemiBold" Foreground="White"
+                                       VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        </DockPanel>
+                        <TextBlock Text="{DynamicResource Loc_SupportHintBody}" FontSize="12.5" Foreground="{DynamicResource TextSecondary}"
+                                   TextWrapping="Wrap" LineHeight="18" Margin="0,10,0,14"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button x:Name="BtnSupportHintLater" Content="{DynamicResource Loc_SupportHintLater}" Style="{StaticResource BtnSecondary}"
+                                    Margin="0,0,8,0" Click="OnSupportHintLaterClick"/>
+                            <Button x:Name="BtnSupportHintGo" Style="{StaticResource BtnSupport}" Height="36" Click="OnSupportHintSupportClick">
+                                <StackPanel Orientation="Horizontal" Margin="6,0,0,0">
+                                    <TextBlock Text="{DynamicResource Loc_BtnSupportKofi}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>        </Grid>
     </Border>
 </Window>

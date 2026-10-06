@@ -87,6 +87,8 @@ namespace ApexSenseBridgeTray
             gamepadNav.InputModeChanged += OnGamepadModeChanged;
             gamepadNav.ConnectionChanged += OnGamepadConnectionChanged;
             gamepadNav.DirectionNavigated += dir => { };
+            PreviewKeyDown += OnWindowPreviewKeyDown;
+            Loaded += (sender, args) => ScheduleSupportHint();
 
             UpdateGamepadHudVisibility(gamepadNav.IsGamepadActive);
             UpdateGamepadConnectionVisibility(gamepadNav.IsControllerConnected);
@@ -358,13 +360,73 @@ namespace ApexSenseBridgeTray
                 double targetOffset = index * cardWidth;
                 double viewWidth = ScrollDashboardShelf.ViewportWidth > 0 ? ScrollDashboardShelf.ViewportWidth : ScrollDashboardShelf.ActualWidth;
                 if (viewWidth <= 0) viewWidth = 800.0;
-                double currentOffset = ScrollDashboardShelf.HorizontalOffset;
+                double currentOffset = shelfScrollTarget ?? ScrollDashboardShelf.HorizontalOffset;
 
                 if (targetOffset < currentOffset)
-                    ScrollDashboardShelf.ScrollToHorizontalOffset(Math.Max(0, targetOffset - 16));
+                    SmoothScrollShelfTo(Math.Max(0, targetOffset - 16));
                 else if (targetOffset + cardWidth > currentOffset + viewWidth)
-                    ScrollDashboardShelf.ScrollToHorizontalOffset(targetOffset + cardWidth - viewWidth + 24);
+                    SmoothScrollShelfTo(targetOffset + cardWidth - viewWidth + 24);
             }
+        }
+
+        // --- Shelf scrolling (mouse wheel, arrows, focus) with a short ease-out ---
+        private double? shelfScrollTarget;
+        private double shelfScrollFrom;
+        private DateTime shelfScrollStart;
+        private const double ShelfScrollDurationMs = 220.0;
+
+        private void SmoothScrollShelfTo(double offset)
+        {
+            if (ScrollDashboardShelf == null) return;
+            double max = Math.Max(0, ScrollDashboardShelf.ExtentWidth - ScrollDashboardShelf.ViewportWidth);
+            offset = Math.Max(0, Math.Min(max > 0 ? max : offset, offset));
+            if (!IsLoaded)
+            {
+                ScrollDashboardShelf.ScrollToHorizontalOffset(offset);
+                return;
+            }
+            shelfScrollFrom = ScrollDashboardShelf.HorizontalOffset;
+            shelfScrollStart = DateTime.UtcNow;
+            bool running = shelfScrollTarget.HasValue;
+            shelfScrollTarget = offset;
+            if (!running) CompositionTarget.Rendering += OnShelfScrollFrame;
+        }
+
+        private void OnShelfScrollFrame(object sender, EventArgs e)
+        {
+            if (!shelfScrollTarget.HasValue || ScrollDashboardShelf == null)
+            {
+                CompositionTarget.Rendering -= OnShelfScrollFrame;
+                shelfScrollTarget = null;
+                return;
+            }
+            double t = Math.Min(1.0, (DateTime.UtcNow - shelfScrollStart).TotalMilliseconds / ShelfScrollDurationMs);
+            double eased = 1 - Math.Pow(1 - t, 3);
+            ScrollDashboardShelf.ScrollToHorizontalOffset(shelfScrollFrom + (shelfScrollTarget.Value - shelfScrollFrom) * eased);
+            if (t >= 1.0)
+            {
+                CompositionTarget.Rendering -= OnShelfScrollFrame;
+                shelfScrollTarget = null;
+            }
+        }
+
+        // The shelf only scrolls horizontally: map the vertical wheel (and tilt wheels) to it.
+        private void OnShelfMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            double current = shelfScrollTarget ?? ScrollDashboardShelf.HorizontalOffset;
+            SmoothScrollShelfTo(current - e.Delta * 1.4);
+            e.Handled = true;
+        }
+
+        private void OnShelfLeftClick(object sender, RoutedEventArgs e) => PageShelf(-1);
+        private void OnShelfRightClick(object sender, RoutedEventArgs e) => PageShelf(1);
+
+        private void PageShelf(int direction)
+        {
+            if (ScrollDashboardShelf == null) return;
+            double page = Math.Max(148.0, Math.Floor(ScrollDashboardShelf.ViewportWidth * 0.8 / 148.0) * 148.0);
+            double current = shelfScrollTarget ?? ScrollDashboardShelf.HorizontalOffset;
+            SmoothScrollShelfTo(current + direction * page);
         }
 
         private void ClearDashboardNavHighlights()
@@ -525,28 +587,43 @@ namespace ApexSenseBridgeTray
         }
 
         // --- Highlight Helpers ---
+        // Local Background values replaced while a tile is focused, restored exactly afterwards.
+        private readonly Dictionary<Border, object> focusedBackgrounds = new Dictionary<Border, object>();
+
         private void ApplyHighlight(FrameworkElement element)
         {
-            // Console focus: white ring plus a soft white glow.
-            var glow = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Color = Colors.White, Opacity = 0.4 };
+            // Console focus: lifted fill plus a crisp white ring drawn just outside the element
+            // (no blurred glow: it smeared and was clipped by scroll viewers).
             if (element is Border border)
             {
-                border.BorderBrush = (Brush)FindResource("GamepadFocusBorder");
+                if (!focusedBackgrounds.ContainsKey(border))
+                    focusedBackgrounds[border] = border.ReadLocalValue(Border.BackgroundProperty);
+                border.Background = (Brush)FindResource("GamepadFocusFill");
+                border.BorderBrush = Brushes.Transparent;
                 border.BorderThickness = new Thickness(2);
-                border.Effect = glow;
+                border.Effect = null;
             }
             else if (element is Button btn)
             {
-                btn.BorderBrush = (Brush)FindResource("GamepadFocusBorder");
+                btn.BorderBrush = Brushes.Transparent;
                 btn.BorderThickness = new Thickness(2);
-                btn.Effect = glow;
+                btn.Effect = null;
             }
+            FocusRingAdorner.Show(element);
         }
 
         private void ClearElementHighlight(FrameworkElement element)
         {
+            FocusRingAdorner.Hide(element);
             if (element is Border border)
             {
+                object original;
+                if (focusedBackgrounds.TryGetValue(border, out original))
+                {
+                    if (original == DependencyProperty.UnsetValue) border.ClearValue(Border.BackgroundProperty);
+                    else border.SetValue(Border.BackgroundProperty, original); // also restores resource references
+                    focusedBackgrounds.Remove(border);
+                }
                 border.BorderBrush = Brushes.Transparent;
                 border.BorderThickness = new Thickness(2);
                 border.Effect = null;
@@ -751,6 +828,7 @@ namespace ApexSenseBridgeTray
                 switch (action)
                 {
                     case GamepadButtonAction.Back:
+                        if (HideSupportHint()) break;
                         if (TxtSearch != null && (TxtSearch.IsFocused || !string.IsNullOrEmpty(TxtSearch.Text)))
                         {
                             TxtSearch.Text = string.Empty;
@@ -814,6 +892,79 @@ namespace ApexSenseBridgeTray
                         if (currentTabIndex == 1) CycleGameFilter();
                         break;
                 }
+        }
+
+        // Keyboard mirrors the gamepad: arrows move the focus ring, Enter/Space validate,
+        // Escape goes back, Ctrl+Tab switches tabs, Ctrl+F searches. The first arrow press
+        // only reveals the focus ring so the user sees where they are before anything moves.
+        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+            bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+            bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            bool inTextBox = Keyboard.FocusedElement is TextBox;
+
+            if (key == Key.Tab && ctrl)
+            {
+                RevealKeyboardFocus();
+                OnGamepadTabCycle(shift ? -1 : 1);
+                e.Handled = true;
+                return;
+            }
+            if (key == Key.F && ctrl)
+            {
+                RevealKeyboardFocus();
+                OnGamepadAction(GamepadButtonAction.ActionY);
+                e.Handled = true;
+                return;
+            }
+            if (key == Key.Escape)
+            {
+                OnGamepadAction(GamepadButtonAction.Back);
+                e.Handled = true;
+                return;
+            }
+            if (inTextBox)
+            {
+                // Typing stays in the search box; Down or Enter hand control back to the list.
+                if (key != Key.Down && key != Key.Enter) return;
+                Focus();
+                bool revealed = RevealKeyboardFocus();
+                if (!revealed && key == Key.Down) OnGamepadDown();
+                e.Handled = true;
+                return;
+            }
+
+            switch (key)
+            {
+                case Key.Left:
+                case Key.Right:
+                case Key.Up:
+                case Key.Down:
+                    if (!RevealKeyboardFocus())
+                    {
+                        if (key == Key.Left) OnGamepadLeft();
+                        else if (key == Key.Right) OnGamepadRight();
+                        else if (key == Key.Up) OnGamepadUp();
+                        else OnGamepadDown();
+                    }
+                    e.Handled = true;
+                    break;
+                case Key.Enter:
+                case Key.Space:
+                    if (!RevealKeyboardFocus()) ActivateCurrentItem();
+                    e.Handled = true;
+                    break;
+            }
+        }
+
+        /// <summary>Switches to focus-ring mode. Returns true when the ring was just revealed.</summary>
+        private bool RevealKeyboardFocus()
+        {
+            bool wasHidden = !isGamepadMode;
+            if (gamepadNav != null) gamepadNav.NotifyKeyboardNavigation();
+            if (!isGamepadMode) OnGamepadModeChanged(true);
+            return wasHidden;
         }
 
         private void CycleGameFilter()
@@ -1154,22 +1305,38 @@ namespace ApexSenseBridgeTray
             {
                 string profile = external != null ? external.Profile : unknownExternal ? null : sessionManager != null ? sessionManager.ActiveProfile : null;
                 string selectedController = external != null ? external.Controller : unknownExternal ? null : sessionManager != null ? sessionManager.ActiveController : null;
-                string owner = external != null ? external.Owner : unknownExternal ? LocalizationManager.Get("Loc_ExternalOwner") : recovery != null && recovery.Pending ? recovery.Owner : (isActive || phase == "Starting") ? "Tray" : "—";
+                string owner = external != null ? external.Owner : unknownExternal ? LocalizationManager.Get("Loc_ExternalOwner") : recovery != null && recovery.Pending ? recovery.Owner : (isActive || phase == "Starting") ? "Tray" : null;
                 string reason = external != null ? (external.Phase == SessionPhase.Ready ? null : external.Message) : unknownExternal ? null : sessionManager != null ? sessionManager.LastReason : null;
-                TxtDashboardHint.Text = LocalizationManager.Format("Loc_SessionDetails", owner, string.IsNullOrWhiteSpace(profile) || profile == "none" ? "—" : profile,
-                    string.IsNullOrWhiteSpace(selectedController) ? "—" : selectedController);
+                string profileText = string.IsNullOrWhiteSpace(profile) || profile == "none" ? null : profile;
+                string controllerText = string.IsNullOrWhiteSpace(selectedController) ? null : selectedController;
+                string ownerText = string.IsNullOrWhiteSpace(owner) ? null : owner;
+                // Full labelled details stay available in the tooltip; the home shows only compact chips.
+                string details = LocalizationManager.Format("Loc_SessionDetails", ownerText ?? "·", profileText ?? "·", controllerText ?? "·");
+                string readable = null;
                 if (!string.IsNullOrWhiteSpace(reason))
                 {
-                    string readable = reason.StartsWith("Loc_") ? LocalizationManager.Get(reason) : reason;
+                    readable = reason.StartsWith("Loc_") ? LocalizationManager.Get(reason) : reason;
                     if (reason.StartsWith("Temporary APEX isolation failed:", StringComparison.Ordinal))
-                        readable = LocalizationManager.Get("Loc_RefusedIsolation") + "\n" + reason;
-                    TxtDashboardHint.Text += "\n" + LocalizationManager.Get("Loc_SessionReason") + " " + readable;
+                    {
+                        details += "\n" + reason;
+                        readable = LocalizationManager.Get("Loc_RefusedIsolation");
+                    }
                 }
-                // Idle home stays clean; details appear for a live, starting, failed or interrupted session.
-                bool showDetails = anyActive || phase == "Starting" || phase == "Failed" || !string.IsNullOrWhiteSpace(reason) ||
+                // Idle home stays clean; chips appear for a live, starting, failed or interrupted session.
+                bool showDetails = anyActive || phase == "Starting" || phase == "Failed" || readable != null ||
                     (recovery != null && (recovery.Pending || recovery.Recovered));
-                TxtDashboardHint.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
-                TxtDashboardHint.ToolTip = TxtDashboardHint.Text;
+                SetSessionChip(ChipSessionOwner, TxtSessionOwner, ownerText);
+                SetSessionChip(ChipSessionProfile, TxtSessionProfile, profileText);
+                SetSessionChip(ChipSessionController, TxtSessionController, controllerText);
+                if (PnlSessionChips != null)
+                {
+                    PnlSessionChips.Visibility = showDetails && (ownerText != null || profileText != null || controllerText != null)
+                        ? Visibility.Visible : Visibility.Collapsed;
+                    PnlSessionChips.ToolTip = details;
+                }
+                TxtDashboardHint.Text = readable ?? string.Empty;
+                TxtDashboardHint.Visibility = readable != null ? Visibility.Visible : Visibility.Collapsed;
+                TxtDashboardHint.ToolTip = readable != null ? details + "\n" + LocalizationManager.Get("Loc_SessionReason") + " " + readable : null;
             }
 
             if (isActive && sessionManager != null)
@@ -1205,6 +1372,13 @@ namespace ApexSenseBridgeTray
 
             UpdateManualBridgeTile();
             UpdateTabTitles();
+        }
+
+        private static void SetSessionChip(Border chip, TextBlock text, string value)
+        {
+            if (chip == null || text == null) return;
+            text.Text = value ?? string.Empty;
+            chip.Visibility = value != null ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void UpdateRecoveryPanel(SessionRecoveryState recovery)
@@ -1423,19 +1597,49 @@ namespace ApexSenseBridgeTray
             ApplyFilter();
             UpdateTabTitles();
 
-            dashboardFeaturedGames.Clear();
-            var featured = allGameViewModels
-                .Where(g => !g.IsExcluded && g.HasReadyFeature)
-                .OrderByDescending(GetFeaturedScore)
-                .ThenBy(g => GetStableSelectionKey(g.Normalized))
-                .Take(14)
+            // Issue #29: the home shelf leads with the latest catalogue additions.
+            // The earliest "addedAt" is the initial import, so only later dates are real additions.
+            var dated = allGameViewModels.Where(g => g.AddedAt.HasValue).ToList();
+            DateTime? baseline = dated.Count > 0 ? dated.Min(g => g.AddedAt.Value) : (DateTime?)null;
+            DateTime today = DateTime.UtcNow.Date;
+            foreach (var g in allGameViewModels)
+            {
+                g.IsRecentlyAdded = baseline.HasValue && g.AddedAt.HasValue && g.AddedAt.Value > baseline.Value &&
+                    (today - g.AddedAt.Value).TotalDays <= NewGameBadgeDays;
+            }
+            var additions = allGameViewModels
+                .Where(g => !g.IsExcluded && baseline.HasValue && g.AddedAt.HasValue && g.AddedAt.Value > baseline.Value)
+                .OrderByDescending(g => g.AddedAt.Value)
+                .ThenBy(g => g.Title, StringComparer.OrdinalIgnoreCase)
+                .Take(DashboardShelfSize)
                 .ToList();
+            shelfShowsAdditions = additions.Count > 0;
+            var featured = additions.Concat(allGameViewModels
+                    .Where(g => !g.IsExcluded && g.HasReadyFeature && !additions.Contains(g))
+                    .OrderByDescending(GetFeaturedScore)
+                    .ThenBy(g => GetStableSelectionKey(g.Normalized)))
+                .Take(DashboardShelfSize)
+                .ToList();
+
+            dashboardFeaturedGames.Clear();
             foreach (var f in featured)
             {
                 dashboardFeaturedGames.Add(f);
             }
             dashboardShelfIndex = 0;
+            shelfScrollTarget = null;
             if (ScrollDashboardShelf != null) ScrollDashboardShelf.ScrollToHorizontalOffset(0);
+            UpdateShelfTitle();
+        }
+
+        private const int DashboardShelfSize = 14;
+        private const int NewGameBadgeDays = 30;
+        private bool shelfShowsAdditions;
+
+        private void UpdateShelfTitle()
+        {
+            if (TxtShelfTitle != null)
+                TxtShelfTitle.Text = LocalizationManager.Get(shelfShowsAdditions ? "Loc_ShelfRecentlyAdded" : "Loc_NavCertifiedGames");
         }
 
         private static int GetFeaturedScore(GameItemViewModel game)
@@ -1599,14 +1803,14 @@ namespace ApexSenseBridgeTray
                 var configured = settings.GetGameExecutable(game.Normalized);
                 var choices = new List<ExecutableChoice> { new ExecutableChoice { Path = string.Empty, Label = LocalizationManager.Get("Loc_ExecutableAutomatic") } };
                 if (!string.IsNullOrWhiteSpace(configured))
-                    choices.Add(new ExecutableChoice { Path = configured, Label = System.IO.Path.GetFileName(configured) + " — " + LocalizationManager.Get("Loc_ExecutableSelected") });
+                    choices.Add(new ExecutableChoice { Path = configured, Label = System.IO.Path.GetFileName(configured) + " · " + LocalizationManager.Get("Loc_ExecutableSelected") });
                 if (learningService != null)
                     foreach (var binding in learningService.GetBindings())
                     {
                         if (!string.Equals(binding.GameNormalized, game.Normalized, StringComparison.OrdinalIgnoreCase) &&
                             !(game.Game.SteamAppIdVerified && binding.SteamAppId > 0 && binding.SteamAppId == game.Game.SteamAppId)) continue;
                         if (choices.Any(x => string.Equals(x.Path, binding.Path, StringComparison.OrdinalIgnoreCase))) continue;
-                        choices.Add(new ExecutableChoice { Path = binding.Path, Label = System.IO.Path.GetFileName(binding.Path) + " — " + LocalizationManager.Get("Loc_ExecutableLearned") + " — " + binding.Path });
+                        choices.Add(new ExecutableChoice { Path = binding.Path, Label = System.IO.Path.GetFileName(binding.Path) + " · " + LocalizationManager.Get("Loc_ExecutableLearned") });
                     }
                 CmbGameExecutable.ItemsSource = choices;
                 CmbGameExecutable.SelectedItem = choices.FirstOrDefault(x => string.Equals(x.Path, configured, StringComparison.OrdinalIgnoreCase)) ?? choices[0];
@@ -1984,11 +2188,7 @@ namespace ApexSenseBridgeTray
         {
             if (TxtCurrentLanguage != null)
             {
-                string cur = LocalizationManager.CurrentLanguage;
-                if (cur == LocalizationManager.LangFrench) TxtCurrentLanguage.Text = "Français";
-                else if (cur == LocalizationManager.LangSpanish) TxtCurrentLanguage.Text = "Español";
-                else if (cur == LocalizationManager.LangChinese) TxtCurrentLanguage.Text = "中文";
-                else TxtCurrentLanguage.Text = "English";
+                TxtCurrentLanguage.Text = LanguageCatalog.GetNativeName(LocalizationManager.CurrentLanguage);
             }
         }
 
@@ -2126,8 +2326,82 @@ namespace ApexSenseBridgeTray
             win.ShowDialog();
         }
 
+        #region First-run support callout
+
+        private System.Windows.Threading.DispatcherTimer supportHintTimer;
+
+        private void ScheduleSupportHint()
+        {
+            if (settings == null || settings.SupportHintShown || SupportHintLayer == null) return;
+            supportHintTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.2) };
+            supportHintTimer.Tick += (s, e) =>
+            {
+                supportHintTimer.Stop();
+                ShowSupportHint();
+            };
+            supportHintTimer.Start();
+        }
+
+        private void ShowSupportHint()
+        {
+            if (!IsLoaded || SupportHintLayer == null || BtnSupportKofi == null) return;
+            var host = SupportHintLayer.Parent as FrameworkElement;
+            if (host == null) return;
+
+            // Anchor under the support pill: right edges aligned, arrow under the pill centre.
+            Point origin = BtnSupportKofi.TranslatePoint(new Point(0, 0), host);
+            double right = host.ActualWidth - (origin.X + BtnSupportKofi.ActualWidth);
+            SupportHintLayer.Margin = new Thickness(0, origin.Y + BtnSupportKofi.ActualHeight + 4, Math.Max(0, right), 0);
+            SupportHintArrow.Margin = new Thickness(0, 0, Math.Max(12, BtnSupportKofi.ActualWidth / 2 - 10), 0);
+
+            SupportHintLayer.Visibility = Visibility.Visible;
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            SupportHintLayer.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+            SupportHintSlide.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(-10, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+
+            // Recorded as soon as it is shown: the callout never comes back, even after a crash.
+            settings.SupportHintShown = true;
+            settings.Save();
+
+            supportHintTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+            supportHintTimer.Tick += (s, e) =>
+            {
+                supportHintTimer.Stop();
+                HideSupportHint();
+            };
+            supportHintTimer.Start();
+        }
+
+        /// <summary>Hides the callout if it is open. Returns true when something was dismissed.</summary>
+        private bool HideSupportHint()
+        {
+            if (SupportHintLayer == null || SupportHintLayer.Visibility != Visibility.Visible) return false;
+            if (supportHintTimer != null) supportHintTimer.Stop();
+            var fade = new System.Windows.Media.Animation.DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(180));
+            fade.Completed += (s, e) =>
+            {
+                SupportHintLayer.Visibility = Visibility.Collapsed;
+                SupportHintLayer.BeginAnimation(OpacityProperty, null);
+            };
+            SupportHintLayer.BeginAnimation(OpacityProperty, fade);
+            return true;
+        }
+
+        private void OnSupportHintLaterClick(object sender, RoutedEventArgs e)
+        {
+            HideSupportHint();
+        }
+
+        private void OnSupportHintSupportClick(object sender, RoutedEventArgs e)
+        {
+            OnSupportKofiClick(sender, e); // also dismisses the callout
+        }
+
+        #endregion
+
         private void OnSupportKofiClick(object sender, RoutedEventArgs e)
         {
+            HideSupportHint();
             try
             {
                 Process.Start(new ProcessStartInfo("https://ko-fi.com/reynarts97")
@@ -2167,7 +2441,7 @@ namespace ApexSenseBridgeTray
         {
             if (updateChecker == null) return;
             if (BtnCheckUpdates != null) BtnCheckUpdates.IsEnabled = false;
-            if (TxtUpdateStatus != null) TxtUpdateStatus.Text = LocalizationManager.Get("Loc_SoftwareUpdate") + " — ...";
+            if (TxtUpdateStatus != null) TxtUpdateStatus.Text = LocalizationManager.Get("Loc_SoftwareUpdate") + "…";
 
             try
             {
@@ -2211,6 +2485,7 @@ namespace ApexSenseBridgeTray
             if (TxtNavLearnedCount != null) TxtNavLearnedCount.Text = allLearnedViewModels.Count.ToString();
             if (TxtDashCountGames != null) TxtDashCountGames.Text = allGameViewModels.Count.ToString();
             if (TxtDashCountLearned != null) TxtDashCountLearned.Text = allLearnedViewModels.Count.ToString();
+            UpdateShelfTitle();
         }
 
         private void OnWindowDrag(object sender, MouseButtonEventArgs e)
@@ -2321,6 +2596,25 @@ namespace ApexSenseBridgeTray
              (Game.HapticFeedback && !Game.HapticFeedbackManualFix));
         public string Profile => Game != null ? Game.Profile : "standard";
         public string IconUrl => Game != null ? Game.IconUrl : string.Empty;
+        public DateTime? AddedAt => Game != null ? Game.AddedAt : null;
+
+        private bool isRecentlyAdded;
+        /// <summary>Added to the catalogue after its initial import and recently enough to be flagged.</summary>
+        public bool IsRecentlyAdded
+        {
+            get => isRecentlyAdded;
+            set
+            {
+                if (isRecentlyAdded == value) return;
+                isRecentlyAdded = value;
+                OnPropertyChanged("IsRecentlyAdded");
+                OnPropertyChanged("NewBadgeVisibility");
+            }
+        }
+        public Visibility NewBadgeVisibility => IsRecentlyAdded ? Visibility.Visible : Visibility.Collapsed;
+        public string AddedTooltip => AddedAt.HasValue
+            ? LocalizationManager.Format("Loc_AddedOn", AddedAt.Value.ToString("d", CultureInfo.CurrentCulture))
+            : null;
 
         private ImageSource coverImage;
         public ImageSource CoverImage

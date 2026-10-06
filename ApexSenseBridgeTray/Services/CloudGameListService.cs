@@ -1,6 +1,7 @@
 using ApexSenseBridgeTray.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -292,6 +293,7 @@ namespace ApexSenseBridgeTray.Services
                     g.Executables = g.SteamAppIdVerified
                         ? ParseExecutables(item)
                         : new string[0];
+                    g.AddedAt = ParseAddedAt(item);
 
                     var titleNormalized = Normalize(g.Title);
                     g.Normalized = string.Equals(providedNormalized, titleNormalized, StringComparison.Ordinal)
@@ -352,6 +354,17 @@ namespace ApexSenseBridgeTray.Services
             {
                 return false;
             }
+        }
+
+        // "addedAt" is an optional ISO calendar date (YYYY-MM-DD); anything else is ignored.
+        internal static DateTime? ParseAddedAt(Dictionary<string, object> item)
+        {
+            if (item == null || !item.ContainsKey("addedAt") || item["addedAt"] == null) return null;
+            DateTime date;
+            return DateTime.TryParseExact(item["addedAt"].ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out date)
+                ? date.Date
+                : (DateTime?)null;
         }
 
         private static string[] ParseExecutables(Dictionary<string, object> item)

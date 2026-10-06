@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-rc.1
 
 ### HidHide in use by DSX or another application ([#28](https://github.com/ReynArts/ApexSenseBridge/issues/28))
 
@@ -13,6 +13,41 @@
 - No process is closed automatically, and isolation, restoration and retry
   behavior are unchanged. When no known application is running, the message
   still mentions these applications before suggesting a restart or repair.
+
+### Recently added DualSense games on the home screen ([#29](https://github.com/ReynArts/ApexSenseBridge/issues/29))
+
+- Each catalogue entry now records `addedAt`, the date it first entered the
+  supported-games list. Dates for the current 214 games were rebuilt from the
+  catalogue's git history (the initial import plus seven later additions).
+- The daily importer keeps every stored date and dates only games absent from
+  the previous catalogue; a missing or unreadable cache never marks the whole
+  list as new. The validator rejects malformed dates.
+- The Tray home shelf leads with the latest additions, newest first, and flags
+  those from the last 30 days with a "New" badge (also shown in the games list).
+  Older catalogues without dates keep the previous featured shelf.
+
+### Console interface refresh
+
+- Modern console UI for the main window, controller diagnostic and
+  language picker, fully usable with a gamepad and now with the keyboard
+  (arrows, Enter, Escape, Ctrl+Tab, Ctrl+F). The home shelf scrolls with the
+  mouse wheel and hover arrows.
+- Always-visible support button (also on the gamepad Menu button) with a
+  one-time introduction callout.
+- Controller feel settings are shown only for the identified model; the
+  diagnostic window draws clean thumbsticks with precise stick pads and
+  trigger travel gauges.
+
+### Expanded language localization
+
+- Added 5 new languages: Russian (`ru`), Korean (`ko`), Vietnamese (`vi`),
+  Japanese (`ja`), and Brazilian Portuguese (`pt`), bringing the total supported
+  languages to 9 (alongside English, French, Spanish, and Simplified Chinese).
+- Full 367-key dictionary parity across all 9 languages, covering session
+  recovery, controller diagnostics, adaptive triggers, rumble calibration,
+  and bug reporting.
+- Native system language auto-detection and dynamic language catalog discovery
+  in the system tray context menu and console language picker.
 
 ## 1.0.0-beta.11
 

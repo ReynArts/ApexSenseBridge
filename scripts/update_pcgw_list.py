@@ -325,6 +325,39 @@ def enrich_with_discord_executables(games: list, discord_index: dict) -> dict:
     }
 
 
+def is_valid_added_date(value) -> bool:
+    """Accepts only plain ISO calendar dates (YYYY-MM-DD)."""
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return False
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+
+def assign_added_dates(games: list, existing_cache: dict, today: str) -> int:
+    """Records when each game first entered the catalogue (issue #29).
+
+    Known games keep their stored date. Only games absent from a non-empty
+    previous catalogue are dated today, so a missing or unreadable cache never
+    relabels the whole list as new. The field is always written last to keep
+    regenerated files stable.
+    """
+    new_games = 0
+    for game in games:
+        cached = existing_cache.get(game.get("normalized", ""))
+        game.pop("addedAt", None)
+        if isinstance(cached, dict):
+            added = cached.get("addedAt")
+            if is_valid_added_date(added):
+                game["addedAt"] = added
+        elif existing_cache:
+            game["addedAt"] = today
+            new_games += 1
+    return new_games
+
+
 def parse_pcgw_support_rows(text_content: str) -> dict:
     """Extracts game titles, wiki links, and support states from a PCGW list."""
     games = {}
@@ -615,6 +648,11 @@ def main():
     if len(output_list) < 150:
         print(f"[ERROR] Extracted list suspiciously small ({len(output_list)} games). Aborting write to prevent data loss.", file=sys.stderr)
         sys.exit(1)
+
+    new_games = assign_added_dates(
+        output_list, existing_cache, datetime.now(timezone.utc).date().isoformat()
+    )
+    print(f"[+] {new_games} newly added games dated today.")
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 

@@ -20,6 +20,8 @@ namespace ApexSenseBridgeTray.Models
         public int SteamAppId { get; set; }
         public bool SteamAppIdVerified { get; set; }
         public string[] Executables { get; set; }
+        /// <summary>Date the game first entered the catalogue (UTC calendar date), when known.</summary>
+        public DateTime? AddedAt { get; set; }
 
         public SupportedGame()
         {

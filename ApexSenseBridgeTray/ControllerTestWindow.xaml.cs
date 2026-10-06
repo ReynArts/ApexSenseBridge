@@ -134,15 +134,16 @@ namespace ApexSenseBridgeTray
                 TxtControllerStatus.Text = "○ " + LocalizationManager.Get("Loc_ControllerDisconnectedBadge");
             }
 
-            // Triggers L2 / R2
-            TxtL2Val.Text = string.Format("L2 {0}%", (int)(state.LeftTrigger / 2.55));
+            // Triggers L2 / R2: travel gauges under the controller + overlay glow on the drawing
+            FillL2.Height = TriggerGaugeHeight * state.LeftTrigger / 255.0;
+            TxtL2Val.Text = string.Format("L2 {0}%", (int)Math.Round(state.LeftTrigger / 2.55));
             OverlayL2.Opacity = state.LeftTrigger / 255.0;
             OverlayL1.Visibility = state.L1 ? Visibility.Visible : Visibility.Collapsed;
 
-            TxtR2Val.Text = string.Format("R2 {0}%", (int)(state.RightTrigger / 2.55));
+            FillR2.Height = TriggerGaugeHeight * state.RightTrigger / 255.0;
+            TxtR2Val.Text = string.Format("R2 {0}%", (int)Math.Round(state.RightTrigger / 2.55));
             OverlayR2.Opacity = state.RightTrigger / 255.0;
             OverlayR1.Visibility = state.R1 ? Visibility.Visible : Visibility.Collapsed;
-
             // D-Pad
             OverlayUp.Visibility = state.DpadUp ? Visibility.Visible : Visibility.Collapsed;
             OverlayDown.Visibility = state.DpadDown ? Visibility.Visible : Visibility.Collapsed;
@@ -161,29 +162,149 @@ namespace ApexSenseBridgeTray
             OverlayPS.Visibility = state.PsButton ? Visibility.Visible : Visibility.Collapsed;
             OverlayTouchpad.Opacity = state.TouchpadClick ? 1.0 : 0.85;
 
-            // Thumbsticks deflection & visual state (in 896x512 space)
-            double normLX = state.ThumbLX / 32768.0;
-            double normLY = state.ThumbLY / 32768.0;
-            TransStickL.X = normLX * 22.0;
-            TransStickL.Y = -normLY * 22.0;
-            bool stickLDeflected = Math.Abs(normLX) > 0.08 || Math.Abs(normLY) > 0.08;
-            GlowStickL.Opacity = state.L3 ? 1.0 : (stickLDeflected ? 0.35 : 0.0);
-            BorderStickL.BorderBrush = state.L3 ? new SolidColorBrush(Color.FromRgb(0, 112, 209)) : (stickLDeflected ? new SolidColorBrush(Color.FromRgb(72, 92, 122)) : new SolidColorBrush(Color.FromRgb(59, 70, 93)));
-            BorderStickL.Background = state.L3 ? new SolidColorBrush(Color.FromRgb(22, 34, 52)) : new SolidColorBrush(Color.FromRgb(26, 31, 43));
-            TxtStickL.Foreground = state.L3 ? Brushes.White : (stickLDeflected ? new SolidColorBrush(Color.FromRgb(190, 210, 235)) : new SolidColorBrush(Color.FromRgb(122, 139, 162)));
-            TxtTelemetryStickL.Text = string.Format("Stick G : X={0,4} Y={1,4}", (int)(normLX * 100), (int)(normLY * 100));
-
-            double normRX = state.ThumbRX / 32768.0;
-            double normRY = state.ThumbRY / 32768.0;
-            TransStickR.X = normRX * 22.0;
-            TransStickR.Y = -normRY * 22.0;
-            bool stickRDeflected = Math.Abs(normRX) > 0.08 || Math.Abs(normRY) > 0.08;
-            GlowStickR.Opacity = state.R3 ? 1.0 : (stickRDeflected ? 0.35 : 0.0);
-            BorderStickR.BorderBrush = state.R3 ? new SolidColorBrush(Color.FromRgb(0, 112, 209)) : (stickRDeflected ? new SolidColorBrush(Color.FromRgb(72, 92, 122)) : new SolidColorBrush(Color.FromRgb(59, 70, 93)));
-            BorderStickR.Background = state.R3 ? new SolidColorBrush(Color.FromRgb(22, 34, 52)) : new SolidColorBrush(Color.FromRgb(26, 31, 43));
-            TxtStickR.Foreground = state.R3 ? Brushes.White : (stickRDeflected ? new SolidColorBrush(Color.FromRgb(190, 210, 235)) : new SolidColorBrush(Color.FromRgb(122, 139, 162)));
-            TxtTelemetryStickR.Text = string.Format("Stick D : X={0,4} Y={1,4}", (int)(normRX * 100), (int)(normRY * 100));
+            // Thumbsticks (in 896x512 drawing space) and precise pads
+            UpdateStick(state.ThumbLX / 32768.0, state.ThumbLY / 32768.0, state.L3,
+                TransStickL, TrailStickL, BorderStickL, GlowStickL, TxtStickL, TransDotL, PadTrailL, TxtTelemetryStickL);
+            UpdateStick(state.ThumbRX / 32768.0, state.ThumbRY / 32768.0, state.R3,
+                TransStickR, TrailStickR, BorderStickR, GlowStickR, TxtStickR, TransDotR, PadTrailR, TxtTelemetryStickR);
+            HandleGamepadShortcuts(state);
         }
+
+        #region Stick rendering
+
+        private const double TriggerGaugeHeight = 88.0;
+        private const double StickTravel = 24.0;   // cap travel inside its well (drawing pixels)
+        private const double PadRadius = 37.0;     // dot travel inside the precise pad
+
+        private static readonly Brush CapIdleFill = Frozen(Color.FromRgb(0x16, 0x20, 0x3A));
+        private static readonly Brush CapPressedFill = Frozen(Color.FromRgb(0x1E, 0x6F, 0xE8));
+        private static readonly Brush CapIdleStroke = Frozen(Color.FromRgb(0xAE, 0xB9, 0xD3));
+        private static readonly Brush CapActiveStroke = Frozen(Color.FromRgb(0xE6, 0xEC, 0xFA));
+        private static readonly Brush LabelIdle = Frozen(Color.FromRgb(0x7F, 0x8D, 0xAD));
+        private static readonly Brush LabelActive = Frozen(Color.FromRgb(0xC9, 0xD5, 0xEE));
+
+        private static Brush Frozen(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
+
+        private static void UpdateStick(double x, double y, bool pressed,
+            TranslateTransform cap, System.Windows.Shapes.Line trail, Border capBorder, DropShadowEffect glow, TextBlock label,
+            TranslateTransform dot, System.Windows.Shapes.Line padTrail, TextBlock readout)
+        {
+            // Square-ish raw ranges are clamped to the unit circle so the cap never leaves its well.
+            double magnitude = Math.Sqrt(x * x + y * y);
+            double scale = magnitude > 1.0 ? 1.0 / magnitude : 1.0;
+            double cx = x * scale, cy = y * scale;
+            double strength = Math.Min(1.0, magnitude);
+            bool deflected = strength > 0.08;
+
+            cap.X = cx * StickTravel;
+            cap.Y = -cy * StickTravel;
+            trail.X2 = trail.X1 + cap.X;
+            trail.Y2 = trail.Y1 + cap.Y;
+            trail.Opacity = deflected ? 0.35 + 0.55 * strength : 0.0;
+            glow.Opacity = pressed ? 1.0 : (deflected ? 0.2 + 0.45 * strength : 0.0);
+            capBorder.Background = pressed ? CapPressedFill : CapIdleFill;
+            capBorder.BorderBrush = pressed ? Brushes.White : (deflected ? CapActiveStroke : CapIdleStroke);
+            label.Foreground = pressed ? Brushes.White : (deflected ? LabelActive : LabelIdle);
+
+            dot.X = cx * PadRadius;
+            dot.Y = -cy * PadRadius;
+            padTrail.X2 = padTrail.X1 + dot.X;
+            padTrail.Y2 = padTrail.Y1 + dot.Y;
+            readout.Text = string.Format(CultureInfo.InvariantCulture, "X {0,4}   Y {1,4}",
+                (int)Math.Round(x * 100), (int)Math.Round(y * 100));
+        }
+
+        #endregion
+
+        #region Gamepad Shortcuts
+
+        // Every button is under test in this window, so navigation stays suspended and only
+        // non-destructive shortcuts are used: LB/RB switch tests, Menu runs the current test,
+        // and B must be held to close (a short press is still just a tested button).
+        private const double HoldToCloseSeconds = 1.0;
+        private bool lastShoulderLeft;
+        private bool lastShoulderRight;
+        private bool lastMenu;
+        private DateTime? backHoldStart;
+
+        private void HandleGamepadShortcuts(DualSenseVisualState state)
+        {
+            bool active = IsActive && state.Connected;
+            // A running latency measurement needs free stick/button input: never interrupt it.
+            bool busy = latencyTestCancellation != null;
+
+            if (active && !busy)
+            {
+                if (state.L1 && !lastShoulderLeft) CycleTestTab(-1);
+                if (state.R1 && !lastShoulderRight) CycleTestTab(1);
+                if (state.Options && !lastMenu) RunCurrentTest();
+            }
+            lastShoulderLeft = state.L1;
+            lastShoulderRight = state.R1;
+            lastMenu = state.Options;
+
+            double progress = 0;
+            if (active && !busy && state.Circle)
+            {
+                if (!backHoldStart.HasValue) backHoldStart = DateTime.UtcNow;
+                progress = Math.Min(1.0, (DateTime.UtcNow - backHoldStart.Value).TotalSeconds / HoldToCloseSeconds);
+            }
+            else
+            {
+                backHoldStart = null;
+            }
+            UpdateHoldCloseArc(progress);
+            if (progress >= 1.0)
+            {
+                backHoldStart = null;
+                Close();
+            }
+        }
+
+        private RadioButton[] GetTestTabs()
+        {
+            return new[] { TabTriggers, TabVibration, TabRgb, TabGyro, TabLatency, TabMapping };
+        }
+
+        private void CycleTestTab(int delta)
+        {
+            var tabs = GetTestTabs();
+            int current = Array.FindIndex(tabs, t => t.IsChecked == true);
+            int next = ((current < 0 ? 0 : current) + delta + tabs.Length) % tabs.Length;
+            tabs[next].IsChecked = true;
+        }
+
+        private void RunCurrentTest()
+        {
+            Button primary = null;
+            if (TabTriggers.IsChecked == true) primary = BtnApplyTrigger;
+            else if (TabVibration.IsChecked == true) primary = BtnTestVibePulse;
+            else if (TabRgb.IsChecked == true) primary = BtnApplyRgb;
+            else if (TabGyro.IsChecked == true) primary = BtnTestGyro;
+            else if (TabLatency.IsChecked == true) primary = BtnTestNativeLatency;
+            else if (TabMapping.IsChecked == true) primary = BtnVerifyPersistence;
+            if (primary != null && primary.IsEnabled) primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }
+
+        // Circular progress around the B glyph while the button is held.
+        private void UpdateHoldCloseArc(double progress)
+        {
+            if (ArcHoldClose == null) return;
+            if (progress <= 0) { ArcHoldClose.Data = null; return; }
+            const double radius = 10, center = 11;
+            double angle = Math.Min(progress, 0.999) * 2 * Math.PI;
+            var end = new Point(center + radius * Math.Sin(angle), center - radius * Math.Cos(angle));
+            var figure = new PathFigure { StartPoint = new Point(center, center - radius) };
+            figure.Segments.Add(new ArcSegment(end, new Size(radius, radius), 0, angle > Math.PI, SweepDirection.Clockwise, true));
+            ArcHoldClose.Data = new PathGeometry(new[] { figure });
+        }
+
+        #endregion
 
         #region Sub-Tabs Navigation
 
@@ -553,7 +674,7 @@ namespace ApexSenseBridgeTray
 
             if (!result.Success)
             {
-                main.Text = "—";
+                main.Text = "…";
                 percentiles.Text = LocalizationManager.Get("Loc_LatencyUnavailable");
                 samples.Text = LocalizationManager.Get("Loc_LatencyNoResult");
                 TxtTestFeedback.Text = string.Format(

@@ -47,6 +47,8 @@ namespace ApexSenseBridgeTray.Models
         [ScriptIgnore]
         public string ForcedProfile { get; set; }
         public string Language { get; set; }
+        // The support callout is introduced once, then never again.
+        public bool SupportHintShown { get; set; }
         public List<string> ExcludedGames { get; set; }
         public Dictionary<string, int> ApexProfileSlots { get; set; }
         // Legacy scalar preferences remain for migration, not as an active

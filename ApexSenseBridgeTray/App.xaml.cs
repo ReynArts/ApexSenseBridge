@@ -411,22 +411,15 @@ namespace ApexSenseBridgeTray
             langMenu.DropDown.ForeColor = Color.FromArgb(245, 245, 245);
             langMenu.DropDown.Padding = new System.Windows.Forms.Padding(4, 6, 4, 6);
             langMenu.DropDown.Opened += (s, e) => ModernizeMenuWindow(langMenu.DropDown);
-            var langEnglish = new ToolStripMenuItem("English", null, (s, e) => SwitchLanguage(LocalizationManager.LangEnglish));
-            var langFrench = new ToolStripMenuItem("Français", null, (s, e) => SwitchLanguage(LocalizationManager.LangFrench));
-            var langSpanish = new ToolStripMenuItem("Español", null, (s, e) => SwitchLanguage(LocalizationManager.LangSpanish));
-            var langChinese = new ToolStripMenuItem("简体中文", null, (s, e) => SwitchLanguage(LocalizationManager.LangChinese));
-            langEnglish.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
-            langFrench.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
-            langSpanish.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
-            langChinese.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
-            langEnglish.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
-            langFrench.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangFrench;
-            langSpanish.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangSpanish;
-            langChinese.Checked = LocalizationManager.CurrentLanguage == LocalizationManager.LangChinese;
-            langMenu.DropDownItems.Add(langEnglish);
-            langMenu.DropDownItems.Add(langFrench);
-            langMenu.DropDownItems.Add(langSpanish);
-            langMenu.DropDownItems.Add(langChinese);
+            // Every embedded dictionary is offered (same list as the in-app language picker).
+            foreach (var language in LanguageCatalog.Available)
+            {
+                string code = language.Code;
+                var item = new ToolStripMenuItem(language.NativeName, null, (s, e) => SwitchLanguage(code));
+                item.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
+                item.Checked = string.Equals(LocalizationManager.CurrentLanguage, code, StringComparison.OrdinalIgnoreCase);
+                langMenu.DropDownItems.Add(item);
+            }
             contextMenu.Items.Add(langMenu);
 
             contextMenu.Items.Add(new ToolStripSeparator());

@@ -14,7 +14,7 @@ Téléchargement et vérification visuelle effectués le 27 septembre 2026. L'AP
 
 | Fichier local | Contenu | SHA-256 | Source officielle |
 |---|---|---|---|
-| `controller-placeholder.svg` | Illustration vectorielle Flydigi Space Station, socle retiré (groupes du socle et aplat d'ombre supprimés), cadrage recentré sur la manette | `13F6BB481C0CDD7691B30B860FDBC15442FF834E27E182F82C3D887CDB9D5508` | https://space_station.flydigi.com/assets/gamepad-dock-TuhF65hu.svg (SHA-256 du fichier d'origine : `7E2C86D1754EE05C7743CAC9FB95D03FF73B21A4B225F39F20B2ADF03F166E37`) |
-| `controller-placeholder.png` | Rendu 1328×884 sur fond transparent du SVG ci-dessus (Edge headless), utilisé par la Tray | `ABBBBDFB5F27B21651BB3CD6B6EE8B33FB4EBD2A7D75D96E025B5AA99CE788BF` | Dérivé local de la ligne précédente |
+| `controller-placeholder.svg` | Illustration vectorielle Flydigi Space Station, socle retiré (groupes du socle et aplat d'ombre supprimés), bouton B désélectionné (disque bleu retiré, tracés restylés comme X/Y/A), cadrage recentré sur la manette | `E34B00AB858608D46369A8902E7220F44D9124960087F8A13104C5C0E84E5266` | https://space_station.flydigi.com/assets/gamepad-dock-TuhF65hu.svg (SHA-256 du fichier d'origine : `7E2C86D1754EE05C7743CAC9FB95D03FF73B21A4B225F39F20B2ADF03F166E37`) |
+| `controller-placeholder.png` | Rendu 1328×884 sur fond transparent du SVG ci-dessus (Edge headless), utilisé par la Tray | `1380F442D6E4B5C0321F0B2CEADF66622ECD76A6893743727CEEC007CCC1C5E3` | Dérivé local de la ligne précédente |
 
 Téléchargement et découpe effectués le 7 octobre 2026 à la demande de l'utilisateur. Aucune modification des tracés conservés.

@@ -1,23 +1,31 @@
 # ApexSenseBridge 1.0.0
 
-Open **ApexSenseBridgeTray.exe**, the main application (system tray, games,
+Open **ApexSenseBridgeTray.exe**, the main application (console interface, system tray, games,
 controller settings and diagnostics). **ApexSenseBridge.exe** is the engine;
 opening it without a command now opens the Tray application. Named commands
 remain available for command-line diagnostics.
 
+The Tray application features a modern console interface with full
+gamepad navigation (D-pad/analog sticks, Cross/A, Circle/B, Options/Menu, bumpers/triggers)
+and keyboard navigation (arrows, Enter, Escape, Ctrl+Tab, Ctrl+F). It automatically
+detects the Windows display language among 9 supported localizations (English, French,
+Spanish, Simplified Chinese, Russian, Korean, Vietnamese, Japanese, Brazilian Portuguese),
+with on-the-fly switching via the language picker.
+
 Each game has an optional executable selector in its details. A configured full
 path takes priority over learned paths and catalogue detection; learned executables
 are offered in that selector too. Leaving it empty preserves automatic detection.
-The diagnostic panel contains the prepared `.exe` launch tool, which waits for
-bridge readiness before starting the game. Its manual session can be stopped from
-the home toggle or tray.
+The home screen features a curated shelf of newly added games with "New" badges
+(for titles added within the last 30 days). The diagnostic panel contains the
+prepared `.exe` launch tool, which waits for bridge readiness before starting the game.
+Its manual session can be stopped from the home toggle or tray.
 
 The home page shows session phase, owner (Tray or Playnite), game, controller,
 profile and refusal/stop reason. Per-model controller-feel settings live in Tray
 preferences: trigger strength (0–100%), grip vibration strength (0–200% on
 APEX 4/5, 0–100% on APEX 6) and audio-haptic threshold (0–95%). They apply on
-the next Tray session; 100% preserves original
-strength and 0% mutes the effect. Standard rumble is not gated by the audio threshold.
+the next Tray session; 100% preserves original strength and 0% mutes the effect.
+Standard rumble is not gated by the audio threshold.
 On APEX 4/5, values above 100% amplify existing rumble and audio-derived grip
 vibrations, saturating at the existing 255 motor-command limit. Gain does not
 restore audio removed by the threshold or alter trigger resistance, timing or
@@ -27,12 +35,13 @@ the engine caps its common strength at 100% after verifying an APEX 6 identity.
 Connect a single supported controller and wait for its verified identity before
 editing hardware settings. Controls lock on disconnect, failed identification
 or ambiguous detection. APEX 4, APEX 5 and APEX 6 profiles are saved separately
-in the existing settings file; the engine selects the matching profile after
+in the settings file; the engine selects the matching profile after
 verifying the actual hardware, not from the last model displayed in the UI.
-Gyro tuning is APEX 4-only, RGB is APEX 5-only, and the APEX 6 haptic threshold
-is fixed at 0. General Tray preferences remain editable without a controller.
-Existing strength/rumble preferences migrate without being reset; subsequent
-edits affect only the selected model. Playnite keeps its independent settings.
+Gyro tuning is APEX 4-only (25–400% sensitivity and separate yaw correction),
+RGB is APEX 5-only, and the APEX 6 haptic threshold is fixed at 0. General Tray
+preferences remain editable without a controller. Existing strength/rumble
+preferences migrate without being reset; subsequent edits affect only the
+selected model. Playnite keeps its independent settings.
 
 After a confirmed runtime disconnection, Tray pauses automatic activation for
 the interrupted session. The home page offers a voluntary **Resume bridge**
@@ -53,26 +62,21 @@ closes; a fresh manual activation can also clear the pause.
 
 ---
 
-## ⚡ Key Highlights in 0.6.3
+## ⚡ Key Highlights in 1.0.0 (Release Candidate)
 
-- **🛡️ Non-destructive uninstall:** ApexSenseBridge never uninstalls USBip,
-  preserves HidHide and user data by default, and requires separate explicit
-  consent plus verified provenance before removing HidHide.
-- **🔐 Verified updates and releases:** All automatic update paths validate the
-  exact official setup asset, version, product and Authenticode publisher. CI
-  blocks inconsistent versions, stale packages, bad checksums and unsigned
-  release payloads.
-- **🛡️ New USBip 0.9.8.0 Kernel Driver:** Upgraded from the vulnerable 0.9.7.7 to the official Microsoft-attestation-signed `OSSign 0.9.8.0 x64` build (upstream commit `83bd1f78`). Fixes the infamous send-spinlock freeze (`DPC_WATCHDOG_VIOLATION 0x133`) and memory corruption bug (`4139f44`).
-- **🎛️ Onboard APEX 5 Profiles (1–4) per Game:** Configure a specific onboard hardware profile (1 to 4) automatically per game in Playnite and the Standalone Tray App. The previous profile is cleanly restored upon exit.
-- **✨ Flydigi Space Station Macro Whitelisting:** Keyboard/mouse shortcuts and standard-button remaps configured in Flydigi Space Station remain available while the physical gamepad is isolated. Rear buttons M1–M4 must be assigned in Space Station; a standard virtual DualSense cannot expose them as four independent buttons.
-- **🎮 Space Station Proxy Isolation:** Temporarily hides the verified GeniTech gamepad bus and any existing or late-created DualSense/XInput proxies while ApexSenseBridge is active, preventing duplicate or frozen controllers in games such as Minecraft with Controlify.
-- **🔒 Safe Tray/Playnite Coexistence:** A session-ownership lock prevents the Tray and Playnite extension from terminating or replacing each other's bridge process. Run one automation owner per game for predictable notifications and lifecycle handling.
-- **🔎 Detection and Touchpad Fixes:** Short titles such as `Control` no longer match utilities such as Controlify, and the standard `View` → touchpad-click path remains immediate during rapid consecutive presses.
-- **📚 More Reliable Executable Learning:** Concurrent game processes are tracked independently, repeated sightings no longer restart the 30-second stability window, elevated executable paths use a restricted Windows query fallback, and validated bindings are flushed during Tray shutdown.
-- **🧰 Installer Verification Fix:** Corrects the registry-key escaping bug that could report a successful USBip installation as failed, then misclassify it as unregistered driver remnants on the next setup run.
-- **🏎️ Integrated Virtual Controller:** Built-in in-process `libVIIPER v0.7.0-asb13` backend with loopback-only communication and measured initialization timings. Startup time depends on the host's USB/audio enumeration.
+- **🎮 Console Interface Refresh:** Complete console-grade interface for the Tray app, controller diagnostic, and language picker. Full gamepad navigation (D-pad/stick, Cross/A, Circle/B, Options/Menu, bumpers/triggers) and keyboard shortcuts (arrows, Enter, Escape, Ctrl+Tab, Ctrl+F).
+- **🌍 9 Supported Languages:** English, French, Spanish, Simplified Chinese, Russian, Korean, Vietnamese, Japanese, and Brazilian Portuguese, with automatic Windows language detection and in-app language switching.
+- **✨ Recently Added Games & 214+ Titles:** The home screen features a curated shelf of newly added games with "New" badges (last 30 days) and date tracking, backed by an automated daily PCGamingWiki sync.
+- **🕹️ Controller-Specific Calibration & Hot-Plug Safety:** Independent calibration profiles for APEX 4, APEX 5, and APEX 6 Pro. Settings controls lock when no supported pad is connected, preventing misconfiguration. Engine selects calibration only after verified hardware identity.
+- **🔊 Grip Vibration Amplification (0–200%):** Conventional grip vibration strength can be boosted up to 200% on APEX 4 and APEX 5 without clipping or affecting trigger resistance.
+- **🎯 APEX 6 Pro Native Voice-Coil Haptics:** Full support for the APEX 6 Pro and official Phantom Blade Zero `0x98` variant. Features synchronized 1 kHz trigger carrier clocks, native Bow effect `0x22`, preserved quiet native PCM, and experimental companding gain (`--apex6-haptic-gain 100..200`).
+- **🧭 APEX 4 Native Gyroscope Decoding:** Direct 16-bit hardware gyro parsing with customizable sensitivity (25–400%) and independent yaw correction slider.
+- **🛡️ Intelligent HidHide Diagnostics:** Diagnoses access conflicts when DSX, DS4Windows, or BetterJoy hold the HidHide driver open and explicitly lists conflicting processes.
+- **🕹️ Death Stranding 2 Touchpad Remapping:** Dedicated profile mapping `View/Back` to right-touchpad click (Likes, Communication) and `LB + Menu` to left-touchpad click (Photo Mode).
+- **🛡️ Guided Disconnection Recovery & Zombie Reaper:** Automatic bridge recovery guidance on controller disconnect or sleep, plus automatic orphan child process termination on startup timeout.
+- **🏎️ Built-In libVIIPER v0.7.0 Backend & Kernel USBip 0.9.8.0:** Attestation-signed Microsoft kernel driver with loopback-only communication and measured sub-2 ms report forwarding.
 
-See the [complete 0.6.3 release notes](RELEASE_NOTES_0.6.3.md) for upgrade
+See the [complete 1.0.0 release notes](RELEASE_NOTES_1.0.0.md) for upgrade
 instructions, compatibility notes and validation details.
 
 ---
@@ -81,9 +85,9 @@ instructions, compatibility notes and validation details.
 
 | Controller | Connection Modes | Hardware Verification Status | Special Features |
 |---|---|---|---|
-| **Flydigi APEX 6 Pro** | 2.4 GHz Dongle (hardware tested) / Wired USB | ⚠️ Initial hardware validation in progress | Realtime stream, independent grip voice coils, multiplexed LT/RT vibration motors, native DualSense haptic waveform |
-| **Flydigi APEX 5** | 2.4 GHz Dongle / Wired USB | ✅ Fully Verified in Hardware & Gameplay | Full FORCEADAPT Trigger Resistance, Audio Haptics, Grip Rumble, Onboard Profiles 1–4 switching |
-| **Flydigi APEX 4** | 2.4 GHz Dongle / Wired USB (DInput) | ✅ Fully Verified in Hardware & Gameplay | 32-byte direct vendor input (MI_02), FORCEADAPT Resistance, Grip Rumble, HidHide double-input isolation |
+| **Flydigi APEX 6 Pro** | 2.4 GHz Dongle / Wired USB | ✅ Verified in Hardware (Standard & PBZ `0x98`) | Four voice-coil actuators, native DualSense PCM haptics & companding gain, synchronized trigger carriers, native Bow `0x22` |
+| **Flydigi APEX 5** | 2.4 GHz Dongle / Wired USB | ✅ Fully Verified in Hardware & Gameplay | Full FORCEADAPT Trigger Resistance, Audio Haptics, 0–200% Grip Rumble Gain, Onboard Profiles 1–4 switching |
+| **Flydigi APEX 4** | 2.4 GHz Dongle / Wired USB (DInput) | ✅ Fully Verified in Hardware & Gameplay | Direct 16-bit Native Gyroscope with 25–400% sensitivity & yaw correction, FORCEADAPT Resistance, 0–200% Grip Rumble Gain, 32-byte/64-byte interface auto-detection |
 
 ---
 
@@ -99,7 +103,7 @@ Tested extensively with confirmed Adaptive Triggers, Haptics, and gestures:
 - **Marvel's Spider-Man: Miles Morales:** venom charge triggers, web-swing tension, and FNSM gestures.
 - **Warframe:** instant ability swipe gestures and dynamic weapon trigger resistance.
 
-### 📚 206+ Automatically Detected DualSense Games
+### 📚 214+ Automatically Detected DualSense Games
 Continuously synced with [PCGamingWiki](https://www.pcgamingwiki.com/) for native PlayStation 5 DualSense features. The Standalone Tray App and Playnite extension automatically recognize and engage the bridge when any supported title launches.
 
 ---
@@ -145,12 +149,9 @@ a separate prompt controls their deletion. Silent uninstall preserves all
 drivers and data unless `/REMOVEUSERDATA` is explicitly supplied for data only.
 
 > [!IMPORTANT]
-> **Upgrading from 0.9.7.x:** If you have an older USBip package installed, uninstall it in Windows Settings (*Installed Apps*), restart Windows, and then run setup. This avoids the known upstream installer hang on *"Uninstalling USBip..."*.
+> **Upgrading from older USBip versions (0.9.7.x):** If you have an older USBip package installed, uninstall it in Windows Settings (*Installed Apps*), restart Windows, and then run setup. This avoids the known upstream installer hang on *"Uninstalling USBip..."*.
 >
-> Versions 0.6.0 and 0.6.1 could falsely report that USBip failed even when
-> `usbip-install.log` recorded success. This verification bug is fixed in
-> 0.6.3. Do not repeatedly run the older installer or remove driver packages
-> manually with `pnputil`.
+> Do not repeatedly run older installers or remove driver packages manually with `pnputil`.
 
 ### Option B: Portable Package
 1. Download **`ApexSenseBridge-Portable.zip`**.
@@ -164,16 +165,16 @@ drivers and data unless `/REMOVEUSERDATA` is explicitly supplied for data only.
 
 ### 1. Standalone System Tray App (Steam, Epic, EA, Game Pass, etc.)
 - Launch **`ApexSenseBridgeTray.exe`** (or enable *Launch at Windows startup*).
-- Sits silently in the System Tray.
-- **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 206+ supported games start.
+- Sits silently in the System Tray with a modern console-style interface.
+- **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 214+ supported games start.
 - **Dynamic Executable Learning:** Detects renamed, modded, elevated or multi-process game executables after 30 seconds of a stable automatically detected session while filtering out game launchers (Steam, Epic, EA, Ubisoft). Force Continuous Activation alone cannot identify which game should own an executable.
 - **Dashboard & Per-Game Profiles:** Right-click the Tray icon to open the game list, force a specific profile, or assign a dedicated APEX 5 hardware slot (1–4) for each game.
 
 ### 2. Playnite Integration
 - Seamlessly integrated with Playnite Desktop and Fullscreen modes.
 - Game launches automatically initiate the bridge, isolate the physical pad, and apply profile mappings.
-- Right-click any game in Playnite > **ApexSenseBridge** to customize trigger remapping, touchpad gesture profiles, or onboard APEX 5 hardware slots.
-- Do not run the Tray and Playnite automation for the same game. Version 0.6.2 protects the active session from being killed, but selecting one owner avoids duplicate notifications and ambiguous start/stop events.
+- Right-click any game in Playnite > **ApexSenseBridge** to customize trigger remapping, touchpad gesture profiles, onboard APEX 5 hardware slots, or 0–200% grip rumble gain.
+- Do not run the Tray and Playnite automation for the same game. ApexSenseBridge protects the active session from being killed, but selecting one owner avoids duplicate notifications and ambiguous start/stop events.
 
 ---
 
@@ -197,7 +198,6 @@ The left-side Photo Mode gesture is documented in the
 [PlayStation guide](https://www.playstation.com/en-id/games/death-stranding-2-on-the-beach/death-stranding-2-on-the-beach-guide/);
 the Xbox `LB + Menu` shortcut is corroborated by
 [players on Steam](https://steamcommunity.com/app/3280350/discussions/1/809097865497552734/).
-This profile still needs in-game validation.
 
 Rear buttons M1–M4 are not independent controls in a standard DualSense input
 report. Assign them to standard controller buttons or keyboard/mouse inputs in

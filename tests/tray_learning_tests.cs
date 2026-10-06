@@ -47,6 +47,7 @@ internal static class TrayLearningTests
             TestShortGameNamesCannotFuzzyMatchUnrelatedProcesses();
             TestDatabaseExecutableMissPerformance();
             TestGeneratedDatabaseExecutableCoverage();
+            TestCatalogAddedDates();
             TestActivationPolicyStillAppliesAfterLearning();
             TestManualFixGamesPreservePhysicalInput();
             TestPerGameApexProfileSettings();
@@ -1248,6 +1249,29 @@ internal static class TrayLearningTests
                    out resolved) &&
                resolved != null && resolved.Title == "Call of Duty",
             "The shared Call of Duty HQ executable was not detected.");
+    }
+
+    // Issue #29: "addedAt" drives the "Recently added" home shelf.
+    private static void TestCatalogAddedDates()
+    {
+        var gameList = CreateGameList("{\"games\":[" +
+            "{\"title\":\"Dated\",\"normalized\":\"dated\",\"adaptiveTriggers\":true,\"addedAt\":\"2026-09-29\"}," +
+            "{\"title\":\"Undated\",\"normalized\":\"undated\",\"hapticFeedback\":true}," +
+            "{\"title\":\"Bad Date\",\"normalized\":\"baddate\",\"hapticFeedback\":true,\"addedAt\":\"2026-02-30\"}," +
+            "{\"title\":\"Timestamp\",\"normalized\":\"timestamp\",\"hapticFeedback\":true,\"addedAt\":\"2026-09-29T10:00:00Z\"}]}");
+        var games = gameList.GetAllGames().ToDictionary(game => game.Normalized);
+        Assert(games["dated"].AddedAt == new DateTime(2026, 9, 29), "A valid catalogue addedAt date was not parsed.");
+        Assert(games["dated"].AddedAt.Value.Kind == DateTimeKind.Utc, "addedAt must be a UTC calendar date.");
+        Assert(games["undated"].AddedAt == null, "A game without addedAt must stay undated.");
+        Assert(games["baddate"].AddedAt == null, "An impossible addedAt date was accepted.");
+        Assert(games["timestamp"].AddedAt == null, "Only plain YYYY-MM-DD addedAt values are accepted.");
+
+        var databasePath = Path.GetFullPath(Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "data", "supported_games.json"));
+        var generated = CreateGameList(File.ReadAllText(databasePath, Encoding.UTF8)).GetAllGames();
+        Assert(generated.All(game => game.AddedAt.HasValue), "Every generated catalogue entry should carry addedAt.");
+        Assert(generated.Any(game => game.AddedAt.Value > generated.Min(other => other.AddedAt.Value)),
+            "The generated catalogue lost its post-import additions.");
     }
 
     private static CloudGameListService CreateGameList()

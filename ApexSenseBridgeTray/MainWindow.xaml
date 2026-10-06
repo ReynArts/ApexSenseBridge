@@ -495,7 +495,7 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock x:Name="TxtDatabaseInfo" Text="—" FontSize="13" FontWeight="SemiBold"
+                                <TextBlock x:Name="TxtDatabaseInfo" Text="…" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                             </StackPanel>
 

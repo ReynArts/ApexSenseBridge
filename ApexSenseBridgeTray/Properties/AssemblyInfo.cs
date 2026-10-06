@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 
-[assembly: AssemblyTitle("ApexSenseBridge — Main application (Tray)")]
+[assembly: AssemblyTitle("ApexSenseBridge Tray")]
 [assembly: AssemblyDescription("Main application: game detection, controller settings and diagnostics for Flydigi APEX 4/5/6")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("ReynArts")]
@@ -19,4 +19,4 @@ using System.Windows;
 
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-[assembly: AssemblyInformationalVersion("1.0.0-beta.11")]
+[assembly: AssemblyInformationalVersion("1.0.0-rc.1")]

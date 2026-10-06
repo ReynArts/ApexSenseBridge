@@ -219,6 +219,16 @@ namespace ApexSenseBridgeTray.Common
             IsGamepadActive = false;
         }
 
+        /// <summary>
+        /// Keyboard arrows drive the same focus model as the gamepad: switch to focus mode and
+        /// treat the key press as recent activity so a tiny mouse jitter does not cancel it.
+        /// </summary>
+        public void NotifyKeyboardNavigation()
+        {
+            lastGamepadActivityUtc = DateTime.UtcNow;
+            IsGamepadActive = true;
+        }
+
         public void Start()
         {
             if (!pollTimer.IsEnabled) pollTimer.Start();

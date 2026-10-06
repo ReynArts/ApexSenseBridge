@@ -189,6 +189,59 @@ class DiscordExecutableTests(unittest.TestCase):
         self.assertEqual(("no_match", 0, ""), (status, app_id, icon))
 
 
+class AddedDateTests(unittest.TestCase):
+    TODAY = "2026-10-07"
+
+    def test_known_games_keep_their_first_catalogue_date(self):
+        games = [{"normalized": "known", "addedAt": "1999-01-01", "title": "Known"}]
+        cache = {"known": {"normalized": "known", "addedAt": "2026-09-11"}}
+
+        new_games = UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertEqual(0, new_games)
+        self.assertEqual("2026-09-11", games[0]["addedAt"])
+
+    def test_only_games_absent_from_previous_catalogue_are_dated_today(self):
+        games = [{"normalized": "known"}, {"normalized": "fresh"}]
+        cache = {"known": {"normalized": "known", "addedAt": "2026-09-01"}}
+
+        new_games = UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertEqual(1, new_games)
+        self.assertEqual("2026-09-01", games[0]["addedAt"])
+        self.assertEqual(self.TODAY, games[1]["addedAt"])
+
+    def test_known_games_without_valid_date_are_never_relabelled_as_new(self):
+        games = [{"normalized": "legacy"}, {"normalized": "broken"}]
+        cache = {"legacy": {"normalized": "legacy"}, "broken": {"addedAt": "2026-13-45"}}
+
+        UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertNotIn("addedAt", games[0])
+        self.assertNotIn("addedAt", games[1])
+
+    def test_missing_previous_catalogue_does_not_mark_everything_new(self):
+        games = [{"normalized": "first"}, {"normalized": "second"}]
+
+        new_games = UPDATER.assign_added_dates(games, {}, self.TODAY)
+
+        self.assertEqual(0, new_games)
+        self.assertTrue(all("addedAt" not in game for game in games))
+
+    def test_added_date_is_written_last_for_stable_files(self):
+        games = [{"addedAt": "2026-09-01", "normalized": "known", "title": "Known", "executables": ["a.exe"]}]
+        cache = {"known": {"addedAt": "2026-09-01"}}
+
+        UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertEqual("addedAt", list(games[0])[-1])
+
+    def test_added_date_format_validation(self):
+        self.assertTrue(UPDATER.is_valid_added_date("2026-09-30"))
+        for value in ("2026-9-30", "2026-09-31", "2026-09-30T00:00:00", "", None, 20260930):
+            self.assertFalse(UPDATER.is_valid_added_date(value), value)
+
+
 class _FakeResponse:
     def __init__(self, payload):
         self.payload = json.dumps(payload).encode("utf-8")

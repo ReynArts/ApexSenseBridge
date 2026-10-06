@@ -68,6 +68,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Themes\ConsoleTheme.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="BugReportWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -135,6 +139,8 @@
     <Compile Include="Common\AppLog.cs" />
     <Compile Include="Common\ThemeManager.cs" />
     <Compile Include="Common\GamepadNavigationService.cs" />
+    <Compile Include="Common\FocusRingAdorner.cs" />
+    <Compile Include="Common\LanguageCatalog.cs" />
     <Compile Include="Common\LocalizationManager.cs" />
     <Compile Include="Common\VirtualKeyboardService.cs" />
     <Compile Include="Common\CoverCacheService.cs" />
@@ -160,6 +166,11 @@
     <EmbeddedResource Include="Resources\Languages\en.json" />
     <EmbeddedResource Include="Resources\Languages\es.json" />
     <EmbeddedResource Include="Resources\Languages\fr.json" />
+    <EmbeddedResource Include="Resources\Languages\ja.json" />
+    <EmbeddedResource Include="Resources\Languages\ko.json" />
+    <EmbeddedResource Include="Resources\Languages\pt.json" />
+    <EmbeddedResource Include="Resources\Languages\ru.json" />
+    <EmbeddedResource Include="Resources\Languages\vi.json" />
     <EmbeddedResource Include="Resources\Languages\zh.json" />
   </ItemGroup>
   <ItemGroup>
