@@ -52,6 +52,8 @@ internal static class TrayLearningTests
             TestPerGameApexProfileSettings();
             TestManualBridgeModeIsNotPersisted();
             TestSharedBridgeArguments();
+            TestControllerCalibrations();
+            TestControllerCalibrationDetection();
             TestGameExecutableSettings();
             TestSessionStatusDiscovery();
             TestRecoveryPolicy();
@@ -629,6 +631,137 @@ internal static class TrayLearningTests
         Assert(BridgeArguments.Build("none", true, 20, false, 0, 35, 60, 175, 225).Contains(
             "--trigger-strength 35 --vibration-strength 60 --apex4-gyro-strength 175 --apex4-gyro-yaw-strength 225"),
             "Strength values did not reach engine arguments.");
+        Assert(BridgeArguments.Build("none", true, 12, false, 0, 100, 150).Contains("--vibration-strength 150"),
+            "Vibration amplification was clamped before reaching the engine.");
+        Assert(BridgeArguments.Build("none", true, 12, false, 0, 100, 999).Contains("--vibration-strength 200"),
+            "Vibration amplification was not bounded.");
+    }
+
+    private static void TestControllerCalibrations()
+    {
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var settings = serializer.Deserialize<TraySettings>(
+            "{\"TriggerStrengthPercent\":35,\"VibrationStrengthPercent\":60,\"HapticThresholdPercent\":24," +
+            "\"EnableRumble\":false,\"SyncLightbar\":true,\"Apex4GyroStrengthPercent\":175,\"Apex4GyroYawStrengthPercent\":225}");
+        foreach (var status in new[] { null, "", "disconnected", "unavailable", "unsupported", "APEX5" })
+            Assert(settings.GetControllerCalibration(status) == null, "An unverified model unlocked calibration.");
+        var a4 = settings.GetControllerCalibration("apex4");
+        var a5 = settings.GetControllerCalibration("apex5");
+        var a6 = settings.GetControllerCalibration("apex6");
+        Assert(a4.TriggerStrengthPercent == 35 && a5.VibrationStrengthPercent == 60 && !a6.EnableRumble,
+            "Migration lost existing common preferences.");
+        Assert(a4.HapticThresholdPercent == 24 && a5.HapticThresholdPercent == 24 && a6.HapticThresholdPercent == 0,
+            "Threshold migration crossed the APEX 6 hardware boundary.");
+        Assert(!a4.SyncLightbar && a5.SyncLightbar && !a6.SyncLightbar,
+            "RGB leaked to an unsupported controller.");
+        Assert(a4.GyroStrengthPercent == 175 && a4.GyroYawStrengthPercent == 225 &&
+            a5.GyroStrengthPercent == 100 && a6.GyroYawStrengthPercent == 100, "Gyro tuning crossed model boundary.");
+        a6.TriggerStrengthPercent = 80;
+        a6.VibrationStrengthPercent = 90;
+        a6.EnableRumble = true;
+        Assert(a4.TriggerStrengthPercent == 35 && a5.VibrationStrengthPercent == 60 &&
+            settings.TriggerStrengthPercent == 35, "Editing APEX 6 changed another profile or migration source.");
+        var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(restored.GetControllerCalibration("apex6").TriggerStrengthPercent == 80 &&
+            restored.GetControllerCalibration("apex5").TriggerStrengthPercent == 35, "Per-model tuning did not survive serialization.");
+        a4.TriggerStrengthPercent = -10;
+        a4.GyroStrengthPercent = 900;
+        a5.VibrationStrengthPercent = 999;
+        a6.HapticThresholdPercent = 95;
+        var arguments = settings.BuildControllerCalibrationArguments();
+        Assert(arguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225") &&
+            arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100") &&
+            arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100"),
+            "Controller profiles were not bounded/serialized to the native protocol.");
+        a4.VibrationStrengthPercent = 150;
+        a5.VibrationStrengthPercent = 175;
+        a6.VibrationStrengthPercent = 200;
+        settings.BuildControllerCalibrationArguments();
+        Assert(a4.VibrationStrengthPercent == 150 && a5.VibrationStrengthPercent == 175 &&
+            a6.VibrationStrengthPercent == 100, "Conventional-motor amplification crossed the APEX 6 boundary.");
+        restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(restored.GetControllerCalibration("apex4").VibrationStrengthPercent == 150 &&
+            restored.GetControllerCalibration("apex5").VibrationStrengthPercent == 175,
+            "Model-specific amplification did not survive persistence.");
+        arguments = settings.BuildControllerCalibrationArguments();
+        var builder = typeof(EngineSessionManager).GetMethod("BuildArguments", BindingFlags.Static | BindingFlags.NonPublic);
+        var sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3 });
+        Assert(sessionArguments.EndsWith(arguments, StringComparison.Ordinal) &&
+            !sessionArguments.Contains("--sync-lightbar") && !sessionArguments.Contains("--haptic-threshold"),
+            "Session launch used legacy global tuning instead of verified-model selection.");
+        Assert(ControllerDetectionService.ParseVerifiedModel("Verified: Apex 4 (k4)") == "apex4" &&
+            ControllerDetectionService.ParseVerifiedModel("Verified: Apex 5 (k5)") == "apex5" &&
+            ControllerDetectionService.ParseVerifiedModel("Verified: Apex 6 Pro (k6)") == "apex6",
+            "Verified controller identities did not map to their profiles.");
+        Assert(ControllerDetectionService.ParseVerifiedModel("Product: Apex 6 Pro") == "unsupported",
+            "An unverified marketing name unlocked calibration.");
+        string candidate;
+        Assert(ControllerDetectionService.ParseCandidate("Found 2 candidate(s):\n[0] Apex 5\n[1] Apex 6", out candidate) == "unavailable" && candidate == "",
+            "Multiple controller interfaces were accepted for calibration.");
+        Assert(ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\n[0] Apex 5\nPath A", out candidate) == null,
+            "A unique candidate was rejected.");
+        var first = candidate;
+        ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\n[0] Apex 5\nPath B", out candidate);
+        Assert(candidate != first, "Hot swap of the vendor path left a stale identity fingerprint.");
+        Assert(ControllerDetectionService.ParseActiveModel(new BridgeSession.SessionInfo
+            { Phase = SessionPhase.Ready, Controller = "Apex 6 Pro (k6)" }) == "apex6",
+            "The active engine's verified model was not reused without a competing HID reader.");
+        foreach (var phase in new[] { SessionPhase.Starting, SessionPhase.Failed, SessionPhase.Stopped })
+            Assert(ControllerDetectionService.ParseActiveModel(new BridgeSession.SessionInfo
+                { Phase = phase, Controller = "Apex 5 (k5)" }) == "unavailable",
+                "A stale controller identity survived an inactive session phase.");
+    }
+
+    private static void TestControllerCalibrationDetection()
+    {
+        string candidate = "path-a", candidateState = null, model = "apex5", lastPublished = null;
+        int identityReads = 0;
+        bool owner = false, changeDuringIdentification = false;
+        BridgeSession.SessionInfo active = null;
+        var detector = new ControllerDetectionService(
+            delegate(out string fingerprint) { fingerprint = candidate; return candidateState; },
+            () => { identityReads++; if (changeDuringIdentification) candidate = "path-c"; return model; },
+            () => active, () => owner, false);
+        detector.StatusChanged += status => lastPublished = status;
+        try
+        {
+            detector.Scan(null);
+            Assert(lastPublished == "apex5" && identityReads == 1, "First connection was not verified.");
+            model = "unavailable"; // Sleeping controller; receiver stays enumerated.
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable" && identityReads == 2, "Unchanged dongle kept a stale connected controller.");
+            candidate = "path-b"; model = "apex6";
+            detector.Scan(null);
+            Assert(lastPublished == "apex6", "Replacing the controller retained another model.");
+            active = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Controller = "Apex 6 Pro (k6)" };
+            var reads = identityReads;
+            detector.Scan(null);
+            Assert(identityReads == reads && lastPublished == "apex6", "An active session gained a competing HID identity reader.");
+            active.Phase = SessionPhase.Failed;
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable" && identityReads == reads, "A failed session unlocked a stale model.");
+            active = null; owner = true;
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable" && identityReads == reads, "An uninspectable owned engine triggered hardware identification.");
+            owner = false;
+            detector.Scan(null);
+            Assert(lastPublished == "apex6" && identityReads == reads + 1, "Stopping a session did not reverify the hardware.");
+            candidateState = "unavailable";
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable", "Ambiguous controller enumeration unlocked calibration.");
+            candidateState = null; changeDuringIdentification = true;
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable", "A mid-identification hot swap published the wrong model.");
+            candidateState = "disconnected";
+            detector.Scan(null);
+            Assert(lastPublished == "disconnected", "Disconnect failed to lock calibration.");
+            detector.Dispose();
+            candidateState = null;
+            reads = identityReads;
+            detector.Scan(null);
+            Assert(identityReads == reads && lastPublished == "disconnected", "A disposed detector published stale identity.");
+        }
+        finally { detector.Dispose(); }
     }
 
     private static int RunFakeSession(string[] args)

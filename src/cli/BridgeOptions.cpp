@@ -3,6 +3,7 @@
 #include "flydigi/Apex5Protocol.h"
 #include "platform/SessionControl.h"
 
+#include <algorithm>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
@@ -41,7 +42,8 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 try {
                     const auto parsed = std::stoul(token);
                     const unsigned minimum = field >= 5 ? 25 : 0;
-                    const unsigned maximum = field >= 5 ? 400 : field >= 3 ? 1 : field == 2 ? 95 : 100;
+                    const unsigned maximum = field >= 5 ? 400 : field >= 3 ? 1 : field == 2 ? 95 :
+                        field == 1 && index != 2 ? 200 : 100;
                     if (parsed < minimum || parsed > maximum) return false;
                     fields[field] = static_cast<unsigned>(parsed);
                 } catch (...) { return false; }
@@ -118,18 +120,21 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 return false;
             }
         } else if (value == "--trigger-strength" || value == "--vibration-strength") {
+            const unsigned maximum = value == "--vibration-strength" ? 200 : 100;
+            const auto rangeError = std::string(value) + " requires an integer percentage from 0 to " +
+                                    std::to_string(maximum) + ".";
             if (++i >= argc) {
-                error = std::string(value) + " requires an integer percentage from 0 to 100.";
+                error = rangeError;
                 return false;
             }
             try {
                 std::size_t consumed = 0;
                 const auto parsed = std::stoul(argv[i], &consumed);
-                if (consumed != std::string_view(argv[i]).size() || parsed > 100 || argv[i][0] == '-')
+                if (consumed != std::string_view(argv[i]).size() || parsed > maximum || argv[i][0] == '-')
                     throw std::out_of_range("strength");
                 (value == "--trigger-strength" ? options.triggerStrengthPercent : options.vibrationStrengthPercent) = static_cast<unsigned>(parsed);
             } catch (...) {
-                error = std::string(value) + " requires an integer percentage from 0 to 100.";
+                error = rangeError;
                 return false;
             }
         } else if (value == "--apex6-haptic-gain") {
@@ -291,7 +296,7 @@ std::string_view bridgeCommandUsage() noexcept {
            "[--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
            "[--sync-lightbar] [--haptic-threshold 0..95] "
-           "[--trigger-strength 0..100] [--vibration-strength 0..100] "
+           "[--trigger-strength 0..100] [--vibration-strength 0..200] "
            "[--apex6-haptic-gain 100..200] "
            "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW] "
            "[--apex4-gyro-strength 25..400] "
@@ -305,7 +310,12 @@ bool applyControllerCalibration(BridgeCommandOptions& options,
                                 std::string_view verifiedModel, std::string& error) {
     const bool supplied = options.controllerCalibrations[0] || options.controllerCalibrations[1] ||
                           options.controllerCalibrations[2];
-    if (!supplied) return true; // Existing CLI / Playnite contract unchanged.
+    if (!supplied) {
+        // The conventional APEX 4/5 boost must not change the APEX 6 PCM path.
+        if (verifiedModel == "apex6") options.vibrationStrengthPercent =
+            (std::min)(options.vibrationStrengthPercent, 100U);
+        return true;
+    }
     const int index = verifiedModel == "apex4" ? 0 : verifiedModel == "apex5" ? 1 :
                       verifiedModel == "apex6" ? 2 : -1;
     if (index < 0 || !options.controllerCalibrations[index]) {

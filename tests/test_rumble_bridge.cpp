@@ -4,6 +4,8 @@
 
 #include "dualsense/RumbleBridge.h"
 #include "dualsense/LightbarBridge.h"
+#include "dualsense/AdaptiveTriggerBridge.h"
+#include "dualsense/EffectStrength.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Protocol.h"
 
@@ -157,7 +159,101 @@ private:
 
 } // namespace
 
+void testRumbleGain() {
+    using namespace asb::dualsense;
+    for (unsigned percent : {0U, 50U, 100U, 125U, 150U, 200U, 201U, ~0U}) {
+        unsigned previous = 0;
+        for (unsigned value = 0; value <= 255; ++value) {
+            const auto actual = scaleRumbleStrength(static_cast<std::uint8_t>(value), percent);
+            const auto expected = (std::min)(255U, value * (std::min)(percent, 200U) / 100U);
+            assert(actual == expected);
+            assert(actual >= previous);
+            if (percent <= 100) assert(actual == scaleEffectStrength(static_cast<std::uint8_t>(value), percent));
+            previous = actual;
+        }
+    }
+    auto* transport = new FakeTransport();
+    asb::flydigi::Apex5Device device{asb::flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    RumbleBridge rumble(device, {}, 150);
+    DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x01;
+    feedback.rumbleLeft = 100;
+    feedback.rumbleRight = 200;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 150);
+    assert(transport->writes.back()[6] == 255);
+    feedback.rumbleLeft = feedback.rumbleRight = 0;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 0 && transport->writes.back()[6] == 0);
+    feedback.kind = FeedbackKind::AudioHaptics;
+    feedback.leftEnergy = feedback.leftPeak = feedback.leftTransient = 65535;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 255 && transport->writes.back()[6] == 0);
+    feedback.leftEnergy = feedback.leftPeak = feedback.leftTransient = 0;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 0 && transport->writes.back()[6] == 0);
+}
+
+void testThresholdAndTriggerIndependence() {
+    using namespace asb::dualsense;
+    std::vector<std::vector<std::uint8_t>> baseline;
+    for (double threshold : {0.0, 0.95}) {
+        auto* transport = new FakeTransport();
+        asb::flydigi::Apex5Device device{asb::flydigi::TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        asb::haptics::HapticConfig config{};
+        config.activationThreshold = threshold;
+        RumbleBridge rumble(device, config, 150);
+        AdaptiveTriggerBridge triggers(device, 100);
+        const std::array<std::array<std::uint8_t, 11>, 6> effects = {{
+            {1, 25, 40}, {2, 25, 90, 60}, {0x21, 0xFF, 0x03},
+            {0x25, 0x84, 0, 3}, {0x26, 0xFF, 0x03, 0, 0, 0, 0, 0, 0, 35}, {5}
+        }};
+        std::vector<std::vector<std::uint8_t>> sentTriggers;
+        for (const auto& effect : effects) {
+            DualSenseFeedback hid{};
+            hid.enableBits1 = 0x0C;
+            hid.leftTriggerEffect = hid.rightTriggerEffect = effect;
+            triggers.handle(hid);
+            rumble.handle(hid);
+            DualSenseFeedback audio{};
+            audio.kind = FeedbackKind::AudioHaptics;
+            audio.leftEnergy = audio.rightEnergy = 10000;
+            audio.leftPeak = audio.rightPeak = 20000;
+            audio.leftTransient = audio.rightTransient = 8000;
+            triggers.handle(audio);
+            rumble.handle(audio);
+        }
+        for (const auto& report : transport->writes) {
+            if (report[3] == asb::flydigi::kCmdSetForceTrigger) sentTriggers.push_back(report);
+        }
+        assert(sentTriggers.size() == effects.size() * 2);
+        assert(triggers.stats().writeFailures == 0);
+        if (threshold == 0.0) {
+            assert(rumble.stats().lastLowFrequency > 0);
+            baseline = sentTriggers;
+        } else {
+            assert(rumble.stats().lastLowFrequency == 0);
+            assert(sentTriggers == baseline);
+        }
+        // Threshold never gates conventional game rumble, even at 95%.
+        DualSenseFeedback hid{};
+        hid.enableBits1 = 0x01;
+        hid.rumbleLeft = 100;
+        hid.rumbleRight = 200;
+        rumble.handle(hid);
+        assert(transport->writes.back()[5] == 150 && transport->writes.back()[6] == 255);
+        assert(triggers.stats().lastLeftCommand->mode == asb::TriggerMode::Normal);
+        assert(triggers.stats().lastRightCommand->mode == asb::TriggerMode::Normal);
+    }
+}
+
 int main() {
+    testRumbleGain();
+    testThresholdAndTriggerIndependence();
     using namespace asb::dualsense;
 
     auto* transport = new FakeTransport();

@@ -52,6 +52,16 @@ paramètres de l'extension.
 
 ## Compilation
 
+La force des vibrations des poignées est réglable de 0 à 200 % dans les
+paramètres de l'extension, avec 100 % par défaut. Au-delà de 100 %, le moteur
+amplifie uniquement les vibrations conventionnelles APEX 4/5, sans dépasser
+la commande moteur 255. Sur APEX 6, ce réglage commun reste plafonné à 100 %.
+Le seuil haptique et la résistance des gâchettes restent indépendants ; le gain
+ne restaure pas l'audio filtré par le seuil. L'intensité sauvegardée dans Space
+Station reste influente. Commencer par une augmentation modérée et relancer
+la session pour appliquer le réglage. Aucun gain automatique ou par jeu n'est
+ajouté.
+
 Le projet cible .NET Framework 4.6.2 et Playnite SDK 6.16. Depuis la racine du dépôt :
 
 ```powershell

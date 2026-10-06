@@ -13,10 +13,26 @@ bridge readiness before starting the game. Its manual session can be stopped fro
 the home toggle or tray.
 
 The home page shows session phase, owner (Tray or Playnite), game, controller,
-profile and refusal/stop reason. Global controller-feel settings live in Tray
-preferences: trigger strength, vibration strength (0–100%) and audio-haptic
-threshold (0–95%). They apply on the next Tray session; 100% preserves original
+profile and refusal/stop reason. Per-model controller-feel settings live in Tray
+preferences: trigger strength (0–100%), grip vibration strength (0–200% on
+APEX 4/5, 0–100% on APEX 6) and audio-haptic threshold (0–95%). They apply on
+the next Tray session; 100% preserves original
 strength and 0% mutes the effect. Standard rumble is not gated by the audio threshold.
+On APEX 4/5, values above 100% amplify existing rumble and audio-derived grip
+vibrations, saturating at the existing 255 motor-command limit. Gain does not
+restore audio removed by the threshold or alter trigger resistance, timing or
+frequency. Start with a modest increase; Space Station's saved motor intensity
+still influences the result. Playnite exposes the same grip-strength setting;
+the engine caps its common strength at 100% after verifying an APEX 6 identity.
+Connect a single supported controller and wait for its verified identity before
+editing hardware settings. Controls lock on disconnect, failed identification
+or ambiguous detection. APEX 4, APEX 5 and APEX 6 profiles are saved separately
+in the existing settings file; the engine selects the matching profile after
+verifying the actual hardware, not from the last model displayed in the UI.
+Gyro tuning is APEX 4-only, RGB is APEX 5-only, and the APEX 6 haptic threshold
+is fixed at 0. General Tray preferences remain editable without a controller.
+Existing strength/rumble preferences migrate without being reset; subsequent
+edits affect only the selected model. Playnite keeps its independent settings.
 
 After a confirmed runtime disconnection, Tray pauses automatic activation for
 the interrupted session. The home page offers a voluntary **Resume bridge**

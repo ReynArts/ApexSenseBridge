@@ -97,9 +97,15 @@
             <!-- Rumble Settings -->
             <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,4,12,10"
                        VerticalAlignment="Center" Text="Vibrations" />
-            <CheckBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10"
-                      IsChecked="{Binding Settings.EnableRumble}"
-                      Content="Activer les vibrations des poignées et l'haptique audio" />
+            <StackPanel Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10">
+                <CheckBox IsChecked="{Binding Settings.EnableRumble}"
+                          Content="Activer les vibrations des poignées et l'haptique audio" />
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="Force (%)" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox x:Name="TxtVibrationStrength" Width="60" Text="{Binding Settings.VibrationStrengthPercent, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="APEX 4/5 : 0–200 %, 100 % par défaut ; APEX 6 limité à 100 %. La résistance des gâchettes et le seuil restent indépendants. Commencer par une hausse modérée ; l'intensité Space Station reste influente." />
+                </StackPanel>
+            </StackPanel>
 
             <!-- Lightbar Settings -->
             <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,4,12,10"

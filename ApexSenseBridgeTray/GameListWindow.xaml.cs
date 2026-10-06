@@ -1760,6 +1760,7 @@ namespace ApexSenseBridgeTray
             var displayed = calibration ?? new ControllerCalibration();
             updatingEffectSettings = true;
             SliderTriggerStrength.Value = displayed.TriggerStrengthPercent;
+            SliderVibrationStrength.Maximum = lastControllerStatus == "apex4" || lastControllerStatus == "apex5" ? 200 : 100;
             SliderVibrationStrength.Value = displayed.VibrationStrengthPercent;
             SliderApex4GyroStrength.Value = displayed.GyroStrengthPercent;
             SliderApex4GyroYawStrength.Value = displayed.GyroYawStrengthPercent;

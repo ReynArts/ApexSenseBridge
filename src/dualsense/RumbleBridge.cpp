@@ -91,8 +91,8 @@ void RumbleBridge::handle(const DualSenseFeedback& feedback) {
 
 RumbleLevels RumbleBridge::mixedLevelsLocked() const noexcept {
     return {
-        scaleEffectStrength((std::max)(standard_.lowFrequency, audio_.lowFrequency), strengthPercent_),
-        scaleEffectStrength((std::max)(standard_.highFrequency, audio_.highFrequency), strengthPercent_),
+        scaleRumbleStrength((std::max)(standard_.lowFrequency, audio_.lowFrequency), strengthPercent_),
+        scaleRumbleStrength((std::max)(standard_.highFrequency, audio_.highFrequency), strengthPercent_),
     };
 }
 

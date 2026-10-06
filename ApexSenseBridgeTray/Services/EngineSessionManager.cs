@@ -354,7 +354,7 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
-        private static bool IsExternalSessionActive()
+        internal static bool IsExternalSessionActive()
         {
             try
             {
@@ -400,16 +400,7 @@ namespace ApexSenseBridgeTray.Services
         private static string BuildArguments(string profileName, TraySettings settings,
                                              int apexProfileSlot)
         {
-            var arguments = BridgeArguments.Build(
-                profileName,
-                settings != null && settings.EnableRumble,
-                settings != null ? settings.HapticThresholdPercent : 12,
-                settings != null && settings.SyncLightbar,
-                apexProfileSlot,
-                settings != null ? settings.TriggerStrengthPercent : 100,
-                settings != null ? settings.VibrationStrengthPercent : 100,
-                settings != null ? settings.Apex4GyroStrengthPercent : 100,
-                settings != null ? settings.Apex4GyroYawStrengthPercent : 100);
+            var arguments = BridgeArguments.Build(profileName, false, 12, false, apexProfileSlot);
             // Send all model profiles; only the engine's verified device selects
             // one. A stale UI label / hot swap can never select another model's data.
             return arguments + (settings != null ? settings.BuildControllerCalibrationArguments() : string.Empty);

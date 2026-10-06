@@ -114,6 +114,8 @@ int main() {
     assert(!parse({"--unknown"}).succeeded);
     assert(parse({"--trigger-strength", "0", "--vibration-strength", "50"}).options.triggerStrengthPercent == 0);
     assert(parse({"--vibration-strength", "50"}).options.vibrationStrengthPercent == 50);
+    assert(parse({"--vibration-strength", "200"}).options.vibrationStrengthPercent == 200);
+    assert(!parse({"--vibration-strength", "201"}).succeeded);
     assert(!parse({"--trigger-strength", "101"}).succeeded);
     assert(!parse({"--vibration-strength", "-1"}).succeeded);
     assert(!parse({"--vibration-strength", "50junk"}).succeeded);
@@ -133,6 +135,67 @@ int main() {
     assert(!parse({"--rumble", "--apex6-haptic-gain"}).succeeded);
     assert(!parse({"--apex6-haptic-gain", "150"}).succeeded);
     assert(usage.find("--apex6-haptic-gain 100..200") != std::string_view::npos);
+    assert(usage.find("--vibration-strength 0..200") != std::string_view::npos);
+    auto boosted = parse({"--rumble", "--vibration-strength", "150"}).options;
+    std::string boostError;
+    assert(asb::cli::applyControllerCalibration(boosted, "apex5", boostError));
+    assert(boosted.vibrationStrengthPercent == 150);
+    assert(asb::cli::applyControllerCalibration(boosted, "apex6", boostError));
+    assert(boosted.vibrationStrengthPercent == 100);
+    for (const auto model : {"apex4", "apex5"}) {
+        auto options = parse({"--controller-calibration", std::string(model) + ":100:200:12:1:0:100:100"});
+        assert(options.succeeded);
+        assert(asb::cli::applyControllerCalibration(options.options, model, boostError));
+        assert(options.options.vibrationStrengthPercent == 200);
+    }
+    assert(!parse({"--controller-calibration", "apex6:100:101:0:1:0:100:100"}).succeeded);
+    assert(!parse({"--controller-calibration", "apex5:100:201:12:1:0:100:100"}).succeeded);
+
+    const auto calibrated = parse({
+        "--controller-calibration", "apex4:35:60:24:0:0:175:225",
+        "--controller-calibration", "apex5:45:70:12:1:1:100:100",
+        "--controller-calibration", "apex6:80:90:0:1:0:100:100",
+        "--apex-profile", "3"});
+    assert(calibrated.succeeded);
+    for (const auto model : {"apex4", "apex5", "apex6"}) {
+        auto options = calibrated.options;
+        std::string error;
+        assert(asb::cli::applyControllerCalibration(options, model, error));
+        if (std::string_view(model) == "apex4") {
+            assert(options.triggerStrengthPercent == 35 && options.vibrationStrengthPercent == 60);
+            assert(options.hapticThresholdPercent == 24 && !options.routeRumble && !options.syncLightbar);
+            assert(options.apex4GyroStrengthPercent == 175 && options.apex4GyroYawStrengthPercent == 225);
+            assert(!options.apexProfileSlot);
+        } else if (std::string_view(model) == "apex5") {
+            assert(options.triggerStrengthPercent == 45 && options.vibrationStrengthPercent == 70);
+            assert(options.routeRumble && options.syncLightbar && options.apexProfileSlot == 2);
+        } else {
+            assert(options.triggerStrengthPercent == 80 && options.vibrationStrengthPercent == 90);
+            assert(options.routeRumble && !options.syncLightbar && options.hapticThresholdPercent == 0);
+            assert(!options.apexProfileSlot && options.apex4GyroStrengthPercent == 100);
+        }
+    }
+    auto partial = parse({"--controller-calibration", "apex5:45:70:12:1:1:100:100"}).options;
+    std::string calibrationError;
+    assert(!asb::cli::applyControllerCalibration(partial, "apex6", calibrationError));
+    assert(partial.triggerStrengthPercent == 100); // Fail before any calibration is applied.
+    assert(!asb::cli::applyControllerCalibration(partial, "unknown", calibrationError));
+    auto legacy = complete.options;
+    assert(asb::cli::applyControllerCalibration(legacy, "apex5", calibrationError));
+    assert(legacy.triggerStrengthPercent == complete.options.triggerStrengthPercent && legacy.syncLightbar);
+    for (const auto invalid : {
+             "apex7:100:100:12:1:0:100:100", "apex4:101:100:12:1:0:100:100",
+             "apex4:-1:100:12:1:0:100:100", "apex5:100junk:100:12:1:0:100:100",
+             "apex6:100:100:12:1:0:100:100", "apex4:100:100:12:1:1:100:100",
+             "apex5:100:100:12:1:0:200:100", "apex4:100:100:96:1:0:100:100",
+             "apex4:100:100:12:2:0:100:100", "apex4:100:100:12:1:0:24:100",
+             "apex4:100:100:12:1:0:100:401", "apex4:100:100:12:1:0:100:100:",
+             "apex4:100:100:12:1:0:100:100:2", "apex4:100:100:12:1:0:100",
+             "apex4:999999999999999999999999999:100:12:1:0:100:100"})
+        assert(!parse({"--controller-calibration", invalid}).succeeded);
+    assert(!parse({"--controller-calibration"}).succeeded);
+    assert(!parse({"--controller-calibration", "apex4:100:100:12:1:0:100:100",
+                   "--controller-calibration", "apex4:100:100:12:1:0:100:100"}).succeeded);
 
     return 0;
 }

@@ -168,6 +168,7 @@ namespace ApexSenseBridge
         private bool enableRumble = true;
         private bool syncLightbar = false;
         private int hapticThresholdPercent = 12;
+        private int vibrationStrengthPercent = 100;
         private int apex4GyroStrengthPercent = 100;
         private int apex4GyroYawStrengthPercent = 100;
         private int initializationTimeoutSeconds = 20;
@@ -183,6 +184,7 @@ namespace ApexSenseBridge
         public bool EnableRumble { get => enableRumble; set => SetValue(ref enableRumble, value); }
         public bool SyncLightbar { get => syncLightbar; set => SetValue(ref syncLightbar, value); }
         public int HapticThresholdPercent { get => hapticThresholdPercent; set => SetValue(ref hapticThresholdPercent, value); }
+        public int VibrationStrengthPercent { get => vibrationStrengthPercent; set => SetValue(ref vibrationStrengthPercent, value); }
         public int Apex4GyroStrengthPercent { get => apex4GyroStrengthPercent; set => SetValue(ref apex4GyroStrengthPercent, value); }
         public int Apex4GyroYawStrengthPercent { get => apex4GyroYawStrengthPercent; set => SetValue(ref apex4GyroYawStrengthPercent, value); }
         public int InitializationTimeoutSeconds { get => initializationTimeoutSeconds; set => SetValue(ref initializationTimeoutSeconds, value); }
@@ -603,6 +605,10 @@ namespace ApexSenseBridge
             if (Settings.HapticThresholdPercent < 0 || Settings.HapticThresholdPercent > 95)
             {
                 errors.Add("Le seuil haptique doit être compris entre 0 et 95.");
+            }
+            if (Settings.VibrationStrengthPercent < 0 || Settings.VibrationStrengthPercent > 200)
+            {
+                errors.Add("La force des vibrations doit être comprise entre 0 et 200 (APEX 6 limité à 100).");
             }
             if (Settings.Apex4GyroStrengthPercent < 25 ||
                 Settings.Apex4GyroStrengthPercent > 400)

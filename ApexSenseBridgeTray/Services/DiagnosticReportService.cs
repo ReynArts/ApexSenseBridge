@@ -103,9 +103,8 @@ namespace ApexSenseBridgeTray.Services
                 report.AppendLine("Adaptive-trigger criterion: " + YesNo(settings.TriggerOnAdaptiveTriggers));
                 report.AppendLine("Haptic criterion: " + YesNo(settings.TriggerOnHapticFeedback));
                 report.AppendLine("Notifications: " + YesNo(settings.EnableNotifications));
-                report.AppendLine("Rumble: " + YesNo(settings.EnableRumble));
-                report.AppendLine("Lightbar sync: " + YesNo(settings.SyncLightbar));
-                report.AppendLine("Haptic threshold: " + settings.HapticThresholdPercent.ToString(CultureInfo.InvariantCulture) + "%");
+                report.AppendLine("Controller calibration profiles (selected by verified hardware at launch):");
+                report.AppendLine(settings.BuildControllerCalibrationArguments().Trim());
                 report.AppendLine("Initialization timeout: " + settings.InitializationTimeoutSeconds.ToString(CultureInfo.InvariantCulture) + "s");
                 report.AppendLine("Forced profile: " + Safe(settings.ForcedProfile));
                 report.AppendLine("UI language: " + Safe(LocalizationManager.CurrentLanguage));

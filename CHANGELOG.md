@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+### APEX 4/5 grip vibration gain ([#25](https://github.com/ReynArts/ApexSenseBridge/issues/25))
+
+- Extend conventional grip vibration strength to 0–200% in CLI, verified-model
+  Tray profiles and Playnite settings. Preserve the 100% default and the entire
+  previous 0–100% mapping. Amplify both HID rumble and audio-derived grip output
+  after mixing/gating, saturating at 255 rather than overflowing motor bytes.
+  Silence and explicit stop commands remain zero.
+- Keep trigger strength at 0–100%, with no changes to trigger resistance,
+  translation, travel, frequency or timing. The audio activation threshold still
+  filters only audio-derived grip output; it never gates standard HID rumble.
+  Amplification cannot recover a signal already removed by that threshold.
+- Preserve independent controller profiles and offline UI locking. APEX 6
+  profiles retain their 0–100% common-strength range; legacy CLI/Playnite strength
+  above 100% is capped only after verifying APEX 6 hardware. Its separate native
+  PCM gain/renderer remain unchanged.
+- Add localized guidance on moderate increases and the continuing influence of
+  Space Station motor intensity. No firmware/profile overwrite, automatic gain,
+  per-game intensity, new version or release package is introduced.
+- **Far Cry 6 resistance report remains unverified:** tests compare identical
+  LT/RT resistance, weapon/recoil and stop commands at audio thresholds 0% and
+  95%, including amplified grip output. Request the exact slider/version,
+  connection/firmware and a reproducible scene with `tray_bridge.log` before
+  claiming a fix for the reported loss of trigger resistance.
+
+### Controller-specific Tray calibration
+
+- Lock controller strength, grip vibration, threshold, gyroscope and RGB controls
+  until a single supported controller is connected and its identity is verified.
+  Keep general Tray preferences available offline. Relock on disconnect, changed
+  HID interface, failed identification or ambiguous multiple-controller detection.
+- Save separate APEX 4/5/6 calibration profiles in the existing settings file.
+  Migrate existing strength/rumble preferences without resetting them; restrict
+  gyro tuning to APEX 4, RGB to APEX 5 and retain fixed zero threshold on APEX 6.
+  Settings apply to the next Tray session, not a running bridge.
+- Select calibration in the engine **after hardware identity verification**,
+  before configuring output. Do not trust the last UI model during hot swaps;
+  never fall back to another model's supplied profile. Existing CLI/Playnite
+  launches without model profiles retain their previous behavior.
+- Fix the detection process timeout by draining stdout/stderr asynchronously;
+  fingerprint the single vendor HID interface to avoid retaining a replaced device.
+  Reverify idle receivers whose HID path stays present while the controller sleeps.
+  During a bridge, use its live verified IPC identity instead of competing HID reads.
+
 ### APEX 4 delayed trigger feedback investigation ([#23](https://github.com/ReynArts/ApexSenseBridge/issues/23))
 
 - Fix a Tray dashboard initialization crash found in the reporter's logs:

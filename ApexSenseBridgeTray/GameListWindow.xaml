@@ -1386,7 +1386,7 @@
                                     <Slider x:Name="SliderTriggerStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
                                     <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Foreground="{DynamicResource TextSecondary}"/>
                                     <TextBlock x:Name="TxtVibrationStrength" Foreground="{DynamicResource PlayStationBlue}"/>
-                                    <Slider x:Name="SliderVibrationStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                    <Slider x:Name="SliderVibrationStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10" ToolTip="{DynamicResource Loc_VibrationStrengthHint}"/>
                                     <TextBlock Text="{DynamicResource Loc_Apex4GyroStrength}" Foreground="{DynamicResource TextSecondary}"/>
                                     <TextBlock x:Name="TxtApex4GyroStrength" Foreground="{DynamicResource PlayStationBlue}"/>
                                     <Slider x:Name="SliderApex4GyroStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>

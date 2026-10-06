@@ -11,6 +11,11 @@ namespace ApexSenseBridgeTray.Services
     internal sealed class ControllerDetectionService : IDisposable
     {
         private readonly Timer timer;
+        internal delegate string CandidateReader(out string candidate);
+        private readonly CandidateReader candidateReader;
+        private readonly Func<string> modelReader;
+        private readonly Func<BridgeSession.SessionInfo> activeSessionReader;
+        private readonly Func<bool> ownerProbe;
         private int scanRunning;
         private string lastStatus = string.Empty;
         private string lastCandidate = string.Empty;
@@ -18,31 +23,51 @@ namespace ApexSenseBridgeTray.Services
 
         public event Action<string> StatusChanged;
 
-        public ControllerDetectionService()
+        public ControllerDetectionService() : this(ReadCandidate, DetectModel,
+            () => BridgeSession.ReadActiveSession(), EngineSessionManager.IsExternalSessionActive, true) { }
+
+        internal ControllerDetectionService(CandidateReader candidateReader, Func<string> modelReader,
+            Func<BridgeSession.SessionInfo> activeSessionReader, Func<bool> ownerProbe, bool startTimer)
         {
-            timer = new Timer(Scan, null, 250, 2000);
+            this.candidateReader = candidateReader;
+            this.modelReader = modelReader;
+            this.activeSessionReader = activeSessionReader;
+            this.ownerProbe = ownerProbe;
+            timer = new Timer(Scan, null, startTimer ? 250 : Timeout.Infinite, 2000);
         }
 
-        private void Scan(object state)
+        internal void Scan(object state)
         {
+            if (Volatile.Read(ref disposed) != 0) return;
             if (Interlocked.Exchange(ref scanRunning, 1) != 0) return;
             try
             {
                 string candidate;
-                string stateStatus = ReadCandidate(out candidate);
+                string stateStatus = candidateReader(out candidate);
                 if (stateStatus != null)
                 {
                     lastCandidate = string.Empty;
                     Publish(stateStatus);
                 }
-                else if (candidate != lastCandidate || !Models.TraySettings.IsCalibrationModel(lastStatus))
+                else
                 {
+                    // During a bridge, use its live IPC identity, not extra HID
+                    // readers that can steal replies/input from the active engine.
+                    var active = activeSessionReader();
+                    if (active != null || ownerProbe())
+                    {
+                        Publish(ParseActiveModel(active));
+                        lastCandidate = string.Empty; // Force verification after stop.
+                        return;
+                    }
                     // Lock editing immediately when a different HID interface
                     // appears, before the slower identity query completes.
-                    Publish("unavailable");
-                    var model = DetectModel();
+                    if (candidate != lastCandidate) Publish("unavailable");
+                    // Recheck even with an unchanged dongle path: a receiver can
+                    // remain enumerated while the actual controller is asleep.
+                    var model = modelReader();
                     string after;
-                    if (ReadCandidate(out after) != null || candidate != after)
+                    if (candidateReader(out after) != null || candidate != after)
                     {
                         lastCandidate = string.Empty;
                         Publish("unavailable");
@@ -55,6 +80,12 @@ namespace ApexSenseBridgeTray.Services
                 }
             }
             finally { Volatile.Write(ref scanRunning, 0); }
+        }
+
+        internal static string ParseActiveModel(BridgeSession.SessionInfo active)
+        {
+            return active != null && active.Phase == SessionPhase.Ready
+                ? ParseVerifiedModel("Verified: " + active.Controller) : "unavailable";
         }
 
         private static string ReadCandidate(out string candidate)

@@ -18,7 +18,7 @@ namespace ApexSenseBridgeTray.Models
         internal void Normalize(string model)
         {
             TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent));
-            VibrationStrengthPercent = Math.Max(0, Math.Min(100, VibrationStrengthPercent));
+            VibrationStrengthPercent = Math.Max(0, Math.Min(model == "apex6" ? 100 : 200, VibrationStrengthPercent));
             HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
             SyncLightbar = model == "apex5" && SyncLightbar;
             GyroStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroStrengthPercent)) : 100;
@@ -291,7 +291,7 @@ namespace ApexSenseBridgeTray.Models
                     {
                         settings.ResetTransientState();
                         settings.TriggerStrengthPercent = Math.Max(0, Math.Min(100, settings.TriggerStrengthPercent));
-                        settings.VibrationStrengthPercent = Math.Max(0, Math.Min(100, settings.VibrationStrengthPercent));
+                        settings.VibrationStrengthPercent = Math.Max(0, Math.Min(200, settings.VibrationStrengthPercent));
                         settings.Apex4GyroStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroStrengthPercent));
                         settings.Apex4GyroYawStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroYawStrengthPercent));
                         settings.HapticThresholdPercent = Math.Max(0, Math.Min(95, settings.HapticThresholdPercent));
@@ -321,8 +321,8 @@ namespace ApexSenseBridgeTray.Models
                 {
                     Directory.CreateDirectory(dir);
                 }
-                var serializer = new JavaScriptSerializer();
-                var json = serializer.Serialize(this);
+                string json;
+                lock (this) json = new JavaScriptSerializer().Serialize(this);
                 File.WriteAllText(path, json);
             }
             catch
