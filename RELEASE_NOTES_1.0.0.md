@@ -1,4 +1,4 @@
-# ApexSenseBridge 1.0.0-beta.10 — local release candidate
+# ApexSenseBridge 1.0.0-beta.11 — local release candidate
 
 This package is prepared locally; it has not been published to GitHub.
 
@@ -26,7 +26,7 @@ This package is prepared locally; it has not been published to GitHub.
 
 APEX 4/5 input, FORCEADAPT, rumble and transport timing remain unchanged. Numeric
 versions and install identity stay at 1.0.0 for compatibility; executable product
-metadata, informational versions and setup display identify the beta.10 build.
+metadata, informational versions and setup display identify the beta.11 build.
 
 ## Tray application and shared features — APEX 4/5/6
 

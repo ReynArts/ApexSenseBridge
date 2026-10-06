@@ -1021,8 +1021,7 @@
                                     </Border>
 
                                     <!-- Exclude / Include Quick Button -->
-                                    <TextBlock Text="{DynamicResource Loc_GameExecutable}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap"/>
-                                    <TextBlock Text="{DynamicResource Loc_GameExecutableHint}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextMuted}" Margin="0,5,0,8"/>
+                                    <TextBlock Text="{DynamicResource Loc_GameExecutable}" ToolTip="{DynamicResource Loc_GameExecutableHint}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                     <ComboBox x:Name="CmbGameExecutable" Style="{StaticResource ExecutableCombo}" DisplayMemberPath="Label" SelectionChanged="OnGameExecutableChanged" Margin="0,0,0,8" ToolTip="{Binding SelectedItem.Path, RelativeSource={RelativeSource Self}}"/>
                                     <TextBlock x:Name="TxtExecutablePath" Foreground="{DynamicResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                     <Button Content="{DynamicResource Loc_BrowseExecutable}" Style="{StaticResource BtnSecondary}" Click="OnBrowseGameExecutable" Margin="0,0,0,8"/>
@@ -1319,9 +1318,8 @@
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="{DynamicResource Loc_SupportProjectTitle}" FontSize="14.5" FontWeight="Bold"
                                                    Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{DynamicResource Loc_SupportProjectDescription}" FontSize="12"
-                                                   Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,6,0,13"/>
                                         <Button x:Name="BtnSupportKofi" Content="{DynamicResource Loc_BtnSupportKofi}"
+                                                ToolTip="{DynamicResource Loc_SupportProjectDescription}" Margin="0,10,0,0"
                                                 Style="{StaticResource BtnPrimary}" HorizontalAlignment="Left"
                                                 Padding="16,8" Click="OnSupportKofiClick"/>
                                     </StackPanel>
@@ -1361,6 +1359,7 @@
 
                                     <!-- Lightbar Sync Toggle -->
                                     <Border x:Name="TileSettingSyncLightbar" CornerRadius="8" Background="{DynamicResource ControlBackground}"
+                                            Visibility="Collapsed"
                                             BorderBrush="Transparent" BorderThickness="1.6"
                                             Padding="16,12" Margin="0,0,0,12" Cursor="Hand"
                                             MouseLeftButtonDown="OnSettingSyncLightbarToggled">
@@ -1379,25 +1378,39 @@
                                         </DockPanel>
                                     </Border>
 
-                                    <TextBlock Text="{DynamicResource Loc_ControllerEffects}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"/>
-                                    <TextBlock x:Name="TxtControllerCalibrationStatus" Text="{DynamicResource Loc_ControllerCalibrationLocked}" TextWrapping="Wrap" Foreground="{DynamicResource TextMuted}" FontSize="11" Margin="0,0,0,10"/>
-                                    <TextBlock Text="{DynamicResource Loc_TriggerStrength}" Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock x:Name="TxtTriggerStrength" Foreground="{DynamicResource PlayStationBlue}"/>
-                                    <Slider x:Name="SliderTriggerStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
-                                    <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock x:Name="TxtVibrationStrength" Foreground="{DynamicResource PlayStationBlue}"/>
-                                    <Slider x:Name="SliderVibrationStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10" ToolTip="{DynamicResource Loc_VibrationStrengthHint}"/>
-                                    <TextBlock Text="{DynamicResource Loc_Apex4GyroStrength}" Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock x:Name="TxtApex4GyroStrength" Foreground="{DynamicResource PlayStationBlue}"/>
-                                    <Slider x:Name="SliderApex4GyroStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
-                                    <TextBlock Text="{DynamicResource Loc_Apex4GyroYawStrength}" Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock x:Name="TxtApex4GyroYawStrength" Foreground="{DynamicResource PlayStationBlue}"/>
-                                    <Slider x:Name="SliderApex4GyroYawStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
-                                    <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock x:Name="TxtVibrationThreshold" Foreground="{DynamicResource PlayStationBlue}"/>
-                                    <Slider x:Name="SliderVibrationThreshold" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,8"/>
-                                    <TextBlock Text="{DynamicResource Loc_EffectsHint}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,8"/>
-                                    <CheckBox x:Name="ChkGripVibrations" Content="{DynamicResource Loc_EnableRumble}" Foreground="{DynamicResource TextPrimary}" Click="OnGripVibrationsChanged" Margin="0,0,0,16"/>
+                                    <StackPanel x:Name="PnlControllerEffects" Visibility="Collapsed" Margin="0,0,0,16">
+                                        <TextBlock x:Name="TxtControllerCalibrationStatus" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,12"/>
+                                        <DockPanel>
+                                            <TextBlock x:Name="TxtTriggerStrength" DockPanel.Dock="Right" Foreground="{DynamicResource PlayStationBlue}"/>
+                                            <TextBlock Text="{DynamicResource Loc_TriggerStrength}" Foreground="{DynamicResource TextSecondary}"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SliderTriggerStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                        <DockPanel>
+                                            <TextBlock x:Name="TxtVibrationStrength" DockPanel.Dock="Right" Foreground="{DynamicResource PlayStationBlue}"/>
+                                            <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Foreground="{DynamicResource TextSecondary}" ToolTip="{DynamicResource Loc_VibrationStrengthHint}"/>
+                                        </DockPanel>
+                                        <Slider x:Name="SliderVibrationStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10" ToolTip="{DynamicResource Loc_VibrationStrengthHint}"/>
+                                        <StackPanel x:Name="PnlApex4GyroSettings" Visibility="Collapsed">
+                                            <DockPanel>
+                                                <TextBlock x:Name="TxtApex4GyroStrength" DockPanel.Dock="Right" Foreground="{DynamicResource PlayStationBlue}"/>
+                                                <TextBlock Text="{DynamicResource Loc_Apex4GyroStrength}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </DockPanel>
+                                            <Slider x:Name="SliderApex4GyroStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                            <DockPanel>
+                                                <TextBlock x:Name="TxtApex4GyroYawStrength" DockPanel.Dock="Right" Foreground="{DynamicResource PlayStationBlue}"/>
+                                                <TextBlock Text="{DynamicResource Loc_Apex4GyroYawStrength}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </DockPanel>
+                                            <Slider x:Name="SliderApex4GyroYawStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>
+                                        </StackPanel>
+                                        <StackPanel x:Name="PnlHapticThresholdSettings" Visibility="Collapsed">
+                                            <DockPanel>
+                                                <TextBlock x:Name="TxtVibrationThreshold" DockPanel.Dock="Right" Foreground="{DynamicResource PlayStationBlue}"/>
+                                                <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Foreground="{DynamicResource TextSecondary}" ToolTip="{DynamicResource Loc_EffectsHint}"/>
+                                            </DockPanel>
+                                            <Slider x:Name="SliderVibrationThreshold" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,8" ToolTip="{DynamicResource Loc_EffectsHint}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkGripVibrations" Content="{DynamicResource Loc_EnableRumble}" Foreground="{DynamicResource TextPrimary}" Click="OnGripVibrationsChanged"/>
+                                    </StackPanel>
                                     <!-- Language Switcher -->
                                     <Border x:Name="TileSettingLanguage" CornerRadius="8" Background="{DynamicResource ControlBackground}"
                                             BorderBrush="Transparent" BorderThickness="2" Cursor="Hand"
@@ -1428,9 +1441,8 @@
                                     <TextBlock Text="{DynamicResource Loc_SectionControllerDiagnostic}" FontSize="14.5" FontWeight="Bold"
                                                Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"/>
                                     <Button Content="{DynamicResource Loc_PreparedLaunch}" ToolTip="{DynamicResource Loc_PreparedLaunchHint}" Style="{StaticResource BtnSecondary}" Click="OnPreparedLaunchClick" HorizontalAlignment="Left" Margin="0,0,0,10"/>
-                                    <TextBlock Text="{DynamicResource Loc_ControllerDiagnosticDesc}" FontSize="12"
-                                               Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                     <Button Content="{DynamicResource Loc_BtnOpenControllerTest}" Style="{StaticResource BtnPrimary}"
+                                            ToolTip="{DynamicResource Loc_ControllerDiagnosticDesc}"
                                             HorizontalAlignment="Left" Padding="16,8" Click="OnOpenControllerTestClick"/>
                                 </StackPanel>
                             </Border>
@@ -1451,9 +1463,8 @@
                                         <TextBlock Text="{DynamicResource Loc_BugReportSectionTitle}" FontSize="14.5" FontWeight="Bold"
                                                    Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                                     </DockPanel>
-                                    <TextBlock Text="{DynamicResource Loc_BugReportSectionDescription}" FontSize="12"
-                                               Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                     <Button x:Name="BtnReportBug" Content="{DynamicResource Loc_BtnReportBug}"
+                                            ToolTip="{DynamicResource Loc_BugReportSectionDescription}"
                                             Style="{StaticResource BtnSecondary}" HorizontalAlignment="Left"
                                             Padding="16,8" Click="OnReportBugClick"/>
                                 </StackPanel>
