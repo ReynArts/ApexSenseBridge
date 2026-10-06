@@ -1,5 +1,78 @@
 # Apex 6 Pro DualSense validation — 1.0.0-beta.10 candidate
 
+## Prepared post-beta.10 adjustment (not in the public beta.10 packages)
+
+The October 5 beta.10 feedback changes the remaining test priorities:
+
+- [exa160's stock-firmware report](https://github.com/ReynArts/ApexSenseBridge/issues/12#issuecomment-5991886240)
+  confirms no progressive trigger weakening in Endfield and nearly DualSense-like
+  grip feedback in PRAGMATA. These are setup-specific observations, not a blanket
+  certification. Endfield/PRAGMATA PCM peaks are already near full scale.
+- [voidpeterrobot's beta-firmware report](https://github.com/ReynArts/ApexSenseBridge/issues/12#issuecomment-5995644526)
+  confirms quadraphonic ZZZ playback but weak native grip effects. Filtered peaks
+  are 10028/9824, versus 32570/32276 in the other tester's games. Do not attribute
+  that difference to firmware: testers, scenes and games differ. Both ZZZ runs
+  have zero native PCM threshold-drop counters and zero envelope-rendered frames,
+  so their subjective threshold comparison does not establish a PCM gating bug.
+- The [attached reverse-engineering notes](https://github.com/user-attachments/files/33066965/GPA6-xhaptics-engine-reverse.en.md)
+  suggest a grip carrier around 65 Hz and report a captured peak of 122. Preset
+  values and a capture maximum do not establish a universal resonance calibration,
+  a thermal limit, or proof that output 127 is ineffective. No frequency remapping
+  or new physical safety claim follows from those notes.
+
+The prepared adjustment is a CLI-only, opt-in **native grip PCM amplitude gain**.
+Separately, APEX 6 now always uses envelope activation threshold **0**. The shared
+Tray/Playnite threshold and `--haptic-threshold` remain effective for APEX 4/5;
+they no longer gate APEX 6 envelopes, and their saved values are not overwritten.
+Native PCM was already ungated in beta.10. Other envelope mapping/noise-floor
+parameters and ordinary rumble are preserved, not replaced by an audio mix.
+`--apex6-haptic-gain 100` is the exact beta.10 quantizer. Higher values, up to 200,
+increase quieter samples using a bounded continuous curve rather than hard
+clipping. The full-scale endpoints stay at +/-127. At 200, gain approaches 2x
+only for small signals; the ZZZ peak 10028 maps to 59 instead of 38, not 76.
+This is nonlinear amplitude processing and may change texture/harmonics. It does
+not shift the requested frequencies toward 65 Hz, add a carrier, or guarantee
+that the physical sensation doubles. No actuator thermal model is available.
+
+### One focused A/B comparison before release
+
+Use the build containing this option, not an existing public beta.10 download.
+The ordinary Tray/Playnite launches do not select experimental gain yet. Stop
+their bridge session and disable automatic activation during this CLI comparison
+so a second bridge cannot start. Do not change firmware or other settings.
+
+1. Close ZZZ, start the reference session below, verify quadraphonic setup,
+   then launch ZZZ. Compare Mr. Roar's daily check-in, the video-store entry/exit
+   and the same training action used in the report. Take short repeatable samples.
+2. Close the game, stop ASB with Ctrl+C, repeat with gain 150. Only if still useful,
+   repeat with gain 200. Do not restart ASB underneath the open game for this test.
+3. Report detail, strength, muddiness/buzz and whether silence and left/right
+   separation remain correct. Stop if there is abnormal heat, noise, or discomfort;
+   protocol amplitude bounds are not proof of safe continuous duty on hardware.
+4. Retest one PRAGMATA scene at 100 as the default-path regression reference.
+   Higher gain is not automatically preferred for games that already feel correct.
+
+Run each command as a separate session from the new build's folder:
+
+```powershell
+.\ApexSenseBridge.exe bridge-triggers --rumble --vibration-strength 100 --haptic-threshold 12 --apex6-haptic-gain 100 --telemetry-json zzz-gain100.json
+.\ApexSenseBridge.exe bridge-triggers --rumble --vibration-strength 100 --haptic-threshold 12 --apex6-haptic-gain 150 --telemetry-json zzz-gain150.json
+.\ApexSenseBridge.exe bridge-triggers --rumble --vibration-strength 100 --haptic-threshold 12 --apex6-haptic-gain 200 --telemetry-json zzz-gain200.json
+```
+
+Attach the three complete session logs/JSON files, actual scene/actions, current
+firmware versions and perceived comparison. Include `apex6_pcm_gain_percent`,
+`apex6_pcm_output_left_peak`/`apex6_pcm_output_right_peak` (0..127, after gain
+and strength, native PCM only),
+waveform active RMS/peaks, raw channel measurements, active drops and write
+failures. `apex6_haptic_threshold_percent=0` confirms the new model-specific
+policy even if a launcher passes the higher shared threshold. Input, trigger
+rendering, fallback rumble/envelopes and frame timing are outside the gain's
+scope. Loss of all PCM after bridge recreation remains
+a separate game-audio reacquisition limitation, not something gain can repair.
+
+## Existing beta.10 baseline checklist
+
 This checklist is for hardware testing over the 2.4 GHz dongle. Keep Flydigi
 Space Station closed during the session. Record whether Steam Input is enabled
 for each game; when testing a game's native DualSense support, try its native

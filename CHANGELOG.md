@@ -1,5 +1,54 @@
 # Changelog
 
+## Unreleased
+
+### APEX 4 delayed trigger feedback investigation ([#23](https://github.com/ReynArts/ApexSenseBridge/issues/23))
+
+- Fix a Tray dashboard initialization crash found in the reporter's logs:
+  ignore navigation/status updates raised while XAML controls are still being
+  created, and guard the game-title control during Starting/Failed phases.
+- Serialize the APEX 4 async writer's pacing check with synchronous vendor
+  writes. Keep the existing 25 ms pacing and latest-state LT/RT/rumble
+  coalescing; do not change trigger translation or APEX 5/6 output behavior.
+- Add shutdown diagnostics for async write attempts, replaced pending updates,
+  writes taking at least 100 ms, and maximum queue/HID-write durations in
+  microseconds. Successful writes may still be slow; zero write failures alone
+  does not establish low output latency.
+- Add a blocked-write regression with 200 trigger/rumble updates: feedback
+  capture remains non-blocking and only the latest pending states, including
+  recoil cancellation, are sent after the blocked write completes. Add 12 WPF
+  initialization/phase/tab regression scenarios.
+- **Still requires hardware validation:** the reporter confirms beta.10 fixes
+  detection and input lag, but delayed recoil in Cyberpunk is not yet reproduced
+  or confirmed fixed. Retest with the instrumented build, stop the bridge
+  cleanly, and collect `tray_bridge.log` to distinguish queue delay from slow HID
+  writes. No new release package or version change is included in this work.
+
+### APEX 6 Pro native grip intensity ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))
+
+- Automatically bypass the envelope activation threshold on APEX 6 Pro (effective
+  0), including launches from Tray/Playnite that pass the shared APEX 4/5 setting.
+  Preserve that saved setting, the conventional-motor filtering, HID rumble and
+  the remaining envelope mapping. Native PCM already bypasses gating since beta.10.
+  Diagnostics expose the effective zero threshold; UI hints clarify model scope.
+- Prepare experimental CLI-only `--apex6-haptic-gain 100..200` for quiet native
+  grip PCM. Default 100 remains bit-identical to beta.10. Higher settings use
+  continuous amplitude companding, preserving zero/sign and full-scale endpoints
+  without hard clipping, rather than multiplying every game by two. This changes
+  amplitude dynamics, not actuator calibration, and requires hardware comparison.
+- Restrict the gain option to a verified APEX 6 Pro with `--rumble`; ordinary
+  vibration strength/mute still applies afterwards. Gain does not affect trigger
+  rendering, envelope fallback, HID rumble, stereo routing or frame rate. APEX 4/5
+  behavior remains unchanged.
+  Startup and JSON diagnostics record the selected PCM gain. No UI preset,
+  automatic gain, frequency remapping or firmware/driver changes are added.
+- Beta.10 feedback confirms restored Endfield trigger consistency and good
+  PRAGMATA behavior on the reporting tester's setup, while ZZZ grip intensity
+  remains weak on another setup. Do not treat those results as universal
+  compatibility or as proof that lowering the threshold changes native PCM.
+  See the updated hardware comparison checklist. Existing beta.10 packages are
+  not replaced by this unreleased adjustment.
+
 ## 1.0.0-beta.10
 
 ### Open-issue fixes

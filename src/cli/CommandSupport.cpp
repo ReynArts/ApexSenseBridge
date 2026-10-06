@@ -248,7 +248,8 @@ void printDevice(const asb::HidDeviceInfo& info, std::size_t index) {
               << "    VID:PID      " << hex16(info.vendorId) << ":" << hex16(info.productId) << "\n"
               << "    Usage page   " << hex16(info.usagePage) << "  usage " << hex16(info.usage) << "\n"
               << "    Reports      input=" << info.inputReportLength
-              << " output=" << info.outputReportLength << " bytes\n";
+              << " output=" << info.outputReportLength << " bytes\n"
+              << "    Path         " << narrowAscii(info.path) << '\n';
 }
 
 std::optional<std::size_t> parseIndex(int argc, char** argv) {

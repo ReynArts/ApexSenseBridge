@@ -400,7 +400,7 @@ namespace ApexSenseBridgeTray.Services
         private static string BuildArguments(string profileName, TraySettings settings,
                                              int apexProfileSlot)
         {
-            return BridgeArguments.Build(
+            var arguments = BridgeArguments.Build(
                 profileName,
                 settings != null && settings.EnableRumble,
                 settings != null ? settings.HapticThresholdPercent : 12,
@@ -410,6 +410,9 @@ namespace ApexSenseBridgeTray.Services
                 settings != null ? settings.VibrationStrengthPercent : 100,
                 settings != null ? settings.Apex4GyroStrengthPercent : 100,
                 settings != null ? settings.Apex4GyroYawStrengthPercent : 100);
+            // Send all model profiles; only the engine's verified device selects
+            // one. A stale UI label / hot swap can never select another model's data.
+            return arguments + (settings != null ? settings.BuildControllerCalibrationArguments() : string.Empty);
         }
     }
 }

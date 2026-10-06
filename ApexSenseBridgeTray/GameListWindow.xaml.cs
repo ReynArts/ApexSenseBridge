@@ -44,6 +44,7 @@ namespace ApexSenseBridgeTray
         private bool updatingEffectSettings;
         private bool updatingExecutables;
         private bool preparedLaunchPending;
+        private bool viewInitialized;
         private readonly System.Windows.Threading.DispatcherTimer statusTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
 
         private sealed class ExecutableChoice
@@ -69,6 +70,7 @@ namespace ApexSenseBridgeTray
             this.updateChecker = updateChecker;
 
             InitializeComponent();
+            viewInitialized = true;
 
             LstGames.ItemsSource = filteredGames;
             LstLearned.ItemsSource = filteredLearned;
@@ -855,6 +857,9 @@ namespace ApexSenseBridgeTray
 
         private void SetCurrentTab(int index)
         {
+            // XAML raises Checked while named controls are still being created.
+            // The constructor selects the initial tab once the whole view exists.
+            if (!viewInitialized) return;
             currentTabIndex = index;
             if (NavTabDashboard != null) NavTabDashboard.IsChecked = (index == 0);
             if (NavTabCertified != null) NavTabCertified.IsChecked = (index == 1);
@@ -915,6 +920,7 @@ namespace ApexSenseBridgeTray
             bool isApex6 = string.Equals(status, "apex6", StringComparison.OrdinalIgnoreCase);
             bool isConnected = isApex4 || isApex5 || isApex6;
             sessionManager?.UpdateRecoveryController(isConnected);
+            UpdateSettingsView();
 
             string fullLabel;
             string shortLabel;
@@ -1002,6 +1008,7 @@ namespace ApexSenseBridgeTray
 
         private void UpdateDashboardStatus()
         {
+            if (!viewInitialized) return;
             sessionManager?.UpdateRecoveryController(lastControllerStatus == "apex4" || lastControllerStatus == "apex5" || lastControllerStatus == "apex6");
             var recovery = sessionManager != null ? sessionManager.Recovery : null;
             UpdateRecoveryPanel(recovery);
@@ -1024,7 +1031,8 @@ namespace ApexSenseBridgeTray
 
             if (external != null && TxtDashboardGameTitle != null)
                 TxtDashboardGameTitle.Text = string.IsNullOrWhiteSpace(external.Game) ? LocalizationManager.Get("Loc_NotificationGame") : external.Game;
-            else if (phase == "Starting" || phase == "Failed")
+            else if (TxtDashboardGameTitle != null && sessionManager != null &&
+                (phase == "Starting" || phase == "Failed"))
                 TxtDashboardGameTitle.Text = sessionManager.ActiveGameTitle;
             if (TxtDashboardHint != null)
             {
@@ -1747,13 +1755,28 @@ namespace ApexSenseBridgeTray
         private void UpdateSettingsView()
         {
             if (settings == null) return;
+            var calibration = settings.GetControllerCalibration(lastControllerStatus);
+            bool canEdit = calibration != null;
+            var displayed = calibration ?? new ControllerCalibration();
             updatingEffectSettings = true;
-            SliderTriggerStrength.Value = settings.TriggerStrengthPercent;
-            SliderVibrationStrength.Value = settings.VibrationStrengthPercent;
-            SliderApex4GyroStrength.Value = settings.Apex4GyroStrengthPercent;
-            SliderApex4GyroYawStrength.Value = settings.Apex4GyroYawStrengthPercent;
-            SliderVibrationThreshold.Value = settings.HapticThresholdPercent;
-            ChkGripVibrations.IsChecked = settings.EnableRumble;
+            SliderTriggerStrength.Value = displayed.TriggerStrengthPercent;
+            SliderVibrationStrength.Value = displayed.VibrationStrengthPercent;
+            SliderApex4GyroStrength.Value = displayed.GyroStrengthPercent;
+            SliderApex4GyroYawStrength.Value = displayed.GyroYawStrengthPercent;
+            SliderVibrationThreshold.Value = displayed.HapticThresholdPercent;
+            ChkGripVibrations.IsChecked = displayed.EnableRumble;
+            SliderTriggerStrength.IsEnabled = canEdit;
+            SliderVibrationStrength.IsEnabled = canEdit;
+            ChkGripVibrations.IsEnabled = canEdit;
+            SliderApex4GyroStrength.IsEnabled = lastControllerStatus == "apex4";
+            SliderApex4GyroYawStrength.IsEnabled = lastControllerStatus == "apex4";
+            SliderVibrationThreshold.IsEnabled = canEdit && lastControllerStatus != "apex6";
+            TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5";
+            TileSettingSyncLightbar.Opacity = TileSettingSyncLightbar.IsEnabled ? 1.0 : 0.45;
+            TxtControllerCalibrationStatus.Text = canEdit
+                ? string.Format(LocalizationManager.Get("Loc_ControllerCalibrationReady"),
+                    lastControllerStatus == "apex4" ? "Apex 4" : lastControllerStatus == "apex5" ? "Apex 5" : "Apex 6 Pro")
+                : LocalizationManager.Get("Loc_ControllerCalibrationLocked");
             UpdateEffectLabels();
             updatingEffectSettings = false;
 
@@ -1761,7 +1784,7 @@ namespace ApexSenseBridgeTray
             UpdateSettingToggle(BadgeSettingAdaptive, DotSettingAdaptive, settings.TriggerOnAdaptiveTriggers);
             UpdateSettingToggle(BadgeSettingHaptic, DotSettingHaptic, settings.TriggerOnHapticFeedback);
             UpdateSettingToggle(BadgeSettingNotifications, DotSettingNotifications, settings.EnableNotifications);
-            UpdateSettingToggle(BadgeSettingSyncLightbar, DotSettingSyncLightbar, settings.SyncLightbar);
+            UpdateSettingToggle(BadgeSettingSyncLightbar, DotSettingSyncLightbar, displayed.SyncLightbar);
 
             if (PnlSettingCriteria != null)
             {
@@ -1792,19 +1815,32 @@ namespace ApexSenseBridgeTray
         private void OnEffectSettingChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (updatingEffectSettings || settings == null || !IsLoaded) return;
-            settings.TriggerStrengthPercent = (int)SliderTriggerStrength.Value;
-            settings.VibrationStrengthPercent = (int)SliderVibrationStrength.Value;
-            settings.Apex4GyroStrengthPercent = (int)SliderApex4GyroStrength.Value;
-            settings.Apex4GyroYawStrengthPercent = (int)SliderApex4GyroYawStrength.Value;
-            settings.HapticThresholdPercent = (int)SliderVibrationThreshold.Value;
+            lock (settings)
+            {
+                var calibration = settings.GetControllerCalibration(lastControllerStatus);
+                if (calibration == null) return;
+                // Guard handlers too (including programmatic/gamepad invocation),
+                // not just visual controls. Only write the changed capability.
+                if (sender == SliderTriggerStrength) calibration.TriggerStrengthPercent = (int)SliderTriggerStrength.Value;
+                else if (sender == SliderVibrationStrength) calibration.VibrationStrengthPercent = (int)SliderVibrationStrength.Value;
+                else if (sender == SliderApex4GyroStrength && lastControllerStatus == "apex4") calibration.GyroStrengthPercent = (int)SliderApex4GyroStrength.Value;
+                else if (sender == SliderApex4GyroYawStrength && lastControllerStatus == "apex4") calibration.GyroYawStrengthPercent = (int)SliderApex4GyroYawStrength.Value;
+                else if (sender == SliderVibrationThreshold && lastControllerStatus != "apex6") calibration.HapticThresholdPercent = (int)SliderVibrationThreshold.Value;
+                else return;
+            }
             settings.Save();
             UpdateEffectLabels();
         }
 
         private void OnGripVibrationsChanged(object sender, RoutedEventArgs e)
         {
-            if (settings == null) return;
-            settings.EnableRumble = ChkGripVibrations.IsChecked == true;
+            if (settings == null || updatingEffectSettings) return;
+            lock (settings)
+            {
+                var calibration = settings.GetControllerCalibration(lastControllerStatus);
+                if (calibration == null) return;
+                calibration.EnableRumble = ChkGripVibrations.IsChecked == true;
+            }
             settings.Save();
         }
 
@@ -1905,8 +1941,12 @@ namespace ApexSenseBridgeTray
 
         private void OnSettingSyncLightbarToggled(object sender, MouseButtonEventArgs e)
         {
-            if (settings == null) return;
-            settings.SyncLightbar = !settings.SyncLightbar;
+            if (settings == null || lastControllerStatus != "apex5") return;
+            lock (settings)
+            {
+                var calibration = settings.GetControllerCalibration(lastControllerStatus);
+                calibration.SyncLightbar = !calibration.SyncLightbar;
+            }
             settings.Save();
             UpdateSettingsView();
         }

@@ -124,9 +124,22 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(3, message);
     }
     const bool apex6Pro = device->identity() && device->identity()->isApex6();
+    if (options.apex6HapticGainExplicit && !apex6Pro) {
+        constexpr std::string_view message =
+            "--apex6-haptic-gain requires a verified Apex 6 Pro.";
+        std::cerr << message << '\n';
+        return failSession(2, message);
+    }
     if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::ControllerVerified);
     const bool apex5 = device->identity() && device->identity()->isApex5();
     const bool apex4 = device->identity() && device->identity()->isApex4();
+    const auto verifiedCalibrationModel = apex4 ? "apex4" : apex5 ? "apex5" : apex6Pro ? "apex6" : "";
+    if (!applyControllerCalibration(options, verifiedCalibrationModel, error)) {
+        std::cerr << error << '\n';
+        return failSession(2, error);
+    }
+    if (options.controllerCalibrations[0] || options.controllerCalibrations[1] || options.controllerCalibrations[2])
+        std::cout << "Controller calibration selected after verification: " << verifiedCalibrationModel << '\n';
     const auto apex4TriggerCapability =
         asb::flydigi::classifyApex4TriggerInterface(device->info());
     if (apex4) {
@@ -306,7 +319,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         : std::unique_ptr<asb::dualsense::AdaptiveTriggerBridge>{};
     auto apex6Bridge = apex6Pro
         ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
-              *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent, options.vibrationStrengthPercent)
+              *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent,
+              options.vibrationStrengthPercent, options.apex6HapticGainPercent)
         : std::unique_ptr<asb::dualsense::Apex6HapticBridge>{};
     if (apex6Bridge) {
         apex6Bridge->updateTriggerPositions(initialInput.l2, initialInput.r2);
@@ -723,6 +737,15 @@ int commandBridgeTriggers(int argc, char** argv) {
                          "mmsys.cpl > Playback > Wireless Controller > Configure > Quadraphonic. "
                          "Keep your normal speakers as the default output, then restart the game "
                          "after configuration (or after recreating the bridge).\n";
+        }
+    }
+    if (apex6Pro && options.routeRumble) {
+        std::cout << "apex6_pcm_gain_percent=" << options.apex6HapticGainPercent << std::endl;
+        std::cout << "apex6_haptic_threshold_percent=0" << std::endl;
+        if (options.apex6HapticGainPercent > 100) {
+            std::cerr << "Experimental Apex 6 native PCM gain enabled: quiet amplitudes are "
+                         "increased with bounded compression, not a linear multiplier. "
+                         "Trigger effects and native frequencies are not retuned.\n";
         }
     }
     if (sessionControl) {
@@ -1441,6 +1464,10 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_weapon_breaks=" << apex6Stats.weaponBreaks << '\n'
               << "apex6_bow_breaks=" << apex6Stats.bowBreaks << '\n'
               << "apex6_waveform_threshold_policy=native-pcm-preserved\n"
+              << "apex6_pcm_gain_percent=" << apex6Stats.pcmGainPercent << '\n'
+              << "apex6_haptic_threshold_percent=0\n"
+              << "apex6_pcm_output_left_peak=" << apex6Stats.pcmOutputLeftPeak << '\n'
+              << "apex6_pcm_output_right_peak=" << apex6Stats.pcmOutputRightPeak << '\n'
               << "apex6_last_left_trigger_type="
               << static_cast<unsigned>(apex6Stats.lastLeftTriggerType) << '\n'
               << "apex6_last_right_trigger_type="
@@ -1550,6 +1577,12 @@ int commandBridgeTriggers(int argc, char** argv) {
               << (isolationRestored ? "yes" : "no") << '\n';
     std::cout << "apex_async_write_retries="
               << device->asyncWriteRetries() << '\n';
+    const auto asyncStats = device->asyncWriteStats();
+    std::cout << "apex_async_write_attempts=" << asyncStats.writes << '\n'
+              << "apex_async_coalesced_updates=" << asyncStats.coalesced << '\n'
+              << "apex_async_slow_writes=" << asyncStats.slowWrites << '\n'
+              << "apex_async_queue_max_us=" << asyncStats.maximumQueueUs << '\n'
+              << "apex_async_write_max_us=" << asyncStats.maximumWriteUs << '\n';
     const auto printLast = [](std::string_view side, std::uint8_t dsType,
                               const std::optional<asb::ForceTriggerCommand>& command) {
         std::cout << "last_" << side << "_ds_type=" << static_cast<unsigned>(dsType) << '\n';

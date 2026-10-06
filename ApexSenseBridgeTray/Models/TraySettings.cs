@@ -5,6 +5,27 @@ using System.Web.Script.Serialization;
 
 namespace ApexSenseBridgeTray.Models
 {
+    public sealed class ControllerCalibration
+    {
+        public int TriggerStrengthPercent { get; set; } = 100;
+        public int VibrationStrengthPercent { get; set; } = 100;
+        public int HapticThresholdPercent { get; set; } = 12;
+        public bool EnableRumble { get; set; } = true;
+        public bool SyncLightbar { get; set; }
+        public int GyroStrengthPercent { get; set; } = 100;
+        public int GyroYawStrengthPercent { get; set; } = 100;
+
+        internal void Normalize(string model)
+        {
+            TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent));
+            VibrationStrengthPercent = Math.Max(0, Math.Min(100, VibrationStrengthPercent));
+            HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
+            SyncLightbar = model == "apex5" && SyncLightbar;
+            GyroStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroStrengthPercent)) : 100;
+            GyroYawStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroYawStrengthPercent)) : 100;
+        }
+    }
+
     public class TraySettings
     {
         public bool AutoDetectGames { get; set; }
@@ -28,6 +49,61 @@ namespace ApexSenseBridgeTray.Models
         public string Language { get; set; }
         public List<string> ExcludedGames { get; set; }
         public Dictionary<string, int> ApexProfileSlots { get; set; }
+        // Legacy scalar preferences remain for migration, not as an active
+        // cross-model calibration. Never persist the last connected model.
+        public Dictionary<string, ControllerCalibration> ControllerCalibrations { get; set; }
+
+        public static bool IsCalibrationModel(string model)
+        {
+            return model == "apex4" || model == "apex5" || model == "apex6";
+        }
+
+        public ControllerCalibration GetControllerCalibration(string model)
+        {
+            if (!IsCalibrationModel(model)) return null;
+            lock (this)
+            {
+                if (ControllerCalibrations == null)
+                    ControllerCalibrations = new Dictionary<string, ControllerCalibration>();
+                ControllerCalibration calibration;
+                if (!ControllerCalibrations.TryGetValue(model, out calibration) || calibration == null)
+                {
+                    // Preserve existing users' strengths/rumble on first migration.
+                    // Hardware-specific settings only migrate to their own model.
+                    calibration = new ControllerCalibration
+                    {
+                        TriggerStrengthPercent = TriggerStrengthPercent,
+                        VibrationStrengthPercent = VibrationStrengthPercent,
+                        HapticThresholdPercent = HapticThresholdPercent,
+                        EnableRumble = EnableRumble,
+                        SyncLightbar = SyncLightbar,
+                        GyroStrengthPercent = Apex4GyroStrengthPercent,
+                        GyroYawStrengthPercent = Apex4GyroYawStrengthPercent
+                    };
+                    ControllerCalibrations[model] = calibration;
+                }
+                calibration.Normalize(model);
+                return calibration;
+            }
+        }
+
+        internal string BuildControllerCalibrationArguments()
+        {
+            lock (this)
+            {
+                var result = new System.Text.StringBuilder();
+                foreach (var model in new[] { "apex4", "apex5", "apex6" })
+                {
+                    var c = GetControllerCalibration(model);
+                    result.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}",
+                        model, c.TriggerStrengthPercent, c.VibrationStrengthPercent,
+                        c.HapticThresholdPercent, c.EnableRumble ? 1 : 0, c.SyncLightbar ? 1 : 0,
+                        c.GyroStrengthPercent, c.GyroYawStrengthPercent);
+                }
+                return result.ToString();
+            }
+        }
 
         public TraySettings()
         {

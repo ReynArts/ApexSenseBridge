@@ -96,6 +96,9 @@ struct Apex6HapticBridgeStats {
     std::uint64_t waveformMaximumAgeUs = 0;
     std::uint64_t waveformTotalAgeUs = 0;
     std::uint64_t waveformActiveRendered = 0;
+    unsigned pcmGainPercent = 100;
+    std::uint64_t pcmOutputLeftPeak = 0;
+    std::uint64_t pcmOutputRightPeak = 0;
     std::uint64_t gripEnvelopeFrames = 0;
     std::uint64_t gripRumbleFrames = 0;
     std::uint64_t deadlineOverruns = 0;
@@ -121,7 +124,8 @@ public:
     explicit Apex6HapticBridge(flydigi::Apex5Device& device,
                                haptics::HapticConfig config = {},
                                bool routeGrips = true, unsigned triggerStrengthPercent = 100,
-                               unsigned vibrationStrengthPercent = 100);
+                               unsigned vibrationStrengthPercent = 100,
+                               unsigned pcmGainPercent = 100);
     ~Apex6HapticBridge();
 
     Apex6HapticBridge(const Apex6HapticBridge&) = delete;
@@ -163,6 +167,7 @@ private:
     bool routeGrips_ = true;
     unsigned triggerStrengthPercent_ = 100;
     unsigned vibrationStrengthPercent_ = 100;
+    unsigned pcmGainPercent_ = 100;
     std::uint64_t triggerSampleOffset_ = 0;
     mutable std::mutex stateMutex_;
     std::condition_variable stopSignal_;
@@ -248,6 +253,8 @@ private:
     std::atomic_uint64_t waveformMaximumAgeUs_{0};
     std::atomic_uint64_t waveformTotalAgeUs_{0};
     std::atomic_uint64_t waveformActiveRendered_{0};
+    std::atomic_uint64_t pcmOutputLeftPeak_{0};
+    std::atomic_uint64_t pcmOutputRightPeak_{0};
     std::atomic_uint64_t gripEnvelopeFrames_{0};
     std::atomic_uint64_t gripRumbleFrames_{0};
     std::atomic_uint64_t deadlineOverruns_{0};

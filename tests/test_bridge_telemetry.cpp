@@ -102,6 +102,9 @@ int main() {
     telemetry.apex6AudioFormat = asb::platform::HapticAudioFormat{
         asb::platform::HapticAudioFormatStatus::Quadraphonic, 4, 0x33, 0x33};
     telemetry.apex6Stats->bowBreaks = 3;
+    telemetry.apex6Stats->pcmGainPercent = 150;
+    telemetry.apex6Stats->pcmOutputLeftPeak = 48;
+    telemetry.apex6Stats->pcmOutputRightPeak = 47;
     telemetry.apex6Stats->hidReports = 17;
     telemetry.apex6Stats->waveformLeftActiveBlocks = 9;
     telemetry.apex6Stats->triggerMalformed = 2;
@@ -122,6 +125,11 @@ int main() {
     assert(apex6Output.str().find("\"audio_mix_channels\": 4") != std::string::npos);
     assert(apex6Output.str().find("\"audio_channel_mask\": 51") != std::string::npos);
     assert(apex6Output.str().find("\"bow_breaks\": 3") != std::string::npos);
+    assert(apex6Output.str().find("\"pcm_gain_percent\": 150") != std::string::npos);
+    assert(apex6Output.str().find("\"haptic_threshold_percent\": 0") != std::string::npos);
+    assert(apex6Output.str().find("\"pcm_output_left_peak\": 48") != std::string::npos);
+    assert(apex6Output.str().find("\"pcm_output_right_peak\": 47") != std::string::npos);
+    assert(apex6Output.str().find("\"pcm_gain_policy\": \"bounded-companding-opt-in\"") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_threshold_policy\": \"native-pcm-preserved\"") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_left_active\": 9") != std::string::npos);
     assert(apex6Output.str().find("\"trigger_malformed\": 2") != std::string::npos);

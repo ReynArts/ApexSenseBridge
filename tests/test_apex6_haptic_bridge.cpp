@@ -3,6 +3,7 @@
 #endif
 
 #include "dualsense/Apex6HapticBridge.h"
+#include "dualsense/Apex6PcmGain.h"
 #include "dualsense/Apex6TriggerEffect.h"
 #include "flydigi/Apex6Protocol.h"
 
@@ -289,7 +290,51 @@ void testTriggerDiagnostics() {
     assert(stats.waveformSilentBlocks == 2);
 }
 
-void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000) {
+void testPcmGainCurve() {
+    using asb::dualsense::scaleApex6Pcm;
+    for (int sample = -32768; sample <= 32767; ++sample) {
+        const auto pcm = static_cast<std::int16_t>(sample);
+        const auto baseline = sample * 127 / (sample >= 0 ? 32767 : 32768);
+        assert(scaleApex6Pcm(pcm) == baseline);
+        for (const auto gain : {100U, 125U, 150U, 200U}) {
+            const auto value = int(scaleApex6Pcm(pcm, gain));
+            assert(value >= -127 && value <= 127);
+            assert(std::abs(value) >= std::abs(baseline));
+            if (sample > -32768) {
+                assert(value >= scaleApex6Pcm(static_cast<std::int16_t>(sample - 1), gain));
+            }
+            assert(sample >= 0 ? value >= 0 : value <= 0);
+        }
+    }
+    assert(scaleApex6Pcm(0, 200) == 0);
+    assert(scaleApex6Pcm(32767, 200) == 127);
+    assert(scaleApex6Pcm(-32768, 200) == -127);
+    assert(scaleApex6Pcm(1000, 200) > scaleApex6Pcm(1000));
+    assert(scaleApex6Pcm(10028, 200) == 59); // ZZZ capture peak, not a linear 2x/clipping boost.
+    assert(scaleApex6Pcm(1000, 999) == scaleApex6Pcm(1000, 200));
+    assert(scaleApex6Pcm(1000, 0) == scaleApex6Pcm(1000));
+}
+
+void testApex6EnvelopeThresholdPolicy() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    asb::haptics::HapticConfig config{};
+    config.activationThreshold = 0.95; // Shared setting may be high for APEX 4/5.
+    Apex6HapticBridge bridge(device, config, true);
+    DualSenseFeedback feedback{};
+    feedback.kind = FeedbackKind::AudioHaptics;
+    feedback.leftPeak = 5000; // Suppressed by the default APEX 4/5 processor.
+    bridge.handle(feedback);
+    assert(bridge.stats().audioEnvelopeActive == 1);
+    // The caller's config and conventional-motor behavior remain unchanged.
+    assert(config.activationThreshold == 0.95);
+    assert(asb::haptics::HapticProcessor(config).process(feedback).lowFrequency == 0);
+}
+
+void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000,
+                  unsigned gain = 100, bool leftOnly = false) {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
     auto* transport = new FakeApex6Transport();
@@ -298,7 +343,7 @@ void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000)
     assert(device.verifyIdentity(error));
     asb::haptics::HapticConfig config{};
     config.activationThreshold = threshold;
-    Apex6HapticBridge bridge(device, config, true, strength, strength);
+    Apex6HapticBridge bridge(device, config, true, strength, strength, gain);
     bridge.updateTriggerPositions(200, 200);
     assert(bridge.start(error));
     DualSenseFeedback trigger{};
@@ -309,7 +354,7 @@ void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000)
     DualSenseFeedback waveform{};
     waveform.kind = FeedbackKind::AudioHapticWaveform;
     waveform.leftHapticSamples.fill(static_cast<std::int16_t>(pcmAmplitude));
-    waveform.rightHapticSamples.fill(static_cast<std::int16_t>(-pcmAmplitude));
+    waveform.rightHapticSamples.fill(leftOnly ? 0 : static_cast<std::int16_t>(-pcmAmplitude));
     for (unsigned sequence = 1; sequence <= 4; ++sequence) {
         waveform.audioSequence = sequence;
         bridge.handle(waveform);
@@ -323,17 +368,23 @@ void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000)
         for (std::size_t sample = 0; sample < 8; ++sample) {
             maximumGrip = (std::max)(maximumGrip, std::abs(int(report[7 + sample * 3]) - 128));
             maximumGrip = (std::max)(maximumGrip, std::abs(int(report[8 + sample * 3]) - 128));
+            if (leftOnly) assert(report[8 + sample * 3] == 128);
             maximumTrigger = (std::max)(maximumTrigger, std::abs(int(report[6 + sample * 3]) - 128));
         }
     }
     if (strength == 0) assert(maximumGrip == 0);
-    else assert(maximumGrip == (pcmAmplitude * 127 / 32767) * int(strength) / 100);
+    else assert(maximumGrip == int(scaleApex6Pcm(static_cast<std::int16_t>(pcmAmplitude), gain)) * int(strength) / 100);
     if (strength == 0) assert(maximumTrigger == 0);
     else assert(maximumTrigger > 0 && maximumTrigger <= int(strength));
     const auto stats = bridge.stats();
     if (strength == 0) assert(stats.waveformActiveRendered == 0);
     else assert(stats.waveformActiveRendered > 0);
     assert(stats.waveformLeftThresholded == 0 && stats.waveformRightThresholded == 0);
+    assert(stats.pcmGainPercent == gain);
+    assert(stats.pcmOutputLeftPeak == static_cast<unsigned>(maximumGrip));
+    const auto expectedRight = leftOnly ? 0 :
+        std::abs(int(scaleApex6Pcm(static_cast<std::int16_t>(-pcmAmplitude), gain))) * int(strength) / 100;
+    assert(stats.pcmOutputRightPeak == static_cast<unsigned>(expectedRight));
 }
 
 void testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm() {
@@ -363,6 +414,7 @@ void testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm() {
     const auto stats = bridge.stats();
     assert(stats.waveformLeftActiveBlocks == 4 && stats.waveformActiveRendered == 0);
     assert(stats.gripRumbleFrames != 0);
+    assert(stats.pcmOutputLeftPeak == 0 && stats.pcmOutputRightPeak == 0);
 }
 
 int main() {
@@ -370,6 +422,8 @@ int main() {
     using namespace asb::flydigi;
 
     testNativeTriggerEffects();
+    testPcmGainCurve();
+    testApex6EnvelopeThresholdPolicy();
     testBowEffect();
     testContinuousCarrierClock();
     testTriggerDiagnostics();
@@ -380,6 +434,10 @@ int main() {
     testStrength(100, 0.95);
     testStrength(100, 0.12, 1000); // Quiet native texture must survive the default threshold.
     testStrength(100, 0.95, 1000);
+    testStrength(100, 0.12, 10028, 200);
+    testStrength(50, 0.12, 1000, 150, true);
+    testStrength(0, 0.12, 10028, 200);
+    testStrength(100, 0.12, 32767, 200);
 
     auto* transport = new FakeApex6Transport();
     Apex5Device device{TransportPtr(transport)};

@@ -1380,6 +1380,7 @@
                                     </Border>
 
                                     <TextBlock Text="{DynamicResource Loc_ControllerEffects}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"/>
+                                    <TextBlock x:Name="TxtControllerCalibrationStatus" Text="{DynamicResource Loc_ControllerCalibrationLocked}" TextWrapping="Wrap" Foreground="{DynamicResource TextMuted}" FontSize="11" Margin="0,0,0,10"/>
                                     <TextBlock Text="{DynamicResource Loc_TriggerStrength}" Foreground="{DynamicResource TextSecondary}"/>
                                     <TextBlock x:Name="TxtTriggerStrength" Foreground="{DynamicResource PlayStationBlue}"/>
                                     <Slider x:Name="SliderTriggerStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,10"/>

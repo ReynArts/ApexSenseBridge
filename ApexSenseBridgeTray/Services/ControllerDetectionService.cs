@@ -13,6 +13,8 @@ namespace ApexSenseBridgeTray.Services
         private readonly Timer timer;
         private int scanRunning;
         private string lastStatus = string.Empty;
+        private string lastCandidate = string.Empty;
+        private int disposed;
 
         public event Action<string> StatusChanged;
 
@@ -26,24 +28,54 @@ namespace ApexSenseBridgeTray.Services
             if (Interlocked.Exchange(ref scanRunning, 1) != 0) return;
             try
             {
-                if (!HasCandidate())
+                string candidate;
+                string stateStatus = ReadCandidate(out candidate);
+                if (stateStatus != null)
                 {
-                    Publish("disconnected");
+                    lastCandidate = string.Empty;
+                    Publish(stateStatus);
                 }
-                else if (lastStatus == string.Empty || lastStatus == "disconnected" ||
-                         lastStatus == "unavailable")
+                else if (candidate != lastCandidate || !Models.TraySettings.IsCalibrationModel(lastStatus))
                 {
-                    Publish(DetectModel());
+                    // Lock editing immediately when a different HID interface
+                    // appears, before the slower identity query completes.
+                    Publish("unavailable");
+                    var model = DetectModel();
+                    string after;
+                    if (ReadCandidate(out after) != null || candidate != after)
+                    {
+                        lastCandidate = string.Empty;
+                        Publish("unavailable");
+                    }
+                    else
+                    {
+                        lastCandidate = candidate;
+                        Publish(model);
+                    }
                 }
             }
             finally { Volatile.Write(ref scanRunning, 0); }
         }
 
-        private static bool HasCandidate()
+        private static string ReadCandidate(out string candidate)
         {
+            candidate = string.Empty;
             string output;
             int exitCode;
-            return RunEngine("list", 1500, out output, out exitCode) && exitCode == 0;
+            if (!RunEngine("list", 1500, out output, out exitCode)) return "unavailable";
+            if (exitCode == 2) return "disconnected";
+            if (exitCode != 0) return "unavailable";
+            return ParseCandidate(output, out candidate);
+        }
+
+        internal static string ParseCandidate(string output, out string candidate)
+        {
+            candidate = string.Empty;
+            // More than one interface is ambiguous: never calibrate the first
+            // enumerated controller by accident. Include path in the fingerprint.
+            if (!Regex.IsMatch(output ?? "", @"\AFound 1 candidate\(s\):")) return "unavailable";
+            candidate = output.Trim();
+            return null;
         }
 
         private static string DetectModel()
@@ -51,7 +83,13 @@ namespace ApexSenseBridgeTray.Services
             string output;
             int exitCode;
             if (!RunEngine("identify", 4500, out output, out exitCode)) return "unavailable";
-            if (exitCode != 0) return "disconnected";
+            if (exitCode != 0) return "unavailable";
+            return ParseVerifiedModel(output);
+        }
+
+        internal static string ParseVerifiedModel(string output)
+        {
+            output = output ?? string.Empty;
             if (Regex.IsMatch(output, @"Verified:\s+Apex 4\b", RegexOptions.IgnoreCase)) return "apex4";
             if (Regex.IsMatch(output, @"Verified:\s+Apex 5\b", RegexOptions.IgnoreCase)) return "apex5";
             if (Regex.IsMatch(output, @"Verified:\s+Apex 6 Pro\b", RegexOptions.IgnoreCase)) return "apex6";
@@ -78,13 +116,18 @@ namespace ApexSenseBridgeTray.Services
                 using (var process = Process.Start(start))
                 {
                     if (process == null) return false;
-                    output = process.StandardOutput.ReadToEnd();
-                    process.StandardError.ReadToEnd();
+                    // Drain both pipes asynchronously so the timeout also bounds
+                    // hung identification; a blocking ReadToEnd defeated it.
+                    var stdout = process.StandardOutput.ReadToEndAsync();
+                    var stderr = process.StandardError.ReadToEndAsync();
                     if (!process.WaitForExit(timeoutMilliseconds))
                     {
                         try { process.Kill(); } catch { }
                         return false;
                     }
+                    if (!System.Threading.Tasks.Task.WaitAll(new System.Threading.Tasks.Task[] { stdout, stderr }, 500))
+                        return false;
+                    output = stdout.Result;
                     exitCode = process.ExitCode;
                     return true;
                 }
@@ -94,12 +137,13 @@ namespace ApexSenseBridgeTray.Services
 
         private void Publish(string status)
         {
+            if (Volatile.Read(ref disposed) != 0) return;
             if (string.Equals(lastStatus, status, StringComparison.Ordinal)) return;
             lastStatus = status;
             var handler = StatusChanged;
             if (handler != null) handler(status);
         }
 
-        public void Dispose() { timer.Dispose(); }
+        public void Dispose() { Interlocked.Exchange(ref disposed, 1); timer.Dispose(); }
     }
 }

@@ -815,6 +815,10 @@ bool Apex5Device::startAsyncWrites(std::string& error) {
     }
     asyncWriteFailed_.store(false, std::memory_order_relaxed);
     asyncWriteRetries_.store(0, std::memory_order_relaxed);
+    {
+        std::lock_guard lock(asyncStatsMutex_);
+        asyncStats_ = {};
+    }
     writer_ = std::thread([this] { writerLoop(); });
     return true;
 }
@@ -834,8 +838,15 @@ bool Apex5Device::queueTriggerRaw(const ForceTriggerCommand& command,
     if (!writer_.joinable()) return setTriggerRaw(command, error);
     {
         std::lock_guard lock(queueMutex_);
-        (command.side == TriggerSide::Left ? pendingLeftTrigger_
-                                           : pendingRightTrigger_) = command;
+        auto& pending = command.side == TriggerSide::Left ? pendingLeftTrigger_
+                                                         : pendingRightTrigger_;
+        if (pending) {
+            std::lock_guard statsLock(asyncStatsMutex_);
+            ++asyncStats_.coalesced;
+        }
+        pending = command;
+        pendingAt_[command.side == TriggerSide::Left ? 0 : 1] =
+            std::chrono::steady_clock::now();
     }
     queueSignal_.notify_one();
     return true;
@@ -849,7 +860,12 @@ bool Apex5Device::queueRumble(std::uint8_t lowFrequencyMotor,
     }
     {
         std::lock_guard lock(queueMutex_);
+        if (pendingRumble_) {
+            std::lock_guard statsLock(asyncStatsMutex_);
+            ++asyncStats_.coalesced;
+        }
         pendingRumble_ = std::pair{lowFrequencyMotor, highFrequencyMotor};
+        pendingAt_[2] = std::chrono::steady_clock::now();
     }
     queueSignal_.notify_one();
     return true;
@@ -857,6 +873,11 @@ bool Apex5Device::queueRumble(std::uint8_t lowFrequencyMotor,
 
 std::uint64_t Apex5Device::asyncWriteRetries() const noexcept {
     return asyncWriteRetries_.load(std::memory_order_relaxed);
+}
+
+AsyncWriteStats Apex5Device::asyncWriteStats() const noexcept {
+    std::lock_guard lock(asyncStatsMutex_);
+    return asyncStats_;
 }
 
 bool Apex5Device::takeAsyncWriteError(std::string& error) {
@@ -881,6 +902,8 @@ void Apex5Device::writerLoop() {
 
         // Coalesce updates that arrive while the receiver's pacing window is
         // open, then choose the newest value rather than an obsolete one.
+        // Also serialize the pacing check with synchronous vendor commands.
+        const auto writeLock = acquireWriteLock();
         constexpr auto kVendorWriteSpacing = std::chrono::milliseconds(25);
         if (lastVendorWriteAt_.time_since_epoch().count() != 0) {
             const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
@@ -891,6 +914,7 @@ void Apex5Device::writerLoop() {
 
         std::optional<ForceTriggerCommand> trigger;
         std::optional<std::pair<std::uint8_t, std::uint8_t>> rumble;
+        auto queuedAt = std::chrono::steady_clock::time_point{};
         {
             std::lock_guard lock(queueMutex_);
             if (writerStopping_) return;
@@ -906,14 +930,29 @@ void Apex5Device::writerLoop() {
                     continue;
                 }
                 nextSlot_ = (slot + 1) % 3;
+                queuedAt = pendingAt_[slot];
                 break;
             }
         }
         if (!trigger && !rumble) continue;
 
         std::string error;
+        const auto startedAt = std::chrono::steady_clock::now();
         const bool ok = trigger ? setTriggerRaw(*trigger, error)
                                 : setRumble(rumble->first, rumble->second, error);
+        const auto elapsedUs = [](auto duration) {
+            return static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(duration).count());
+        };
+        const auto writeUs = elapsedUs(std::chrono::steady_clock::now() - startedAt);
+        {
+            std::lock_guard lock(asyncStatsMutex_);
+            ++asyncStats_.writes;
+            if (writeUs >= 100000) ++asyncStats_.slowWrites;
+            asyncStats_.maximumWriteUs = (std::max)(asyncStats_.maximumWriteUs, writeUs);
+            asyncStats_.maximumQueueUs = (std::max)(asyncStats_.maximumQueueUs,
+                                                   elapsedUs(startedAt - queuedAt));
+        }
         if (ok) {
             consecutiveFailures = 0;
             continue;
@@ -924,9 +963,13 @@ void Apex5Device::writerLoop() {
             if (trigger) {
                 auto& pending = trigger->side == TriggerSide::Left
                     ? pendingLeftTrigger_ : pendingRightTrigger_;
-                if (!pending) pending = trigger;
+                if (!pending) {
+                    pending = trigger;
+                    pendingAt_[trigger->side == TriggerSide::Left ? 0 : 1] = queuedAt;
+                }
             } else if (!pendingRumble_) {
                 pendingRumble_ = rumble;
+                pendingAt_[2] = queuedAt;
             }
         }
         asyncWriteRetries_.fetch_add(1, std::memory_order_relaxed);

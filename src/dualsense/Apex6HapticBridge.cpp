@@ -1,4 +1,5 @@
 #include "dualsense/Apex6HapticBridge.h"
+#include "dualsense/Apex6PcmGain.h"
 #include "dualsense/EffectStrength.h"
 
 #include <algorithm>
@@ -19,14 +20,12 @@ constexpr auto kAudioEnvelopeTimeout = std::chrono::milliseconds(100);
 constexpr auto kMaximumWaveformAge = std::chrono::milliseconds(24);
 constexpr double kPi = 3.14159265358979323846;
 
-std::int8_t scalePcm(std::int16_t sample) noexcept {
-    // Hardware validation confirmed that the conservative pre-validation cap
-    // left substantial actuator range unused. Map PCM onto the complete safe
-    // symmetric range accepted by the unsigned-bipolar 0x57 channel.
-    const auto denominator = sample >= 0 ? 32767 : 32768;
-    const auto scaled = static_cast<std::int32_t>(sample) * 127 / denominator;
-    return static_cast<std::int8_t>(
-        std::clamp<std::int32_t>(scaled, -127, 127));
+haptics::HapticConfig apex6HapticConfig(haptics::HapticConfig config) noexcept {
+    // The shared user threshold protects APEX 4/5 eccentric grip motors.
+    // APEX 6 voice coils retain low-level envelopes as well as native PCM.
+    // Keep this policy inside the APEX 6 renderer for CLI/Tray/Playnite alike.
+    config.activationThreshold = 0.0;
+    return config;
 }
 
 #ifdef _WIN32
@@ -100,9 +99,10 @@ void updateMaximum(std::atomic_uint64_t& target, std::uint64_t value) noexcept {
 Apex6HapticBridge::Apex6HapticBridge(flydigi::Apex5Device& device,
                                      haptics::HapticConfig config,
                                      bool routeGrips, unsigned triggerStrengthPercent,
-                                     unsigned vibrationStrengthPercent)
-    : device_(device), hapticProcessor_(config), routeGrips_(routeGrips),
-      triggerStrengthPercent_(triggerStrengthPercent), vibrationStrengthPercent_(vibrationStrengthPercent) {}
+                                     unsigned vibrationStrengthPercent, unsigned pcmGainPercent)
+    : device_(device), hapticProcessor_(apex6HapticConfig(config)), routeGrips_(routeGrips),
+      triggerStrengthPercent_(triggerStrengthPercent), vibrationStrengthPercent_(vibrationStrengthPercent),
+      pcmGainPercent_(std::clamp(pcmGainPercent, 100U, 200U)) {}
 
 Apex6HapticBridge::~Apex6HapticBridge() {
     std::string ignored;
@@ -213,8 +213,8 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         }
         // This is the game's native haptic PCM, not an audio-energy estimate.
         // A block-level activation gate removes quiet textures and decay tails.
-        // Preserve it at unity gain; the user threshold still applies to the
-        // envelope fallback through HapticProcessor, and strength scales output.
+        // Preserve it before the optional render-time gain; the user threshold
+        // is bypassed for APEX 6 envelopes too; strength scales final output.
         if (lastWaveformSequence_) {
             const auto delta = block.sequence - *lastWaveformSequence_;
             if (delta == 0) {
@@ -447,7 +447,7 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
     }
     for (std::size_t index = 0; routeGrips_ && index < output.size(); ++index) {
         if (leftPcmActive) {
-            output[index].leftGrip = scalePcm(waveform->left[index]);
+            output[index].leftGrip = scaleApex6Pcm(waveform->left[index], pcmGainPercent_);
         } else if (leftEnvelope) {
             output[index].leftGrip = sineSample(
                 leftGripPhase_, 85.0, envelope.lowFrequency);
@@ -457,7 +457,7 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
                 rumbleLow);
         }
         if (rightPcmActive) {
-            output[index].rightGrip = scalePcm(waveform->right[index]);
+            output[index].rightGrip = scaleApex6Pcm(waveform->right[index], pcmGainPercent_);
         } else if (rightEnvelope) {
             output[index].rightGrip = sineSample(
                 rightGripPhase_, 85.0, envelope.highFrequency);
@@ -468,12 +468,24 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
         }
     }
 
+    unsigned leftPcmOutputPeak = 0;
+    unsigned rightPcmOutputPeak = 0;
     for (std::size_t index = 0; index < output.size(); ++index) {
         output[index].leftGrip = scaleEffectStrength(output[index].leftGrip, vibrationStrengthPercent_);
         output[index].rightGrip = scaleEffectStrength(output[index].rightGrip, vibrationStrengthPercent_);
+        if (routeGrips_ && leftPcmActive) {
+            leftPcmOutputPeak = (std::max)(leftPcmOutputPeak,
+                static_cast<unsigned>(std::abs(int(output[index].leftGrip))));
+        }
+        if (routeGrips_ && rightPcmActive) {
+            rightPcmOutputPeak = (std::max)(rightPcmOutputPeak,
+                static_cast<unsigned>(std::abs(int(output[index].rightGrip))));
+        }
         leftTrigger[index] = scaleEffectStrength(leftTrigger[index], triggerStrengthPercent_);
         rightTrigger[index] = scaleEffectStrength(rightTrigger[index], triggerStrengthPercent_);
     }
+    if (routeGrips_ && leftPcmActive) updateMaximum(pcmOutputLeftPeak_, leftPcmOutputPeak);
+    if (routeGrips_ && rightPcmActive) updateMaximum(pcmOutputRightPeak_, rightPcmOutputPeak);
     if ((leftPcmActive || rightPcmActive) &&
         std::any_of(output.begin(), output.end(), [leftPcmActive, rightPcmActive](const auto& sample) {
             return (leftPcmActive && sample.leftGrip != 0) ||
@@ -643,6 +655,9 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
     result.waveformMaximumAgeUs = waveformMaximumAgeUs_.load(std::memory_order_relaxed);
     result.waveformTotalAgeUs = waveformTotalAgeUs_.load(std::memory_order_relaxed);
     result.waveformActiveRendered = waveformActiveRendered_.load(std::memory_order_relaxed);
+    result.pcmGainPercent = pcmGainPercent_;
+    result.pcmOutputLeftPeak = pcmOutputLeftPeak_.load(std::memory_order_relaxed);
+    result.pcmOutputRightPeak = pcmOutputRightPeak_.load(std::memory_order_relaxed);
     result.gripEnvelopeFrames = gripEnvelopeFrames_.load(std::memory_order_relaxed);
     result.gripRumbleFrames = gripRumbleFrames_.load(std::memory_order_relaxed);
     result.deadlineOverruns = deadlineOverruns_.load(std::memory_order_relaxed);

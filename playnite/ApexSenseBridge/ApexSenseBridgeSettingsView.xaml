@@ -110,7 +110,7 @@
 
             <!-- Haptic Threshold -->
             <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,4,12,10"
-                       VerticalAlignment="Center" Text="Seuil haptique (%)" />
+                       VerticalAlignment="Center" Text="Seuil haptique APEX 4/5 (%)" ToolTip="APEX 6 Pro utilise automatiquement un seuil de 0, sans modifier ce réglage." />
             <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10"
                      MaxWidth="100" HorizontalAlignment="Left"
                      Text="{Binding Settings.HapticThresholdPercent, UpdateSourceTrigger=PropertyChanged}" />

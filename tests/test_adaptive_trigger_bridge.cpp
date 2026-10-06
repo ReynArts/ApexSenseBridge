@@ -8,6 +8,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -37,6 +40,15 @@ public:
         if (failWrites) {
             error = "simulated trigger failure";
             return false;
+        }
+        {
+            std::unique_lock lock(gateMutex_);
+            if (blockNext_) {
+                blockNext_ = false;
+                blocked_ = true;
+                gateSignal_.notify_all();
+                gateSignal_.wait(lock, [this] { return released_; });
+            }
         }
         writes.emplace_back(report.begin(), report.end());
         return true;
@@ -69,10 +81,30 @@ public:
     bool failWrites = false;
     std::vector<std::vector<std::uint8_t>> writes;
 
+    void blockNextWrite() {
+        std::lock_guard lock(gateMutex_);
+        blockNext_ = true;
+    }
+    void waitUntilBlocked() {
+        std::unique_lock lock(gateMutex_);
+        assert(gateSignal_.wait_for(lock, std::chrono::seconds(2),
+                                   [this] { return blocked_; }));
+    }
+    void releaseWrite() {
+        std::lock_guard lock(gateMutex_);
+        released_ = true;
+        gateSignal_.notify_all();
+    }
+
 private:
     bool apex4_;
     bool identityPending_ = false;
     asb::HidDeviceInfo info_{};
+    std::mutex gateMutex_;
+    std::condition_variable gateSignal_;
+    bool blockNext_ = false;
+    bool blocked_ = false;
+    bool released_ = false;
 };
 
 void expectReport(const FakeTransport& transport, bool apex4,
@@ -233,9 +265,71 @@ void testStrength(bool apex4) {
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
 }
 
+void testAsyncCoalescing() {
+    using namespace asb;
+    auto* transport = new FakeTransport(true);
+    flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    assert(device.startAsyncWrites(error));
+    dualsense::AdaptiveTriggerBridge bridge(device);
+    dualsense::DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x04;
+    feedback.rightTriggerEffect = {1, 25, 40};
+    transport->blockNextWrite();
+    bridge.handle(feedback);
+    transport->waitUntilBlocked();
+
+    // Even a stalled HID write must not block feedback capture or accumulate
+    // a magazine's worth of old recoil commands. Only the newest state survives.
+    for (unsigned index = 0; index < 200; ++index) {
+        feedback.rightTriggerEffect = {1, 25, static_cast<std::uint8_t>(index + 1)};
+        bridge.handle(feedback);
+        assert(device.queueRumble(static_cast<std::uint8_t>(index), 0, error));
+    }
+    feedback.rightTriggerEffect = {5};
+    bridge.handle(feedback);
+    assert(device.queueRumble(0, 0, error));
+    feedback.enableBits1 = 0x08;
+    feedback.leftTriggerEffect = {1, 25, 40};
+    bridge.handle(feedback);
+    std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    transport->releaseWrite();
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (device.asyncWriteStats().writes < 4 &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    device.stopAsyncWrites();
+    assert(transport->writes.size() == 4);
+    unsigned left = 0, rightStop = 0, rumbleStop = 0;
+    for (std::size_t index = 1; index < transport->writes.size(); ++index) {
+        const auto& report = transport->writes[index];
+        if (report[1] == flydigi::kApex4CmdRumble) {
+            assert(report[2] == 0 && report[3] == 0);
+            ++rumbleStop;
+        } else if (report[4] == static_cast<std::uint8_t>(TriggerSide::Right)) {
+            assert(report[5] == static_cast<std::uint8_t>(TriggerMode::Normal));
+            ++rightStop;
+        } else {
+            assert(report[5] == static_cast<std::uint8_t>(TriggerMode::Race));
+            ++left;
+        }
+    }
+    assert(left == 1 && rightStop == 1 && rumbleStop == 1);
+    const auto stats = device.asyncWriteStats();
+    assert(stats.writes == 4);
+    assert(stats.coalesced >= 398);
+    assert(stats.slowWrites >= 1);
+    assert(stats.maximumWriteUs >= 100000);
+    assert(stats.maximumQueueUs >= 100000);
+    assert(device.asyncWriteRetries() == 0);
+}
+
 int main() {
     testBridge(false);
     testBridge(true);
     testStrength(false);
     testStrength(true);
+    testAsyncCoalescing();
 }

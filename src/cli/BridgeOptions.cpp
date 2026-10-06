@@ -4,6 +4,7 @@
 #include "platform/SessionControl.h"
 
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 
 namespace asb::cli {
@@ -24,7 +25,35 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                         std::string& error) {
     for (int i = 2; i < argc; ++i) {
         const std::string_view value = argv[i];
-        if (value == "--seconds") {
+        if (value == "--controller-calibration") {
+            error = "--controller-calibration expects apex4|apex5|apex6:trigger:vibration:threshold:rumble:rgb:gyro:yaw.";
+            if (++i >= argc) return false;
+            std::istringstream input(argv[i]);
+            std::string model;
+            std::getline(input, model, ':');
+            const int index = model == "apex4" ? 0 : model == "apex5" ? 1 : model == "apex6" ? 2 : -1;
+            if (index < 0 || options.controllerCalibrations[index]) return false;
+            std::array<unsigned, 7> fields{};
+            for (std::size_t field = 0; field < fields.size(); ++field) {
+                std::string token;
+                if (!std::getline(input, token, ':') || token.empty() ||
+                    token.find_first_not_of("0123456789") != std::string::npos) return false;
+                try {
+                    const auto parsed = std::stoul(token);
+                    const unsigned minimum = field >= 5 ? 25 : 0;
+                    const unsigned maximum = field >= 5 ? 400 : field >= 3 ? 1 : field == 2 ? 95 : 100;
+                    if (parsed < minimum || parsed > maximum) return false;
+                    fields[field] = static_cast<unsigned>(parsed);
+                } catch (...) { return false; }
+            }
+            // Reject trailing separators / extra fields, rather than partial parses.
+            if (!input.eof()) return false;
+            if ((index != 1 && fields[4] != 0) ||
+                (index == 2 && fields[2] != 0) ||
+                (index != 0 && (fields[5] != 100 || fields[6] != 100))) return false;
+            options.controllerCalibrations[index] = ControllerCalibration{
+                fields[0], fields[1], fields[2], fields[3] != 0, fields[4] != 0, fields[5], fields[6]};
+        } else if (value == "--seconds") {
             if (++i >= argc) {
                 error = "--seconds requires an integer from 1 to 86400.";
                 return false;
@@ -101,6 +130,24 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 (value == "--trigger-strength" ? options.triggerStrengthPercent : options.vibrationStrengthPercent) = static_cast<unsigned>(parsed);
             } catch (...) {
                 error = std::string(value) + " requires an integer percentage from 0 to 100.";
+                return false;
+            }
+        } else if (value == "--apex6-haptic-gain") {
+            if (++i >= argc) {
+                error = "--apex6-haptic-gain requires an integer percentage from 100 to 200.";
+                return false;
+            }
+            try {
+                std::size_t consumed = 0;
+                const auto parsed = std::stoul(argv[i], &consumed);
+                if (consumed != std::string_view(argv[i]).size() || parsed < 100 ||
+                    parsed > 200 || argv[i][0] == '-') {
+                    throw std::out_of_range("apex6-haptic-gain");
+                }
+                options.apex6HapticGainPercent = static_cast<unsigned>(parsed);
+                options.apex6HapticGainExplicit = true;
+            } catch (...) {
+                error = "--apex6-haptic-gain requires an integer percentage from 100 to 200.";
                 return false;
             }
         } else if (value == "--apex4-gyro-strength" ||
@@ -231,6 +278,10 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
         error = "--session-owner-pid requires --session-token.";
         return false;
     }
+    if (options.apex6HapticGainExplicit && !options.routeRumble) {
+        error = "--apex6-haptic-gain requires --rumble.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -241,11 +292,40 @@ std::string_view bridgeCommandUsage() noexcept {
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
            "[--sync-lightbar] [--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..100] "
+           "[--apex6-haptic-gain 100..200] "
+           "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW] "
            "[--apex4-gyro-strength 25..400] "
            "[--apex4-gyro-yaw-strength 25..400] "
            "[--verify-virtual-input] [--touchpad-profile NAME] "
            "[--view-hold-swipe-up] [--apex-profile 1..4] "
            "[--session-token 32HEX] [--session-owner-pid PID]";
+}
+
+bool applyControllerCalibration(BridgeCommandOptions& options,
+                                std::string_view verifiedModel, std::string& error) {
+    const bool supplied = options.controllerCalibrations[0] || options.controllerCalibrations[1] ||
+                          options.controllerCalibrations[2];
+    if (!supplied) return true; // Existing CLI / Playnite contract unchanged.
+    const int index = verifiedModel == "apex4" ? 0 : verifiedModel == "apex5" ? 1 :
+                      verifiedModel == "apex6" ? 2 : -1;
+    if (index < 0 || !options.controllerCalibrations[index]) {
+        error = "No calibration supplied for the verified controller model.";
+        return false;
+    }
+    const auto& c = *options.controllerCalibrations[index];
+    options.triggerStrengthPercent = c.triggerStrength;
+    options.vibrationStrengthPercent = c.vibrationStrength;
+    options.hapticThresholdPercent = c.threshold;
+    options.routeRumble = c.rumble;
+    options.syncLightbar = c.rgb;
+    options.apex4GyroStrengthPercent = c.gyro;
+    options.apex4GyroYawStrengthPercent = c.gyroYaw;
+    if (index != 1) options.apexProfileSlot.reset();
+    if (options.apex6HapticGainExplicit && !options.routeRumble) {
+        error = "--apex6-haptic-gain requires grip haptics in the selected calibration.";
+        return false;
+    }
+    return true;
 }
 
 } // namespace asb::cli

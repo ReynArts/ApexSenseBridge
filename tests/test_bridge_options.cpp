@@ -54,6 +54,8 @@ int main() {
     assert(!defaults.options.duration);
     assert(defaults.options.virtualBackend == Backend::Auto);
     assert(defaults.options.hapticThresholdPercent == 12);
+    assert(defaults.options.apex6HapticGainPercent == 100);
+    assert(!defaults.options.apex6HapticGainExplicit);
     assert(defaults.options.apex4GyroStrengthPercent == 100);
     assert(defaults.options.apex4GyroYawStrengthPercent == 100);
     assert(defaults.options.touchpadProfile == Profile::None);
@@ -120,6 +122,17 @@ int main() {
     assert(!parse({"--apex4-gyro-yaw-strength", "401"}).succeeded);
     assert(!parse({"--apex4-gyro-strength", "100junk"}).succeeded);
     assert(!parse({"--apex4-gyro-yaw-strength"}).succeeded);
+    for (const auto gain : {"100", "150", "200"}) {
+        const auto parsed = parse({"--rumble", "--apex6-haptic-gain", gain});
+        assert(parsed.succeeded && parsed.options.apex6HapticGainExplicit);
+        assert(parsed.options.apex6HapticGainPercent == std::stoul(gain));
+    }
+    for (const auto gain : {"99", "201", "-1", "150junk", "150.5", "999999999999999999999999999"}) {
+        assert(!parse({"--rumble", "--apex6-haptic-gain", gain}).succeeded);
+    }
+    assert(!parse({"--rumble", "--apex6-haptic-gain"}).succeeded);
+    assert(!parse({"--apex6-haptic-gain", "150"}).succeeded);
+    assert(usage.find("--apex6-haptic-gain 100..200") != std::string_view::npos);
 
     return 0;
 }

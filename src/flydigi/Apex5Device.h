@@ -26,6 +26,14 @@ struct TransportDeleter {
 };
 using TransportPtr = std::unique_ptr<platform::HidTransport, TransportDeleter>;
 
+struct AsyncWriteStats {
+    std::uint64_t writes = 0;
+    std::uint64_t coalesced = 0;
+    std::uint64_t slowWrites = 0;
+    std::uint64_t maximumQueueUs = 0;
+    std::uint64_t maximumWriteUs = 0;
+};
+
 class Apex5Device {
 public:
     // Historical API name retained for source compatibility. This transport
@@ -100,6 +108,7 @@ public:
                      std::uint8_t highFrequencyMotor,
                      std::string& error);
     [[nodiscard]] std::uint64_t asyncWriteRetries() const noexcept;
+    [[nodiscard]] AsyncWriteStats asyncWriteStats() const noexcept;
     bool takeAsyncWriteError(std::string& error);
 
 private:
@@ -123,10 +132,13 @@ private:
     std::optional<ForceTriggerCommand> pendingLeftTrigger_{};
     std::optional<ForceTriggerCommand> pendingRightTrigger_{};
     std::optional<std::pair<std::uint8_t, std::uint8_t>> pendingRumble_{};
+    std::array<std::chrono::steady_clock::time_point, 3> pendingAt_{};
     unsigned nextSlot_ = 0;
     bool writerStopping_ = false;
     std::atomic<bool> asyncWriteFailed_{false};
     std::atomic<std::uint64_t> asyncWriteRetries_{0};
+    mutable std::mutex asyncStatsMutex_{};
+    AsyncWriteStats asyncStats_{};
     std::mutex asyncErrorMutex_{};
     std::string asyncError_{};
 };
