@@ -5,6 +5,8 @@
 #include "platform/PhysicalControllerIsolation.h"
 
 #include <cassert>
+#include <string>
+#include <vector>
 
 int main() {
     using asb::platform::detail::matchesFlydigiSpaceStationInstall;
@@ -110,5 +112,24 @@ int main() {
     assert(!matchesApexProfileRecoveryDevice(
         apex, L"\\\\?\\hid#old-path", L"{11223344-5566-7788-99AA-BBCCDDEEFF00}",
         0x37D7, 0x2501, 0xFF00));
+
+    // Issue #28: DSX keeps HidHide's single-client control device open.
+    using asb::platform::detail::describeHidHideControlDenied;
+    using asb::platform::detail::findHidHideControlClients;
+
+    assert(findHidHideControlClients({L"explorer.exe", L"steam.exe"}).empty());
+    assert(findHidHideControlClients({}).empty());
+    const auto clients = findHidHideControlClients(
+        {L"hidhideclient.EXE", L"steam.exe", L"dsx.exe", L"DSX.exe"});
+    assert((clients == std::vector<std::string>{"DSX.exe", "HidHideClient.exe"}));
+    // Lookalike executables must not be blamed.
+    assert(findHidHideControlClients({L"DSXHelper.exe", L"MyDSX.exe"}).empty());
+
+    const auto named = describeHidHideControlDenied({"DSX.exe"});
+    assert(named.find("DSX.exe") != std::string::npos);
+    assert(named.find("restart Windows") == std::string::npos);
+    const auto generic = describeHidHideControlDenied({});
+    assert(generic.find("Windows error 5") != std::string::npos);
+    assert(generic.find("DSX") != std::string::npos);
     return 0;
 }

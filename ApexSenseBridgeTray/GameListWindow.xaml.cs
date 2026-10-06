@@ -118,7 +118,8 @@ namespace ApexSenseBridgeTray
             controllerDetection.StatusChanged += status => Dispatcher.BeginInvoke(
                 new Action(() => UpdateControllerStatus(status)));
             UpdateControllerStatus("disconnected");
-            statusTimer.Tick += (s, e) => UpdateDashboardStatus();
+            statusTimer.Tick += (s, e) => { UpdateDashboardStatus(); UpdateClock(); };
+            UpdateClock();
             statusTimer.Start();
 
             if (string.Equals(initialTab, "games", StringComparison.OrdinalIgnoreCase) ||
@@ -167,13 +168,13 @@ namespace ApexSenseBridgeTray
 
         private bool isGamepadMode;
 
-        // Dashboard navigation: row 0 = Hero Bridge, row 1 = Hub (col 0: Games, col 1: Learned), row 2 = Shelf (col 0..N)
+        // Dashboard navigation: row 0 = action tiles (or recovery buttons), row 1 = game shelf (col 0..N)
         private int dashboardNavRow = 0;
         private int dashboardJumpCol = 0;
         private int dashboardShelfIndex = 0;
 
         // Settings navigation: 2 columns
-        private int settingsCol = 0; // 0 = Left (Detection), 1 = Right (Preferences)
+        private int settingsCol = 0; // 0 = Left (general), 1 = Right (controller feel)
         private int settingsRow0 = 0; // row in Left column
         private int settingsRow1 = 0; // row in Right column
 
@@ -206,8 +207,9 @@ namespace ApexSenseBridgeTray
         private void UpdateGamepadConnectionVisibility(bool isConnected)
         {
             Visibility visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
-            if (HintBumperLeft != null) HintBumperLeft.Visibility = Visibility.Collapsed;
-            if (HintBumperRight != null) HintBumperRight.Visibility = Visibility.Collapsed;
+            if (HintBumperLeft != null) HintBumperLeft.Visibility = visibility;
+            if (HintBumperRight != null) HintBumperRight.Visibility = visibility;
+            if (HintSupportMenu != null) HintSupportMenu.Visibility = visibility;
             if (PnlGamepadHud != null) PnlGamepadHud.Visibility = visibility;
             SetXboxGlyphVisibility(this, visibility);
             UpdateContextualGamepadHints();
@@ -227,6 +229,13 @@ namespace ApexSenseBridgeTray
             if (HudActionX != null) HudActionX.Visibility = listOnly;
             if (HudActionY != null) HudActionY.Visibility = listOnly;
             if (HudScroll != null) HudScroll.Visibility = scrollable;
+            if (HudSupport != null) HudSupport.Visibility = common;
+            if (HudFilter != null) HudFilter.Visibility = connected && currentTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            if (HudAdjust != null)
+            {
+                HudAdjust.Visibility = connected && currentTabIndex == 3 && GetFocusedSettingsSlider() != null
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
             if (TxtHudActionX != null)
             {
                 TxtHudActionX.Text = LocalizationManager.Get(
@@ -259,7 +268,7 @@ namespace ApexSenseBridgeTray
 
         private void InitTabNavigation()
         {
-            if (currentTabIndex == 0) SetDashboardNav(dashboardNavRow, dashboardNavRow == 1 ? dashboardJumpCol : dashboardShelfIndex);
+            if (currentTabIndex == 0) SetDashboardNav(dashboardNavRow, dashboardNavRow == 0 ? dashboardJumpCol : dashboardShelfIndex);
             else if (currentTabIndex == 1) { if (selectedGameIndex < 0 && filteredGames.Count > 0) SelectGame(0); }
             else if (currentTabIndex == 2)
             {
@@ -283,28 +292,56 @@ namespace ApexSenseBridgeTray
         private void SetDashboardNav(int row, int col = -1)
         {
             ClearDashboardNavHighlights();
-            dashboardNavRow = Math.Max(0, Math.Min(2, row));
+            dashboardNavRow = Math.Max(0, Math.Min(1, row));
 
             if (dashboardNavRow == 0)
             {
-                if (TileManualBridge != null) ApplyHighlight(TileManualBridge);
+                var items = GetDashboardActionItems();
+                if (items.Length == 0) return;
+                if (col >= 0) dashboardJumpCol = col;
+                dashboardJumpCol = Math.Max(0, Math.Min(items.Length - 1, dashboardJumpCol));
+                ApplyHighlight(items[dashboardJumpCol]);
             }
-            else if (dashboardNavRow == 1)
-            {
-                if (col >= 0) dashboardJumpCol = Math.Max(0, Math.Min(1, col));
-                if (dashboardJumpCol == 0 && TileJumpGames != null) ApplyHighlight(TileJumpGames);
-                else if (dashboardJumpCol == 1 && TileJumpLearned != null) ApplyHighlight(TileJumpLearned);
-            }
-            else if (dashboardNavRow == 2)
+            else
             {
                 if (dashboardFeaturedGames.Count == 0)
                 {
-                    SetDashboardNav(1, dashboardJumpCol);
+                    SetDashboardNav(0, dashboardJumpCol);
                     return;
                 }
                 if (col >= 0) dashboardShelfIndex = Math.Max(0, Math.Min(dashboardFeaturedGames.Count - 1, col));
                 HighlightShelfItem(dashboardShelfIndex);
             }
+        }
+
+        // Row 0 of the home screen: the quick-action tiles, replaced by the
+        // recovery buttons while an interrupted session awaits a decision.
+        private FrameworkElement[] GetDashboardActionItems(bool navigableOnly = true)
+        {
+            var items = new List<FrameworkElement>();
+            if (!navigableOnly || (PnlSessionRecovery != null && PnlSessionRecovery.Visibility == Visibility.Visible))
+            {
+                if (BtnResumeSession != null) items.Add(BtnResumeSession);
+                if (BtnDismissRecovery != null) items.Add(BtnDismissRecovery);
+            }
+            if (!navigableOnly || PnlSessionRecovery == null || PnlSessionRecovery.Visibility != Visibility.Visible)
+            {
+                if (TileManualBridge != null) items.Add(TileManualBridge);
+                if (TileJumpGames != null) items.Add(TileJumpGames);
+                if (TileJumpLearned != null) items.Add(TileJumpLearned);
+            }
+            return navigableOnly ? items.Where(IsNavigable).ToArray() : items.ToArray();
+        }
+
+        private static bool IsNavigable(FrameworkElement element)
+        {
+            // Walk the logical parents so hidden sections are skipped even before layout runs.
+            for (FrameworkElement current = element; current != null && !(current is Window); current = current.Parent as FrameworkElement)
+            {
+                if (current.Visibility != Visibility.Visible || !current.IsEnabled) return false;
+                if (current is ScrollViewer) break;
+            }
+            return true;
         }
 
         private void HighlightShelfItem(int index)
@@ -317,7 +354,7 @@ namespace ApexSenseBridgeTray
 
             if (ScrollDashboardShelf != null && LstDashboardFeatured != null)
             {
-                double cardWidth = 157.0; // 145 + 12 margin
+                double cardWidth = 148.0; // 132 + 16 margin
                 double targetOffset = index * cardWidth;
                 double viewWidth = ScrollDashboardShelf.ViewportWidth > 0 ? ScrollDashboardShelf.ViewportWidth : ScrollDashboardShelf.ActualWidth;
                 if (viewWidth <= 0) viewWidth = 800.0;
@@ -332,9 +369,7 @@ namespace ApexSenseBridgeTray
 
         private void ClearDashboardNavHighlights()
         {
-            if (TileManualBridge != null) ClearElementHighlight(TileManualBridge);
-            if (TileJumpGames != null) ClearElementHighlight(TileJumpGames);
-            if (TileJumpLearned != null) ClearElementHighlight(TileJumpLearned);
+            foreach (var item in GetDashboardActionItems(false)) ClearElementHighlight(item);
             for (int i = 0; i < dashboardFeaturedGames.Count; i++)
             {
                 dashboardFeaturedGames[i].IsSelected = false;
@@ -342,25 +377,56 @@ namespace ApexSenseBridgeTray
         }
 
         // --- Settings Navigation (2 Columns) ---
-        private FrameworkElement[] GetSettingsCol0Items()
+        private FrameworkElement[] GetSettingsCol0Items(bool navigableOnly = true)
         {
-            var items = new List<FrameworkElement>();
-            if (TileSettingAutoDetect != null) items.Add(TileSettingAutoDetect);
-            if (TileSettingAdaptive != null && TileSettingAdaptive.IsEnabled) items.Add(TileSettingAdaptive);
-            if (TileSettingHaptic != null && TileSettingHaptic.IsEnabled) items.Add(TileSettingHaptic);
-            if (BtnSupportKofi != null) items.Add(BtnSupportKofi);
-            return items.ToArray();
+            var items = new FrameworkElement[]
+            {
+                TileSettingAutoDetect, TileSettingAdaptive, TileSettingHaptic,
+                TileSettingNotifications, TileSettingLanguage,
+                BtnOpenControllerTest, BtnPreparedLaunch, BtnReportBug, BtnCheckUpdates
+            }.Where(item => item != null);
+            return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
         }
 
-        private FrameworkElement[] GetSettingsCol1Items()
+        private FrameworkElement[] GetSettingsCol1Items(bool navigableOnly = true)
         {
-            var items = new List<FrameworkElement>();
-            if (TileSettingNotifications != null) items.Add(TileSettingNotifications);
-            if (TileSettingSyncLightbar != null) items.Add(TileSettingSyncLightbar);
-            if (TileSettingLanguage != null) items.Add(TileSettingLanguage);
-            if (BtnReportBug != null) items.Add(BtnReportBug);
-            if (BtnCheckUpdates != null) items.Add(BtnCheckUpdates);
-            return items.ToArray();
+            // Only the capabilities of the identified controller are shown (and therefore navigable).
+            var items = new FrameworkElement[]
+            {
+                TileSettingSyncLightbar, RowTriggerStrength, RowVibrationStrength,
+                RowGyroStrength, RowGyroYawStrength, RowVibrationThreshold, RowGripVibrations
+            }.Where(item => item != null);
+            return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
+        }
+
+        private FrameworkElement GetFocusedSettingsItem()
+        {
+            var items = settingsCol == 0 ? GetSettingsCol0Items() : GetSettingsCol1Items();
+            int row = settingsCol == 0 ? settingsRow0 : settingsRow1;
+            return row >= 0 && row < items.Length ? items[row] : null;
+        }
+
+        private Slider GetFocusedSettingsSlider()
+        {
+            var row = GetFocusedSettingsItem();
+            if (row == null) return null;
+            if (row == RowTriggerStrength) return SliderTriggerStrength;
+            if (row == RowVibrationStrength) return SliderVibrationStrength;
+            if (row == RowGyroStrength) return SliderApex4GyroStrength;
+            if (row == RowGyroYawStrength) return SliderApex4GyroYawStrength;
+            if (row == RowVibrationThreshold) return SliderVibrationThreshold;
+            return null;
+        }
+
+        // D-pad left/right on a slider row changes the value by one tick (auto-repeat while held).
+        private bool TryAdjustFocusedSlider(int direction)
+        {
+            var slider = GetFocusedSettingsSlider();
+            if (slider == null) return false;
+            if (!slider.IsEnabled) return true;
+            double step = slider.TickFrequency > 0 ? slider.TickFrequency : 1;
+            slider.Value = Math.Max(slider.Minimum, Math.Min(slider.Maximum, slider.Value + direction * step));
+            return true;
         }
 
         private void SetSettingsNav(int col, int row)
@@ -368,6 +434,12 @@ namespace ApexSenseBridgeTray
             ClearSettingsNavHighlights();
             settingsCol = Math.Max(0, Math.Min(1, col));
             var items = settingsCol == 0 ? GetSettingsCol0Items() : GetSettingsCol1Items();
+            if (items.Length == 0 && settingsCol == 1)
+            {
+                // Nothing to tune without an identified controller: stay on the general column.
+                settingsCol = 0;
+                items = GetSettingsCol0Items();
+            }
             if (items.Length == 0) return;
 
             int clampedRow = Math.Max(0, Math.Min(items.Length - 1, row));
@@ -376,12 +448,13 @@ namespace ApexSenseBridgeTray
 
             ApplyHighlight(items[clampedRow]);
             ScrollElementIntoView(ScrollSettings, items[clampedRow]);
+            UpdateContextualGamepadHints();
         }
 
         private void ClearSettingsNavHighlights()
         {
-            foreach (var item in GetSettingsCol0Items()) ClearElementHighlight(item);
-            foreach (var item in GetSettingsCol1Items()) ClearElementHighlight(item);
+            foreach (var item in GetSettingsCol0Items(false)) ClearElementHighlight(item);
+            foreach (var item in GetSettingsCol1Items(false)) ClearElementHighlight(item);
         }
 
         // --- Learned Navigation ---
@@ -454,16 +527,19 @@ namespace ApexSenseBridgeTray
         // --- Highlight Helpers ---
         private void ApplyHighlight(FrameworkElement element)
         {
+            // Console focus: white ring plus a soft white glow.
+            var glow = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Color = Colors.White, Opacity = 0.4 };
             if (element is Border border)
             {
                 border.BorderBrush = (Brush)FindResource("GamepadFocusBorder");
                 border.BorderThickness = new Thickness(2);
-                border.Effect = null;
+                border.Effect = glow;
             }
             else if (element is Button btn)
             {
                 btn.BorderBrush = (Brush)FindResource("GamepadFocusBorder");
                 btn.BorderThickness = new Thickness(2);
+                btn.Effect = glow;
             }
         }
 
@@ -479,6 +555,7 @@ namespace ApexSenseBridgeTray
             {
                 btn.BorderBrush = Brushes.Transparent;
                 btn.BorderThickness = new Thickness(2);
+                btn.Effect = null;
             }
         }
 
@@ -515,8 +592,7 @@ namespace ApexSenseBridgeTray
         {
                 if (currentTabIndex == 0)
                 {
-                    if (dashboardNavRow == 2) SetDashboardNav(1, dashboardJumpCol);
-                    else if (dashboardNavRow == 1) SetDashboardNav(0);
+                    if (dashboardNavRow == 1) SetDashboardNav(0, dashboardJumpCol);
                 }
                 else if (currentTabIndex == 1)
                 {
@@ -547,8 +623,7 @@ namespace ApexSenseBridgeTray
         {
                 if (currentTabIndex == 0)
                 {
-                    if (dashboardNavRow == 0) SetDashboardNav(1, dashboardJumpCol);
-                    else if (dashboardNavRow == 1) SetDashboardNav(2, dashboardShelfIndex);
+                    if (dashboardNavRow == 0) SetDashboardNav(1, dashboardShelfIndex);
                 }
                 else if (currentTabIndex == 1)
                 {
@@ -583,13 +658,13 @@ namespace ApexSenseBridgeTray
         {
                 if (currentTabIndex == 0)
                 {
-                    if (dashboardNavRow == 1)
+                    if (dashboardNavRow == 0)
                     {
-                        SetDashboardNav(1, 0); // Jump to games
+                        if (dashboardJumpCol > 0) SetDashboardNav(0, dashboardJumpCol - 1);
                     }
-                    else if (dashboardNavRow == 2)
+                    else if (dashboardShelfIndex > 0)
                     {
-                        if (dashboardShelfIndex > 0) SetDashboardNav(2, dashboardShelfIndex - 1);
+                        SetDashboardNav(1, dashboardShelfIndex - 1);
                     }
                 }
                 else if (currentTabIndex == 1)
@@ -620,6 +695,7 @@ namespace ApexSenseBridgeTray
                 }
                 else if (currentTabIndex == 3)
                 {
+                    if (TryAdjustFocusedSlider(-1)) return;
                     if (settingsCol == 1) SetSettingsNav(0, settingsRow0);
                 }
         }
@@ -628,14 +704,13 @@ namespace ApexSenseBridgeTray
         {
                 if (currentTabIndex == 0)
                 {
-                    if (dashboardNavRow == 1)
+                    if (dashboardNavRow == 0)
                     {
-                        SetDashboardNav(1, 1); // Jump to learned
+                        SetDashboardNav(0, dashboardJumpCol + 1);
                     }
-                    else if (dashboardNavRow == 2)
+                    else if (dashboardShelfIndex < dashboardFeaturedGames.Count - 1)
                     {
-                        if (dashboardShelfIndex < dashboardFeaturedGames.Count - 1)
-                            SetDashboardNav(2, dashboardShelfIndex + 1);
+                        SetDashboardNav(1, dashboardShelfIndex + 1);
                     }
                 }
                 else if (currentTabIndex == 1)
@@ -666,6 +741,7 @@ namespace ApexSenseBridgeTray
                 }
                 else if (currentTabIndex == 3)
                 {
+                    if (TryAdjustFocusedSlider(1)) return;
                     if (settingsCol == 0) SetSettingsNav(1, settingsRow1);
                 }
         }
@@ -728,7 +804,24 @@ namespace ApexSenseBridgeTray
                     case GamepadButtonAction.Select:
                         ActivateCurrentItem();
                         break;
+
+                    case GamepadButtonAction.Menu:
+                        // Options/Menu opens the support page from any tab.
+                        OnSupportKofiClick(null, null);
+                        break;
+
+                    case GamepadButtonAction.View:
+                        if (currentTabIndex == 1) CycleGameFilter();
+                        break;
                 }
+        }
+
+        private void CycleGameFilter()
+        {
+            var filters = new[] { RadAll, RadAdaptive, RadHaptic, RadExcluded };
+            int current = Array.FindIndex(filters, f => f != null && f.IsChecked == true);
+            var next = filters[(current + 1) % filters.Length];
+            if (next != null) next.IsChecked = true;
         }
 
         private void ActivateCurrentItem()
@@ -737,14 +830,14 @@ namespace ApexSenseBridgeTray
             {
                 if (dashboardNavRow == 0)
                 {
-                    OnToggleManualBridgeClick(null, null);
+                    var items = GetDashboardActionItems();
+                    var item = dashboardJumpCol >= 0 && dashboardJumpCol < items.Length ? items[dashboardJumpCol] : null;
+                    if (item == TileManualBridge) OnToggleManualBridgeClick(null, null);
+                    else if (item == TileJumpGames) SetCurrentTab(1);
+                    else if (item == TileJumpLearned) SetCurrentTab(2);
+                    else if (item is Button button) button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 }
-                else if (dashboardNavRow == 1)
-                {
-                    if (dashboardJumpCol == 0) SetCurrentTab(1);
-                    else SetCurrentTab(2);
-                }
-                else if (dashboardNavRow == 2)
+                else
                 {
                     if (dashboardShelfIndex >= 0 && dashboardShelfIndex < dashboardFeaturedGames.Count)
                     {
@@ -784,23 +877,23 @@ namespace ApexSenseBridgeTray
             }
             else if (currentTabIndex == 3)
             {
-                if (settingsCol == 0)
+                // Dispatch on the focused element, not on its index: rows appear and
+                // disappear with the detected controller and the detection toggle.
+                var item = GetFocusedSettingsItem();
+                if (item == TileSettingAutoDetect) OnSettingAutoDetectToggled(null, null);
+                else if (item == TileSettingAdaptive) OnSettingAdaptiveToggled(null, null);
+                else if (item == TileSettingHaptic) OnSettingHapticToggled(null, null);
+                else if (item == TileSettingNotifications) OnSettingNotificationsToggled(null, null);
+                else if (item == TileSettingSyncLightbar) OnSettingSyncLightbarToggled(null, null);
+                else if (item == TileSettingLanguage) OpenLanguagePicker();
+                else if (item == RowGripVibrations) ToggleGripVibrations();
+                else if (item is Button button) button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                // Keep the focus ring on the same element after a toggle changed which rows are visible.
+                if (item != null)
                 {
-                    if (settingsRow0 == 0) OnSettingAutoDetectToggled(null, null);
-                    else if (settingsRow0 == 1) OnSettingAdaptiveToggled(null, null);
-                    else if (settingsRow0 == 2) OnSettingHapticToggled(null, null);
-                    else if (settingsRow0 == 3) OnSupportKofiClick(null, null);
-                }
-                else
-                {
-                    if (settingsRow1 == 0) OnSettingNotificationsToggled(null, null);
-                    else if (settingsRow1 == 1) OnSettingSyncLightbarToggled(null, null);
-                    else if (settingsRow1 == 2)
-                    {
-                        OpenLanguagePicker();
-                    }
-                    else if (settingsRow1 == 3) OnReportBugClick(null, null);
-                    else if (settingsRow1 == 4) OnCheckUpdatesClick(null, null);
+                    var items = settingsCol == 0 ? GetSettingsCol0Items() : GetSettingsCol1Items();
+                    int index = Array.IndexOf(items, item);
+                    SetSettingsNav(settingsCol, index >= 0 ? index : (settingsCol == 0 ? settingsRow0 : settingsRow1));
                 }
             }
         }
@@ -860,6 +953,7 @@ namespace ApexSenseBridgeTray
             // XAML raises Checked while named controls are still being created.
             // The constructor selects the initial tab once the whole view exists.
             if (!viewInitialized) return;
+            bool changed = currentTabIndex != index;
             currentTabIndex = index;
             if (NavTabDashboard != null) NavTabDashboard.IsChecked = (index == 0);
             if (NavTabCertified != null) NavTabCertified.IsChecked = (index == 1);
@@ -871,6 +965,11 @@ namespace ApexSenseBridgeTray
             if (PanelLearnedExecutables != null) PanelLearnedExecutables.Visibility = (index == 2) ? Visibility.Visible : Visibility.Collapsed;
             if (ScrollSettings != null) ScrollSettings.Visibility = (index == 3) ? Visibility.Visible : Visibility.Collapsed;
             UpdateContextualGamepadHints();
+            if (changed)
+            {
+                FrameworkElement[] panels = { PanelDashboard, PanelCertifiedGames, PanelLearnedExecutables, ScrollSettings };
+                AnimatePanelIn(panels[index]);
+            }
 
             if (index == 0)
             {
@@ -884,6 +983,23 @@ namespace ApexSenseBridgeTray
                 }
             }
             if (isGamepadMode) InitTabNavigation();
+        }
+
+        // Console-style page transition: short fade with a slight upward slide.
+        private static void AnimatePanelIn(FrameworkElement panel)
+        {
+            if (panel == null) return;
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            var duration = TimeSpan.FromMilliseconds(220);
+            var slide = new TranslateTransform(0, 14);
+            panel.RenderTransform = slide;
+            panel.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration) { EasingFunction = ease });
+            slide.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(14, 0, duration) { EasingFunction = ease });
+        }
+
+        private void UpdateClock()
+        {
+            if (TxtClock != null) TxtClock.Text = DateTime.Now.ToString("t", CultureInfo.CurrentCulture);
         }
 
         private void OnNavTabChanged(object sender, RoutedEventArgs e)
@@ -1049,7 +1165,10 @@ namespace ApexSenseBridgeTray
                         readable = LocalizationManager.Get("Loc_RefusedIsolation") + "\n" + reason;
                     TxtDashboardHint.Text += "\n" + LocalizationManager.Get("Loc_SessionReason") + " " + readable;
                 }
-                TxtDashboardHint.Visibility = Visibility.Visible;
+                // Idle home stays clean; details appear for a live, starting, failed or interrupted session.
+                bool showDetails = anyActive || phase == "Starting" || phase == "Failed" || !string.IsNullOrWhiteSpace(reason) ||
+                    (recovery != null && (recovery.Pending || recovery.Recovered));
+                TxtDashboardHint.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
                 TxtDashboardHint.ToolTip = TxtDashboardHint.Text;
             }
 
@@ -1773,7 +1892,11 @@ namespace ApexSenseBridgeTray
             SliderApex4GyroYawStrength.IsEnabled = lastControllerStatus == "apex4";
             SliderVibrationThreshold.IsEnabled = canEdit && lastControllerStatus != "apex6";
             TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5";
-            TileSettingSyncLightbar.Opacity = TileSettingSyncLightbar.IsEnabled ? 1.0 : 0.45;
+            // Show only what the identified model supports; keep the locked message otherwise.
+            TileSettingSyncLightbar.Visibility = TileSettingSyncLightbar.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            PnlControllerEffects.Visibility = canEdit ? Visibility.Visible : Visibility.Collapsed;
+            PnlApex4GyroSettings.Visibility = lastControllerStatus == "apex4" ? Visibility.Visible : Visibility.Collapsed;
+            PnlHapticThresholdSettings.Visibility = SliderVibrationThreshold.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             TxtControllerCalibrationStatus.Text = canEdit
                 ? string.Format(LocalizationManager.Get("Loc_ControllerCalibrationReady"),
                     lastControllerStatus == "apex4" ? "Apex 4" : lastControllerStatus == "apex5" ? "Apex 5" : "Apex 6 Pro")
@@ -1843,6 +1966,18 @@ namespace ApexSenseBridgeTray
                 calibration.EnableRumble = ChkGripVibrations.IsChecked == true;
             }
             settings.Save();
+        }
+
+        private void OnGripVibrationsRowClick(object sender, MouseButtonEventArgs e)
+        {
+            ToggleGripVibrations();
+        }
+
+        private void ToggleGripVibrations()
+        {
+            if (ChkGripVibrations == null || !ChkGripVibrations.IsEnabled) return;
+            ChkGripVibrations.IsChecked = ChkGripVibrations.IsChecked != true;
+            OnGripVibrationsChanged(ChkGripVibrations, null);
         }
 
         private void UpdateLanguageDisplay()

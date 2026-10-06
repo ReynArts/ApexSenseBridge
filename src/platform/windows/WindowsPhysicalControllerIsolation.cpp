@@ -11,6 +11,7 @@
 #include <cfgmgr32.h>
 #include <initguid.h>
 #include <devpkey.h>
+#include <tlhelp32.h>
 
 #include "platform/PhysicalControllerIsolation.h"
 
@@ -211,6 +212,19 @@ std::vector<std::wstring> fromMultiString(const wchar_t* data,
     return values;
 }
 
+std::vector<std::wstring> runningExecutableNames() {
+    std::vector<std::wstring> names;
+    ScopedHandle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    if (!snapshot.valid()) return names;
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    for (BOOL more = Process32FirstW(snapshot.get(), &entry); more;
+         more = Process32NextW(snapshot.get(), &entry)) {
+        names.emplace_back(entry.szExeFile);
+    }
+    return names;
+}
+
 bool openHidHide(ScopedHandle& device, std::string& error) {
     constexpr int kAttempts = 5;
     DWORD code = ERROR_SUCCESS;
@@ -237,9 +251,8 @@ bool openHidHide(ScopedHandle& device, std::string& error) {
         error = "HidHide is not installed or Windows has not been restarted "
                 "since its installation.";
     } else if (code == ERROR_ACCESS_DENIED) {
-        error = "Opening the HidHide control device was denied after 5 attempts "
-                "(Windows error 5). Close the HidHide Configuration Client and "
-                "restart Windows; if this persists, repair HidHide 1.5.230.";
+        error = detail::describeHidHideControlDenied(
+            detail::findHidHideControlClients(runningExecutableNames()));
     } else {
         error = windowsError("Opening the HidHide control device", code);
     }
@@ -1641,6 +1654,44 @@ bool matchesApexProfileRecoveryDevice(
     }
     return !originalContainerId.empty() && !candidate.containerId.empty() &&
            equalsCaseInsensitive(candidate.containerId, originalContainerId);
+}
+
+std::vector<std::string> findHidHideControlClients(
+    const std::vector<std::wstring>& runningExecutables) {
+    static constexpr std::string_view kKnownClients[] = {
+        "DSX.exe",          "DualSenseX.exe", "HidHideClient.exe",
+        "HidHideCLI.exe",   "DS4Windows.exe", "BetterJoy.exe",
+    };
+    std::vector<std::string> found;
+    for (const auto client : kKnownClients) {
+        const std::wstring wide(client.begin(), client.end());
+        if (containsCaseInsensitive(runningExecutables, wide)) {
+            found.emplace_back(client);
+        }
+    }
+    return found;
+}
+
+std::string describeHidHideControlDenied(
+    const std::vector<std::string>& runningClients) {
+    if (runningClients.empty()) {
+        return "Opening the HidHide control device was denied after 5 attempts "
+               "(Windows error 5). HidHide accepts only one application at a "
+               "time: close any application that uses HidHide (DSX, DS4Windows, "
+               "the HidHide Configuration Client...) and retry. If none is "
+               "running, restart Windows; if this persists, repair HidHide "
+               "1.5.230.";
+    }
+    std::string names;
+    for (const auto& client : runningClients) {
+        if (!names.empty()) names += ", ";
+        names += client;
+    }
+    return "HidHide is in use by another application (" + names +
+           "). HidHide accepts only one application at a time: close " +
+           names +
+           " completely, including its notification-area icon, then start "
+           "the bridge again.";
 }
 
 } // namespace detail

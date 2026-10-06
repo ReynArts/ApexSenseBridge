@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### HidHide in use by DSX or another application ([#28](https://github.com/ReynArts/ApexSenseBridge/issues/28))
+
+- HidHide's control device accepts one application at a time. When DSX (or
+  DS4Windows, the HidHide Configuration Client, BetterJoy...) keeps it open,
+  isolation failed with a misleading "restart Windows / repair HidHide" message.
+  On an access-denied open, ASB now lists the running applications known to use
+  HidHide and asks to close them completely before starting the bridge again.
+  The same message applies when restoring visibility at the end of a session.
+- No process is closed automatically, and isolation, restoration and retry
+  behavior are unchanged. When no known application is running, the message
+  still mentions these applications before suggesting a restart or repair.
+
 ## 1.0.0-beta.11
 
 ### APEX 4/5 grip vibration gain ([#25](https://github.com/ReynArts/ApexSenseBridge/issues/25))

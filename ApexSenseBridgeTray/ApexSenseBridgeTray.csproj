@@ -175,6 +175,9 @@
     <Resource Include="..\assets\controller-apex5.png">
       <Link>Resources\controller-apex5.png</Link>
     </Resource>
+    <Resource Include="..\assets\controller-placeholder.png">
+      <Link>Resources\controller-placeholder.png</Link>
+    </Resource>
     <Resource Include="..\assets\controller-apex6-pro.png">
       <Link>Resources\controller-apex6-pro.png</Link>
     </Resource>
