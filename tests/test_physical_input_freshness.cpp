@@ -39,5 +39,25 @@ int main() {
     assert(!triggers.ready(started + 310ms));
     triggers.observe(started + 320ms);
     assert(triggers.ready(started + 320ms));
+
+    using Loss = asb::platform::IndependentTriggerLossPolicy;
+    Loss loss;
+    assert(loss.streamStale(started) == Loss::Action::Continue);
+    assert(loss.streamStale(started + 1499ms) == Loss::Action::Continue);
+    loss.streamReady();
+    assert(loss.streamStale(started + 2s) == Loss::Action::Continue);
+    assert(loss.streamStale(started + 3500ms) == Loss::Action::Recover);
+    loss.recoveryAttempted(started + 3500ms);
+    assert(loss.recentRecoveries(started + 3500ms) == 1);
+    assert(loss.streamStale(started + 2min) == Loss::Action::Continue);
+    assert(loss.streamStale(started + 2min + 1500ms) == Loss::Action::Recover);
+    loss.recoveryAttempted(started + 2min + 1500ms);
+    assert(loss.streamStale(started + 3min) == Loss::Action::Continue);
+    assert(loss.streamStale(started + 3min + 2s) == Loss::Action::Recover);
+    loss.recoveryAttempted(started + 3min + 2s);
+    assert(loss.streamStale(started + 4min) == Loss::Action::Continue);
+    assert(loss.streamStale(started + 4min + 2s) == Loss::Action::Fail);
+    assert(loss.recentRecoveries(started + 3500ms + 10min) == 2);
+    assert(loss.streamStale(started + 14min) == Loss::Action::Recover);
     return 0;
 }

@@ -4,6 +4,7 @@
 
 #include "flydigi/Apex5Device.h"
 #include "core/ApexProfileRestoreGuard.h"
+#include "core/ApexMotionDiagnosticGuard.h"
 #include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Identity.h"
@@ -350,6 +351,32 @@ int main() {
     assert(accepted.setInputTransport(false, true, error));
     assert(accepted.readInputTransportStatus(transportStatus, error));
     assert(!transportStatus.controllerData && transportStatus.rawData);
+    assert(accepted.setInputTransport(true, false, error));
+
+    // Diagnostics enable raw motion while preserving the ordinary controller
+    // output, then restore the exact initial routing on normal or early exit.
+    for (const bool controllerOutput : {false, true}) {
+        assert(accepted.setInputTransport(controllerOutput, false, error));
+        {
+            ApexMotionDiagnosticGuard motion(accepted);
+            assert(motion.enable(error));
+            assert(accepted.readInputTransportStatus(transportStatus, error));
+            assert(transportStatus.controllerData == controllerOutput && transportStatus.rawData);
+        }
+        assert(accepted.readInputTransportStatus(transportStatus, error));
+        assert(transportStatus.controllerData == controllerOutput && !transportStatus.rawData);
+    }
+    assert(accepted.setInputTransport(true, true, error));
+    {
+        ApexMotionDiagnosticGuard motion(accepted);
+        const auto writesBefore = acceptedTransport->writes.size();
+        assert(motion.enable(error));
+        assert(motion.restore(error));
+        assert(motion.restore(error));
+        assert(acceptedTransport->writes.size() == writesBefore + 1); // Read only when already enabled.
+    }
+    assert(accepted.readInputTransportStatus(transportStatus, error));
+    assert(transportStatus.controllerData && transportStatus.rawData);
     assert(accepted.setInputTransport(true, false, error));
 
     ProfileStatus profileStatus{};

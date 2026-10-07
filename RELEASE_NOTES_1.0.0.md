@@ -1,6 +1,6 @@
-# ApexSenseBridge 1.0.0-rc.1 — Release Candidate
+# ApexSenseBridge 1.0.0 — Stable Release
 
-This package is prepared for release candidate testing.
+This is the stable release of ApexSenseBridge 1.0.0.
 
 ## APEX 6 Pro — issue #12 follow-up
 
@@ -26,7 +26,7 @@ This package is prepared for release candidate testing.
 
 APEX 4/5 input, FORCEADAPT, rumble and transport timing remain unchanged. Numeric
 versions and install identity stay at 1.0.0 for compatibility; executable product
-metadata, informational versions and setup display identify the rc.1 build.
+metadata, informational versions and setup display identify the 1.0.0 release.
 
 ## Tray application and shared features — APEX 4/5/6
 

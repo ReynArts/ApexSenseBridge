@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0-rc.1
+## 1.0.0
 
 ### HidHide in use by DSX or another application ([#28](https://github.com/ReynArts/ApexSenseBridge/issues/28))
 
@@ -14,11 +14,19 @@
   behavior are unchanged. When no known application is running, the message
   still mentions these applications before suggesting a restart or repair.
 
+### APEX 5 bridge no longer stops while a game is loading
+
+- A short stall of the bridge loop (session start, CPU spike while Call of Duty
+  loads) delivered queued LT/RT vendor reports as one burst that was reported
+  as a lost stream; the second occurrence ended the session. The stream now
+  gets a 1.5 s grace (mapped input keeps flowing, independent bytes withheld)
+  and up to three routing restarts per 10 minutes instead of one per session.
+
 ### Recently added DualSense games on the home screen ([#29](https://github.com/ReynArts/ApexSenseBridge/issues/29))
 
 - Each catalogue entry now records `addedAt`, the date it first entered the
-  supported-games list. Dates for the current 214 games were rebuilt from the
-  catalogue's git history (the initial import plus seven later additions).
+  supported-games list. Dates for the current 215 games were rebuilt from the
+  catalogue's git history (the initial import plus eight later additions).
 - The daily importer keeps every stored date and dates only games absent from
   the previous catalogue; a missing or unreadable cache never marks the whole
   list as new. The validator rejects malformed dates.

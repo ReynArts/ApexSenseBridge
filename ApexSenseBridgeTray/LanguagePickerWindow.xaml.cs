@@ -92,7 +92,7 @@ namespace ApexSenseBridgeTray
             UpdateSelection();
         }
 
-        // Same focus language as the main window: lifted fill and a crisp detached white ring.
+        // Selection is shown by the lifted fill only.
         private void UpdateSelection()
         {
             for (int i = 0; i < options.Count; i++)
@@ -101,11 +101,9 @@ namespace ApexSenseBridgeTray
                 {
                     options[i].Background = (Brush)FindResource("GamepadFocusFill");
                     options[i].BorderBrush = Brushes.Transparent;
-                    FocusRingAdorner.Show(options[i]);
-                    // Keep the row and its ring fully inside the scrolled area.
                     if (options[i].IsLoaded)
                     {
-                        double gap = FocusRingAdorner.Gap + 4;
+                        const double gap = 8;
                         options[i].BringIntoView(new Rect(-gap, -gap,
                             options[i].ActualWidth + 2 * gap, options[i].ActualHeight + 2 * gap));
                     }
@@ -114,7 +112,6 @@ namespace ApexSenseBridgeTray
                 {
                     options[i].ClearValue(Border.BackgroundProperty);
                     options[i].BorderBrush = Brushes.Transparent;
-                    FocusRingAdorner.Hide(options[i]);
                 }
             }
         }
@@ -168,7 +165,6 @@ namespace ApexSenseBridgeTray
 
         protected override void OnClosed(EventArgs e)
         {
-            foreach (var row in options) FocusRingAdorner.Hide(row);
             gamepadNav.Dispose();
             base.OnClosed(e);
         }

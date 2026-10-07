@@ -418,6 +418,18 @@ namespace ApexSenseBridgeTray
             e.Handled = true;
         }
 
+        private void OnShelfHoverChanged(object sender, MouseEventArgs e) => UpdateShelfArrows();
+        private void OnShelfScrollChanged(object sender, ScrollChangedEventArgs e) => UpdateShelfArrows();
+
+        private void UpdateShelfArrows()
+        {
+            if (ScrollDashboardShelf == null || BtnShelfLeft == null || BtnShelfRight == null) return;
+            bool hover = ShelfHost != null && ShelfHost.IsMouseOver;
+            double max = ScrollDashboardShelf.ExtentWidth - ScrollDashboardShelf.ViewportWidth;
+            BtnShelfLeft.Visibility = hover && ScrollDashboardShelf.HorizontalOffset > 1 ? Visibility.Visible : Visibility.Collapsed;
+            BtnShelfRight.Visibility = hover && ScrollDashboardShelf.HorizontalOffset < max - 1 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void OnShelfLeftClick(object sender, RoutedEventArgs e) => PageShelf(-1);
         private void OnShelfRightClick(object sender, RoutedEventArgs e) => PageShelf(1);
 
@@ -1145,7 +1157,15 @@ namespace ApexSenseBridgeTray
             var slide = new TranslateTransform(0, 14);
             panel.RenderTransform = slide;
             panel.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration) { EasingFunction = ease });
-            slide.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(14, 0, duration) { EasingFunction = ease });
+            var slideIn = new System.Windows.Media.Animation.DoubleAnimation(14, 0, duration) { EasingFunction = ease };
+            EventHandler followSlide = (s, e) => FocusRingAdorner.RefreshAll();
+            CompositionTarget.Rendering += followSlide;
+            slideIn.Completed += (s, e) =>
+            {
+                CompositionTarget.Rendering -= followSlide;
+                FocusRingAdorner.RefreshAll();
+            };
+            slide.BeginAnimation(TranslateTransform.YProperty, slideIn);
         }
 
         private void UpdateClock()

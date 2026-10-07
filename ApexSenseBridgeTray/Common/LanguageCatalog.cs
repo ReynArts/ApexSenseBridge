@@ -5,10 +5,7 @@ using System.Reflection;
 
 namespace ApexSenseBridgeTray.Common
 {
-    /// <summary>
-    /// Languages offered in the UI. A language is listed as soon as its dictionary is embedded
-    /// (Resources/Languages/&lt;code&gt;.json), so adding a JSON file is enough to expose it.
-    /// </summary>
+    // Every embedded Resources/Languages/<code>.json is offered in the UI.
     internal static class LanguageCatalog
     {
         internal sealed class Entry
@@ -18,7 +15,6 @@ namespace ApexSenseBridgeTray.Common
             public string Badge { get; set; }
         }
 
-        // Display order and native names; unknown embedded codes are appended with their code.
         private static readonly Entry[] Known =
         {
             new Entry { Code = "en", NativeName = "English", Badge = "EN" },
@@ -61,7 +57,7 @@ namespace ApexSenseBridgeTray.Common
             catch
             {
             }
-            embedded.Add("en"); // English is always the fallback dictionary.
+            embedded.Add("en");
 
             var result = Known.Where(e => embedded.Contains(e.Code)).ToList();
             foreach (var code in embedded.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))

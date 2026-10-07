@@ -1,4 +1,4 @@
-# Apex 6 Pro DualSense validation — 1.0.0-rc.1 candidate
+# Apex 6 Pro DualSense validation — 1.0.0 release
 
 ## Prepared post-beta.10 adjustment (not in the public beta.10 packages)
 

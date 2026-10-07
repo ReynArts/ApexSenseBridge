@@ -283,18 +283,42 @@
         <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
         <Setter Property="FontSize" Value="11.5"/>
         <Setter Property="Height" Value="38"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="ItemContainerStyle">
-            <Setter.Value><Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/><Setter Property="Padding" Value="10,8"/></Style></Setter.Value>
+            <Setter.Value>
+                <Style TargetType="ComboBoxItem">
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                    <Setter Property="Cursor" Value="Hand"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ComboBoxItem">
+                                <Border x:Name="Item" CornerRadius="10" Padding="12,9" Margin="0,1" Background="Transparent">
+                                    <ContentPresenter VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsHighlighted" Value="True">
+                                        <Setter TargetName="Item" Property="Background" Value="#1FFFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Item" Property="Background" Value="{DynamicResource GamepadFocusFill}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
         </Setter>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
                     <Grid>
                         <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                            <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border CornerRadius="12" Background="{DynamicResource SurfaceSubtle}" Padding="14,0" BorderThickness="1" BorderBrush="{DynamicResource CardBorder}"><Path Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center"/></Border></ControlTemplate></ToggleButton.Template>
+                            <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border x:Name="Shell" CornerRadius="12" Background="{DynamicResource SurfaceSubtle}" Padding="14,0" BorderThickness="1.5" BorderBrush="{DynamicResource CardBorder}"><Path Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Shell" Property="Background" Value="{DynamicResource SurfaceHover}"/></Trigger><Trigger Property="IsChecked" Value="True"><Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template>
                         </ToggleButton>
                         <TextBlock Text="{Binding SelectedItem.Label, RelativeSource={RelativeSource TemplatedParent}}" Foreground="{TemplateBinding Foreground}" IsHitTestVisible="False" TextTrimming="CharacterEllipsis" Margin="14,0,30,0" VerticalAlignment="Center"/>
-                        <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+                        <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" VerticalOffset="6" AllowsTransparency="True" Focusable="False">
                             <Border Background="#121A30" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="12" Padding="4" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="500" MaxHeight="240">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
                             </Border>

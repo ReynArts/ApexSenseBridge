@@ -229,8 +229,9 @@
                                                Foreground="#FCA5A5" MaxHeight="36" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
 
-                                <Grid Grid.Column="1" Width="300" Height="180" VerticalAlignment="Center">
-                                    <Ellipse Width="300" Height="190" IsHitTestVisible="False"
+                                <!-- Larger than its slot (negative margins) so the halo and shadow fade out instead of being clipped. -->
+                                <Grid Grid.Column="1" Width="360" Height="260" Margin="-30,-40,-30,-40" VerticalAlignment="Center">
+                                    <Ellipse Width="340" Height="230" IsHitTestVisible="False"
                                              Visibility="{Binding Visibility, ElementName=ImgDashboardController}">
                                         <Ellipse.Fill>
                                             <RadialGradientBrush>
@@ -340,7 +341,7 @@
                         </Grid>
 
                         <!-- GAME SHELF: latest catalogue additions first (issue #29) -->
-                        <Grid Grid.Row="2" x:Name="ShelfHost" Background="Transparent">
+                        <Grid Grid.Row="2" x:Name="ShelfHost" Background="Transparent" MouseEnter="OnShelfHoverChanged" MouseLeave="OnShelfHoverChanged">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
@@ -350,7 +351,7 @@
 
                             <ScrollViewer x:Name="ScrollDashboardShelf" Grid.Row="1" CanContentScroll="False"
                                           HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Focusable="False"
-                                          PreviewMouseWheel="OnShelfMouseWheel">
+                                          PreviewMouseWheel="OnShelfMouseWheel" ScrollChanged="OnShelfScrollChanged">
                                 <ItemsControl x:Name="LstDashboardFeatured" Margin="16,16,16,6">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
@@ -430,15 +431,13 @@
                                 </ItemsControl>
                             </ScrollViewer>
 
-                            <!-- Mouse: page the shelf with arrows that appear on hover -->
+                            <!-- Shown on hover, only on a side that can still scroll -->
                             <Button x:Name="BtnShelfLeft" Grid.Row="1" Style="{StaticResource ShelfArrowButton}" HorizontalAlignment="Left"
-                                    VerticalAlignment="Center" Margin="-8,0,0,24" Click="OnShelfLeftClick"
-                                    Visibility="{Binding IsMouseOver, ElementName=ShelfHost, Converter={StaticResource BoolToVisibility}}">
+                                    VerticalAlignment="Center" Margin="-8,0,0,24" Click="OnShelfLeftClick" Visibility="Collapsed">
                                 <Path Data="{StaticResource GeoChevronLeft}" Style="{StaticResource ChevronPath}" Margin="0,0,2,0"/>
                             </Button>
                             <Button x:Name="BtnShelfRight" Grid.Row="1" Style="{StaticResource ShelfArrowButton}" HorizontalAlignment="Right"
-                                    VerticalAlignment="Center" Margin="0,0,-8,24" Click="OnShelfRightClick"
-                                    Visibility="{Binding IsMouseOver, ElementName=ShelfHost, Converter={StaticResource BoolToVisibility}}">
+                                    VerticalAlignment="Center" Margin="0,0,-8,24" Click="OnShelfRightClick" Visibility="Collapsed">
                                 <Path Data="{StaticResource GeoChevronRight}" Style="{StaticResource ChevronPath}" Margin="2,0,0,0"/>
                             </Button>
                         </Grid>
@@ -501,7 +500,7 @@
                             <ScrollViewer x:Name="ScrollCertified" Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
                                 <ItemsControl x:Name="LstGames" Margin="8,8,4,8">
                                     <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+                                        <ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -576,10 +575,7 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
-                                            <Border Width="104" Height="146" CornerRadius="12" ClipToBounds="True" VerticalAlignment="Top">
-                                                <Border.Effect>
-                                                    <DropShadowEffect BlurRadius="20" ShadowDepth="6" Direction="270" Color="Black" Opacity="0.55"/>
-                                                </Border.Effect>
+                                            <Border Width="104" Height="146" CornerRadius="12" VerticalAlignment="Top">
                                                 <Grid>
                                                     <Border x:Name="PnlDetailMonogram" Background="#1B2747" CornerRadius="12">
                                                         <TextBlock x:Name="TxtDetailInitials" Text="AS" FontSize="30" FontWeight="Light"
@@ -727,7 +723,7 @@
                             <Grid>
                                 <ItemsControl x:Name="LstLearned" Margin="8,8,4,8">
                                     <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+                                        <ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>

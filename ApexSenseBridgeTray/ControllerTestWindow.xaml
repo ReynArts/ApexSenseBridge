@@ -284,9 +284,9 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Width="44">
-                                    <Grid Width="16" Height="88" HorizontalAlignment="Center">
-                                        <Border CornerRadius="8" Background="{DynamicResource TrackBackground}"/>
-                                        <Border x:Name="FillL2" CornerRadius="8" Height="0" VerticalAlignment="Bottom">
+                                    <Grid Width="16" Height="88" HorizontalAlignment="Center" Background="{DynamicResource TrackBackground}">
+                                        <Grid.Clip><RectangleGeometry Rect="0,0,16,88" RadiusX="8" RadiusY="8"/></Grid.Clip>
+                                        <Border x:Name="FillL2" Height="0" VerticalAlignment="Bottom" BorderBrush="#B3FFFFFF" BorderThickness="0,2,0,0">
                                             <Border.Background>
                                                 <LinearGradientBrush StartPoint="0,1" EndPoint="0,0">
                                                     <GradientStop Color="#1E6FE8" Offset="0"/>
@@ -331,9 +331,9 @@
                                                FontFamily="Cascadia Mono, Consolas, Segoe UI" Foreground="{DynamicResource TextMuted}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="4" VerticalAlignment="Center" Width="44">
-                                    <Grid Width="16" Height="88" HorizontalAlignment="Center">
-                                        <Border CornerRadius="8" Background="{DynamicResource TrackBackground}"/>
-                                        <Border x:Name="FillR2" CornerRadius="8" Height="0" VerticalAlignment="Bottom">
+                                    <Grid Width="16" Height="88" HorizontalAlignment="Center" Background="{DynamicResource TrackBackground}">
+                                        <Grid.Clip><RectangleGeometry Rect="0,0,16,88" RadiusX="8" RadiusY="8"/></Grid.Clip>
+                                        <Border x:Name="FillR2" Height="0" VerticalAlignment="Bottom" BorderBrush="#B3FFFFFF" BorderThickness="0,2,0,0">
                                             <Border.Background>
                                                 <LinearGradientBrush StartPoint="0,1" EndPoint="0,0">
                                                     <GradientStop Color="#1E6FE8" Offset="0"/>

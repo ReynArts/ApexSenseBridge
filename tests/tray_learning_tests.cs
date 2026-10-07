@@ -19,6 +19,7 @@ internal static class TrayLearningTests
 
     public static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--gyro-hardware") return TestGyroHardwareLifecycle();
         if (args.Length > 0 && (args[0] == "--fake-session" || args.Contains("--session-token"))) return RunFakeSession(args);
         if (args.Length == 1 && args[0] == "--show")
         {
@@ -34,6 +35,7 @@ internal static class TrayLearningTests
         {
             TestReleaseAssetPolicy();
             TestLatencyStatisticsAndTelemetry();
+            TestGyroStreamParsing();
             TestColocatedEngineTakesPriority();
             TestStableLearningResolutionExportAndDeletion(testRoot);
             TestCancelledAndUnstableSessionsAreNotLearned(testRoot);
@@ -103,6 +105,54 @@ internal static class TrayLearningTests
             "ApexSenseBridge-Setup.exe",
             "https://github.com.evil.example/ReynArts/ApexSenseBridge/releases/download/v0.6.3/ApexSenseBridge-Setup.exe"),
             "a lookalike GitHub host must be rejected");
+    }
+
+    private static int TestGyroHardwareLifecycle()
+    {
+        try
+        {
+            using (var sensors = new ManualResetEventSlim())
+            using (var service = new ControllerTestService())
+            {
+                Action<GyroMotionState> sample = state => {
+                    if (!string.IsNullOrWhiteSpace(state.Error)) Console.Error.WriteLine(state.Error);
+                    if (state.Connected &&
+                        Math.Abs(state.AccelX) + Math.Abs(state.AccelY) + Math.Abs(state.AccelZ) > 5000)
+                        sensors.Set();
+                };
+                service.StartGyroStream(sample);
+                Assert(sensors.Wait(8000), "No physical IMU sample reached the Tray service.");
+                var result = service.TestGyroAsync(1).GetAwaiter().GetResult();
+                Assert(result.Connected && string.IsNullOrWhiteSpace(result.Error) && result.SamplesCount > 0,
+                    "One-shot test overlapped the stream or failed: " + result.Error);
+                sensors.Reset();
+                service.StartGyroStream(sample);
+                service.StopGyroStream();
+                service.StartGyroStream(sample);
+                Assert(sensors.Wait(8000), "The stream failed after rapid tab changes.");
+                service.StopGyroStream();
+                // Wait for the asynchronous worker's cooperative cleanup, then
+                // ensure the next diagnostic can acquire the engine mutex.
+                Thread.Sleep(1000);
+                result = service.TestGyroAsync(1).GetAwaiter().GetResult();
+                Assert(result.Connected && string.IsNullOrWhiteSpace(result.Error),
+                    "The cooperative stop left an orphan engine: " + result.Error);
+            }
+            Console.WriteLine("APEX 5 hardware stream, one-shot transition, rapid restart and cooperative stop passed.");
+            return 0;
+        }
+        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+
+    private static void TestGyroStreamParsing()
+    {
+        var sample = ControllerTestService.ParseGyroStreamLine(
+            "GYRO:-120,45,0 ACCEL:500,-2500,9600 PITCH:14 ROLL:-3");
+        Assert(sample.Connected && sample.MotionDetected && sample.GyroX == -120 &&
+            sample.GyroY == 45 && sample.AccelY == -2500 && sample.Pitch == 14 && sample.Roll == -3,
+            "Gyro stream lost sensor values or signed orientation.");
+        Assert(!ControllerTestService.ParseGyroStreamLine("Motion diagnostic ready").Connected,
+            "Diagnostic status text was treated as a sensor sample.");
     }
 
     private static void TestLatencyStatisticsAndTelemetry()

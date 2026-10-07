@@ -1063,10 +1063,22 @@ private:
     }
 
     void composeState(dualsense::DualSenseInputState& state) const noexcept {
+        // Motion remains valid when standard controls bootstrap through XInput.
+        // independentTriggersReady() also requires mapped HID, which may never
+        // report in this mode and must not suppress a healthy IMU stream.
+        const bool vendorReady = !vendorUnavailable_ && independentTriggerFreshness_.ready();
         state = flydigi::composeApex5InputState(
             *lastMappedState_, independentTriggersReady() ? lastVendorState_ : std::nullopt,
             currentBatteryPercent_.load(std::memory_order_relaxed),
             currentChargeState_.load(std::memory_order_relaxed));
+        if (vendorReady && lastVendorState_) {
+            state.gyroX = lastVendorState_->gyroX;
+            state.gyroY = lastVendorState_->gyroY;
+            state.gyroZ = lastVendorState_->gyroZ;
+            state.accelX = lastVendorState_->accelX;
+            state.accelY = lastVendorState_->accelY;
+            state.accelZ = lastVendorState_->accelZ;
+        }
     }
 
     bool pollXInputFallback(dualsense::DualSenseInputState& state) noexcept {

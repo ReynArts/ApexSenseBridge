@@ -6,11 +6,7 @@ using System.Windows.Media;
 
 namespace ApexSenseBridgeTray.Common
 {
-    /// <summary>
-    /// Console focus ring: a crisp white outline drawn a few pixels outside the focused
-    /// element (PS5 style). Replaces blurred glows, which smeared over covers and got
-    /// clipped by scroll viewers.
-    /// </summary>
+    // Crisp detached focus ring (replaces blurred glows clipped by scroll viewers).
     internal sealed class FocusRingAdorner : Adorner
     {
         public const double Gap = 5.0;
@@ -23,9 +19,6 @@ namespace ApexSenseBridgeTray.Common
         {
             this.cornerRadius = cornerRadius;
             IsHitTestVisible = false;
-            // Adorners do not follow their element's visibility on their own (e.g. a hidden tab).
-            // Rings are only requested for navigable elements, and IsVisible can still be stale
-            // right after a tab switch, so start visible and follow later changes.
             element.IsVisibleChanged += OnAdornedVisibilityChanged;
         }
 
@@ -49,7 +42,6 @@ namespace ApexSenseBridgeTray.Common
             drawingContext.DrawRoundedRectangle(null, RingPen, bounds, radius, radius);
         }
 
-        /// <summary>Shows the ring around <paramref name="element"/>. No-op outside a live visual tree.</summary>
         public static void Show(FrameworkElement element)
         {
             Show(element, true);
@@ -61,7 +53,7 @@ namespace ApexSenseBridgeTray.Common
             var layer = AdornerLayer.GetAdornerLayer(element);
             if (layer == null)
             {
-                // A tab shown a moment ago has not applied its templates yet: try again after layout.
+                // A freshly shown tab has no adorner layer until its templates apply.
                 if (retry)
                 {
                     Pending.Add(element);
@@ -77,6 +69,15 @@ namespace ApexSenseBridgeTray.Common
             Active[element] = adorner;
         }
 
+        // Render-transform animations move elements without a layout pass, so rings must be re-placed.
+        public static void RefreshAll()
+        {
+            foreach (var adorner in Active.Values)
+            {
+                AdornerLayer.GetAdornerLayer(adorner.AdornedElement)?.Update(adorner.AdornedElement);
+            }
+        }
+
         public static void Hide(FrameworkElement element)
         {
             FocusRingAdorner adorner;
@@ -88,7 +89,6 @@ namespace ApexSenseBridgeTray.Common
             if (layer != null) layer.Remove(adorner);
         }
 
-        // Follow the element's own rounding so the ring stays concentric (pills use half their height).
         private static double GetCornerRadius(FrameworkElement element)
         {
             var border = element as Border;

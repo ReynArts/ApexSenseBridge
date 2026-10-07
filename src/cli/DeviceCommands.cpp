@@ -2,6 +2,7 @@
 #include "cli/CommandSupport.h"
 #include "core/TriggerResetGuard.h"
 #include "core/RumbleResetGuard.h"
+#include "core/ApexMotionDiagnosticGuard.h"
 #include "diagnostics/Apex4GyroCapture.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
@@ -1470,6 +1471,8 @@ int commandTestGyro(int argc, char** argv) {
     unsigned long seconds = 3;
     bool json = false;
     bool stream = false;
+    std::string sessionToken;
+    std::optional<std::uint32_t> ownerPid;
 
     for (int index = 2; index < argc; ++index) {
         const std::string_view option = argv[index];
@@ -1477,6 +1480,26 @@ int commandTestGyro(int argc, char** argv) {
             json = true;
         } else if (option == "--stream") {
             stream = true;
+        } else if (option == "--session-token") {
+            if (++index >= argc || !asb::platform::isValidSessionToken(argv[index])) {
+                std::cerr << "--session-token requires 32 hexadecimal characters.\n";
+                return 1;
+            }
+            sessionToken = argv[index];
+        } else if (option == "--session-owner-pid") {
+            if (++index >= argc) return 1;
+            try {
+                std::size_t consumed = 0;
+                const auto pid = std::stoul(argv[index], &consumed);
+                if (!pid || consumed != std::string_view(argv[index]).size() ||
+                    pid > (std::numeric_limits<std::uint32_t>::max)()) {
+                    throw std::out_of_range("pid");
+                }
+                ownerPid = static_cast<std::uint32_t>(pid);
+            } catch (...) {
+                std::cerr << "--session-owner-pid requires a non-zero process ID.\n";
+                return 1;
+            }
         } else if (option == "--seconds") {
             if (++index >= argc) {
                 std::cerr << "--seconds requires an integer from 1 to 60.\n";
@@ -1525,16 +1548,46 @@ int commandTestGyro(int argc, char** argv) {
     }
 
     std::string error;
+    std::unique_ptr<asb::platform::SessionControl> session;
+    if (!sessionToken.empty()) {
+        session = asb::platform::connectSessionControl(sessionToken, ownerPid, error);
+        if (!session) {
+            std::cerr << error << '\n';
+            return 1;
+        }
+    } else if (ownerPid) {
+        std::cerr << "--session-owner-pid requires --session-token.\n";
+        return 1;
+    }
+    const auto fail = [&](int code, const std::string& message) {
+        std::cerr << message << '\n';
+        if (session) {
+            std::string ignored;
+            (void)session->publish(asb::platform::SessionPhase::Failed, code, message, ignored);
+            (void)session->signalReady(ignored);
+        }
+        return code;
+    };
+    // Serialize routing changes with the bridge and other diagnostics.
+    auto sessionOwner = asb::platform::createGlobalSessionStop(error);
+    if (!sessionOwner) return fail(6, error);
     auto device = openSelectedIndex(deviceIndex, error);
     if (!device) {
-        std::cerr << "APEX identity verification failed: " << error << '\n';
-        return 2;
+        return fail(2, "APEX identity verification failed: " + error);
     }
 
+    asb::ApexMotionDiagnosticGuard motionRouting(*device);
+    if (!motionRouting.enable(error)) {
+        return fail(7, "Could not enable APEX motion input: " + error);
+    }
     auto input = asb::platform::openPhysicalInputSource(device->info(), std::nullopt, error);
     if (!input) {
-        std::cerr << "APEX input source unavailable: " << error << '\n';
-        return 3;
+        return fail(3, "APEX input source unavailable: " + error);
+    }
+    if (session &&
+        (!session->publish(asb::platform::SessionPhase::Ready, 0, "Motion diagnostic ready", error) ||
+         !session->signalReady(error))) {
+        return fail(1, error);
     }
 
     const auto deadline = stream
@@ -1553,7 +1606,8 @@ int commandTestGyro(int argc, char** argv) {
     bool received = false;
 
     while ((stream || std::chrono::steady_clock::now() < deadline) &&
-           !g_stopRequested.load(std::memory_order_relaxed)) {
+           !g_stopRequested.load(std::memory_order_relaxed) &&
+           !sessionOwner->stopRequested() && !(session && session->stopRequested())) {
         asb::dualsense::DualSenseInputState state{};
         error.clear();
         const auto status = input->waitForState(state, std::chrono::milliseconds(200), error);
@@ -1583,14 +1637,21 @@ int commandTestGyro(int argc, char** argv) {
             }
         } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
                    status == asb::platform::PhysicalInputStatus::Error) {
-            if (!stream) {
-                std::cerr << "APEX input stream error: " << error << '\n';
-                return 4;
-            }
-            break;
+            input.reset();
+            return fail(4, "APEX input stream error: " + error);
         }
     }
 
+    // Close the secondary reader before exchanging the restoration command.
+    const std::string backend(input->backendName());
+    input.reset();
+    if (!motionRouting.restore(error)) {
+        return fail(8, "Could not restore APEX motion input: " + error);
+    }
+    if (session) {
+        (void)session->publish(asb::platform::SessionPhase::Stopped, 0,
+                               "Motion diagnostic stopped; routing restored", error);
+    }
     if (stream) {
         return 0;
     }
@@ -1607,7 +1668,7 @@ int commandTestGyro(int argc, char** argv) {
 
     if (json) {
         std::cout << "{\n"
-                  << "  \"backend\": \"" << jsonEscape(input->backendName()) << "\",\n"
+                  << "  \"backend\": \"" << jsonEscape(backend) << "\",\n"
                   << "  \"received\": " << (received ? "true" : "false") << ",\n"
                   << "  \"samples\": " << sampleCount << ",\n"
                   << "  \"motion_detected\": " << (motionDetected ? "true" : "false") << ",\n"
@@ -1624,7 +1685,7 @@ int commandTestGyro(int argc, char** argv) {
                   << "}\n";
     } else {
         std::cout << "--- 6-Axis Motion Sensor Diagnostic ---\n"
-                  << "Backend: " << input->backendName() << '\n'
+                  << "Backend: " << backend << '\n'
                   << "Samples collected: " << sampleCount << '\n'
                   << "Motion detected: " << (motionDetected ? "YES" : "NO (still)") << '\n'
                   << "Latest Gyro (deg/s units): X=" << lastState.gyroX << " Y=" << lastState.gyroY << " Z=" << lastState.gyroZ << '\n'

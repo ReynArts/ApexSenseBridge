@@ -513,6 +513,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     bool inputTransportRecoveryArmed = false;
     unsigned int independentTriggerStartupRecoveries = 0;
     unsigned int independentTriggerRuntimeRecoveries = 0;
+    asb::platform::IndependentTriggerLossPolicy independentTriggerLoss;
     const auto armInputTransportRecovery = [&]() {
         if (inputTransportRecoveryArmed) return true;
         if (!originalInputTransport) {
@@ -924,17 +925,29 @@ int commandBridgeTriggers(int argc, char** argv) {
             : std::chrono::milliseconds(1);
         auto inputStatus = inputSource->waitForState(
             input, inputWait, inputProxyError);
-        if ((inputStatus == asb::platform::PhysicalInputStatus::State ||
+        const bool independentTriggersStale =
+            (inputStatus == asb::platform::PhysicalInputStatus::State ||
              inputStatus == asb::platform::PhysicalInputStatus::Timeout) &&
             inputSource->requiresIndependentTriggers() &&
-            !inputSource->independentTriggersReady()) {
+            !inputSource->independentTriggersReady();
+        if (!independentTriggersStale) {
+            independentTriggerLoss.streamReady();
+        }
+        // Stale states still forward mapped input; independent bytes are withheld.
+        const auto independentTriggerAction = independentTriggersStale
+            ? independentTriggerLoss.streamStale()
+            : asb::platform::IndependentTriggerLossPolicy::Action::Continue;
+        if (independentTriggerAction != asb::platform::IndependentTriggerLossPolicy::Action::Continue) {
             // Mapped traffic cannot keep a missing independent stream "healthy".
             // Stop forwarding before any canceled or stale trigger state leaks.
             bool recovered = false;
-            if (independentTriggerRuntimeRecoveries == 0) {
+            if (independentTriggerAction == asb::platform::IndependentTriggerLossPolicy::Action::Recover) {
                 ++independentTriggerRuntimeRecoveries;
-                std::cerr << "Apex 5 independent LT/RT stream lost; attempting one "
-                             "temporary routing restart." << std::endl;
+                independentTriggerLoss.recoveryAttempted();
+                std::cerr << "Apex 5 independent LT/RT stream lost; attempting a "
+                             "temporary routing restart (" << independentTriggerLoss.recentRecoveries()
+                          << "/" << asb::platform::IndependentTriggerLossPolicy::kMaximumRecoveriesPerWindow
+                          << " in 10 min)." << std::endl;
                 asb::dualsense::DualSenseInputState neutral{};
                 neutral.batteryPercent = input.batteryPercent;
                 neutral.chargeState = input.chargeState;
@@ -943,8 +956,9 @@ int commandBridgeTriggers(int argc, char** argv) {
                     recovered = restartIndependentTriggerStream(input, inputProxyError);
                 }
             } else {
-                inputProxyError = "The independent Apex 5 LT/RT stream was lost again "
-                                  "after its single runtime recovery.";
+                inputProxyError = "The independent Apex 5 LT/RT stream stayed unavailable after " +
+                    std::to_string(asb::platform::IndependentTriggerLossPolicy::kMaximumRecoveriesPerWindow) +
+                    " recoveries within 10 minutes.";
             }
             if (!recovered) {
                 inputProxyFailed = true;

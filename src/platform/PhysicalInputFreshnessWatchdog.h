@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -56,6 +57,44 @@ private:
     std::optional<Clock::time_point> first_;
     std::optional<Clock::time_point> last_;
     std::uint8_t samples_ = 0;
+};
+
+// Loop stalls deliver queued vendor reports as one burst: allow a grace, then budget recoveries.
+class IndependentTriggerLossPolicy {
+public:
+    using Clock = std::chrono::steady_clock;
+    static constexpr auto kGrace = std::chrono::milliseconds(1500);
+    static constexpr auto kRecoveryWindow = std::chrono::minutes(10);
+    static constexpr std::size_t kMaximumRecoveriesPerWindow = 3;
+
+    enum class Action { Continue, Recover, Fail };
+
+    void streamReady() noexcept { staleSince_.reset(); }
+
+    [[nodiscard]] Action streamStale(Clock::time_point now = Clock::now()) noexcept {
+        if (!staleSince_) staleSince_ = now;
+        if (now - *staleSince_ < kGrace) return Action::Continue;
+        return recentRecoveries(now) < kMaximumRecoveriesPerWindow ? Action::Recover : Action::Fail;
+    }
+
+    void recoveryAttempted(Clock::time_point now = Clock::now()) noexcept {
+        recoveries_[next_] = now;
+        next_ = (next_ + 1) % kMaximumRecoveriesPerWindow;
+        staleSince_.reset();
+    }
+
+    [[nodiscard]] std::size_t recentRecoveries(Clock::time_point now = Clock::now()) const noexcept {
+        std::size_t count = 0;
+        for (const auto& at : recoveries_) {
+            if (at && now - *at < kRecoveryWindow) ++count;
+        }
+        return count;
+    }
+
+private:
+    std::optional<Clock::time_point> staleSince_;
+    std::optional<Clock::time_point> recoveries_[kMaximumRecoveriesPerWindow];
+    std::size_t next_ = 0;
 };
 
 } // namespace asb::platform

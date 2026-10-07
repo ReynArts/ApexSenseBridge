@@ -741,6 +741,12 @@ namespace ApexSenseBridgeTray
         private void UpdateGyroUi(GyroMotionState sample)
         {
             if (PanelGyro == null || !IsVisible || TabGyro.IsChecked != true) return;
+            if (!sample.Connected)
+            {
+                TxtGyroMotion.Text = LocalizationManager.Get("Loc_StatusUnavailable");
+                TxtTestFeedback.Text = sample.Error ?? LocalizationManager.Get("Loc_ControllerUnavailable");
+                return;
+            }
 
             lastRawPitch = sample.Pitch;
             lastRawRoll = sample.Roll;
@@ -802,6 +808,11 @@ namespace ApexSenseBridgeTray
             try
             {
                 var res = await testService.TestGyroAsync(3);
+                if (!string.IsNullOrWhiteSpace(res.Error))
+                {
+                    TxtTestFeedback.Text = res.Error;
+                    return;
+                }
                 string stateStr = res.MotionDetected
                     ? LocalizationManager.Get("Loc_GyroSensorOk")
                     : LocalizationManager.Get("Loc_GyroSensorStill");
@@ -814,6 +825,7 @@ namespace ApexSenseBridgeTray
             finally
             {
                 BtnTestGyro.IsEnabled = true;
+                if (IsVisible && TabGyro.IsChecked == true) StartGyroStream();
             }
         }
 

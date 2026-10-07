@@ -26,6 +26,7 @@ namespace ApexSenseBridgeTray.Services
         public double Roll;
         public bool MotionDetected;
         public int SamplesCount;
+        public string Error;
     }
 
     public struct DualSenseVisualState
@@ -537,9 +538,21 @@ namespace ApexSenseBridgeTray.Services
 
         public async Task<GyroMotionState> TestGyroAsync(int seconds = 3)
         {
+            StopGyroStream();
+            await gyroSessionGate.WaitAsync();
+            try { return await RunGyroTestAsync(seconds); }
+            finally { gyroSessionGate.Release(); }
+        }
+
+        private async Task<GyroMotionState> RunGyroTestAsync(int seconds)
+        {
             var result = new GyroMotionState();
             var engine = InstallLocator.ResolveEngine();
-            if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine)) return result;
+            if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine))
+            {
+                result.Error = "ApexSenseBridge.exe was not found.";
+                return result;
+            }
 
             string args = string.Format("test-gyro --seconds {0} --json", seconds);
             try
@@ -556,8 +569,15 @@ namespace ApexSenseBridgeTray.Services
                 using (var proc = Process.Start(start))
                 {
                     if (proc == null) return result;
+                    var stderrTask = proc.StandardError.ReadToEndAsync();
                     string stdout = await proc.StandardOutput.ReadToEndAsync();
                     await Task.Run(() => proc.WaitForExit(seconds * 1000 + 4000));
+                    string stderr = await stderrTask;
+                    if (proc.ExitCode != 0)
+                    {
+                        result.Error = stderr.Trim();
+                        return result;
+                    }
 
                     if (!string.IsNullOrWhiteSpace(stdout))
                     {
@@ -580,13 +600,14 @@ namespace ApexSenseBridgeTray.Services
             }
             catch (Exception ex)
             {
+                result.Error = ex.Message;
                 AppLog.WriteLine("tray_crash.log", "[WARN] TestGyroAsync failed: " + ex.Message);
             }
 
             return result;
         }
 
-        private Process activeGyroStreamProcess = null;
+        private readonly SemaphoreSlim gyroSessionGate = new SemaphoreSlim(1, 1);
         private CancellationTokenSource gyroStreamCts = null;
 
         public void StartGyroStream(Action<GyroMotionState> onSample)
@@ -594,74 +615,91 @@ namespace ApexSenseBridgeTray.Services
             StopGyroStream();
 
             var engine = InstallLocator.ResolveEngine();
-            if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine)) return;
-
-            gyroStreamCts = new CancellationTokenSource();
-            var token = gyroStreamCts.Token;
-
-            Task.Run(() =>
+            if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine))
             {
+                if (onSample != null) onSample(new GyroMotionState { Error = "ApexSenseBridge.exe was not found." });
+                return;
+            }
+
+            var cancellation = new CancellationTokenSource();
+            gyroStreamCts = cancellation;
+            var token = cancellation.Token;
+
+            Task.Run(async () =>
+            {
+                bool entered = false;
+                BridgeSession session = null;
                 try
                 {
-                    var start = new ProcessStartInfo(engine, "test-gyro --stream")
-                    {
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        WorkingDirectory = Path.GetDirectoryName(engine)
-                    };
-
-                    using (var proc = Process.Start(start))
-                    {
-                        if (proc == null) return;
-                        activeGyroStreamProcess = proc;
-
-                        using (token.Register(() => {
-                            try { if (!proc.HasExited) proc.Kill(); } catch { }
-                        }))
-                        {
-                            string line;
-                            while (!token.IsCancellationRequested && (line = proc.StandardOutput.ReadLine()) != null)
+                    await gyroSessionGate.WaitAsync(token);
+                    entered = true;
+                    token.ThrowIfCancellationRequested();
+                    string error;
+                    long lastDelivery = 0;
+                    session = BridgeSession.TryStart(engine, "test-gyro --stream",
+                        TimeSpan.FromSeconds(8), line => {
+                            if (token.IsCancellationRequested) return;
+                            const string prefix = "[bridge] ";
+                            if (line.StartsWith(prefix)) line = line.Substring(prefix.Length);
+                            var sample = ParseGyroStreamLine(line);
+                            long now = Stopwatch.GetTimestamp();
+                            if (sample.Connected && onSample != null &&
+                                now - lastDelivery >= Stopwatch.Frequency / 60)
                             {
-                                if (token.IsCancellationRequested) break;
-                                var sample = ParseGyroStreamLine(line);
-                                if (sample.Connected && onSample != null)
-                                {
-                                    onSample(sample);
-                                }
+                                lastDelivery = now;
+                                onSample(sample);
                             }
+                        }, line => AppLog.WriteLine("gyro_test.log", line), out error,
+                        discoveryName: "Local\\ApexSenseBridge.GyroDiagnostic.Info.v1");
+
+                    if (session == null)
+                    {
+                        if (!token.IsCancellationRequested && onSample != null)
+                            onSample(new GyroMotionState { Error = error });
+                        return;
+                    }
+                    while (!token.IsCancellationRequested)
+                    {
+                        var status = session.ReadStatus();
+                        if (status.Phase == SessionPhase.Failed || status.Phase == SessionPhase.Stopped)
+                        {
+                            if (onSample != null) onSample(new GyroMotionState { Error = status.Message });
+                            break;
                         }
+                        await Task.Delay(100, token);
                     }
                 }
-                catch { }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    if (!token.IsCancellationRequested && onSample != null)
+                        onSample(new GyroMotionState { Error = ex.Message });
+                }
                 finally
                 {
-                    activeGyroStreamProcess = null;
+                    if (session != null)
+                    {
+                        // The engine must restore raw routing before its successor starts.
+                        session.StopAndEnsureExit(TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(2));
+                        session.Dispose();
+                    }
+                    if (entered) gyroSessionGate.Release();
+                    cancellation.Dispose();
                 }
-            }, token);
+            });
         }
 
         public void StopGyroStream()
         {
+            var cancellation = Interlocked.Exchange(ref gyroStreamCts, null);
             try
             {
-                if (gyroStreamCts != null)
-                {
-                    gyroStreamCts.Cancel();
-                    gyroStreamCts.Dispose();
-                    gyroStreamCts = null;
-                }
-                if (activeGyroStreamProcess != null && !activeGyroStreamProcess.HasExited)
-                {
-                    activeGyroStreamProcess.Kill();
-                    activeGyroStreamProcess = null;
-                }
+                if (cancellation != null) cancellation.Cancel();
             }
-            catch { }
+            catch (ObjectDisposedException) { }
         }
 
-        private static GyroMotionState ParseGyroStreamLine(string line)
+        internal static GyroMotionState ParseGyroStreamLine(string line)
         {
             var result = new GyroMotionState();
             if (string.IsNullOrWhiteSpace(line)) return result;

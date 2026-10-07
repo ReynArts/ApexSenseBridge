@@ -3,153 +3,105 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Loc_BugReportWindowTitle}"
         Icon="Resources/app.ico"
-        Width="760" Height="690" MinWidth="660" MinHeight="590"
+        Width="840" Height="780" MinWidth="740" MinHeight="660"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="CanResizeWithGrip"
+        ResizeMode="NoResize"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         FontFamily="Segoe UI Variable Display, Segoe UI, sans-serif">
 
     <Window.Resources>
-        <Style x:Key="BtnPrimary" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBluePressed}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBlueActive}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/ApexSenseBridgeTray;component/Themes/ConsoleTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
-        <Style x:Key="BtnSecondary" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,7"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="WindowCloseBtn" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="6">
-                            <TextBlock Text="{TemplateBinding Content}" FontSize="11"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="#33EF4444"/>
-                                <Setter Property="Foreground" Value="#EF4444"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ReportTextBox" TargetType="TextBox">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="12,9"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-
-        <Style x:Key="ConsentCheckBox" TargetType="CheckBox">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CheckBox">
-                        <DockPanel LastChildFill="True">
-                            <Border x:Name="Box" DockPanel.Dock="Left" Width="22" Height="22" CornerRadius="6"
-                                    Background="{DynamicResource ControlBackground}"
-                                    BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1.5"
-                                    Margin="0,0,10,0">
-                                <Path x:Name="Tick" Data="M 5,11 L 9,15 L 17,7" Stroke="White"
-                                      StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                      Visibility="Collapsed"/>
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                <Setter Property="Margin" Value="4,0,0,8"/>
+            </Style>
+            <Style x:Key="InputShell" TargetType="Border">
+                <Setter Property="CornerRadius" Value="16"/>
+                <Setter Property="Background" Value="{DynamicResource SurfaceSubtle}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+                <Setter Property="BorderThickness" Value="1.5"/>
+                <Setter Property="Margin" Value="0,0,0,16"/>
+                <Style.Triggers>
+                    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                        <Setter Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
+                        <Setter Property="Background" Value="#1A1E6FE8"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ReportTextBox" TargetType="TextBox">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                <Setter Property="CaretBrush" Value="White"/>
+                <Setter Property="SelectionBrush" Value="{DynamicResource PlayStationBlue}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="14,11"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="ConsentCheckBox" TargetType="CheckBox">
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CheckBox">
+                            <DockPanel LastChildFill="True" Background="Transparent">
+                                <Border x:Name="Box" DockPanel.Dock="Left" Width="24" Height="24" CornerRadius="12"
+                                        BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1.6"
+                                        Background="Transparent" Margin="0,0,12,0" VerticalAlignment="Top">
+                                    <Path x:Name="Tick" Data="M 1,5 L 4.5,8.5 L 11,1.5" Stroke="White" StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          Width="11" Height="9" Stretch="Uniform" Visibility="Collapsed"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Box" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
+                                    <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
+                                    <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Box" Property="BorderBrush" Value="White"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="ScreenshotChip" TargetType="ListBoxItem">
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="Chip" Height="30" CornerRadius="15" Padding="12,0" Margin="0,0,8,8"
+                                    Background="#14FFFFFF" BorderBrush="Transparent" BorderThickness="1.5">
+                                <ContentPresenter VerticalAlignment="Center"/>
                             </Border>
-                            <ContentPresenter VerticalAlignment="Center"/>
-                        </DockPanel>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chip" Property="Background" Value="#24FFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Chip" Property="BorderBrush" Value="White"/>
+                                    <Setter TargetName="Chip" Property="Background" Value="{DynamicResource GamepadFocusFill}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <Border CornerRadius="14" Background="{DynamicResource WindowBackground}"
-            BorderBrush="Transparent" BorderThickness="0" Margin="6">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="32" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.75"/>
-        </Border.Effect>
-
+    <Border Style="{StaticResource ConsoleWindowFrame}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -157,128 +109,126 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Padding="22,14,16,10" Background="Transparent"
-                    MouseLeftButtonDown="OnWindowDrag">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="&#x2715;" Style="{StaticResource WindowCloseBtn}"
-                            Click="OnCloseClick"/>
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource Loc_BugReportWindowTitle}" FontSize="18" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="{DynamicResource Loc_BugReportWindowSubtitle}" FontSize="11.5"
-                                   Foreground="{DynamicResource TextMuted}" Margin="0,3,0,0"/>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <DockPanel Grid.Row="0" Margin="26,20,16,14" Background="Transparent" MouseLeftButtonDown="OnWindowDrag">
+                <Button DockPanel.Dock="Right" Content="&#x2715;" Style="{StaticResource WindowCloseBtn}"
+                        VerticalAlignment="Top" Click="OnCloseClick"/>
+                <Border Style="{StaticResource IconBubble}" Width="44" Height="44" CornerRadius="22" Margin="0,0,14,0" Background="#33F59E0B">
+                    <Path Data="M 8,8 C 8,5.8 9.8,4 12,4 C 14.2,4 16,5.8 16,8 M 6,10 L 18,10 L 18,15 C 18,18.3 15.3,21 12,21 C 8.7,21 6,18.3 6,15 Z M 12,10 L 12,21 M 3,13 L 6,13 M 18,13 L 21,13 M 4,19 L 6.5,17.5 M 20,19 L 17.5,17.5 M 4,7 L 6.5,8.5 M 20,7 L 17.5,8.5"
+                          Style="{StaticResource IconPath}" Stroke="#FBBF24" Width="19" Height="19"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{DynamicResource Loc_BugReportWindowTitle}" FontSize="19" FontWeight="SemiBold" Foreground="White"/>
+                    <TextBlock Text="{DynamicResource Loc_BugReportWindowSubtitle}" FontSize="12"
+                               Foreground="{DynamicResource TextMuted}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </DockPanel>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,4,22,10">
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="26,4,26,8">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource Loc_BugReportTitleLabel}" FontSize="12" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
-                    <Border CornerRadius="7" Background="{DynamicResource ControlBackground}"
-                            BorderBrush="Transparent" BorderThickness="1" Margin="0,0,0,14">
+                    <TextBlock Text="{DynamicResource Loc_BugReportTitleLabel}" Style="{StaticResource FieldLabel}"/>
+                    <Border Style="{StaticResource InputShell}">
                         <TextBox x:Name="TxtReportTitle" Style="{StaticResource ReportTextBox}" MaxLength="120"
                                  TextChanged="OnRequiredFieldChanged"/>
                     </Border>
 
-                    <TextBlock Text="{DynamicResource Loc_BugReportDescriptionLabel}" FontSize="12" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
-                    <Border CornerRadius="7" Background="{DynamicResource ControlBackground}"
-                            BorderBrush="Transparent" BorderThickness="1" Margin="0,0,0,14">
+                    <TextBlock Text="{DynamicResource Loc_BugReportDescriptionLabel}" Style="{StaticResource FieldLabel}"/>
+                    <Border Style="{StaticResource InputShell}">
                         <TextBox x:Name="TxtReportDescription" Style="{StaticResource ReportTextBox}"
-                                 Height="125" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap"
+                                 Height="130" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
                                  TextChanged="OnRequiredFieldChanged"/>
                     </Border>
 
-                    <Border CornerRadius="10" Background="{DynamicResource CardBackground}"
-                            BorderBrush="Transparent" BorderThickness="0" Padding="16,14" Margin="0,0,0,12">
+                    <Border Style="{StaticResource SectionCard}" Padding="18,16">
                         <StackPanel>
                             <DockPanel LastChildFill="True">
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Button Content="{DynamicResource Loc_BtnAddScreenshots}" Style="{StaticResource BtnSecondary}"
                                             Margin="0,0,8,0" Click="OnAddScreenshotsClick"/>
                                     <Button x:Name="BtnRemoveScreenshot" Content="{DynamicResource Loc_BtnRemoveScreenshot}"
-                                            Style="{StaticResource BtnSecondary}" IsEnabled="False"
+                                            Style="{StaticResource BtnDanger}" IsEnabled="False"
                                             Click="OnRemoveScreenshotClick"/>
                                 </StackPanel>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{DynamicResource Loc_BugReportScreenshotsLabel}" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="{DynamicResource Loc_BugReportScreenshotsHint}" FontSize="11"
-                                               Foreground="{DynamicResource TextMuted}" Margin="0,2,12,0" TextWrapping="Wrap"/>
+                                <Path DockPanel.Dock="Left" Data="M 4,6 L 20,6 L 20,18 L 4,18 Z M 4,15 L 9,11 L 13,14 L 16,12 L 20,15 M 15.5,9 A 1,1 0 1 1 15.49,9 Z"
+                                      Style="{StaticResource IconPath}" Width="18" Height="18" Margin="0,0,12,0"/>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock Text="{DynamicResource Loc_BugReportScreenshotsLabel}" FontSize="14" Foreground="White"/>
+                                    <TextBlock Text="{DynamicResource Loc_BugReportScreenshotsHint}" FontSize="11.5"
+                                               Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </DockPanel>
 
-                            <ListBox x:Name="LstScreenshots" Margin="0,12,0,0" MaxHeight="92"
+                            <ListBox x:Name="LstScreenshots" Margin="0,14,0,0" MaxHeight="96"
                                      Background="Transparent" BorderThickness="0"
-                                     Foreground="{DynamicResource TextSecondary}"
+                                     ItemContainerStyle="{StaticResource ScreenshotChip}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      SelectionChanged="OnScreenshotSelectionChanged"
                                      Visibility="Collapsed">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <DockPanel Margin="0,3">
-                                            <TextBlock Text="&#x25CF;" Foreground="{DynamicResource PlayStationBlue}"
-                                                       FontSize="8" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <TextBlock Text="{Binding FileName}" Foreground="{DynamicResource TextSecondary}"
-                                                       FontSize="11.5" TextTrimming="CharacterEllipsis"/>
-                                        </DockPanel>
+                                        <TextBlock Text="{Binding FileName}" Foreground="{DynamicResource TextPrimary}"
+                                                   FontSize="12" MaxWidth="220" TextTrimming="CharacterEllipsis"/>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </StackPanel>
                     </Border>
 
-                    <Border CornerRadius="10" Background="{DynamicResource CardBackground}"
-                            BorderBrush="Transparent" BorderThickness="0" Padding="16,14" Margin="0,0,0,12">
+                    <Border Style="{StaticResource SectionCard}" Padding="18,16">
                         <StackPanel>
                             <DockPanel LastChildFill="True">
                                 <Button Content="{DynamicResource Loc_BtnPreviewDiagnostics}" Style="{StaticResource BtnSecondary}"
-                                        DockPanel.Dock="Right" Margin="12,0,0,0" Click="OnPreviewDiagnosticsClick"/>
-                                <StackPanel>
-                                    <TextBlock Text="{DynamicResource Loc_BugReportDiagnosticsTitle}" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="{DynamicResource Loc_BugReportDiagnosticsHint}" FontSize="11"
+                                        DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0" Click="OnPreviewDiagnosticsClick"/>
+                                <Path DockPanel.Dock="Left" Data="M 3,12 L 7,12 L 10,5 L 14,19 L 17,12 L 21,12"
+                                      Style="{StaticResource IconPath}" Width="18" Height="18" Margin="0,0,12,0"/>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc_BugReportDiagnosticsTitle}" FontSize="14" Foreground="White"/>
+                                    <TextBlock Text="{DynamicResource Loc_BugReportDiagnosticsHint}" FontSize="11.5"
                                                Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </DockPanel>
 
-                            <Border x:Name="PnlDiagnosticPreview" CornerRadius="7" Background="{DynamicResource ControlBackground}"
-                                    Margin="0,12,0,0" Visibility="Collapsed">
+                            <Border x:Name="PnlDiagnosticPreview" CornerRadius="14" Background="#66060A16"
+                                    Margin="0,14,0,0" Visibility="Collapsed">
                                 <TextBox x:Name="TxtDiagnosticPreview" Style="{StaticResource ReportTextBox}"
-                                         IsReadOnly="True" Height="150" TextWrapping="NoWrap"
+                                         IsReadOnly="True" Height="160" TextWrapping="NoWrap"
                                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                                         FontFamily="Consolas" FontSize="10.5" VerticalContentAlignment="Top"/>
+                                         FontFamily="Cascadia Mono, Consolas" FontSize="11" Foreground="{DynamicResource TextSecondary}"
+                                         VerticalContentAlignment="Top"/>
                             </Border>
                         </StackPanel>
                     </Border>
 
-                    <CheckBox x:Name="ChkConsent" Style="{StaticResource ConsentCheckBox}"
+                    <CheckBox x:Name="ChkConsent" Style="{StaticResource ConsentCheckBox}" Margin="4,4,0,0"
                               Checked="OnConsentChanged" Unchecked="OnConsentChanged">
                         <TextBlock Text="{DynamicResource Loc_BugReportConsent}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondary}" FontSize="12"/>
+                                   Foreground="{DynamicResource TextPrimary}" FontSize="12.5"/>
                     </CheckBox>
-
-                    <TextBlock Text="{DynamicResource Loc_BugReportPrivacyHint}" FontSize="10.5"
-                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="32,7,0,0"/>
+                    <TextBlock Text="{DynamicResource Loc_BugReportPrivacyHint}" FontSize="11"
+                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="40,6,0,0"/>
                 </StackPanel>
             </ScrollViewer>
 
-            <Border Grid.Row="2" CornerRadius="0,0,14,14" Padding="22,12,22,14"
-                    Background="{DynamicResource FooterBackground}">
-                <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Content="{DynamicResource Loc_Cancel}" Style="{StaticResource BtnSecondary}"
-                                Margin="0,0,8,0" Click="OnCloseClick"/>
-                        <Button x:Name="BtnContinueGithub" Content="{DynamicResource Loc_BtnContinueGithub}"
-                                Style="{StaticResource BtnPrimary}" IsEnabled="False"
-                                Click="OnContinueGithubClick"/>
-                    </StackPanel>
-                    <TextBlock x:Name="TxtValidationHint" Text="{DynamicResource Loc_BugReportRequiredHint}"
-                               Foreground="{DynamicResource TextMuted}" FontSize="10.5"
-                               VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,16,0"/>
-                </DockPanel>
-            </Border>
+            <DockPanel Grid.Row="2" LastChildFill="True" Margin="26,12,26,22">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="{DynamicResource Loc_Cancel}" Style="{StaticResource BtnSecondary}"
+                            Margin="0,0,10,0" Click="OnCloseClick"/>
+                    <Button x:Name="BtnContinueGithub" Style="{StaticResource BtnPrimary}" IsEnabled="False"
+                            Click="OnContinueGithubClick">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{DynamicResource Loc_BtnContinueGithub}" VerticalAlignment="Center"/>
+                            <Path Data="{StaticResource GeoChevronRight}" Style="{StaticResource ChevronPath}"
+                                  Width="6" Height="10" StrokeThickness="2" Margin="10,1,0,0"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <TextBlock x:Name="TxtValidationHint" Text="{DynamicResource Loc_BugReportRequiredHint}"
+                           Foreground="{DynamicResource TextMuted}" FontSize="11.5"
+                           VerticalAlignment="Center" TextWrapping="Wrap" Margin="4,0,16,0"/>
+            </DockPanel>
         </Grid>
     </Border>
 </Window>
