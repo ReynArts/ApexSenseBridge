@@ -44,42 +44,22 @@ if ($signingRequested -and $signingIdentityCount -ne 1) {
 }
 
 # Windows keeps a running executable locked. Stop the standalone Tray before
-# replacing its public dist copy during a release build.
+# replacing the canonical build payload during a release build.
 Stop-Process -Name "ApexSenseBridgeTray" -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 200
 
-# A release build owns these outputs. Remove them up front so an older PEXT or
-# staging directory cannot accidentally be published beside the current build.
+# A release build owns dist completely. Recreate it so stale binaries, old PEXT
+# packages, and expanded portable directories can never coexist with the three
+# publishable artifacts.
 $projectFull = [System.IO.Path]::GetFullPath($projectRoot).TrimEnd('\')
 $distFull = [System.IO.Path]::GetFullPath($distDir).TrimEnd('\')
 if (-not $distFull.StartsWith($projectFull + '\', [StringComparison]::OrdinalIgnoreCase)) {
     Fail "refusing to clean an unexpected dist directory: $distFull"
 }
+if (Test-Path -LiteralPath $distFull) {
+    Remove-Item -LiteralPath $distFull -Recurse -Force
+}
 New-Item -ItemType Directory -Path $distFull -Force | Out-Null
-foreach ($name in @(
-    "ApexSenseBridge-Setup.exe",
-    "ApexSenseBridge-Portable.zip",
-    "ApexSenseBridgeTray.exe",
-    "ApexSenseBridgeTray.exe.config",
-    "SHA256SUMS.txt",
-    "tray_bridge.log",
-    "tray_crash.log",
-    "tray_detection.log",
-    "tray_startup_error.log"
-)) {
-    $ownedOutput = Join-Path $distFull $name
-    if (Test-Path -LiteralPath $ownedOutput) {
-        Remove-Item -LiteralPath $ownedOutput -Force
-    }
-}
-$portableStaging = Join-Path $distFull "ApexSenseBridge-Portable"
-if (Test-Path -LiteralPath $portableStaging) {
-    Remove-Item -LiteralPath $portableStaging -Recurse -Force
-}
-foreach ($filter in @("ApexSenseBridge_*.pext", "ApexSenseBridge-Playnite-*.pext")) {
-    Get-ChildItem -LiteralPath $distFull -Filter $filter -File `
-        -ErrorAction SilentlyContinue | Remove-Item -Force
-}
 
 foreach ($package in $requiredPackages) {
     $path = Join-Path $prerequisiteDir $package.Name
@@ -128,10 +108,6 @@ if ($signingRequested) {
     & (Join-Path $PSScriptRoot "sign-windows-artifacts.ps1") -Path $payloadsToSign
     if ($LASTEXITCODE -ne 0) { Fail "release payload signing failed" }
 
-    # build-tray-app copies the unsigned executable before this signing stage.
-    # Replace that public standalone copy with the signed release payload.
-    Copy-Item -LiteralPath (Join-Path $releaseDir "ApexSenseBridgeTray.exe") `
-        -Destination (Join-Path $distFull "ApexSenseBridgeTray.exe") -Force
 }
 
 if ([string]::IsNullOrWhiteSpace($IsccPath)) {
@@ -180,9 +156,7 @@ if (-not (Test-Path -LiteralPath $portableZip)) {
 
 $releaseArtifactPaths = @(
     $setup,
-    $portableZip,
-    (Join-Path $distFull "ApexSenseBridgeTray.exe"),
-    (Join-Path $distFull "ApexSenseBridgeTray.exe.config")
+    $portableZip
 )
 $releaseArtifactPaths += @(
     Get-ChildItem -LiteralPath $distFull -Filter "ApexSenseBridge-Playnite-*.pext" -File |

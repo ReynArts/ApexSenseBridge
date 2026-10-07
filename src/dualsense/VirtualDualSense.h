@@ -22,6 +22,7 @@ struct VirtualDualSenseOptions {
     std::filesystem::path viiperLibrary;
     std::uint16_t apiPort = 3242;
     VirtualDualSenseBackend backend = VirtualDualSenseBackend::Auto;
+    bool captureAudioHapticsWaveform = false;
 };
 
 struct VirtualDualSenseStats {
@@ -41,6 +42,8 @@ struct VirtualDualSenseStats {
     std::uint64_t initializationDeviceUs = 0;
     std::uint64_t initializationFeedbackUs = 0;
     std::uint64_t initializationInputUs = 0;
+    std::uint64_t maxInputUpdateDurationUs = 0;
+    std::uint64_t inputUpdateBlockEvents = 0;
     std::string backendVersion;
 };
 

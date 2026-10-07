@@ -2,10 +2,14 @@
 #include <winver.h>
 
 #ifndef ASB_VERSION_MAJOR
-#define ASB_VERSION_MAJOR 0
-#define ASB_VERSION_MINOR 6
-#define ASB_VERSION_PATCH 2
-#define ASB_VERSION_STRING "0.6.3"
+#define ASB_VERSION_MAJOR 1
+#define ASB_VERSION_MINOR 0
+#define ASB_VERSION_PATCH 0
+#define ASB_VERSION_STRING "1.0.0"
+#endif
+
+#ifndef ASB_RELEASE_LABEL
+#define ASB_RELEASE_LABEL ASB_VERSION_STRING
 #endif
 
 // Application Icon
@@ -29,10 +33,10 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "ApexSenseBridge contributors\0"
-            VALUE "FileDescription", "ApexSenseBridge native application\0"
+            VALUE "FileDescription", "ApexSenseBridge engine and command-line diagnostics\0"
             VALUE "FileVersion", ASB_VERSION_STRING ".0\0"
             VALUE "ProductName", "ApexSenseBridge\0"
-            VALUE "ProductVersion", ASB_VERSION_STRING ".0\0"
+            VALUE "ProductVersion", ASB_RELEASE_LABEL "\0"
         END
     END
     BLOCK "VarFileInfo"

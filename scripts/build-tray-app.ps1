@@ -7,9 +7,9 @@ $projectDir = Join-Path $root "ApexSenseBridgeTray"
 $project = Join-Path $projectDir "ApexSenseBridgeTray.csproj"
 $learningTestProject = Join-Path $root "tests\ApexSenseBridgeTray.LearningTests.csproj"
 $learningTestExe = Join-Path $root "tests\bin\Release\ApexSenseBridgeTray.LearningTests.exe"
-$outputDir = Join-Path $projectDir "bin\Release"
 $buildWinRelease = Join-Path $root "build-win\Release"
-$dist = Join-Path $root "dist"
+$outputDir = $buildWinRelease
+$legacyOutputDir = Join-Path $projectDir "bin\Release"
 
 function Fail($message) {
     Write-Host ""
@@ -21,7 +21,12 @@ function Fail($message) {
 $gamesJson = Join-Path $root "data\supported_games.json"
 if (-not (Test-Path $gamesJson)) {
     Write-Host "Generating supported_games.json from PCGamingWiki..."
-    & (Join-Path $PSScriptRoot "update-pcgw-list.ps1")
+    $python = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($python) {
+        & $python.Source (Join-Path $PSScriptRoot "update_pcgw_list.py")
+    } else {
+        Write-Warning "data\supported_games.json is missing and python.exe was not found to regenerate it."
+    }
 }
 
 $msbuild = ""
@@ -66,22 +71,17 @@ if (-not (Test-Path $trayExe)) {
     Fail "ApexSenseBridgeTray.exe was not created."
 }
 
-Stop-Process -Name "ApexSenseBridgeTray" -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 200
-
-# Copy to build-win\Release for Inno Setup packaging
-if (-not (Test-Path $buildWinRelease)) {
-    New-Item -ItemType Directory -Path $buildWinRelease -Force | Out-Null
+if (Test-Path -LiteralPath $legacyOutputDir) {
+    Remove-Item -LiteralPath $legacyOutputDir -Recurse -Force
 }
-Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $buildWinRelease -Force
 
-# Copy to dist
-if (-not (Test-Path $dist)) {
-    New-Item -ItemType Directory -Path $dist -Force | Out-Null
+$running = Get-Process -Name "ApexSenseBridgeTray" -ErrorAction SilentlyContinue
+if ($running) {
+    $running | Stop-Process -Force -ErrorAction SilentlyContinue
+    $running | Wait-Process -Timeout 3 -ErrorAction SilentlyContinue
 }
-Copy-Item (Join-Path $outputDir "ApexSenseBridgeTray.exe*") $dist -Force
+Start-Sleep -Milliseconds 300
 
 Write-Host ""
 Write-Host "ApexSenseBridgeTray built successfully:" -ForegroundColor Green
-Write-Host "  Dist:    $(Join-Path $dist 'ApexSenseBridgeTray.exe')"
-Write-Host "  Release: $trayExe"
+Write-Host "  Runtime: $(Join-Path $buildWinRelease 'ApexSenseBridgeTray.exe')"

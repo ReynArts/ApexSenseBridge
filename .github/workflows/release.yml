@@ -53,26 +53,71 @@ jobs:
           ASB_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ASB_SIGNING_CERTIFICATE_BASE64 }}
           ASB_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.ASB_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          .\scripts\build-installer.ps1 -RequireSigning
+          $buildParams = @{}
+          if (-not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_BASE64)) {
+            $buildParams["Sign"] = $true
+          }
+          .\scripts\build-installer.ps1 @buildParams
 
-      - name: Test and verify signed release artifacts
+      - name: Test and verify release artifacts
         shell: powershell
+        env:
+          ASB_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ASB_SIGNING_CERTIFICATE_BASE64 }}
         run: |
           ctest --test-dir .\build-win -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          .\scripts\verify-version-consistency.ps1 -CheckArtifacts -RequireSignatures
+          $verifyParams = @{ CheckArtifacts = $true }
+          if (-not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_BASE64)) {
+            $verifyParams["RequireSignatures"] = $true
+          }
+          .\scripts\verify-version-consistency.ps1 @verifyParams
+
+      - name: Extract Release Notes from CHANGELOG
+        shell: powershell
+        run: |
+          $raw = Get-Content -LiteralPath "CHANGELOG.md" -Raw
+          $tag = $env:GITHUB_REF_NAME
+          if ([string]::IsNullOrWhiteSpace($tag) -and $env:GITHUB_REF -and $env:GITHUB_REF.StartsWith("refs/tags/")) {
+            $tag = $env:GITHUB_REF.Substring("refs/tags/".Length)
+          }
+          $cleanTag = if (-not [string]::IsNullOrWhiteSpace($tag)) { $tag.Trim().TrimStart('v', 'V') } else { "" }
+          $lines = $raw -split '\r?\n'
+          $collecting = $false
+          $extracted = @()
+          if (-not [string]::IsNullOrWhiteSpace($cleanTag)) {
+            $headerPattern = '(?m)^##\s+' + [regex]::Escape($cleanTag) + '(?:\s+.*)?$'
+            foreach ($line in $lines) {
+              if ($collecting) {
+                if ($line -match '^##\s+') { break }
+                $extracted += $line
+              } elseif ($line -match $headerPattern) {
+                $collecting = $true
+              }
+            }
+          }
+          if ($extracted.Count -eq 0) {
+            foreach ($line in $lines) {
+              if ($collecting) {
+                if ($line -match '^##\s+') { break }
+                $extracted += $line
+              } elseif ($line -match '^##\s+') {
+                $collecting = $true
+              }
+            }
+          }
+          $notes = ($extracted -join [Environment]::NewLine).Trim()
+          [System.IO.File]::WriteAllText("dist/release-notes.md", $notes, (New-Object System.Text.UTF8Encoding($false)))
+          Write-Host "Extracted release notes ($($notes.Length) characters) to dist/release-notes.md"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          body_path: dist/release-notes.md
           files: |
             dist/ApexSenseBridge-Setup.exe
             dist/ApexSenseBridge-Portable.zip
-            dist/ApexSenseBridgeTray.exe
-            dist/ApexSenseBridgeTray.exe.config
             dist/*.pext
-            dist/SHA256SUMS.txt
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

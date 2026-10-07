@@ -42,7 +42,11 @@ function Assert-Version([string]$RelativePath, [string]$Pattern, [string]$Label)
 
 function Get-CoreVersion([string]$Value) {
     try {
-        $parsed = [Version]::Parse($Value.Trim().TrimStart('v', 'V'))
+        $cleaned = $Value.Trim().TrimStart('v', 'V')
+        if ($cleaned -match '^(\d+\.\d+\.\d+)') {
+            return $matches[1]
+        }
+        $parsed = [Version]::Parse($cleaned)
         if ($parsed.Build -lt 0) {
             Fail "version '$Value' does not contain major.minor.patch"
         }
@@ -57,9 +61,14 @@ function Assert-ArtifactVersion([string]$RelativePath) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         Fail "release artifact is missing: $RelativePath"
     }
-    $actual = Get-CoreVersion (Get-Item -LiteralPath $path).VersionInfo.ProductVersion
+    # Inno Setup reserves a fixed-width string and pads ProductVersion with spaces.
+    $productVersion = (Get-Item -LiteralPath $path).VersionInfo.ProductVersion.Trim()
+    $actual = Get-CoreVersion $productVersion
     if ($actual -ne $script:Version) {
         Fail "$RelativePath has product version '$actual', expected '$script:Version'"
+    }
+    if ($productVersion -ne $script:ReleaseLabel) {
+        Fail "$RelativePath has release label '$productVersion', expected '$script:ReleaseLabel'"
     }
 }
 
@@ -76,6 +85,25 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedVersion)) {
     if ($normalizedExpected -ne $script:Version) {
         Fail "Git tag/expected version '$normalizedExpected' differs from source '$script:Version'"
     }
+}
+
+$releaseSuffix = Get-RequiredMatch "CMakeLists.txt" `
+    'set\(ASB_RELEASE_LABEL "\$\{PROJECT_VERSION\}([^"\r\n]*)"\)' "release label suffix"
+$releaseLabel = $script:Version + $releaseSuffix
+if ((Read-Text "CHANGELOG.md") -notmatch ('(?m)^## ' + [regex]::Escape($releaseLabel) + '\r?$')) {
+    Fail "CHANGELOG.md has no section for release '$releaseLabel'"
+}
+foreach ($releaseManifest in @(
+    @{ Path = "installer\ApexSenseBridge.iss"; Pattern = '#define AppReleaseLabel "([^"\r\n]+)"' },
+    @{ Path = "ApexSenseBridgeTray\Properties\AssemblyInfo.cs"; Pattern = 'AssemblyInformationalVersion\("([^"\r\n]+)"\)' },
+    @{ Path = "playnite\ApexSenseBridge\Properties\AssemblyInfo.cs"; Pattern = 'AssemblyInformationalVersion\("([^"\r\n]+)"\)' }
+)) {
+    $actualLabel = Get-RequiredMatch $releaseManifest.Path $releaseManifest.Pattern "release label"
+    if ($actualLabel -ne $releaseLabel) { Fail "release label in $($releaseManifest.Path) is '$actualLabel', expected '$releaseLabel'" }
+}
+if (-not [string]::IsNullOrWhiteSpace($ExpectedVersion) -and
+    $ExpectedVersion.Trim().TrimStart('v', 'V') -ne $releaseLabel) {
+    Fail "release tag '$ExpectedVersion' differs from release label '$releaseLabel'"
 }
 
 Assert-Version "installer\ApexSenseBridge.iss" `
@@ -105,8 +133,7 @@ if ($CheckArtifacts) {
         "build-win\Release\ApexSenseBridgeControl.exe",
         "build-win\Release\ApexSenseBridgeTray.exe",
         "playnite\ApexSenseBridge\bin\Release\ApexSenseBridge.dll",
-        "dist\ApexSenseBridge-Setup.exe",
-        "dist\ApexSenseBridgeTray.exe"
+        "dist\ApexSenseBridge-Setup.exe"
     )) {
         Assert-ArtifactVersion $artifact
     }
@@ -155,8 +182,7 @@ if ($RequireSignatures) {
         "build-win\Release\viiper.exe",
         "build-win\Release\libVIIPER.dll",
         "playnite\ApexSenseBridge\bin\Release\ApexSenseBridge.dll",
-        "dist\ApexSenseBridge-Setup.exe",
-        "dist\ApexSenseBridgeTray.exe"
+        "dist\ApexSenseBridge-Setup.exe"
     )
     $publisher = $null
     foreach ($relativePath in $signedPaths) {
@@ -177,4 +203,4 @@ if ($RequireSignatures) {
     }
 }
 
-Write-Output "Release version contract passed for $($script:Version)."
+Write-Output "Release version contract passed for $releaseLabel (numeric version $($script:Version))."

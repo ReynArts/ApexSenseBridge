@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 0.6.3 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 1.0.0 LANGUAGES CXX)
+set(ASB_RELEASE_LABEL "${PROJECT_VERSION}")
+add_compile_definitions(ASB_RELEASE_LABEL="${ASB_RELEASE_LABEL}")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,17 +17,23 @@ endif()
 
 add_library(asb_core STATIC
     src/core/ApexProfileRestoreGuard.cpp
+    src/diagnostics/Apex4GyroCapture.cpp
     src/diagnostics/HidDiagnostics.cpp
     src/dualsense/DualSenseFeedback.cpp
     src/dualsense/DualSenseFirmware.cpp
     src/dualsense/DualSenseInput.cpp
+    src/dualsense/VirtualDualSenseStartup.cpp
     src/dualsense/TouchpadGestureProfile.cpp
     src/dualsense/ViewTouchpadGesture.cpp
     src/dualsense/AdaptiveTriggerTranslation.cpp
     src/dualsense/AdaptiveTriggerBridge.cpp
+    src/dualsense/Apex6TriggerEffect.cpp
+    src/dualsense/Apex6HapticBridge.cpp
     src/dualsense/RumbleBridge.cpp
+    src/dualsense/LightbarBridge.cpp
     src/dualsense/ViiperProtocol.cpp
     src/haptics/HapticProcessor.cpp
+    src/platform/Apex6InputFusion.cpp
     src/platform/AudioEndpointProtection.cpp
     src/platform/PhysicalInputSource.h
     src/platform/SessionControl.cpp
@@ -33,7 +41,9 @@ add_library(asb_core STATIC
     src/flydigi/Apex4Input.cpp
     src/flydigi/Apex4Protocol.cpp
     src/flydigi/Apex5Identity.cpp
+    src/flydigi/Apex5Input.cpp
     src/flydigi/Apex5Protocol.cpp
+    src/flydigi/Apex6Protocol.cpp
     src/flydigi/Apex5Device.cpp
 )
 target_include_directories(asb_core PUBLIC src)
@@ -49,7 +59,7 @@ if(WIN32)
         src/platform/windows/WindowsPhysicalInputSource.cpp
         src/platform/windows/WindowsSessionControl.cpp
     )
-    target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput9_1_0 ole32)
+    target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput ole32)
 else()
     target_sources(asb_core PRIVATE
         src/platform/UnsupportedHidTransport.cpp
@@ -68,8 +78,12 @@ endif()
 
 add_executable(ApexSenseBridge
     src/main.cpp
+    src/cli/BridgeOptions.cpp
+    src/cli/BridgeRuntimeSupport.cpp
+    src/cli/BridgeTelemetry.cpp
     src/cli/CliApplication.cpp
     src/cli/CommandSupport.cpp
+    src/cli/JsonSupport.cpp
     src/cli/DeviceCommands.cpp
     src/cli/VirtualDualSenseCommand.cpp
     src/cli/BridgeCommand.cpp
@@ -95,6 +109,25 @@ if(WIN32)
         ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
         ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
     )
+
+    # Support-only diagnostic: build explicitly with
+    # --target Apex5IsolationProbe. Never include it in normal/release builds.
+    add_executable(Apex45TriggerCapture EXCLUDE_FROM_ALL
+        src/tools/Apex45TriggerCapture.cpp src/cli/JsonSupport.cpp)
+    target_link_libraries(Apex45TriggerCapture PRIVATE asb_core)
+
+    add_executable(Apex5IsolationProbe EXCLUDE_FROM_ALL
+        src/tools/Apex5IsolationProbe.cpp
+        src/tools/Apex5IsolationProbe.rc
+        ${ASB_RC_FILE}
+    )
+    target_link_libraries(Apex5IsolationProbe PRIVATE asb_core)
+    target_compile_definitions(Apex5IsolationProbe PRIVATE
+        ASB_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        ASB_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
+    )
 endif()
 
 if(MSVC)
@@ -103,6 +136,11 @@ if(MSVC)
     target_compile_options(ApexSenseBridge PRIVATE /utf-8)
     if(WIN32)
         target_compile_options(ApexSenseBridgeControl PRIVATE /W4 /permissive- /EHsc /Gy /utf-8 $<$<CONFIG:Release>:/O2>)
+        target_compile_options(Apex5IsolationProbe PRIVATE /W4 /permissive- /EHsc /Gy /utf-8 $<$<CONFIG:Release>:/O2>)
+        # The probe embeds its requireAdministrator manifest as a resource.
+        # Disable the linker's generated default manifest to avoid duplicate
+        # RT_MANIFEST/1 resources.
+        target_link_options(Apex5IsolationProbe PRIVATE /MANIFEST:NO)
     endif()
 else()
     target_compile_options(asb_core PRIVATE -Wall -Wextra -Wpedantic)
@@ -111,10 +149,14 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(ApexSenseBridgeTriggerPositionMarkersTests tests/test_trigger_position_markers.cpp)
+    target_include_directories(ApexSenseBridgeTriggerPositionMarkersTests PRIVATE src)
+    add_test(NAME trigger_position_markers COMMAND ApexSenseBridgeTriggerPositionMarkersTests)
     add_executable(ApexSenseBridgeTests
         tests/test_protocol.cpp
         src/flydigi/Apex4Input.cpp
         src/flydigi/Apex4Protocol.cpp
+        src/flydigi/Apex5Input.cpp
         src/flydigi/Apex5Protocol.cpp
         src/platform/XInputMapping.cpp
     )
@@ -125,6 +167,18 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME protocol COMMAND ApexSenseBridgeTests)
+
+    add_executable(ApexSenseBridgeApex6ProtocolTests
+        tests/test_apex6_protocol.cpp
+        src/flydigi/Apex6Protocol.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex6ProtocolTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6ProtocolTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6ProtocolTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_protocol COMMAND ApexSenseBridgeApex6ProtocolTests)
 
     add_executable(ApexSenseBridgeDiagnosticTests
         tests/test_hid_diagnostics.cpp
@@ -137,6 +191,18 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeDiagnosticTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME hid_diagnostics COMMAND ApexSenseBridgeDiagnosticTests)
+
+    add_executable(ApexSenseBridgeApex4GyroCaptureTests
+        tests/test_apex4_gyro_capture.cpp
+        src/diagnostics/Apex4GyroCapture.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex4GyroCaptureTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex4GyroCaptureTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex4GyroCaptureTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex4_gyro_capture COMMAND ApexSenseBridgeApex4GyroCaptureTests)
 
     add_executable(ApexSenseBridgeIdentityTests tests/test_identity.cpp)
     target_link_libraries(ApexSenseBridgeIdentityTests PRIVATE asb_core)
@@ -152,6 +218,7 @@ if(BUILD_TESTING)
         src/dualsense/DualSenseFeedback.cpp
         src/dualsense/DualSenseFirmware.cpp
         src/dualsense/DualSenseInput.cpp
+        src/dualsense/VirtualDualSenseStartup.cpp
         src/dualsense/ViiperProtocol.cpp
     )
     target_include_directories(ApexSenseBridgeVirtualDualSenseTests PRIVATE src)
@@ -174,6 +241,15 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME adaptive_trigger_translation COMMAND ApexSenseBridgeTriggerTranslationTests)
 
+    add_executable(ApexSenseBridgeTriggerBridgeTests tests/test_adaptive_trigger_bridge.cpp)
+    target_link_libraries(ApexSenseBridgeTriggerBridgeTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeTriggerBridgeTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeTriggerBridgeTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME adaptive_trigger_bridge COMMAND ApexSenseBridgeTriggerBridgeTests)
+
     add_executable(ApexSenseBridgeRumbleTests tests/test_rumble_bridge.cpp)
     target_link_libraries(ApexSenseBridgeRumbleTests PRIVATE asb_core)
     if(MSVC)
@@ -182,6 +258,17 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeRumbleTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME rumble_bridge COMMAND ApexSenseBridgeRumbleTests)
+
+    add_executable(ApexSenseBridgeApex6HapticTests
+        tests/test_apex6_haptic_bridge.cpp
+    )
+    target_link_libraries(ApexSenseBridgeApex6HapticTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6HapticTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6HapticTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_haptic_bridge COMMAND ApexSenseBridgeApex6HapticTests)
 
     add_executable(ApexSenseBridgeHapticProcessorTests
         tests/test_haptic_processor.cpp
@@ -207,6 +294,29 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME xinput_mapping COMMAND ApexSenseBridgeXInputMappingTests)
 
+    add_executable(ApexSenseBridgeApex6InputFusionTests
+        tests/test_apex6_input_fusion.cpp
+    )
+    target_link_libraries(ApexSenseBridgeApex6InputFusionTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6InputFusionTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6InputFusionTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_input_fusion COMMAND ApexSenseBridgeApex6InputFusionTests)
+
+    add_executable(ApexSenseBridgePhysicalInputFreshnessTests
+        tests/test_physical_input_freshness.cpp
+    )
+    target_include_directories(ApexSenseBridgePhysicalInputFreshnessTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgePhysicalInputFreshnessTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgePhysicalInputFreshnessTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME physical_input_freshness
+             COMMAND ApexSenseBridgePhysicalInputFreshnessTests)
+
     add_executable(ApexSenseBridgeViewTouchpadGestureTests
         tests/test_view_touchpad_gesture.cpp
         src/dualsense/ViewTouchpadGesture.cpp
@@ -231,6 +341,49 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME touchpad_gesture_profiles COMMAND ApexSenseBridgeTouchpadGestureProfileTests)
 
+    add_executable(ApexSenseBridgeBridgeOptionsTests
+        tests/test_bridge_options.cpp
+        src/cli/BridgeOptions.cpp
+        src/dualsense/TouchpadGestureProfile.cpp
+        src/platform/SessionControl.cpp
+    )
+    target_include_directories(ApexSenseBridgeBridgeOptionsTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeBridgeOptionsTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeBridgeOptionsTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bridge_options COMMAND ApexSenseBridgeBridgeOptionsTests)
+
+    add_executable(ApexSenseBridgeBridgeRuntimeSupportTests
+        tests/test_bridge_runtime_support.cpp
+        src/cli/BridgeRuntimeSupport.cpp
+    )
+    target_include_directories(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE src)
+    if(WIN32)
+        target_link_libraries(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE psapi)
+    endif()
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeBridgeRuntimeSupportTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bridge_runtime_support COMMAND ApexSenseBridgeBridgeRuntimeSupportTests)
+
+    add_executable(ApexSenseBridgeBridgeTelemetryTests
+        tests/test_bridge_telemetry.cpp
+        src/cli/BridgeTelemetry.cpp
+        src/cli/JsonSupport.cpp
+        src/platform/AudioEndpointProtection.cpp
+    )
+    target_include_directories(ApexSenseBridgeBridgeTelemetryTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeBridgeTelemetryTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeBridgeTelemetryTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME bridge_telemetry COMMAND ApexSenseBridgeBridgeTelemetryTests)
+
     add_executable(ApexSenseBridgeAudioEndpointProtectionTests
         tests/test_audio_endpoint_protection.cpp
         src/platform/AudioEndpointProtection.cpp
@@ -245,6 +398,9 @@ if(BUILD_TESTING)
              COMMAND ApexSenseBridgeAudioEndpointProtectionTests)
 
     if(WIN32)
+        add_test(NAME trigger_position_capture_analysis
+                 COMMAND powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_trigger_position_capture_analysis.ps1)
         add_executable(ApexSenseBridgeSessionControlWindowsTests
             tests/test_session_control.cpp
         )

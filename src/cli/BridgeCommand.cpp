@@ -1,4 +1,7 @@
 #include "cli/Commands.h"
+#include "cli/BridgeOptions.h"
+#include "cli/BridgeRuntimeSupport.h"
+#include "cli/BridgeTelemetry.h"
 #include "cli/CommandSupport.h"
 #include "core/ApexProfileRestoreGuard.h"
 #include "core/TriggerResetGuard.h"
@@ -6,346 +9,41 @@
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"
+#include "dualsense/VirtualDualSenseStartup.h"
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/AdaptiveTriggerTranslation.h"
+#include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/RumbleBridge.h"
+#include "dualsense/LightbarBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
+#include "flydigi/Apex4Input.h"
+#include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Device.h"
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
 #include "platform/AudioEndpointProtection.h"
 #include "platform/PhysicalControllerIsolation.h"
+#include "platform/PhysicalInputFreshnessWatchdog.h"
 #include "platform/PhysicalInputSource.h"
 #include "platform/SessionControl.h"
 #include "platform/XInputGamepad.h"
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <future>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <psapi.h>
-#endif
-
 namespace asb::cli {
-namespace {
-
-class MicrosecondLatencyHistogram {
-public:
-    void observe(std::chrono::steady_clock::duration duration) noexcept {
-        const auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
-            duration).count();
-        const auto bucket = static_cast<std::size_t>((std::clamp)(
-            microseconds, std::int64_t{0},
-            static_cast<std::int64_t>(buckets_.size() - 1)));
-        ++buckets_[bucket];
-        ++samples_;
-    }
-
-    [[nodiscard]] std::uint64_t percentile(unsigned int percentage) const noexcept {
-        if (samples_ == 0) return 0;
-        const auto wanted = (samples_ * percentage + 99) / 100;
-        std::uint64_t cumulative = 0;
-        for (std::size_t index = 0; index < buckets_.size(); ++index) {
-            cumulative += buckets_[index];
-            if (cumulative >= wanted) return index;
-        }
-        return buckets_.size() - 1;
-    }
-
-    [[nodiscard]] std::uint64_t samples() const noexcept { return samples_; }
-
-private:
-    // The final bucket includes every value >= 2 ms. The acceptance target is
-    // 1.5 ms, so this fixed 16 KiB structure gives useful resolution without
-    // allocating or sorting samples in the hot input path.
-    std::array<std::uint64_t, 2001> buckets_{};
-    std::uint64_t samples_ = 0;
-};
-
-struct ProcessUsageSnapshot {
-    std::uint64_t cpu100ns = 0;
-    std::uint64_t workingSetBytes = 0;
-    std::uint64_t peakWorkingSetBytes = 0;
-};
-
-ProcessUsageSnapshot processUsageSnapshot() noexcept {
-    ProcessUsageSnapshot snapshot{};
-#ifdef _WIN32
-    FILETIME creation{}, exit{}, kernel{}, user{};
-    if (GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) {
-        ULARGE_INTEGER kernelValue{};
-        kernelValue.LowPart = kernel.dwLowDateTime;
-        kernelValue.HighPart = kernel.dwHighDateTime;
-        ULARGE_INTEGER userValue{};
-        userValue.LowPart = user.dwLowDateTime;
-        userValue.HighPart = user.dwHighDateTime;
-        snapshot.cpu100ns = kernelValue.QuadPart + userValue.QuadPart;
-    }
-    PROCESS_MEMORY_COUNTERS counters{};
-    counters.cb = sizeof(counters);
-    if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters))) {
-        snapshot.workingSetBytes = counters.WorkingSetSize;
-        snapshot.peakWorkingSetBytes = counters.PeakWorkingSetSize;
-    }
-#endif
-    return snapshot;
-}
-
-unsigned int logicalProcessorCount() noexcept {
-#ifdef _WIN32
-    SYSTEM_INFO info{};
-    GetSystemInfo(&info);
-    return (std::max)(1U, static_cast<unsigned int>(info.dwNumberOfProcessors));
-#else
-    return (std::max)(1U, std::thread::hardware_concurrency());
-#endif
-}
-
-bool gameplayControlsReleased(
-    const asb::dualsense::DualSenseInputState& state) noexcept {
-    constexpr std::uint8_t kTriggerReleaseThreshold = 8;
-    return state.buttons == 0 && state.dpad == 0 &&
-           state.l2 <= kTriggerReleaseThreshold &&
-           state.r2 <= kTriggerReleaseThreshold;
-}
-
-bool waitForPhysicalControlsReleased(
-    asb::platform::PhysicalInputSource& input,
-    std::chrono::milliseconds maximumWait) noexcept {
-    constexpr auto kStableRelease = std::chrono::milliseconds(120);
-    const auto deadline = std::chrono::steady_clock::now() + maximumWait;
-    std::optional<std::chrono::steady_clock::time_point> releasedAt;
-    while (std::chrono::steady_clock::now() < deadline) {
-        asb::dualsense::DualSenseInputState state{};
-        std::string error;
-        const auto status = input.waitForState(
-            state, input.eventDriven() ? std::chrono::milliseconds(25)
-                                       : std::chrono::milliseconds(1),
-            error);
-        const auto now = std::chrono::steady_clock::now();
-        if (status == asb::platform::PhysicalInputStatus::State) {
-            if (gameplayControlsReleased(state)) {
-                if (!releasedAt) releasedAt = now;
-                if (now - *releasedAt >= kStableRelease) return true;
-            } else {
-                releasedAt.reset();
-            }
-        } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
-                   status == asb::platform::PhysicalInputStatus::Error) {
-            return false;
-        }
-    }
-    return false;
-}
-
-class ButtonHoldTracker {
-public:
-    using Clock = std::chrono::steady_clock;
-
-    void observe(bool pressed, Clock::time_point now) noexcept {
-        if (pressed) {
-            if (!pressedAt_) {
-                pressedAt_ = now;
-                ++presses_;
-            }
-            updateMaximum(now);
-            return;
-        }
-        finish(now);
-    }
-
-    void finish(Clock::time_point now) noexcept {
-        if (!pressedAt_) return;
-        updateMaximum(now);
-        pressedAt_.reset();
-    }
-
-    [[nodiscard]] std::uint64_t presses() const noexcept { return presses_; }
-    [[nodiscard]] std::int64_t maximumHoldMilliseconds() const noexcept {
-        return maximumHold_.count();
-    }
-
-private:
-    void updateMaximum(Clock::time_point now) noexcept {
-        if (!pressedAt_) return;
-        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - *pressedAt_);
-        if (duration > maximumHold_) maximumHold_ = duration;
-    }
-
-    std::optional<Clock::time_point> pressedAt_;
-    std::chrono::milliseconds maximumHold_{};
-    std::uint64_t presses_ = 0;
-};
-
-} // namespace
-
-struct BridgeCommandOptions {
-    std::optional<std::size_t> deviceIndex;
-    std::optional<std::chrono::seconds> duration;
-    std::filesystem::path viiperExecutable;
-    asb::dualsense::VirtualDualSenseBackend virtualBackend =
-        asb::dualsense::VirtualDualSenseBackend::Auto;
-    bool proxyXInput = true;
-    bool routeRumble = false;
-    bool verifyVirtualInput = false;
-    bool isolateApex = true;
-    asb::dualsense::TouchpadGestureProfile touchpadProfile =
-        asb::dualsense::TouchpadGestureProfile::None;
-    bool touchpadProfileExplicit = false;
-    unsigned int hapticThresholdPercent = 12;
-    bool hapticThresholdExplicit = false;
-    std::optional<unsigned int> xinputIndex;
-    std::optional<std::string> sessionToken;
-    std::optional<std::uint8_t> apexProfileSlot;
-    std::filesystem::path telemetryJson;
-};
-
-bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
-                        std::string& error) {
-    for (int i = 2; i < argc; ++i) {
-        const std::string_view value = argv[i];
-        if (value == "--seconds") {
-            if (++i >= argc) { error = "--seconds requires an integer from 1 to 86400."; return false; }
-            try {
-                const auto seconds = std::stoul(argv[i]);
-                if (seconds == 0 || seconds > 86400) throw std::out_of_range("seconds");
-                options.duration = std::chrono::seconds(seconds);
-            } catch (...) { error = "--seconds requires an integer from 1 to 86400."; return false; }
-        } else if (value == "--viiper") {
-            if (++i >= argc) { error = "--viiper requires a path."; return false; }
-            options.viiperExecutable = argv[i];
-        } else if (value == "--virtual-backend") {
-            if (++i >= argc) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
-                return false;
-            }
-            const auto backend = parseVirtualDualSenseBackend(argv[i]);
-            if (!backend) {
-                error = "--virtual-backend requires auto, integrated, or sidecar.";
-                return false;
-            }
-            options.virtualBackend = *backend;
-        } else if (value == "--telemetry-json") {
-            if (++i >= argc) { error = "--telemetry-json requires a file path."; return false; }
-            options.telemetryJson = argv[i];
-        } else if (value == "--proxy-xinput") {
-            options.proxyXInput = true;
-        } else if (value == "--rumble") {
-            options.routeRumble = true;
-        } else if (value == "--haptic-threshold") {
-            if (++i >= argc) {
-                error = "--haptic-threshold requires an integer percentage from 0 to 95.";
-                return false;
-            }
-            try {
-                std::size_t parsedCharacters = 0;
-                const auto parsed = std::stoul(argv[i], &parsedCharacters);
-                if (parsedCharacters != std::string_view(argv[i]).size() || parsed > 95) {
-                    throw std::out_of_range("haptic-threshold");
-                }
-                options.hapticThresholdPercent = static_cast<unsigned int>(parsed);
-                options.hapticThresholdExplicit = true;
-            } catch (...) {
-                error = "--haptic-threshold requires an integer percentage from 0 to 95.";
-                return false;
-            }
-        } else if (value == "--verify-virtual-input") {
-            options.verifyVirtualInput = true;
-            options.proxyXInput = true;
-        } else if (value == "--touchpad-profile") {
-            if (++i >= argc) {
-                error = "--touchpad-profile requires one of: none, spider-man-2, miles-morales, ghost-of-tsushima, warframe.";
-                return false;
-            }
-            const auto profile = asb::dualsense::parseTouchpadGestureProfile(argv[i]);
-            if (!profile || *profile == asb::dualsense::TouchpadGestureProfile::LegacyViewHoldSwipeUp) {
-                error = "Unknown --touchpad-profile. Expected none, spider-man-2, miles-morales, ghost-of-tsushima, or warframe.";
-                return false;
-            }
-            options.touchpadProfile = *profile;
-            options.touchpadProfileExplicit = true;
-            options.proxyXInput = true;
-        } else if (value == "--view-hold-swipe-up") {
-            options.touchpadProfile =
-                asb::dualsense::TouchpadGestureProfile::LegacyViewHoldSwipeUp;
-            options.touchpadProfileExplicit = true;
-            options.proxyXInput = true;
-        } else if (value == "--isolate-apex") {
-            options.isolateApex = true;
-            options.proxyXInput = true;
-        } else if (value == "--xinput-index") {
-            if (++i >= argc) { error = "--xinput-index requires a value from 0 to 3."; return false; }
-            try {
-                const auto parsed = std::stoul(argv[i]);
-                if (parsed > 3) throw std::out_of_range("xinput-index");
-                options.xinputIndex = static_cast<unsigned int>(parsed);
-                options.proxyXInput = true;
-            } catch (...) { error = "--xinput-index requires a value from 0 to 3."; return false; }
-        } else if (value == "--session-token") {
-            if (++i >= argc) {
-                error = "--session-token requires exactly 32 hexadecimal characters.";
-                return false;
-            }
-            const std::string token = argv[i];
-            if (!asb::platform::isValidSessionToken(token)) {
-                error = "--session-token requires exactly 32 hexadecimal characters.";
-                return false;
-            }
-            options.sessionToken = token;
-        } else if (value == "--apex-profile") {
-            if (++i >= argc) {
-                error = "--apex-profile requires a profile number from 1 to 4.";
-                return false;
-            }
-            try {
-                std::size_t parsedCharacters = 0;
-                const auto parsed = std::stoul(argv[i], &parsedCharacters);
-                if (parsedCharacters != std::string_view(argv[i]).size() ||
-                    parsed < 1 || parsed > asb::flydigi::kProfileSlotCount) {
-                    throw std::out_of_range("apex-profile");
-                }
-                options.apexProfileSlot = static_cast<std::uint8_t>(parsed - 1);
-            } catch (...) {
-                error = "--apex-profile requires a profile number from 1 to 4.";
-                return false;
-            }
-        } else if (!value.empty() && value.front() != '-' && !options.deviceIndex) {
-            try { options.deviceIndex = static_cast<std::size_t>(std::stoul(std::string(value))); }
-            catch (...) { error = "The device index must be an integer."; return false; }
-        } else {
-            error = "Unknown bridge-triggers option: " + std::string(value);
-            return false;
-        }
-    }
-    if (options.hapticThresholdExplicit && !options.routeRumble) {
-        error = "--haptic-threshold requires --rumble.";
-        return false;
-    }
-    // A DualSense session is always a complete physical-input proxy. These
-    // invariants are enforced by the engine, not merely by the Playnite UI.
-    options.proxyXInput = true;
-    options.isolateApex = true;
-    return true;
-}
 
 int commandBridgeTriggers(int argc, char** argv) {
     const auto initializationStartedAt = std::chrono::steady_clock::now();
@@ -353,7 +51,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     BridgeCommandOptions options{};
     std::string error;
     if (!parseBridgeOptions(argc, argv, options, error)) {
-        std::cerr << error << "\nUsage: ApexSenseBridge bridge-triggers [index] [--seconds N] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] [--telemetry-json PATH] [--proxy-xinput] [--xinput-index 0..3] [--rumble] [--haptic-threshold 0..95] [--verify-virtual-input] [--touchpad-profile NAME] [--view-hold-swipe-up] [--apex-profile 1..4] [--isolate-apex] [--session-token 32HEX]\n";
+        std::cerr << error << '\n' << bridgeCommandUsage() << '\n';
         return 1;
     }
 
@@ -363,18 +61,32 @@ int commandBridgeTriggers(int argc, char** argv) {
         return 13;
     }
 
+    // A controller can go to sleep while a previous session is isolated. The
+    // watchdog normally restores HidHide immediately, but run the idempotent
+    // recovery here as well before enumerating a freshly-woken controller.
+    // Pending profile/transport restoration may still need the controller to
+    // finish waking; activate() retries that recovery once identity is back.
+    bool recoveredPreviousIsolation = false;
+    std::string previousIsolationError;
+    if (!asb::platform::TemporaryPhysicalControllerIsolation::recoverPending(
+            recoveredPreviousIsolation, previousIsolationError)) {
+        std::cerr << "Warning: pending controller recovery is incomplete: "
+                  << previousIsolationError << '\n';
+    }
+
     std::unique_ptr<asb::platform::SessionControl> sessionControl;
     if (options.sessionToken) {
-        sessionControl = asb::platform::connectSessionControl(*options.sessionToken, error);
+        sessionControl = asb::platform::connectSessionControl(
+            *options.sessionToken, options.sessionOwnerProcessId, error);
         if (!sessionControl) {
-            std::cerr << "Playnite session IPC connection failed: " << error << '\n';
+            std::cerr << "Bridge session IPC connection failed: " << error << '\n';
             return 13;
         }
         if (!sessionControl->publish(asb::platform::SessionPhase::Starting, 0,
                                      "Bridge initialization started.", error)) {
             std::string ignored;
             (void)sessionControl->signalReady(ignored);
-            std::cerr << "Playnite session status initialization failed: " << error << '\n';
+            std::cerr << "Bridge session status initialization failed: " << error << '\n';
             return 13;
         }
     }
@@ -390,20 +102,86 @@ int commandBridgeTriggers(int argc, char** argv) {
         return exitCode;
     };
 
-    auto device = openSelectedIndex(options.deviceIndex, error);
+    // Windows publishes the APEX container, mapped gamepad and vendor HID
+    // collections independently after wake. Give the vendor interface a
+    // bounded window to appear instead of failing on the first empty scan.
+    std::optional<asb::flydigi::Apex5Device> device;
+    const auto deviceOpenDeadline = std::chrono::steady_clock::now() +
+                                    std::chrono::seconds(4);
+    do {
+        error.clear();
+        device = openSelectedIndex(options.deviceIndex, error);
+        if (device || g_stopRequested.load(std::memory_order_relaxed) ||
+            globalSessionStop->stopRequested() ||
+            (sessionControl && sessionControl->stopRequested())) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } while (std::chrono::steady_clock::now() < deviceOpenDeadline);
     if (!device) {
         const std::string message = "APEX identity check failed: " + error;
         std::cerr << message << '\n';
         return failSession(3, message);
     }
+    const bool apex6Pro = device->identity() && device->identity()->isApex6();
+    if (options.apex6HapticGainExplicit && !apex6Pro) {
+        constexpr std::string_view message =
+            "--apex6-haptic-gain requires a verified Apex 6 Pro.";
+        std::cerr << message << '\n';
+        return failSession(2, message);
+    }
+    if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::ControllerVerified);
+    const bool apex5 = device->identity() && device->identity()->isApex5();
+    const bool apex4 = device->identity() && device->identity()->isApex4();
+    const auto verifiedCalibrationModel = apex4 ? "apex4" : apex5 ? "apex5" : apex6Pro ? "apex6" : "";
+    if (!applyControllerCalibration(options, verifiedCalibrationModel, error)) {
+        std::cerr << error << '\n';
+        return failSession(2, error);
+    }
+    if (options.controllerCalibrations[0] || options.controllerCalibrations[1] || options.controllerCalibrations[2])
+        std::cout << "Controller calibration selected after verification: " << verifiedCalibrationModel << '\n';
+    const auto apex4TriggerCapability =
+        asb::flydigi::classifyApex4TriggerInterface(device->info());
+    if (apex4) {
+        const auto capabilityName =
+            apex4TriggerCapability ==
+                    asb::flydigi::Apex4TriggerInterfaceCapability::Full64Byte
+                ? "full"
+                : apex4TriggerCapability ==
+                          asb::flydigi::Apex4TriggerInterfaceCapability::Degraded32Byte
+                      ? "degraded"
+                      : "unknown";
+        std::cout << "Apex 4 trigger interface: output_report_length="
+                  << device->info().outputReportLength
+                  << ", capability=" << capabilityName << '\n'
+                  << "Apex 4 gyro tuning: overall="
+                  << options.apex4GyroStrengthPercent << "%, yaw="
+                  << options.apex4GyroYawStrengthPercent << "%\n";
+    }
+    if (apex4TriggerCapability ==
+        asb::flydigi::Apex4TriggerInterfaceCapability::Degraded32Byte) {
+        std::cerr
+            << "Warning: this Apex 4 is exposing the degraded 32-byte vendor "
+               "identity. LT may work while RT is unavailable even when HID "
+               "writes succeed. Reconnect the controller/receiver until "
+               "'identify' reports the full 64-byte trigger interface.\n";
+    }
+    const auto tunePhysicalInput = [&](asb::dualsense::DualSenseInputState& state) {
+        if (apex4) {
+            asb::flydigi::tuneApex4Gyroscope(
+                state, options.apex4GyroStrengthPercent,
+                options.apex4GyroYawStrengthPercent);
+        }
+    };
 
     std::optional<asb::flydigi::ProfileStatus> originalProfile;
+    std::optional<asb::flydigi::InputTransportStatus> originalInputTransport;
     bool profileSwitchRequired = false;
     bool profileSwitchAcknowledged = true;
-    if (options.apexProfileSlot) {
+    if (options.apexProfileSlot || options.syncLightbar) {
         if (!device->identity() || !device->identity()->isApex5()) {
             constexpr std::string_view message =
-                "--apex-profile currently supports a verified Apex 5 only.";
+                "APEX profile and RGB control require a verified Apex 5.";
             std::cerr << message << '\n';
             return failSession(15, message);
         }
@@ -428,22 +206,58 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
         if (first.switchBank) {
             constexpr std::string_view message =
-                "The Apex 5 is using its Nintendo Switch profile bank; the "
-                "XInput profile switch was refused.";
+                "The Apex 5 is using its Nintendo Switch profile bank; "
+                "XInput profile and RGB control were refused.";
             std::cerr << message << '\n';
             return failSession(15, message);
         }
         originalProfile = first;
-        profileSwitchRequired = first.slot != *options.apexProfileSlot;
+        profileSwitchRequired = options.apexProfileSlot &&
+                                first.slot != *options.apexProfileSlot;
+        if (profileSwitchRequired) {
+            asb::flydigi::InputTransportStatus transport{};
+            error.clear();
+            if (!device->readInputTransportStatus(transport, error)) {
+                const std::string message =
+                    "Could not read the original Apex 5 input transport: " + error;
+                std::cerr << message << '\n';
+                return failSession(15, message);
+            }
+            originalInputTransport = transport;
+        }
     }
-    asb::TriggerResetGuard resetOnExit(*device);
-    if (!device->clearAll(error)) {
-        std::cerr << "Could not establish a Normal trigger baseline: " << error << '\n';
-        return failSession(4, "Could not establish a Normal trigger baseline: " + error);
+    if (apex5 && !originalInputTransport) {
+        asb::flydigi::InputTransportStatus transport{};
+        error.clear();
+        if (!device->readInputTransportStatus(transport, error)) {
+            std::cerr << "Warning: could not read the original Apex 5 input "
+                         "transport; raw motion routing will remain unchanged: "
+                      << error << '\n';
+            error.clear();
+        } else {
+            originalInputTransport = transport;
+        }
+    }
+    if (originalInputTransport) {
+        std::cout << "Apex 5 input transport snapshot: controller_data="
+                  << originalInputTransport->controllerData
+                  << ", raw_data=" << originalInputTransport->rawData
+                  << ", keyboard_data=" << originalInputTransport->keyboardData
+                  << ", mouse_data=" << originalInputTransport->mouseData
+                  << ", third_party_control=" << originalInputTransport->thirdPartyControl
+                  << std::endl;
+    }
+    std::unique_ptr<asb::TriggerResetGuard> resetOnExit;
+    if (!apex6Pro) {
+        if (!device->clearAll(error)) {
+            std::cerr << "Could not establish a Normal trigger baseline: " << error << '\n';
+            return failSession(4, "Could not establish a Normal trigger baseline: " + error);
+        }
+        resetOnExit = std::make_unique<asb::TriggerResetGuard>(*device);
     }
 
     std::unique_ptr<asb::RumbleResetGuard> rumbleResetOnExit;
-    if (options.routeRumble) {
+    if (options.routeRumble && !apex6Pro) {
         if (!device->stopRumble(error)) {
             std::cerr << "Could not establish a stopped grip-rumble baseline: "
                       << error << '\n';
@@ -452,14 +266,28 @@ int commandBridgeTriggers(int argc, char** argv) {
         rumbleResetOnExit = std::make_unique<asb::RumbleResetGuard>(*device);
     }
 
+    struct AsyncWriteStop {
+        asb::flydigi::Apex5Device* device;
+        ~AsyncWriteStop() { if (device) device->stopAsyncWrites(); }
+    } asyncWriteStop{&*device};
+
     auto inputSource = asb::platform::openPhysicalInputSource(
         device->info(), options.xinputIndex, error);
     if (!inputSource) {
         std::cerr << "Mandatory physical-input proxy creation failed: " << error << '\n';
         return failSession(8, "Mandatory physical-input proxy creation failed: " + error);
     }
-    const std::string inputBackend(inputSource->backendName());
+    std::string inputBackend(inputSource->backendName());
+    if (device->identity()) {
+        inputSource->setBatteryState(
+            device->identity()->batteryPercent(),
+            device->identity()->chargeState());
+    }
     asb::dualsense::DualSenseInputState initialInput{};
+    if (device->identity()) {
+        initialInput.batteryPercent = device->identity()->batteryPercent();
+        initialInput.chargeState = device->identity()->chargeState();
+    }
     const auto initialStatus = inputSource->waitForState(
         initialInput,
         inputSource->eventDriven() ? std::chrono::milliseconds(1000)
@@ -472,6 +300,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << "Mandatory physical-input proxy validation failed: " << message << '\n';
         return failSession(8, "Mandatory physical-input proxy validation failed: " + message);
     }
+    tunePhysicalInput(initialInput);
     const auto physicalInputReadyAt = std::chrono::steady_clock::now();
 
     const auto preexistingDualSensePaths = snapshotDualSensePaths();
@@ -482,54 +311,121 @@ int commandBridgeTriggers(int argc, char** argv) {
                   << audioProtectionError << '\n';
     }
 
-    asb::dualsense::AdaptiveTriggerBridge bridge(*device);
     asb::haptics::HapticConfig hapticConfig{};
     hapticConfig.activationThreshold =
         static_cast<double>(options.hapticThresholdPercent) / 100.0;
-    auto rumbleBridge = options.routeRumble
-        ? std::make_unique<asb::dualsense::RumbleBridge>(*device, hapticConfig)
+    auto adaptiveBridge = !apex6Pro
+        ? std::make_unique<asb::dualsense::AdaptiveTriggerBridge>(*device, options.triggerStrengthPercent)
+        : std::unique_ptr<asb::dualsense::AdaptiveTriggerBridge>{};
+    auto apex6Bridge = apex6Pro
+        ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
+              *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent,
+              options.vibrationStrengthPercent, options.apex6HapticGainPercent)
+        : std::unique_ptr<asb::dualsense::Apex6HapticBridge>{};
+    if (apex6Bridge) {
+        apex6Bridge->updateTriggerPositions(initialInput.l2, initialInput.r2);
+    }
+    auto rumbleBridge = options.routeRumble && !apex6Pro
+        ? std::make_unique<asb::dualsense::RumbleBridge>(*device, hapticConfig, options.vibrationStrengthPercent)
         : std::unique_ptr<asb::dualsense::RumbleBridge>{};
+    const auto lightbarSlot = options.apexProfileSlot.value_or(
+        originalProfile ? originalProfile->slot : 0);
+    auto lightbarBridge = options.syncLightbar
+        ? std::make_unique<asb::dualsense::LightbarBridge>(*device, lightbarSlot)
+        : std::unique_ptr<asb::dualsense::LightbarBridge>{};
+    if (lightbarBridge && lightbarBridge->failed()) {
+        const std::string message =
+            "Could not initialize temporary RGB routing: " + lightbarBridge->error();
+        std::cerr << message << '\n';
+        return failSession(16, message);
+    }
     asb::dualsense::VirtualDualSenseOptions backendOptions{};
     backendOptions.viiperExecutable = std::move(options.viiperExecutable);
     backendOptions.backend = options.virtualBackend;
+    backendOptions.captureAudioHapticsWaveform = apex6Pro;
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(std::move(backendOptions));
-    if (!virtualDualSense->open(
-            error,
-            [&bridge, rumble = rumbleBridge.get()](const auto& feedback) {
-                bridge.handle(feedback);
-                if (rumble) rumble->handle(feedback);
-            })) {
-        std::cerr << "Virtual DualSense creation failed: " << error << '\n';
-        return failSession(6, "Virtual DualSense creation failed: " + error);
+    asb::dualsense::VirtualDualSense::FeedbackHandler feedbackHandler;
+    if (apex6Bridge) {
+        feedbackHandler = [apex6 = apex6Bridge.get(),
+                           lightbar = lightbarBridge.get()](const auto& feedback) {
+            apex6->handle(feedback);
+            if (lightbar) lightbar->handle(feedback);
+        };
+    } else if (lightbarBridge) {
+        feedbackHandler = [adaptive = adaptiveBridge.get(),
+                           rumble = rumbleBridge.get(),
+                           lightbar = lightbarBridge.get()](const auto& feedback) {
+            adaptive->handle(feedback);
+            if (rumble) rumble->handle(feedback);
+            lightbar->handle(feedback);
+        };
+    } else if (rumbleBridge) {
+        feedbackHandler = [adaptive = adaptiveBridge.get(),
+                           rumble = rumbleBridge.get()](const auto& feedback) {
+            adaptive->handle(feedback);
+            rumble->handle(feedback);
+        };
+    } else {
+        feedbackHandler = [adaptive = adaptiveBridge.get()](const auto& feedback) {
+            adaptive->handle(feedback);
+        };
     }
+    std::future<bool> audioProtectionFuture;
+    bool audioProtectionOk = true;
+    const auto probeFirmware = [&preexistingDualSensePaths, &audioProtection,
+                                &audioProtectionError, &audioProtectionFuture,
+                                inspectHapticFormat = apex6Pro && options.routeRumble]
+        (std::string& probeError) {
+        if (audioProtectionFuture.valid()) {
+            const bool previousProtectionOk = audioProtectionFuture.get();
+            if (!previousProtectionOk) {
+                std::cerr << "Warning: Windows default-audio protection failed: "
+                          << audioProtectionError << '\n';
+            }
+        }
+        audioProtectionError.clear();
+        // Start watching as soon as each virtual controller has accepted its
+        // initial state. This covers both the first attach and an automatic
+        // recreation without delaying HID readiness verification.
+        audioProtectionFuture = std::async(
+            std::launch::async,
+            [&audioProtection, &audioProtectionError, inspectHapticFormat]() {
+                return !audioProtection.captured() ||
+                       audioProtection.protectAfterVirtualDualSenseStart(
+                           std::chrono::milliseconds(2000), audioProtectionError, inspectHapticFormat);
+            });
+        return readNewVirtualDualSenseFirmware(
+            preexistingDualSensePaths, std::chrono::milliseconds(3000), probeError);
+    };
+    const auto waitForRemoval = [&preexistingDualSensePaths](std::string& removalError) {
+        return waitForNewVirtualDualSenseRemoval(
+            preexistingDualSensePaths, std::chrono::milliseconds(2000), removalError);
+    };
 
-    // Validate the complete physical -> virtual translation before hiding the
-    // original controller or allowing the game to start.
-    if (!virtualDualSense->updateInput(initialInput, error)) {
-        virtualDualSense->close();
-        return failSession(8, "Initial physical-to-DualSense input forwarding failed: " + error);
+    asb::dualsense::VirtualDualSenseStartupResult startupResult{};
+    if (!asb::dualsense::startVerifiedVirtualDualSense(
+            *virtualDualSense, initialInput, feedbackHandler, probeFirmware,
+            waitForRemoval, 2, startupResult, error)) {
+        if (audioProtectionFuture.valid()) {
+            (void)audioProtectionFuture.get();
+        }
+        std::cerr << error << '\n';
+        const int exitCode =
+            startupResult.failure ==
+                    asb::dualsense::VirtualDualSenseStartupFailure::BackendOpen
+                ? 6
+                : startupResult.failure ==
+                          asb::dualsense::VirtualDualSenseStartupFailure::InitialInput
+                      ? 8
+                      : 9;
+        return failSession(exitCode, error);
     }
-    const auto virtualInputReadyAt = std::chrono::steady_clock::now();
-
-    // Endpoint publication can take two seconds even when Windows ultimately
-    // leaves the default output unchanged. Observe it in parallel with the HID
-    // readiness/isolation work so it no longer stalls Playnite's launch hook.
-    auto audioProtectionFuture = std::async(
-        std::launch::async,
-        [&audioProtection, &audioProtectionError]() {
-            return !audioProtection.captured() ||
-                   audioProtection.protectAfterVirtualDualSenseStart(
-                       std::chrono::milliseconds(2000), audioProtectionError);
-        });
-
-    std::string firmwareError;
-    const auto virtualFirmware = readNewVirtualDualSenseFirmware(
-        preexistingDualSensePaths, std::chrono::milliseconds(1500), firmwareError);
-    if (!virtualFirmware) {
-        std::cerr << "Warning: virtual DualSense firmware verification failed: "
-                  << firmwareError << '\n';
+    const auto virtualInputReadyAt = startupResult.inputReadyAt;
+    const auto firmwareCheckedAt = startupResult.verifiedAt;
+    const auto virtualFirmware = startupResult.firmware;
+    if (startupResult.attempts > 1) {
+        std::cout << "Virtual DualSense readiness recovered after one automatic recreation.\n";
     }
-    const auto firmwareCheckedAt = std::chrono::steady_clock::now();
 
     using MonitorPtr = std::unique_ptr<asb::platform::HidTransport,
                                        void (*)(asb::platform::HidTransport*)>;
@@ -561,6 +457,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
 
     asb::platform::TemporaryPhysicalControllerIsolation physicalIsolation;
+    if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::VirtualReady);
     if (!physicalIsolation.activate(
             device->info(), options.sessionToken.value_or(""),
             profileSwitchRequired
@@ -572,6 +469,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(11, "Temporary APEX isolation failed: " + error);
     }
     const auto isolationReadyAt = std::chrono::steady_clock::now();
+    if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::IsolationVerified);
 
     std::unique_ptr<asb::ApexProfileRestoreGuard> profileRestoreOnExit;
     const auto restoreTemporaryApexProfile =
@@ -611,9 +509,38 @@ int commandBridgeTriggers(int argc, char** argv) {
             return failSession(exitCode, message);
         };
 
+    asb::platform::PhysicalInputSourceStats retiredInputStats{};
+    bool inputTransportRecoveryArmed = false;
+    unsigned int independentTriggerStartupRecoveries = 0;
+    unsigned int independentTriggerRuntimeRecoveries = 0;
+    asb::platform::IndependentTriggerLossPolicy independentTriggerLoss;
+    const auto armInputTransportRecovery = [&]() {
+        if (inputTransportRecoveryArmed) return true;
+        if (!originalInputTransport) {
+            error = "The original Apex 5 input transport is unknown; LT/RT recovery "
+                    "was refused to preserve controller settings.";
+            return false;
+        }
+        if (!physicalIsolation.armApexInputTransportRestore(
+                originalInputTransport->controllerData,
+                originalInputTransport->rawData, error)) return false;
+        inputTransportRecoveryArmed = true;
+        return true;
+    };
+    const bool inputTransportRefreshRequired =
+        apex5 && originalInputTransport &&
+        (profileSwitchRequired || !originalInputTransport->controllerData ||
+         !originalInputTransport->rawData);
+    if (inputTransportRefreshRequired) {
+        if (!armInputTransportRecovery()) {
+            return rollbackFailedProfileStartup(
+                11, "Could not arm Apex 5 input-transport recovery: " + error);
+        }
+        accumulatePhysicalInputStats(retiredInputStats, inputSource->stats());
+        inputSource.reset();
+    }
+
     if (profileSwitchRequired) {
-        // The persistent crash marker is armed by physicalIsolation.activate()
-        // before the controller receives the temporary switch command.
         profileRestoreOnExit = std::make_unique<asb::ApexProfileRestoreGuard>(
             *device, originalProfile->slot);
         error.clear();
@@ -653,11 +580,180 @@ int commandBridgeTriggers(int argc, char** argv) {
                 12, "Could not establish a stopped grip-rumble baseline after "
                     "the Apex 5 profile switch: " + baselineError);
         }
+
+        // The firmware applies the new profile about one second after its ACK.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1100));
     }
 
+    if (inputTransportRefreshRequired) {
+        std::string transportError;
+        if (!device->setInputTransport(true, true, transportError)) {
+            return rollbackFailedProfileStartup(
+                8, "Could not restart the Apex 5 physical input stream after "
+                   "transport refresh: " + transportError);
+        }
+
+        const auto reopenDeadline = std::chrono::steady_clock::now() +
+                                    std::chrono::milliseconds(1500);
+        std::string reopenError;
+        do {
+            reopenError.clear();
+            inputSource = asb::platform::openPhysicalInputSource(
+                device->info(), options.xinputIndex, reopenError);
+            if (!inputSource) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(25));
+            }
+        } while (!inputSource && std::chrono::steady_clock::now() < reopenDeadline);
+        if (!inputSource) {
+            return rollbackFailedProfileStartup(
+                8, "Physical input source recreation failed after transport refresh: " +
+                       reopenError);
+        }
+        inputBackend = std::string(inputSource->backendName());
+        if (device->identity()) {
+            inputSource->setBatteryState(
+                device->identity()->batteryPercent(),
+                device->identity()->chargeState());
+        }
+
+        constexpr unsigned int kRequiredFreshReports = 3;
+        unsigned int freshReports = 0;
+        const auto validationDeadline = std::chrono::steady_clock::now() +
+                                        std::chrono::milliseconds(1000);
+        while (freshReports < kRequiredFreshReports &&
+               std::chrono::steady_clock::now() < validationDeadline) {
+            asb::dualsense::DualSenseInputState refreshedInput{};
+            std::string validationError;
+            const auto status = inputSource->waitForState(
+                refreshedInput, std::chrono::milliseconds(100), validationError);
+            if (status == asb::platform::PhysicalInputStatus::State) {
+                tunePhysicalInput(refreshedInput);
+                initialInput = refreshedInput;
+                ++freshReports;
+            } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
+                       status == asb::platform::PhysicalInputStatus::Error) {
+                return rollbackFailedProfileStartup(
+                    8, "Physical input validation failed after transport refresh: " +
+                           (validationError.empty()
+                                ? std::string("the refreshed stream disconnected")
+                                : validationError));
+            }
+        }
+        if (freshReports < kRequiredFreshReports) {
+            return rollbackFailedProfileStartup(
+                8, "Physical input validation timed out after transport refresh; "
+                   "the refreshed stream produced fewer than three reports.");
+        }
+        if (!virtualDualSense->updateInput(initialInput, error)) {
+            return rollbackFailedProfileStartup(
+                8, "Virtual DualSense resynchronization failed after transport refresh: " +
+                       error);
+        }
+    }
+    // Reuse the existing temporary-transport recovery and restore marker. An
+    // ACK/readback saying rawData=true does not prove operator reports are live.
+    // Reopen before changing routing so the new reader observes the restart.
+    const auto restartIndependentTriggerStream =
+        [&](asb::dualsense::DualSenseInputState& refreshed, std::string& restartError) {
+            if (!armInputTransportRecovery()) {
+                restartError = error;
+                return false;
+            }
+            accumulatePhysicalInputStats(retiredInputStats, inputSource->stats());
+            inputSource.reset();
+            inputSource = asb::platform::openPhysicalInputSource(
+                device->info(), options.xinputIndex, restartError);
+            if (!inputSource) return false;
+            if (device->identity()) inputSource->setBatteryState(
+                device->identity()->batteryPercent(), device->identity()->chargeState());
+            // Never disable controllerData or switch onboard profiles here.
+            if (!device->setInputTransport(true, false, restartError) ||
+                !device->setInputTransport(true, true, restartError)) return false;
+            const auto status = inputSource->waitForState(
+                refreshed, std::chrono::milliseconds(1000), restartError);
+            if (status != asb::platform::PhysicalInputStatus::State) {
+                if (restartError.empty()) restartError = "No mapped input state arrived after LT/RT stream restart.";
+                return false;
+            }
+            // A generic XInput fallback must not masquerade as recovery of the
+            // selected mapped/vendor source, especially under Full Screen Experience.
+            if (!inputSource->requiresIndependentTriggers()) {
+                restartError = "LT/RT recovery did not reacquire the Apex 5 combined-axis mapped/vendor source.";
+                return false;
+            }
+            inputBackend = std::string(inputSource->backendName());
+            return validateIndependentTriggerStream(
+                *inputSource, refreshed, std::chrono::milliseconds(1000), restartError);
+        };
+    if (apex5 && inputSource->requiresIndependentTriggers()) {
+        std::string triggerValidationError;
+        if (!validateIndependentTriggerStream(
+                *inputSource, initialInput, std::chrono::milliseconds(1000),
+                triggerValidationError)) {
+            std::cerr << "Apex 5 independent LT/RT stream unavailable; attempting one "
+                         "temporary routing restart: " << triggerValidationError << std::endl;
+            ++independentTriggerStartupRecoveries;
+            if (!restartIndependentTriggerStream(initialInput, triggerValidationError)) {
+                return rollbackFailedProfileStartup(
+                    8, "Apex 5 independent LT/RT validation failed after one restart: " +
+                           triggerValidationError);
+            }
+        }
+        if (!virtualDualSense->updateInput(initialInput, error)) {
+            return rollbackFailedProfileStartup(
+                8, "Virtual DualSense LT/RT resynchronization failed: " + error);
+        }
+        std::cout << "Apex 5 independent LT/RT stream verified." << std::endl;
+    } else if (apex5 && inputSource->stats().vendorStates == 0) {
+        std::cerr << "Warning: the Apex 5 vendor motion stream produced no state "
+                     "during initialization. Standard controls remain active; "
+                     "motion data will be merged if the stream resumes.\n";
+    }
+
+    // Start only after every ordered startup/profile write. On Apex 4 this
+    // moves paced feedback off the virtual-controller callback; Apex 5 keeps
+    // its existing synchronous path.
+    if (!device->startAsyncWrites(error)) {
+        virtualDualSense->close();
+        return failSession(11, "Could not start the APEX feedback writer: " + error);
+    }
+    if (apex6Bridge && !apex6Bridge->start(error)) {
+        virtualDualSense->close();
+        return failSession(11, "Could not start the Apex 6 haptic stream: " + error);
+    }
+
+    if (apex6Pro && options.routeRumble && audioProtectionFuture.valid()) {
+        // Prepared launch must see the audio preflight result before the game
+        // opens this endpoint. APEX 4/5 retain their asynchronous startup path.
+        audioProtectionOk = audioProtectionFuture.get();
+        const auto format = audioProtection.hapticFormat();
+        std::cout << "apex6_audio_format="
+                  << asb::platform::hapticAudioFormatStatusName(format.status) << '\n'
+                  << "apex6_audio_mix_channels=" << format.channels << '\n'
+                  << "apex6_audio_channel_mask=" << format.channelMask << '\n'
+                  << "apex6_audio_physical_speaker_mask=" << format.physicalSpeakerMask << std::endl;
+        if (format.status != asb::platform::HapticAudioFormatStatus::Quadraphonic) {
+            std::cerr << "Warning: virtual DualSense quadraphonic audio is not verified. "
+                         "Native grip haptics may be silent. While the bridge is active, open "
+                         "mmsys.cpl > Playback > Wireless Controller > Configure > Quadraphonic. "
+                         "Keep your normal speakers as the default output, then restart the game "
+                         "after configuration (or after recreating the bridge).\n";
+        }
+    }
+    if (apex6Pro && options.routeRumble) {
+        std::cout << "apex6_pcm_gain_percent=" << options.apex6HapticGainPercent << std::endl;
+        std::cout << "apex6_haptic_threshold_percent=0" << std::endl;
+        if (options.apex6HapticGainPercent > 100) {
+            std::cerr << "Experimental Apex 6 native PCM gain enabled: quiet amplitudes are "
+                         "increased with bounded compression, not a linear multiplier. "
+                         "Trigger effects and native frequencies are not retuned.\n";
+        }
+    }
     if (sessionControl) {
-        if (!sessionControl->publish(asb::platform::SessionPhase::Ready, 0,
-                                     "Bridge ready; game launch may continue.", error) ||
+        const bool readyPublished = sessionControl->publish(asb::platform::SessionPhase::Ready, 0,
+                                     "ASB_READY|" + device->identity()->describe(), error);
+        if (readyPublished) sessionControl->markProgress(asb::platform::SessionProgress::RuntimeReady);
+        if (!readyPublished ||
             !sessionControl->signalReady(error)) {
             virtualDualSense->close();
             const std::string signalError = error;
@@ -672,7 +768,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                 profileRestoreOnExit->dismiss();
             }
             std::string message =
-                "Playnite session ready signal failed: " + signalError;
+                "Bridge session ready signal failed: " + signalError;
             if (!profileRolledBack) {
                 message += "; original profile rollback failed: " +
                            profileRollbackError;
@@ -705,10 +801,17 @@ int commandBridgeTriggers(int argc, char** argv) {
     const auto processUsageStarted = processUsageSnapshot();
 
     std::cout << "APEX verified: " << device->identity()->describe() << '\n'
-              << "Adaptive-trigger routing enabled.\n"
-              << (rumbleBridge
-                      ? "Grip-rumble and DualSense audio-haptics routing enabled.\n"
-                      : "Grip-rumble and audio haptics routing remain disabled.\n")
+              << (apex6Pro
+                      ? "Apex 6 trigger-vibration routing enabled.\n"
+                      : "Adaptive-trigger routing enabled.\n")
+              << (apex6Pro && options.routeRumble
+                      ? "Apex 6 grip voice-coil and DualSense audio-haptics routing enabled.\n"
+                      : rumbleBridge
+                          ? "Grip-rumble and DualSense audio-haptics routing enabled.\n"
+                          : "Grip-rumble and audio haptics routing remain disabled.\n")
+              << (lightbarBridge
+                      ? "DualSense lightbar RGB synchronization enabled.\n"
+                      : "")
               << "All APEX controls are proxied through " << inputBackend
               << " into the virtual DualSense.\n"
               << "Virtual DualSense backend: "
@@ -739,7 +842,7 @@ int commandBridgeTriggers(int argc, char** argv) {
               << (physicalIsolation.active()
                       ? "The original APEX game interface is hidden for this bridge session only.\n"
                       : "")
-              << (sessionControl ? "Playnite session IPC is ready.\n" : "")
+              << (sessionControl ? "Bridge session IPC is ready.\n" : "")
               << (rumbleBridge
                       ? "Audio-haptics activation threshold: " +
                             std::to_string(options.hapticThresholdPercent) + "%\n"
@@ -757,6 +860,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::uint8_t seenDpad = 0;
     std::uint8_t maximumL2 = 0;
     std::uint8_t maximumR2 = 0;
+    std::uint8_t maximumSimultaneousTriggers = 0;
+    std::uint64_t simultaneousTriggerReports = 0;
     std::uint8_t minimumRightStickX = initialInput.rx;
     std::uint8_t maximumRightStickX = initialInput.rx;
     std::uint8_t minimumRightStickY = initialInput.ry;
@@ -768,6 +873,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::uint16_t virtualSeenDpadHats = 0;
     std::uint8_t virtualMaximumL2 = 0;
     std::uint8_t virtualMaximumR2 = 0;
+    std::uint8_t virtualMaximumSimultaneousTriggers = 0;
+    std::uint64_t virtualSimultaneousTriggerReports = 0;
     std::uint8_t virtualMinimumRightStickX = 0xFF;
     std::uint8_t virtualMaximumRightStickX = 0;
     std::uint8_t virtualMinimumRightStickY = 0xFF;
@@ -793,24 +900,94 @@ int commandBridgeTriggers(int argc, char** argv) {
         options.touchpadProfile);
     auto lastInputForwardedAt = std::chrono::steady_clock::now();
     constexpr auto kInputKeepalive = std::chrono::milliseconds(100);
+    auto lastBatteryRefreshAt = std::chrono::steady_clock::now();
+    constexpr auto kBatteryRefreshInterval = std::chrono::seconds(15);
+    asb::platform::PhysicalInputFreshnessWatchdog inputFreshness(
+        std::chrono::seconds(1), started);
+    std::string asyncWriteError;
     while (!g_stopRequested.load(std::memory_order_relaxed) &&
            !globalSessionStop->stopRequested() &&
            (!sessionControl || !sessionControl->stopRequested()) &&
-           !bridge.failed() && (!rumbleBridge || !rumbleBridge->failed())) {
+           (!adaptiveBridge || !adaptiveBridge->failed()) &&
+           (!apex6Bridge || !apex6Bridge->failed()) &&
+           (!rumbleBridge || !rumbleBridge->failed()) &&
+           !device->takeAsyncWriteError(asyncWriteError)) {
+        const auto loopNow = std::chrono::steady_clock::now();
+        if (device->identity() && device->identity()->isApex5() &&
+            loopNow - lastBatteryRefreshAt >= kBatteryRefreshInterval) {
+            lastBatteryRefreshAt = loopNow;
+            std::string refreshError;
+            (void)device->requestBatteryRefresh(refreshError);
+        }
         asb::dualsense::DualSenseInputState input{};
         const auto inputWait = inputSource->eventDriven()
             ? std::chrono::milliseconds(8)
             : std::chrono::milliseconds(1);
-        const auto inputStatus = inputSource->waitForState(
+        auto inputStatus = inputSource->waitForState(
             input, inputWait, inputProxyError);
+        const bool independentTriggersStale =
+            (inputStatus == asb::platform::PhysicalInputStatus::State ||
+             inputStatus == asb::platform::PhysicalInputStatus::Timeout) &&
+            inputSource->requiresIndependentTriggers() &&
+            !inputSource->independentTriggersReady();
+        if (!independentTriggersStale) {
+            independentTriggerLoss.streamReady();
+        }
+        // Stale states still forward mapped input; independent bytes are withheld.
+        const auto independentTriggerAction = independentTriggersStale
+            ? independentTriggerLoss.streamStale()
+            : asb::platform::IndependentTriggerLossPolicy::Action::Continue;
+        if (independentTriggerAction != asb::platform::IndependentTriggerLossPolicy::Action::Continue) {
+            // Mapped traffic cannot keep a missing independent stream "healthy".
+            // Stop forwarding before any canceled or stale trigger state leaks.
+            bool recovered = false;
+            if (independentTriggerAction == asb::platform::IndependentTriggerLossPolicy::Action::Recover) {
+                ++independentTriggerRuntimeRecoveries;
+                independentTriggerLoss.recoveryAttempted();
+                std::cerr << "Apex 5 independent LT/RT stream lost; attempting a "
+                             "temporary routing restart (" << independentTriggerLoss.recentRecoveries()
+                          << "/" << asb::platform::IndependentTriggerLossPolicy::kMaximumRecoveriesPerWindow
+                          << " in 10 min)." << std::endl;
+                asb::dualsense::DualSenseInputState neutral{};
+                neutral.batteryPercent = input.batteryPercent;
+                neutral.chargeState = input.chargeState;
+                if (virtualDualSense->updateInput(neutral, inputProxyError)) {
+                    lastForwardedInput = neutral;
+                    recovered = restartIndependentTriggerStream(input, inputProxyError);
+                }
+            } else {
+                inputProxyError = "The independent Apex 5 LT/RT stream stayed unavailable after " +
+                    std::to_string(asb::platform::IndependentTriggerLossPolicy::kMaximumRecoveriesPerWindow) +
+                    " recoveries within 10 minutes.";
+            }
+            if (!recovered) {
+                inputProxyFailed = true;
+                if (sessionControl) sessionControl->markInterrupted(
+                    asb::platform::SessionInterruption::InputStreamLost);
+                if (inputProxyError.empty()) inputProxyError = "Independent Apex 5 LT/RT recovery failed.";
+                break;
+            }
+            inputStatus = asb::platform::PhysicalInputStatus::State;
+            std::cout << "Apex 5 independent LT/RT stream recovered." << std::endl;
+        }
         bool forwardInput = false;
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
+            tunePhysicalInput(input);
+            inputFreshness.observeFreshState(inputObservedAt);
+            if (apex6Bridge) {
+                apex6Bridge->updateTriggerPositions(input.l2, input.r2);
+            }
             ++inputSamples;
             seenButtons = static_cast<std::uint16_t>(seenButtons | input.buttons);
             seenDpad = static_cast<std::uint8_t>(seenDpad | input.dpad);
             if (input.l2 > maximumL2) maximumL2 = input.l2;
             if (input.r2 > maximumR2) maximumR2 = input.r2;
+            maximumSimultaneousTriggers = (std::max)(
+                maximumSimultaneousTriggers, (std::min)(input.l2, input.r2));
+            if (input.l2 > 30 && input.r2 > 30) {
+                ++simultaneousTriggerReports;
+            }
             minimumRightStickX = (std::min)(minimumRightStickX, input.rx);
             maximumRightStickX = (std::max)(maximumRightStickX, input.rx);
             minimumRightStickY = (std::min)(minimumRightStickY, input.ry);
@@ -831,6 +1008,14 @@ int commandBridgeTriggers(int argc, char** argv) {
                            !lastForwardedInput || *lastForwardedInput != input;
             if (!forwardInput) ++coalescedInputReports;
         } else if (inputStatus == asb::platform::PhysicalInputStatus::Timeout) {
+            if (inputSource->eventDriven() && inputFreshness.expired(inputObservedAt)) {
+                inputProxyFailed = true;
+                if (sessionControl) sessionControl->markInterrupted(asb::platform::SessionInterruption::InputStreamLost);
+                inputProxyError =
+                    "The mandatory physical APEX input stream produced no fresh "
+                    "report for one second.";
+                break;
+            }
             if (lastPhysicalInput) {
                 input = *lastPhysicalInput;
                 if (options.touchpadProfile != asb::dualsense::TouchpadGestureProfile::None) {
@@ -842,6 +1027,9 @@ int commandBridgeTriggers(int argc, char** argv) {
             }
         } else {
             inputProxyFailed = true;
+            if (sessionControl) sessionControl->markInterrupted(inputStatus == asb::platform::PhysicalInputStatus::Disconnected
+                ? asb::platform::SessionInterruption::PhysicalDisconnected
+                : asb::platform::SessionInterruption::InputStreamLost);
             if (inputProxyError.empty()) {
                 inputProxyError = inputStatus == asb::platform::PhysicalInputStatus::Disconnected
                     ? "The mandatory physical APEX input source disconnected."
@@ -917,6 +1105,12 @@ int commandBridgeTriggers(int argc, char** argv) {
                 }
                 if (virtualInputBuffer[5] > virtualMaximumL2) virtualMaximumL2 = virtualInputBuffer[5];
                 if (virtualInputBuffer[6] > virtualMaximumR2) virtualMaximumR2 = virtualInputBuffer[6];
+                virtualMaximumSimultaneousTriggers = (std::max)(
+                    virtualMaximumSimultaneousTriggers,
+                    (std::min)(virtualInputBuffer[5], virtualInputBuffer[6]));
+                if (virtualInputBuffer[5] > 30 && virtualInputBuffer[6] > 30) {
+                    ++virtualSimultaneousTriggerReports;
+                }
                 virtualMinimumRightStickX =
                     (std::min)(virtualMinimumRightStickX, virtualInputBuffer[3]);
                 virtualMaximumRightStickX =
@@ -927,15 +1121,33 @@ int commandBridgeTriggers(int argc, char** argv) {
                     (std::max)(virtualMaximumRightStickY, virtualInputBuffer[4]);
             }
         }
-        if (!virtualDualSense->connected()) { disconnected = true; break; }
+        if (!virtualDualSense->connected()) {
+            disconnected = true;
+            if (sessionControl) sessionControl->markInterrupted(asb::platform::SessionInterruption::VirtualDisconnected);
+            break;
+        }
         if (options.duration && std::chrono::steady_clock::now() - started >= *options.duration) break;
     }
     const auto runtimeMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started).count();
     const auto trackingFinishedAt = std::chrono::steady_clock::now();
+    // A feedback writer can notice unplugging before the input reader does.
+    // Only classify it as physical loss after a successful enumeration proves
+    // that this exact selected interface disappeared. Never infer it from an
+    // arbitrary write error, nor from an explicit owner/user stop.
+    if (sessionControl && !g_stopRequested.load(std::memory_order_relaxed) &&
+        !globalSessionStop->stopRequested() && !sessionControl->stopRequested() &&
+        (inputProxyFailed || (adaptiveBridge && adaptiveBridge->failed()) ||
+         (apex6Bridge && apex6Bridge->failed()) || (rumbleBridge && rumbleBridge->failed()) || !asyncWriteError.empty())) {
+        std::string enumerationError;
+        const auto devices = asb::platform::enumerateHidDevices(enumerationError);
+        if (enumerationError.empty() && std::none_of(devices.begin(), devices.end(),
+            [&device](const auto& candidate) { return candidate.path == device->info().path; }))
+            sessionControl->markInterrupted(asb::platform::SessionInterruption::PhysicalDisconnected);
+    }
     mappedTouchpadHold.finish(trackingFinishedAt);
     virtualTouchpadHold.finish(trackingFinishedAt);
-    const bool audioProtectionOk = audioProtectionFuture.get();
+    if (audioProtectionFuture.valid()) audioProtectionOk = audioProtectionFuture.get();
     if (!audioProtectionOk) {
         std::cerr << "Warning: Windows default-audio protection failed: "
                   << audioProtectionError << '\n';
@@ -959,23 +1171,37 @@ int commandBridgeTriggers(int argc, char** argv) {
                   << neutralizationError << '\n';
     }
     virtualDualSense->close(); // joins the feedback callback before touching the HID device
+    device->stopAsyncWrites(); // no queued effect may overtake the reset below
+    std::string apex6ResetError;
+    const bool apex6ResetOk = !apex6Bridge || apex6Bridge->stop(apex6ResetError);
     const auto virtualStats = virtualDualSense->stats();
     const auto touchpadGestureStats = touchpadGestureMapper.stats();
-    const auto bridgeStats = bridge.stats();
+    const auto bridgeStats = adaptiveBridge
+        ? adaptiveBridge->stats()
+        : asb::dualsense::AdaptiveTriggerBridgeStats{};
+    const auto apex6Stats = apex6Bridge
+        ? apex6Bridge->stats()
+        : asb::dualsense::Apex6HapticBridgeStats{};
     const auto rumbleStats = rumbleBridge
         ? rumbleBridge->stats()
         : asb::dualsense::RumbleBridgeStats{};
+    if (lightbarBridge) lightbarBridge->restore();
+    const auto lightbarStats = lightbarBridge
+        ? lightbarBridge->stats()
+        : asb::dualsense::LightbarBridgeStats{};
     std::string rumbleResetError;
     const bool rumbleResetOk = !rumbleBridge || device->stopRumble(rumbleResetError);
     if (rumbleResetOk && rumbleResetOnExit) rumbleResetOnExit->dismiss();
+    // Observe a stable release while the raw stream is still owned and live.
+    const bool physicalControlsReleased = inputSource && waitForPhysicalControlsReleased(
+        *inputSource, std::chrono::milliseconds(1500));
     std::string resetError;
-    const bool resetOk = device->clearAll(resetError);
-    if (resetOk) resetOnExit.dismiss();
+    const bool resetOk = apex6Pro ? apex6ResetOk : device->clearAll(resetError);
+    if (apex6Pro && !apex6ResetOk) resetError = apex6ResetError;
+    if (resetOk && resetOnExit) resetOnExit->dismiss();
     // Keep HidHide active until launch-capable controls have been released for
     // a short stable interval. The wait is bounded so disconnects and damaged
     // devices can never prevent restoration/uninstall.
-    const bool physicalControlsReleased = waitForPhysicalControlsReleased(
-        *inputSource, std::chrono::milliseconds(1500));
     std::string profileRestoreError;
     bool profileRestored =
         restoreTemporaryApexProfile(profileRestoreError);
@@ -987,7 +1213,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         profileRestored = true;
         profileRestoreOnExit->dismiss();
     }
-    const auto inputSourceStats = inputSource->stats();
+    auto inputSourceStats = retiredInputStats;
+    if (inputSource) accumulatePhysicalInputStats(inputSourceStats, inputSource->stats());
     const auto processUsageFinished = processUsageSnapshot();
     const double runtimeSeconds = runtimeMilliseconds > 0
         ? static_cast<double>(runtimeMilliseconds) / 1000.0
@@ -1016,68 +1243,73 @@ int commandBridgeTriggers(int argc, char** argv) {
         static_cast<std::uint64_t>(inputProxyFailed ? 1 : 0);
 
     if (!options.telemetryJson.empty()) {
-        std::ofstream telemetry(options.telemetryJson, std::ios::binary | std::ios::trunc);
-        if (!telemetry) {
-            std::cerr << "Warning: could not create telemetry JSON file: "
-                      << options.telemetryJson.string() << '\n';
-        } else {
-            telemetry << std::fixed << std::setprecision(3)
-                      << "{\n"
-                      << "  \"schema\": 1,\n"
-                      << "  \"virtual_backend\": \""
-                      << jsonEscape(virtualStats.backendVersion) << "\",\n"
-                      << "  \"input_mode\": \"mandatory-full-proxy\",\n"
-                      << "  \"input_backend\": \"" << jsonEscape(inputBackend) << "\",\n"
-                      << "  \"initialization_ms\": " << initializationMilliseconds << ",\n"
-                      << "  \"initialization_physical_input_ms\": "
-                      << physicalInputInitializationMilliseconds << ",\n"
-                      << "  \"initialization_virtual_input_ms\": "
-                      << virtualInputInitializationMilliseconds << ",\n"
-                      << "  \"initialization_firmware_ms\": "
-                      << firmwareInitializationMilliseconds << ",\n"
-                      << "  \"initialization_isolation_ms\": "
-                      << isolationInitializationMilliseconds << ",\n"
-                      << "  \"backend_initialization_bootstrap_us\": "
-                      << virtualStats.initializationBootstrapUs << ",\n"
-                      << "  \"backend_initialization_server_us\": "
-                      << virtualStats.initializationServerUs << ",\n"
-                      << "  \"backend_initialization_bus_us\": "
-                      << virtualStats.initializationBusUs << ",\n"
-                      << "  \"backend_initialization_device_us\": "
-                      << virtualStats.initializationDeviceUs << ",\n"
-                      << "  \"backend_initialization_feedback_us\": "
-                      << virtualStats.initializationFeedbackUs << ",\n"
-                      << "  \"backend_initialization_input_us\": "
-                      << virtualStats.initializationInputUs << ",\n"
-                      << "  \"runtime_ms\": " << runtimeMilliseconds << ",\n"
-                      << "  \"forward_latency_us_p50\": " << forwardingLatency.percentile(50) << ",\n"
-                      << "  \"forward_latency_us_p95\": " << forwardingLatency.percentile(95) << ",\n"
-                      << "  \"forward_latency_us_p99\": " << forwardingLatency.percentile(99) << ",\n"
-                      << "  \"forward_latency_samples\": " << forwardingLatency.samples() << ",\n"
-                      << "  \"physical_report_rate_hz\": " << physicalReportRateHz << ",\n"
-                      << "  \"virtual_report_rate_hz\": " << virtualReportRateHz << ",\n"
-                      << "  \"physical_reports\": " << inputSourceStats.reports << ",\n"
-                      << "  \"forwarded_physical_reports\": " << forwardedPhysicalReports << ",\n"
-                      << "  \"keepalive_reports\": " << keepaliveInputReports << ",\n"
-                      << "  \"lost_reports\": " << lostInputReports << ",\n"
-                      << "  \"coalesced_reports\": " << coalescedInputReports << ",\n"
-                      << "  \"cpu_percent_total\": " << cpuPercent << ",\n"
-                      << "  \"working_set_mib\": "
-                      << static_cast<double>(processUsageFinished.workingSetBytes) / (1024.0 * 1024.0) << ",\n"
-                      << "  \"peak_working_set_mib\": "
-                      << static_cast<double>(processUsageFinished.peakWorkingSetBytes) / (1024.0 * 1024.0) << ",\n"
-                      << "  \"audio_haptics_received\": " << virtualStats.audioHapticsFrames << ",\n"
-                      << "  \"audio_haptics_delivered\": " << virtualStats.audioHapticsDelivered << ",\n"
-                      << "  \"audio_haptics_coalesced\": " << virtualStats.audioHapticsCoalesced << "\n"
-                      << "}\n";
+        BridgeTelemetry telemetry{};
+        telemetry.virtualStats = virtualStats;
+        if (apex6Pro) {
+            telemetry.apex6Stats = apex6Stats;
+            telemetry.apex6AudioFormat = audioProtection.hapticFormat();
+        }
+        telemetry.physicalStats = inputSourceStats;
+        telemetry.processUsage = processUsageFinished;
+        telemetry.inputBackend = inputBackend;
+        telemetry.independentTriggerStartupRecoveries = independentTriggerStartupRecoveries;
+        telemetry.independentTriggerRuntimeRecoveries = independentTriggerRuntimeRecoveries;
+        telemetry.virtualInputMonitorEnabled = virtualInputMonitor != nullptr;
+        telemetry.startupAttempts = startupResult.attempts;
+        telemetry.initializationMilliseconds = initializationMilliseconds;
+        telemetry.physicalInputInitializationMilliseconds =
+            physicalInputInitializationMilliseconds;
+        telemetry.virtualInputInitializationMilliseconds =
+            virtualInputInitializationMilliseconds;
+        telemetry.firmwareInitializationMilliseconds =
+            firmwareInitializationMilliseconds;
+        telemetry.isolationInitializationMilliseconds =
+            isolationInitializationMilliseconds;
+        telemetry.runtimeMilliseconds = runtimeMilliseconds;
+        telemetry.latencyP50Us = forwardingLatency.percentile(50);
+        telemetry.latencyP95Us = forwardingLatency.percentile(95);
+        telemetry.latencyP99Us = forwardingLatency.percentile(99);
+        telemetry.latencySamples = forwardingLatency.samples();
+        telemetry.physicalReportRateHz = physicalReportRateHz;
+        telemetry.virtualReportRateHz = virtualReportRateHz;
+        telemetry.forwardedPhysicalReports = forwardedPhysicalReports;
+        telemetry.keepaliveReports = keepaliveInputReports;
+        telemetry.lostReports = lostInputReports;
+        telemetry.coalescedReports = coalescedInputReports;
+        telemetry.maximumSimultaneousTriggers = maximumSimultaneousTriggers;
+        telemetry.simultaneousTriggerReports = simultaneousTriggerReports;
+        telemetry.virtualMaximumSimultaneousTriggers =
+            virtualMaximumSimultaneousTriggers;
+        telemetry.virtualSimultaneousTriggerReports =
+            virtualSimultaneousTriggerReports;
+        telemetry.batteryPercent = lastPhysicalInput
+            ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent;
+        telemetry.chargeState = lastPhysicalInput
+            ? lastPhysicalInput->chargeState : initialInput.chargeState;
+        telemetry.cpuPercent = cpuPercent;
+
+        std::string telemetryError;
+        if (!writeBridgeTelemetryFile(
+                options.telemetryJson, telemetry, telemetryError)) {
+            std::cerr << "Warning: " << telemetryError << '\n';
         }
     }
 
-    std::cout << "apex_routing=adaptive-triggers\n"
+    std::cout << "apex_routing="
+              << (apex6Pro ? "realtime-voice-coils" : "adaptive-triggers") << '\n'
               << "virtual_backend=" << virtualStats.backendVersion << '\n'
               << "input_mode=mandatory-full-proxy\n"
               << "input_backend=" << inputBackend << '\n'
-              << "input_event_driven=" << (inputSource->eventDriven() ? "yes" : "no") << '\n'
+              << "input_event_driven=" << (inputSource && inputSource->eventDriven() ? "yes" : "no") << '\n'
+              << "independent_trigger_startup_recoveries=" << independentTriggerStartupRecoveries << '\n'
+              << "independent_trigger_runtime_recoveries=" << independentTriggerRuntimeRecoveries << '\n'
+              << "input_vendor_reports=" << inputSourceStats.vendorReports << '\n'
+              << "input_vendor_states=" << inputSourceStats.vendorStates << '\n'
+              << "input_vendor_parse_failures="
+              << inputSourceStats.vendorParseFailures << '\n'
+              << "input_vendor_read_failures="
+              << inputSourceStats.vendorReadFailures << '\n'
+              << "virtual_startup_attempts=" << startupResult.attempts << '\n'
               << "runtime_ms=" << runtimeMilliseconds << '\n'
               << "initialization_ms=" << initializationMilliseconds << '\n'
               << "initialization_physical_input_ms="
@@ -1133,10 +1365,17 @@ int commandBridgeTriggers(int argc, char** argv) {
               << (virtualFirmware ? hex16(virtualFirmware->updateVersion) : "unavailable")
               << '\n'
               << "dualsense_firmware_current="
-              << (virtualFirmware && virtualFirmware->updateVersion >= 0x0630 ? "yes" : "no")
+              << (virtualFirmware && virtualFirmware->updateVersion >= 0x0630 ? "yes" : "no") << '\n'
+              << "battery_percent="
+              << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent) << '\n'
+              << "charge_state="
+              << static_cast<unsigned>(lastPhysicalInput ? lastPhysicalInput->chargeState : initialInput.chargeState)
               << '\n'
               << "dualsense_output_reports=" << virtualStats.outputReports << '\n'
+              << "dualsense_trigger_reports=" << virtualStats.triggerReports << '\n'
               << "dualsense_rumble_reports=" << virtualStats.rumbleReports << '\n'
+              << "dualsense_malformed_feedback_frames=" << virtualStats.malformedFrames << '\n'
+              << "dualsense_unknown_feedback_frames=" << virtualStats.unknownFrames << '\n'
               << "audio_haptics_frames=" << virtualStats.audioHapticsFrames << '\n'
               << "audio_haptics_delivered=" << virtualStats.audioHapticsDelivered << '\n'
               << "audio_haptics_coalesced=" << virtualStats.audioHapticsCoalesced << '\n'
@@ -1167,12 +1406,18 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(seenDpad) << std::dec << '\n'
               << "maximum_l2=" << static_cast<unsigned>(maximumL2) << '\n'
               << "maximum_r2=" << static_cast<unsigned>(maximumR2) << '\n'
+              << "maximum_simultaneous_triggers="
+              << static_cast<unsigned>(maximumSimultaneousTriggers) << '\n'
+              << "simultaneous_trigger_reports="
+              << simultaneousTriggerReports << '\n'
               << "right_stick_x_range="
               << static_cast<unsigned>(minimumRightStickX)
               << ',' << static_cast<unsigned>(maximumRightStickX) << '\n'
               << "right_stick_y_range="
               << static_cast<unsigned>(minimumRightStickY)
               << ',' << static_cast<unsigned>(maximumRightStickY) << '\n'
+              << "virtual_input_monitor="
+              << (virtualInputMonitor ? "enabled" : "disabled") << '\n'
               << "virtual_input_reports=" << virtualInputReports << '\n'
               << "virtual_seen_face=0x" << std::hex << std::uppercase
               << static_cast<unsigned>(virtualSeenFace) << std::dec << '\n'
@@ -1196,6 +1441,10 @@ int commandBridgeTriggers(int argc, char** argv) {
               << virtualSeenDpadHats << std::dec << '\n'
               << "virtual_maximum_l2=" << static_cast<unsigned>(virtualMaximumL2) << '\n'
               << "virtual_maximum_r2=" << static_cast<unsigned>(virtualMaximumR2) << '\n'
+              << "virtual_maximum_simultaneous_triggers="
+              << static_cast<unsigned>(virtualMaximumSimultaneousTriggers) << '\n'
+              << "virtual_simultaneous_trigger_reports="
+              << virtualSimultaneousTriggerReports << '\n'
               << "virtual_right_stick_x_range="
               << (virtualInputReports == 0
                       ? 0 : static_cast<unsigned>(virtualMinimumRightStickX))
@@ -1203,23 +1452,109 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "virtual_right_stick_y_range="
               << (virtualInputReports == 0
                       ? 0 : static_cast<unsigned>(virtualMinimumRightStickY))
-              << ',' << static_cast<unsigned>(virtualMaximumRightStickY) << '\n'
-              << "translated_effects=" << bridgeStats.translated << '\n'
-              << "active_effects=" << bridgeStats.active << '\n'
-              << "normal_effects=" << bridgeStats.normal << '\n'
-              << "deduplicated_effects=" << bridgeStats.deduplicated << '\n'
-              << "neutral_requests=" << bridgeStats.neutral << '\n'
-              << "unsupported_effects=" << bridgeStats.unsupported << '\n'
-              << "write_failures=" << bridgeStats.writeFailures << '\n'
-              << "rumble_routing=" << (rumbleBridge ? "enabled" : "disabled") << '\n'
-              << "rumble_updates=" << rumbleStats.updates << '\n'
+              << ',' << static_cast<unsigned>(virtualMaximumRightStickY) << '\n';
+    if (!apex6Pro) {
+        std::cout << "translated_effects=" << bridgeStats.translated << '\n'
+                  << "active_effects=" << bridgeStats.active << '\n'
+                  << "normal_effects=" << bridgeStats.normal << '\n'
+                  << "deduplicated_effects=" << bridgeStats.deduplicated << '\n'
+                  << "neutral_requests=" << bridgeStats.neutral << '\n'
+                  << "unsupported_effects=" << bridgeStats.unsupported << '\n'
+                  << "write_failures=" << bridgeStats.writeFailures << '\n';
+    }
+    if (apex6Pro) {
+        std::cout << "apex6_hid_reports=" << apex6Stats.hidReports << '\n'
+#ifdef ASB_RELEASE_LABEL
+              << "asb_release=" ASB_RELEASE_LABEL "\n"
+#endif
+              << "apex6_trigger_left_updates=" << apex6Stats.triggerLeftUpdates << '\n'
+              << "apex6_trigger_right_updates=" << apex6Stats.triggerRightUpdates << '\n'
+              << "apex6_trigger_active_updates=" << apex6Stats.triggerActiveUpdates << '\n'
+              << "apex6_trigger_stops=" << apex6Stats.triggerStops << '\n'
+              << "apex6_trigger_unsupported=" << apex6Stats.triggerUnsupported << '\n'
+              << "apex6_trigger_malformed=" << apex6Stats.triggerMalformed << '\n'
+              << "apex6_trigger_rejected_stops=" << apex6Stats.triggerRejectedStops << '\n'
+              << "apex6_trigger_deduplicated=" << apex6Stats.triggerDeduplicated << '\n'
+              << "apex6_weapon_breaks=" << apex6Stats.weaponBreaks << '\n'
+              << "apex6_bow_breaks=" << apex6Stats.bowBreaks << '\n'
+              << "apex6_waveform_threshold_policy=native-pcm-preserved\n"
+              << "apex6_pcm_gain_percent=" << apex6Stats.pcmGainPercent << '\n'
+              << "apex6_haptic_threshold_percent=0\n"
+              << "apex6_pcm_output_left_peak=" << apex6Stats.pcmOutputLeftPeak << '\n'
+              << "apex6_pcm_output_right_peak=" << apex6Stats.pcmOutputRightPeak << '\n'
+              << "apex6_last_left_trigger_type="
+              << static_cast<unsigned>(apex6Stats.lastLeftTriggerType) << '\n'
+              << "apex6_last_right_trigger_type="
+              << static_cast<unsigned>(apex6Stats.lastRightTriggerType) << '\n'
+              << "apex6_trigger_left_frames=" << apex6Stats.leftTriggerFrames << '\n'
+              << "apex6_trigger_right_frames=" << apex6Stats.rightTriggerFrames << '\n'
+              << "apex6_trigger_both_frames=" << apex6Stats.bothTriggerFrames << '\n'
+              << "apex6_rumble_updates=" << apex6Stats.rumbleUpdates << '\n'
+              << "apex6_rumble_active_updates=" << apex6Stats.rumbleActiveUpdates << '\n'
+              << "apex6_audio_envelope_reports=" << apex6Stats.audioEnvelopeReports << '\n'
+              << "apex6_audio_envelope_active=" << apex6Stats.audioEnvelopeActive << '\n'
+              << "apex6_waveform_left_active=" << apex6Stats.waveformLeftActiveBlocks << '\n'
+              << "apex6_waveform_right_active=" << apex6Stats.waveformRightActiveBlocks << '\n'
+              << "apex6_waveform_left_peak=" << apex6Stats.waveformLeftPeak << '\n'
+              << "apex6_waveform_right_peak=" << apex6Stats.waveformRightPeak << '\n'
+              << "apex6_waveform_silent_blocks=" << apex6Stats.waveformSilentBlocks << '\n'
+              << "apex6_waveform_left_thresholded=" << apex6Stats.waveformLeftThresholded << '\n'
+              << "apex6_waveform_right_thresholded=" << apex6Stats.waveformRightThresholded << '\n'
+              << "apex6_waveform_active_drops=" << apex6Stats.waveformActiveDrops << '\n'
+              << "apex6_waveform_left_active_rms=" << apex6Stats.waveformLeftActiveRms << '\n'
+              << "apex6_waveform_right_active_rms=" << apex6Stats.waveformRightActiveRms << '\n'
+              << "apex6_raw_audio_measured_blocks=" << apex6Stats.rawAudioMeasuredBlocks << '\n'
+              << "apex6_raw_audio_frames=" << apex6Stats.rawAudioFrames << '\n'
+              << "apex6_raw_speaker_left_peak=" << apex6Stats.rawAudioPeaks[0] << '\n'
+              << "apex6_raw_speaker_right_peak=" << apex6Stats.rawAudioPeaks[1] << '\n'
+              << "apex6_raw_haptic_left_peak=" << apex6Stats.rawAudioPeaks[2] << '\n'
+              << "apex6_raw_haptic_right_peak=" << apex6Stats.rawAudioPeaks[3] << '\n'
+              << "apex6_raw_haptic_left_rms=" << apex6Stats.rawHapticLeftRms << '\n'
+              << "apex6_raw_haptic_right_rms=" << apex6Stats.rawHapticRightRms << '\n'
+              << "apex6_waveform_active_rendered=" << apex6Stats.waveformActiveRendered << '\n'
+              << "apex6_grip_envelope_frames=" << apex6Stats.gripEnvelopeFrames << '\n'
+              << "apex6_grip_rumble_frames=" << apex6Stats.gripRumbleFrames << '\n'
+              << "apex6_haptic_enables=" << apex6Stats.hapticEnables << '\n'
+              << "apex6_haptic_disables=" << apex6Stats.hapticDisables << '\n'
+              << "apex6_haptic_frames=" << apex6Stats.framesWritten << '\n'
+              << "apex6_waveform_blocks=" << apex6Stats.waveformBlocks << '\n'
+              << "apex6_waveform_rendered=" << apex6Stats.waveformBlocksRendered << '\n'
+              << "apex6_waveform_dropped=" << apex6Stats.waveformBlocksDropped << '\n'
+              << "apex6_waveform_queue_max_depth=" << apex6Stats.waveformQueueMaxDepth << '\n'
+              << "apex6_waveform_sequence_gaps=" << apex6Stats.waveformSequenceGaps << '\n'
+              << "apex6_waveform_duplicates=" << apex6Stats.waveformDuplicates << '\n'
+              << "apex6_waveform_out_of_order=" << apex6Stats.waveformOutOfOrder << '\n'
+              << "apex6_waveform_underruns=" << apex6Stats.waveformUnderruns << '\n'
+              << "apex6_waveform_overflow_drops=" << apex6Stats.waveformOverflowDrops << '\n'
+              << "apex6_waveform_stale_drops=" << apex6Stats.waveformStaleDrops << '\n'
+              << "apex6_waveform_average_age_us="
+              << (apex6Stats.waveformBlocksRendered == 0 ? 0
+                  : apex6Stats.waveformTotalAgeUs / apex6Stats.waveformBlocksRendered) << '\n'
+              << "apex6_waveform_maximum_age_us="
+              << apex6Stats.waveformMaximumAgeUs << '\n'
+              << "apex6_deadline_overruns=" << apex6Stats.deadlineOverruns << '\n'
+              << "apex6_write_failures=" << apex6Stats.writeFailures << '\n'
+              << "apex6_average_write_us="
+              << (apex6Stats.framesWritten == 0
+                      ? 0 : apex6Stats.totalWriteDurationUs / apex6Stats.framesWritten)
+              << '\n'
+              << "apex6_maximum_write_us=" << apex6Stats.maximumWriteDurationUs << '\n';
+        writeApex6TriggerTrace(std::cout, apex6Stats);
+    }
+    std::cout << "rumble_routing="
+              << ((rumbleBridge || (apex6Bridge && options.routeRumble))
+                      ? "enabled" : "disabled") << '\n'
+              << "audio_haptics_routing="
+              << ((rumbleBridge || (apex6Bridge && options.routeRumble))
+                      ? "enabled" : "disabled") << '\n';
+    if (!apex6Pro) {
+        std::cout << "rumble_updates=" << rumbleStats.updates << '\n'
               << "rumble_writes=" << rumbleStats.writes << '\n'
               << "rumble_stops=" << rumbleStats.stops << '\n'
               << "rumble_deduplicated=" << rumbleStats.deduplicated << '\n'
               << "rumble_write_failures=" << rumbleStats.writeFailures << '\n'
               << "last_rumble_low=" << static_cast<unsigned>(rumbleStats.lastLowFrequency) << '\n'
               << "last_rumble_high=" << static_cast<unsigned>(rumbleStats.lastHighFrequency) << '\n'
-              << "audio_haptics_routing=" << (rumbleBridge ? "enabled" : "disabled") << '\n'
               << "audio_haptics_processed=" << rumbleStats.audioFrames << '\n'
               << "audio_haptics_active=" << rumbleStats.audioActiveFrames << '\n'
               << "audio_haptics_active_percent=" << std::fixed << std::setprecision(2)
@@ -1244,8 +1579,24 @@ int commandBridgeTriggers(int argc, char** argv) {
               << static_cast<unsigned>(rumbleStats.lastAudioLowFrequency) << '\n'
               << "last_audio_high="
               << static_cast<unsigned>(rumbleStats.lastAudioHighFrequency) << '\n';
+    }
+    std::cout << "lightbar_routing=" << (lightbarBridge ? "enabled" : "disabled") << '\n';
+    if (lightbarBridge) {
+        std::cout << "lightbar_updates=" << lightbarStats.updates << '\n'
+                  << "lightbar_writes=" << lightbarStats.writes << '\n'
+                  << "lightbar_deduplicated=" << lightbarStats.deduplicated << '\n'
+                  << "lightbar_write_failures=" << lightbarStats.writeFailures << '\n';
+    }
     std::cout << "apex_original_restored="
               << (isolationRestored ? "yes" : "no") << '\n';
+    std::cout << "apex_async_write_retries="
+              << device->asyncWriteRetries() << '\n';
+    const auto asyncStats = device->asyncWriteStats();
+    std::cout << "apex_async_write_attempts=" << asyncStats.writes << '\n'
+              << "apex_async_coalesced_updates=" << asyncStats.coalesced << '\n'
+              << "apex_async_slow_writes=" << asyncStats.slowWrites << '\n'
+              << "apex_async_queue_max_us=" << asyncStats.maximumQueueUs << '\n'
+              << "apex_async_write_max_us=" << asyncStats.maximumWriteUs << '\n';
     const auto printLast = [](std::string_view side, std::uint8_t dsType,
                               const std::optional<asb::ForceTriggerCommand>& command) {
         std::cout << "last_" << side << "_ds_type=" << static_cast<unsigned>(dsType) << '\n';
@@ -1258,16 +1609,21 @@ int commandBridgeTriggers(int argc, char** argv) {
         for (const auto byte : command->params) std::cout << ',' << static_cast<unsigned>(byte);
         std::cout << '\n';
     };
-    printLast("lt", bridgeStats.lastLeftDualSenseType, bridgeStats.lastLeftCommand);
-    printLast("rt", bridgeStats.lastRightDualSenseType, bridgeStats.lastRightCommand);
-    printLast("active_lt", bridgeStats.lastActiveLeftDualSenseType,
-              bridgeStats.lastActiveLeftCommand);
-    printLast("active_rt", bridgeStats.lastActiveRightDualSenseType,
-              bridgeStats.lastActiveRightCommand);
+    if (!apex6Pro) {
+        printLast("lt", bridgeStats.lastLeftDualSenseType, bridgeStats.lastLeftCommand);
+        printLast("rt", bridgeStats.lastRightDualSenseType, bridgeStats.lastRightCommand);
+        printLast("active_lt", bridgeStats.lastActiveLeftDualSenseType,
+                  bridgeStats.lastActiveLeftCommand);
+        printLast("active_rt", bridgeStats.lastActiveRightDualSenseType,
+                  bridgeStats.lastActiveRightCommand);
+    }
     if (!resetOk) {
-        std::cerr << "WARNING: LT/RT automatic reset failed: " << resetError
-                  << "\nSet both triggers to Normal in Flydigi Space Station.\n";
-        return failSession(5, "LT/RT automatic reset failed: " + resetError);
+        const std::string prefix = apex6Pro
+            ? "Apex 6 haptic shutdown failed: "
+            : "LT/RT automatic reset failed: ";
+        std::cerr << "WARNING: " << prefix << resetError
+                  << "\nPower-cycle the controller before continuing.\n";
+        return failSession(5, prefix + resetError);
     }
     if (!rumbleResetOk) {
         std::cerr << "WARNING: grip-rumble automatic stop failed: "
@@ -1288,8 +1644,16 @@ int commandBridgeTriggers(int argc, char** argv) {
         return failSession(11, "Could not restore the original APEX session state: " +
                                    isolationRestoreError);
     }
-    if (bridge.failed()) {
-        const std::string message = "Bridge stopped after an APEX write failure: " + bridge.error();
+    if (adaptiveBridge && adaptiveBridge->failed()) {
+        const std::string message =
+            "Bridge stopped after an APEX write failure: " + adaptiveBridge->error();
+        std::cerr << message << '\n';
+        return failSession(4, message);
+    }
+    if (apex6Bridge && apex6Bridge->failed()) {
+        const std::string message =
+            "Bridge stopped after an Apex 6 haptic write failure: " +
+            apex6Bridge->error();
         std::cerr << message << '\n';
         return failSession(4, message);
     }
@@ -1298,6 +1662,13 @@ int commandBridgeTriggers(int argc, char** argv) {
                   << rumbleBridge->error() << '\n';
         return failSession(12, "Bridge stopped after an APEX rumble write failure: " +
                                    rumbleBridge->error());
+    }
+    if (!asyncWriteError.empty()) {
+        const std::string message =
+            "Bridge stopped after repeated APEX feedback write failures: " +
+            asyncWriteError;
+        std::cerr << message << '\n';
+        return failSession(4, message);
     }
     if (inputProxyFailed) {
         const std::string message =
@@ -1314,10 +1685,12 @@ int commandBridgeTriggers(int argc, char** argv) {
     if (sessionControl &&
         !sessionControl->publish(asb::platform::SessionPhase::Stopped, 0,
                                  "Bridge stopped and controller state restored.", error)) {
-        std::cerr << "Playnite session completion status failed: " << error << '\n';
+        std::cerr << "Bridge session completion status failed: " << error << '\n';
         return 13;
     }
-    std::cout << "LT and RT reset to Normal; grip rumble stopped.\n";
+    std::cout << (apex6Pro
+                      ? "Apex 6 trigger and grip voice coils stopped.\n"
+                      : "LT and RT reset to Normal; grip rumble stopped.\n");
     return 0;
 }
 

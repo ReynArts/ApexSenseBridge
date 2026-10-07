@@ -23,11 +23,16 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Web.Extensions" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="tray_learning_tests.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\SessionRecoveryState.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\EngineSessionManager.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\ControllerDetectionService.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\ProcessMonitorService.cs" />
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Production\ReleaseSecurity.cs</Link>
     </Compile>
@@ -46,6 +51,9 @@
     <Compile Include="..\ApexSenseBridgeTray\Common\NativeMethods.cs">
       <Link>Production\NativeMethods.cs</Link>
     </Compile>
+    <Compile Include="..\shared\InstallLocator.cs">
+      <Link>Production\InstallLocator.cs</Link>
+    </Compile>
     <Compile Include="..\ApexSenseBridgeTray\Services\CloudGameListService.cs">
       <Link>Production\CloudGameListService.cs</Link>
     </Compile>
@@ -61,6 +69,20 @@
     <Compile Include="..\ApexSenseBridgeTray\Services\PlatformClientProcessFilter.cs">
       <Link>Production\PlatformClientProcessFilter.cs</Link>
     </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\ControllerTestService.cs">
+      <Link>Production\ControllerTestService.cs</Link>
+    </Compile>
+    <Compile Include="..\shared\BridgeSession.cs">
+      <Link>Production\BridgeSession.cs</Link>
+    </Compile>
+    <Compile Include="..\shared\BridgeArguments.cs">
+      <Link>Production\BridgeArguments.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <EmbeddedResource Include="..\data\supported_games.json">
+      <LogicalName>ApexSenseBridgeTray.supported_games.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

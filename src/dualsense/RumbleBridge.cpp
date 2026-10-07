@@ -1,4 +1,5 @@
 #include "dualsense/RumbleBridge.h"
+#include "dualsense/EffectStrength.h"
 
 #include <algorithm>
 
@@ -17,8 +18,8 @@ unsigned difference(std::uint8_t left, std::uint8_t right) noexcept {
 } // namespace
 
 RumbleBridge::RumbleBridge(flydigi::Apex5Device& device,
-                           haptics::HapticConfig hapticConfig)
-    : device_(device), hapticProcessor_(hapticConfig) {}
+                           haptics::HapticConfig hapticConfig, unsigned strengthPercent)
+    : device_(device), hapticProcessor_(hapticConfig), strengthPercent_(strengthPercent) {}
 
 void RumbleBridge::handle(const DualSenseFeedback& feedback) {
     if (failed_.load(std::memory_order_relaxed)) {
@@ -90,8 +91,8 @@ void RumbleBridge::handle(const DualSenseFeedback& feedback) {
 
 RumbleLevels RumbleBridge::mixedLevelsLocked() const noexcept {
     return {
-        (std::max)(standard_.lowFrequency, audio_.lowFrequency),
-        (std::max)(standard_.highFrequency, audio_.highFrequency),
+        scaleRumbleStrength((std::max)(standard_.lowFrequency, audio_.lowFrequency), strengthPercent_),
+        scaleRumbleStrength((std::max)(standard_.highFrequency, audio_.highFrequency), strengthPercent_),
     };
 }
 
@@ -125,7 +126,7 @@ void RumbleBridge::writeDesiredLocked(RumbleLevels desired,
     }
 
     std::string writeError;
-    if (!device_.setRumble(desired.lowFrequency, desired.highFrequency, writeError)) {
+    if (!device_.queueRumble(desired.lowFrequency, desired.highFrequency, writeError)) {
         writeFailures_.fetch_add(1, std::memory_order_relaxed);
         {
             std::lock_guard lock(errorMutex_);

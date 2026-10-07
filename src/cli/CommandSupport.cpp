@@ -1,7 +1,5 @@
 #include "cli/Commands.h"
 #include "cli/CommandSupport.h"
-#include "core/TriggerResetGuard.h"
-#include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"
@@ -23,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cwctype>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -77,9 +76,7 @@ std::string narrowAscii(const std::wstring& value) {
 }
 
 std::string hex16(std::uint16_t value) {
-    std::ostringstream oss;
-    oss << "0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << value;
-    return oss.str();
+    return asb::diagnostics::hex16(value);
 }
 
 bool isDualSenseGamepadInterface(const asb::HidDeviceInfo& info) {
@@ -87,6 +84,26 @@ bool isDualSenseGamepadInterface(const asb::HidDeviceInfo& info) {
            (info.interfaceNumber.empty() || info.interfaceNumber == L"MI_03") &&
            info.featureReportLength >= 46;
 }
+
+namespace {
+
+bool sameDevicePath(std::wstring_view left, std::wstring_view right) {
+    return left.size() == right.size() &&
+           std::equal(left.begin(), left.end(), right.begin(),
+                      [](wchar_t lhs, wchar_t rhs) {
+                          return std::towupper(lhs) == std::towupper(rhs);
+                      });
+}
+
+bool wasPresentBefore(const std::vector<std::wstring>& paths,
+                      std::wstring_view candidate) {
+    return std::any_of(paths.begin(), paths.end(),
+                       [candidate](const auto& path) {
+                           return sameDevicePath(path, candidate);
+                       });
+}
+
+} // namespace
 
 std::vector<std::wstring> snapshotDualSensePaths() {
     std::string ignored;
@@ -98,10 +115,51 @@ std::vector<std::wstring> snapshotDualSensePaths() {
     return paths;
 }
 
-std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirmware(
+bool waitForNewVirtualDualSenseRemoval(
     const std::vector<std::wstring>& preexistingPaths,
     std::chrono::milliseconds timeout,
     std::string& error) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::optional<std::chrono::steady_clock::time_point> absentSince;
+    do {
+        std::string enumerationError;
+        const auto devices = asb::platform::enumerateHidDevices(enumerationError);
+        if (!enumerationError.empty()) {
+            error = std::move(enumerationError);
+        } else {
+            const bool newInterfaceStillPresent = std::any_of(
+                devices.begin(), devices.end(),
+                [&preexistingPaths](const auto& info) {
+                    return isDualSenseGamepadInterface(info) &&
+                           !wasPresentBefore(preexistingPaths, info.path);
+                });
+            if (!newInterfaceStillPresent) {
+                const auto now = std::chrono::steady_clock::now();
+                if (!absentSince) absentSince = now;
+                // Require stable absence rather than a single empty PnP scan;
+                // the usbip removal notification can race the next attach.
+                if (now - *absentSince >= std::chrono::milliseconds(150)) {
+                    error.clear();
+                    return true;
+                }
+            } else {
+                absentSince.reset();
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    } while (std::chrono::steady_clock::now() < deadline);
+
+    if (error.empty()) {
+        error = "The previous virtual DualSense HID interface remained present after cleanup.";
+    }
+    return false;
+}
+
+std::optional<VirtualDualSenseDiscovery> readNewVirtualDualSenseFirmware(
+    const std::vector<std::wstring>& preexistingPaths,
+    std::chrono::milliseconds timeout,
+    std::string& error,
+    const asb::dualsense::DualSenseInputState* expectedInitialInput) {
     using TransportPtr = std::unique_ptr<asb::platform::HidTransport,
                                          void (*)(asb::platform::HidTransport*)>;
     const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -112,8 +170,7 @@ std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirm
         if (!enumerationError.empty()) lastError = enumerationError;
         for (const auto& info : devices) {
             if (!isDualSenseGamepadInterface(info) ||
-                std::find(preexistingPaths.begin(), preexistingPaths.end(), info.path) !=
-                    preexistingPaths.end()) {
+                wasPresentBefore(preexistingPaths, info.path)) {
                 continue;
             }
 
@@ -132,10 +189,49 @@ std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirm
                 lastError = std::move(featureError);
                 continue;
             }
-            if (auto firmware = asb::dualsense::decodeFirmwareFeatureReport(report)) {
-                return firmware;
+            auto firmware = asb::dualsense::decodeFirmwareFeatureReport(report);
+            if (!firmware) {
+                lastError = "The virtual DualSense returned a malformed firmware feature report.";
+                continue;
             }
-            lastError = "The virtual DualSense returned a malformed firmware feature report.";
+
+            std::size_t verifiedInitialReports = 0;
+            if (expectedInitialInput) {
+                std::vector<std::uint8_t> inputBuffer(64, 0);
+                const auto inputDeadline =
+                    std::chrono::steady_clock::now() + std::chrono::milliseconds(1200);
+                while (verifiedInitialReports < 3 &&
+                       std::chrono::steady_clock::now() < inputDeadline) {
+                    std::size_t bytesRead = 0;
+                    std::string inputError;
+                    const auto status = transport->readInputReport(
+                        inputBuffer, std::chrono::milliseconds(40), bytesRead, inputError);
+                    if (status == asb::platform::HidReadStatus::Data &&
+                        bytesRead >= 11 && inputBuffer[0] == 0x01) {
+                        const bool axesMatch =
+                            inputBuffer[1] == expectedInitialInput->lx &&
+                            inputBuffer[2] == expectedInitialInput->ly &&
+                            inputBuffer[3] == expectedInitialInput->rx &&
+                            inputBuffer[4] == expectedInitialInput->ry &&
+                            inputBuffer[5] == expectedInitialInput->l2 &&
+                            inputBuffer[6] == expectedInitialInput->r2;
+                        if (axesMatch) {
+                            ++verifiedInitialReports;
+                        }
+                    } else if (status == asb::platform::HidReadStatus::Error) {
+                        lastError = "Initial HID input report read failed: " + inputError;
+                        break;
+                    }
+                }
+                if (verifiedInitialReports < 3) {
+                    lastError = "The virtual DualSense HID interface did not produce verified initial input reports.";
+                    continue;
+                }
+            }
+
+            VirtualDualSenseDiscovery discovery(*firmware, info, verifiedInitialReports);
+            error.clear();
+            return discovery;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     } while (std::chrono::steady_clock::now() < deadline);
@@ -146,36 +242,14 @@ std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirm
     return std::nullopt;
 }
 
-std::string jsonEscape(std::string_view value) {
-    std::ostringstream escaped;
-    for (const unsigned char character : value) {
-        switch (character) {
-        case '"': escaped << "\\\""; break;
-        case '\\': escaped << "\\\\"; break;
-        case '\b': escaped << "\\b"; break;
-        case '\f': escaped << "\\f"; break;
-        case '\n': escaped << "\\n"; break;
-        case '\r': escaped << "\\r"; break;
-        case '\t': escaped << "\\t"; break;
-        default:
-            if (character < 0x20) {
-                escaped << "\\u00" << std::hex << std::setw(2) << std::setfill('0')
-                        << static_cast<unsigned int>(character) << std::dec;
-            } else {
-                escaped << static_cast<char>(character);
-            }
-        }
-    }
-    return escaped.str();
-}
-
 void printDevice(const asb::HidDeviceInfo& info, std::size_t index) {
     std::cout << "[" << index << "] "
               << (info.product.empty() ? "Flydigi controller" : narrowAscii(info.product)) << "\n"
               << "    VID:PID      " << hex16(info.vendorId) << ":" << hex16(info.productId) << "\n"
               << "    Usage page   " << hex16(info.usagePage) << "  usage " << hex16(info.usage) << "\n"
               << "    Reports      input=" << info.inputReportLength
-              << " output=" << info.outputReportLength << " bytes\n";
+              << " output=" << info.outputReportLength << " bytes\n"
+              << "    Path         " << narrowAscii(info.path) << '\n';
 }
 
 std::optional<std::size_t> parseIndex(int argc, char** argv) {
@@ -195,7 +269,7 @@ std::optional<asb::flydigi::Apex5Device> openSelected(int argc, char** argv, std
         return std::nullopt;
     }
     if (candidates.empty()) {
-        error = "No APEX 4/5 vendor HID interface found. For Apex 4, use USB or "
+        error = "No APEX 4/5/6 vendor HID interface found. For Apex 4, use USB or "
                 "the 2.4 GHz dongle in DInput mode; for Apex 5, wake the controller.";
         return std::nullopt;
     }
@@ -225,7 +299,7 @@ std::optional<asb::flydigi::Apex5Device> openSelectedIndex(
     auto candidates = asb::flydigi::Apex5Device::findCandidates(error);
     if (!error.empty() && candidates.empty()) return std::nullopt;
     if (candidates.empty()) {
-        error = "No APEX 4/5 vendor HID interface found. For Apex 4, use USB or "
+        error = "No APEX 4/5/6 vendor HID interface found. For Apex 4, use USB or "
                 "the 2.4 GHz dongle in DInput mode; for Apex 5, wake the controller.";
         return std::nullopt;
     }

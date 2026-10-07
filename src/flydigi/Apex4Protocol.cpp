@@ -33,6 +33,20 @@ bool isApex4Product(std::uint16_t vendorId,
     return vendorId == kApex4VendorId && productId == kApex4ProductId;
 }
 
+Apex4TriggerInterfaceCapability classifyApex4TriggerInterface(
+    const HidDeviceInfo& info) noexcept {
+    if (!isApex4Product(info.vendorId, info.productId)) {
+        return Apex4TriggerInterfaceCapability::NotApplicable;
+    }
+    if (info.outputReportLength >= 64) {
+        return Apex4TriggerInterfaceCapability::Full64Byte;
+    }
+    if (info.outputReportLength > 0 && info.outputReportLength <= 32) {
+        return Apex4TriggerInterfaceCapability::Degraded32Byte;
+    }
+    return Apex4TriggerInterfaceCapability::Unknown;
+}
+
 Apex4IdentityRequest buildApex4IdentityRequest() {
     Apex4IdentityRequest report{};
     report[0] = kApex4CommandReportId;
@@ -99,7 +113,7 @@ Apex4ForceTriggerReport buildApex4Normal(TriggerSide side) {
     TriggerEffect effect{};
     effect.side = side;
     effect.mode = TriggerMode::Normal;
-    return buildApex4ForceTrigger(effect, true);
+    return buildApex4ForceTrigger(effect, kApex4ApplyFlag);
 }
 
 Apex4RumbleReport buildApex4Rumble(std::uint8_t lowFrequencyMotor,

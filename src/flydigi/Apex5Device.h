@@ -3,11 +3,20 @@
 #include "core/DeviceInfo.h"
 #include "core/TriggerEffect.h"
 #include "flydigi/Apex5Identity.h"
+#include "flydigi/Apex6Protocol.h"
 #include "platform/HidTransport.h"
 
+#include <array>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <span>
 #include <string>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace asb::flydigi {
@@ -17,17 +26,26 @@ struct TransportDeleter {
 };
 using TransportPtr = std::unique_ptr<platform::HidTransport, TransportDeleter>;
 
+struct AsyncWriteStats {
+    std::uint64_t writes = 0;
+    std::uint64_t coalesced = 0;
+    std::uint64_t slowWrites = 0;
+    std::uint64_t maximumQueueUs = 0;
+    std::uint64_t maximumWriteUs = 0;
+};
+
 class Apex5Device {
 public:
     // Historical API name retained for source compatibility. This transport
-    // now supports both Apex 5 (Flydigi V2) and Apex 4 (Flydigi V1/DInput).
+    // now supports Apex 4 (V1/DInput), Apex 5 (V2), and Apex 6 Pro (V3).
     Apex5Device() = default;
     explicit Apex5Device(TransportPtr transport);
 
     Apex5Device(const Apex5Device&) = delete;
     Apex5Device& operator=(const Apex5Device&) = delete;
-    Apex5Device(Apex5Device&&) noexcept = default;
-    Apex5Device& operator=(Apex5Device&&) noexcept = default;
+    ~Apex5Device();
+    Apex5Device(Apex5Device&& other) noexcept;
+    Apex5Device& operator=(Apex5Device&& other) noexcept;
 
     [[nodiscard]] static std::vector<HidDeviceInfo> findCandidates(std::string& error);
     [[nodiscard]] static std::optional<Apex5Device> open(const HidDeviceInfo& info, std::string& error);
@@ -46,16 +64,83 @@ public:
                    std::uint8_t highFrequencyMotor,
                    std::string& error);
     bool stopRumble(std::string& error);
+    bool enableApex6Haptics(std::string& error);
+    bool writeApex6Haptics(const apex6::MotorBlock& block,
+                           apex6::TriggerRoute route,
+                           bool enableTrigger,
+                           bool enableGrips,
+                           std::string& error);
+    bool disableApex6Haptics(std::string& error);
+    bool readRgbConfig(std::uint8_t slot,
+                       std::array<std::uint8_t, kRgbConfigSize>& outConfig,
+                       std::string& error);
+    bool writeRgbConfig(std::uint8_t slot,
+                        std::span<const std::uint8_t> payload,
+                        std::string& error);
+    bool writeRgbConfigRange(std::uint8_t slot,
+                             std::uint8_t firstPacket,
+                             std::uint8_t packetCount,
+                             std::span<const std::uint8_t> payload,
+                             std::string& error);
     bool readProfileStatus(ProfileStatus& status, std::string& error);
     bool applyProfile(std::uint8_t slot, std::string& error);
+    bool readInputTransportStatus(InputTransportStatus& status,
+                                  std::string& error);
+    bool setInputTransport(bool controllerData, bool rawData,
+                           std::string& error);
+    bool requestBatteryRefresh(std::string& error);
+
+    // Support diagnostic only. Reads the verified vendor HID stream without
+    // interpreting or modifying controller state/profile configuration.
+    platform::HidReadStatus readRawInputReport(
+        std::span<std::uint8_t> report,
+        std::chrono::milliseconds timeout,
+        std::size_t& bytesRead,
+        std::string& error);
+
+    // The Apex 4 receiver needs paced vendor writes. The bridge queues the
+    // newest value per output so its feedback callback never blocks and stale
+    // effects are coalesced instead of replayed later.
+    bool startAsyncWrites(std::string& error);
+    void stopAsyncWrites() noexcept;
+    bool queueTriggerRaw(const ForceTriggerCommand& command, std::string& error);
+    bool queueRumble(std::uint8_t lowFrequencyMotor,
+                     std::uint8_t highFrequencyMotor,
+                     std::string& error);
+    [[nodiscard]] std::uint64_t asyncWriteRetries() const noexcept;
+    [[nodiscard]] AsyncWriteStats asyncWriteStats() const noexcept;
+    bool takeAsyncWriteError(std::string& error);
 
 private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
+    [[nodiscard]] bool mayWriteApex6Haptics(std::string& error) const;
     [[nodiscard]] bool mayControlProfiles(std::string& error) const;
     [[nodiscard]] bool usesApex4Protocol() const noexcept;
+    [[nodiscard]] bool usesApex6Protocol() const noexcept;
+    [[nodiscard]] std::unique_lock<std::recursive_mutex> acquireWriteLock() const noexcept;
+    [[nodiscard]] bool writeSpacedOutputReport(std::span<const std::uint8_t> report,
+                                               std::string& error);
+    void writerLoop();
 
     TransportPtr transport_{};
     std::optional<Apex5Identity> identity_{};
+    mutable std::unique_ptr<std::recursive_mutex> writeMutex_{std::make_unique<std::recursive_mutex>()};
+    std::chrono::steady_clock::time_point lastVendorWriteAt_{};
+    std::thread writer_{};
+    std::mutex queueMutex_{};
+    std::condition_variable queueSignal_{};
+    std::optional<ForceTriggerCommand> pendingLeftTrigger_{};
+    std::optional<ForceTriggerCommand> pendingRightTrigger_{};
+    std::optional<std::pair<std::uint8_t, std::uint8_t>> pendingRumble_{};
+    std::array<std::chrono::steady_clock::time_point, 3> pendingAt_{};
+    unsigned nextSlot_ = 0;
+    bool writerStopping_ = false;
+    std::atomic<bool> asyncWriteFailed_{false};
+    std::atomic<std::uint64_t> asyncWriteRetries_{0};
+    mutable std::mutex asyncStatsMutex_{};
+    AsyncWriteStats asyncStats_{};
+    std::mutex asyncErrorMutex_{};
+    std::string asyncError_{};
 };
 
 } // namespace asb::flydigi

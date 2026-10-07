@@ -17,7 +17,7 @@ bool VirtualDualSenseAudioEndpointProtection::capture(std::string& error) noexce
 }
 
 bool VirtualDualSenseAudioEndpointProtection::protectAfterVirtualDualSenseStart(
-    std::chrono::milliseconds, std::string& error) noexcept {
+    std::chrono::milliseconds, std::string& error, bool) noexcept {
     impl_->status = AudioDefaultProtectionStatus::Failed;
     error = "Default-audio protection is only available on Windows.";
     return false;
@@ -29,6 +29,10 @@ AudioDefaultProtectionStatus VirtualDualSenseAudioEndpointProtection::status() c
 }
 std::size_t VirtualDualSenseAudioEndpointProtection::restoredRoles() const noexcept {
     return 0;
+}
+
+HapticAudioFormat VirtualDualSenseAudioEndpointProtection::hapticFormat() const noexcept {
+    return {};
 }
 
 } // namespace asb::platform

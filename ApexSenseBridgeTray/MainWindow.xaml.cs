@@ -2,6 +2,7 @@ using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using ApexSenseBridgeTray.Services;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -9,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 
 namespace ApexSenseBridgeTray
 {
@@ -20,8 +22,14 @@ namespace ApexSenseBridgeTray
         private readonly ProcessMonitorService monitorService;
         private readonly UpdateCheckerService updateChecker;
         private readonly TraySettings settings;
+        private readonly GamepadNavigationService gamepadNav;
         private bool isInitialized;
         private UpdateInfo latestUpdateInfo;
+
+        // Structured gamepad navigation
+        private readonly List<Border> navItems = new List<Border>();
+        private int navIndex = -1;
+        private bool isGamepadMode;
 
         public MainWindow(
             CloudGameListService gameListService,
@@ -40,14 +48,36 @@ namespace ApexSenseBridgeTray
 
             InitializeComponent();
 
+            gamepadNav = new GamepadNavigationService(this);
+            gamepadNav.UpPressed += OnGamepadUp;
+            gamepadNav.DownPressed += OnGamepadDown;
+            gamepadNav.ActionPressed += OnGamepadAction;
+            gamepadNav.ScrollRequested += OnGamepadScroll;
+            gamepadNav.InputModeChanged += OnGamepadModeChanged;
+            gamepadNav.ConnectionChanged += OnGamepadConnectionChanged;
+            UpdateGamepadHudVisibility(gamepadNav.IsGamepadActive);
+            UpdateGamepadConnectionVisibility(gamepadNav.IsControllerConnected);
+
+            // Build navigation index
+            navItems.Add(NavAutoDetect);
+            navItems.Add(NavCriteriaAdaptive);
+            navItems.Add(NavCriteriaHaptic);
+            navItems.Add(NavNotifications);
+            navItems.Add(NavSyncLightbar);
+            navItems.Add(NavManualBridge);
+            navItems.Add(NavLanguage);
+            navItems.Add(NavTestController);
+            navItems.Add(NavDatabase);
+            navItems.Add(NavUpdate);
+
             UpdateLanguageRadios();
 
             ChkAutoDetect.IsChecked = settings.AutoDetectGames;
             ChkTriggerAdaptive.IsChecked = settings.TriggerOnAdaptiveTriggers;
             ChkTriggerHaptic.IsChecked = settings.TriggerOnHapticFeedback;
-            PnlTriggerCriteria.IsEnabled = settings.AutoDetectGames;
-            PnlTriggerCriteria.Opacity = settings.AutoDetectGames ? 1.0 : 0.4;
+            UpdateCriteriaState();
             ChkNotifications.IsChecked = settings.EnableNotifications;
+            ChkSyncLightbar.IsChecked = settings.SyncLightbar;
             ChkManualBridge.IsChecked = settings.ForcedProfile == "standard";
 
             if (updateChecker != null)
@@ -108,17 +138,32 @@ namespace ApexSenseBridgeTray
             }));
         }
 
+        private void UpdateCriteriaState()
+        {
+            bool enabled = settings.AutoDetectGames;
+            NavCriteriaAdaptive.IsEnabled = enabled;
+            NavCriteriaHaptic.IsEnabled = enabled;
+            NavCriteriaAdaptive.Opacity = enabled ? 1.0 : 0.4;
+            NavCriteriaHaptic.Opacity = enabled ? 1.0 : 0.4;
+        }
+
         private void UpdateLanguageRadios()
         {
-            bool isFr = LocalizationManager.CurrentLanguage == LocalizationManager.LangFrench;
-            RadLangFr.IsChecked = isFr;
-            RadLangEn.IsChecked = !isFr;
+            string lang = LocalizationManager.CurrentLanguage;
+            if (RadLangEn != null) RadLangEn.IsChecked = (lang == LocalizationManager.LangEnglish);
+            if (RadLangFr != null) RadLangFr.IsChecked = (lang == LocalizationManager.LangFrench);
+            if (RadLangEs != null) RadLangEs.IsChecked = (lang == LocalizationManager.LangSpanish);
+            if (RadLangZh != null) RadLangZh.IsChecked = (lang == LocalizationManager.LangChinese);
         }
 
         private void OnLanguageOptionChecked(object sender, RoutedEventArgs e)
         {
             if (!isInitialized) return;
-            string newLang = RadLangFr.IsChecked == true ? LocalizationManager.LangFrench : LocalizationManager.LangEnglish;
+            string newLang = LocalizationManager.LangEnglish;
+            if (RadLangFr != null && RadLangFr.IsChecked == true) newLang = LocalizationManager.LangFrench;
+            else if (RadLangEs != null && RadLangEs.IsChecked == true) newLang = LocalizationManager.LangSpanish;
+            else if (RadLangZh != null && RadLangZh.IsChecked == true) newLang = LocalizationManager.LangChinese;
+
             if (newLang != LocalizationManager.CurrentLanguage)
             {
                 settings.Language = newLang;
@@ -164,8 +209,6 @@ namespace ApexSenseBridgeTray
                     TxtActiveProfile.Text = LocalizationManager.Get("Loc_ProfileRemapping");
                 }
 
-                TxtWaitHint.Visibility = Visibility.Collapsed;
-
                 PillTriggers.Opacity = 1.0;
                 PillHaptics.Opacity = 1.0;
 
@@ -184,7 +227,6 @@ namespace ApexSenseBridgeTray
                 TxtActiveGame.Text = LocalizationManager.Get("Loc_NoActiveGame");
                 TxtActiveGame.FontSize = 15;
                 TxtActiveProfile.Text = LocalizationManager.Get("Loc_ProfileStandard");
-                TxtWaitHint.Visibility = Visibility.Visible;
 
                 PillTriggers.Opacity = 0.4;
                 PillHaptics.Opacity = 0.4;
@@ -202,8 +244,7 @@ namespace ApexSenseBridgeTray
             SupportedGame game;
             if (gameListService.TryFindGame(gameTitle, out game) && game != null)
             {
-                settings.SetGameExcluded(game.Normalized, true);
-                settings.SetGameExcluded(game.Title, true);
+                settings.SetGameExcludedAliases(game.Normalized, game.Title, true);
             }
             else
             {
@@ -240,8 +281,7 @@ namespace ApexSenseBridgeTray
         {
             if (!isInitialized) return;
             settings.AutoDetectGames = ChkAutoDetect.IsChecked == true;
-            PnlTriggerCriteria.IsEnabled = settings.AutoDetectGames;
-            PnlTriggerCriteria.Opacity = settings.AutoDetectGames ? 1.0 : 0.4;
+            UpdateCriteriaState();
             settings.Save();
 
             if (settings.AutoDetectGames)
@@ -273,6 +313,13 @@ namespace ApexSenseBridgeTray
             settings.Save();
         }
 
+        private void OnSyncLightbarChanged(object sender, RoutedEventArgs e)
+        {
+            if (!isInitialized) return;
+            settings.SyncLightbar = ChkSyncLightbar.IsChecked == true;
+            settings.Save();
+        }
+
         private void OnManualBridgeChanged(object sender, RoutedEventArgs e)
         {
             if (!isInitialized) return;
@@ -295,6 +342,39 @@ namespace ApexSenseBridgeTray
                 }
                 monitorService.ForceCheck();
             }
+        }
+
+        // Click handlers for navigable items (mouse click on the entire row)
+        private void OnNavItemAutoDetectClick(object sender, MouseButtonEventArgs e)
+        {
+            ChkAutoDetect.IsChecked = !ChkAutoDetect.IsChecked;
+        }
+
+        private void OnNavItemAdaptiveClick(object sender, MouseButtonEventArgs e)
+        {
+            if (!settings.AutoDetectGames) return;
+            ChkTriggerAdaptive.IsChecked = !ChkTriggerAdaptive.IsChecked;
+        }
+
+        private void OnNavItemHapticClick(object sender, MouseButtonEventArgs e)
+        {
+            if (!settings.AutoDetectGames) return;
+            ChkTriggerHaptic.IsChecked = !ChkTriggerHaptic.IsChecked;
+        }
+
+        private void OnNavItemNotificationsClick(object sender, MouseButtonEventArgs e)
+        {
+            ChkNotifications.IsChecked = !ChkNotifications.IsChecked;
+        }
+
+        private void OnNavItemSyncLightbarClick(object sender, MouseButtonEventArgs e)
+        {
+            ChkSyncLightbar.IsChecked = !ChkSyncLightbar.IsChecked;
+        }
+
+        private void OnNavItemManualBridgeClick(object sender, MouseButtonEventArgs e)
+        {
+            ChkManualBridge.IsChecked = !ChkManualBridge.IsChecked;
         }
 
         private async void OnUpdateDatabaseClick(object sender, RoutedEventArgs e)
@@ -348,7 +428,7 @@ namespace ApexSenseBridgeTray
 
         private void OnOpenGameListClick(object sender, RoutedEventArgs e)
         {
-            var win = new GameListWindow(gameListService, settings, learningService);
+            var win = new GameListWindow(gameListService, settings, learningService, sessionManager, monitorService, updateChecker, initialTab: "games");
             win.Owner = this;
             win.ShowDialog();
             UpdateDatabaseCount();
@@ -356,15 +436,223 @@ namespace ApexSenseBridgeTray
 
         private void OnOpenLearnedExecutablesClick(object sender, RoutedEventArgs e)
         {
-            var win = new GameListWindow(gameListService, settings, learningService, initialTab: "learned");
+            var win = new GameListWindow(gameListService, settings, learningService, sessionManager, monitorService, updateChecker, initialTab: "learned");
             win.Owner = this;
             win.ShowDialog();
             UpdateDatabaseCount();
+        }
+
+        private void OnOpenControllerTestClick(object sender, RoutedEventArgs e)
+        {
+            var win = new ControllerTestWindow(settings);
+            win.Owner = this;
+            win.ShowDialog();
         }
 
         private void OnHideWindowClick(object sender, RoutedEventArgs e)
         {
             Hide();
         }
+
+        #region Gamepad Navigation (Structured D-Pad)
+
+        private void OnGamepadModeChanged(bool isGamepad)
+        {
+            isGamepadMode = isGamepad;
+            UpdateGamepadHudVisibility(isGamepad);
+            if (isGamepad)
+            {
+                if (navIndex < 0) SetNavFocus(0);
+            }
+            else ClearNavFocus();
+        }
+
+        private void UpdateGamepadHudVisibility(bool isGamepad)
+        {
+            if (PnlGamepadHudMain != null)
+            {
+                PnlGamepadHudMain.Opacity = isGamepad ? 1.0 : 0.5;
+            }
+        }
+
+        private void OnGamepadConnectionChanged(bool isConnected)
+        {
+            if (Dispatcher.CheckAccess()) UpdateGamepadConnectionVisibility(isConnected);
+            else Dispatcher.BeginInvoke(new Action(() => UpdateGamepadConnectionVisibility(isConnected)));
+        }
+
+        private void UpdateGamepadConnectionVisibility(bool isConnected)
+        {
+            if (PnlGamepadHudMain != null)
+            {
+                PnlGamepadHudMain.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        private void OnGamepadUp()
+        {
+            if (navIndex <= 0) return;
+            int target = navIndex - 1;
+            while (target >= 0 && !navItems[target].IsEnabled)
+            {
+                target--;
+            }
+            if (target >= 0) SetNavFocus(target);
+        }
+
+        private void OnGamepadDown()
+        {
+            if (navIndex >= navItems.Count - 1) return;
+            int target = navIndex + 1;
+            while (target < navItems.Count && !navItems[target].IsEnabled)
+            {
+                target++;
+            }
+            if (target < navItems.Count) SetNavFocus(target);
+        }
+
+        private void SetNavFocus(int index)
+        {
+            // Clear previous
+            if (navIndex >= 0 && navIndex < navItems.Count)
+            {
+                var prev = navItems[navIndex];
+                prev.BorderBrush = Brushes.Transparent;
+                prev.Effect = null;
+            }
+
+            navIndex = Math.Max(0, Math.Min(navItems.Count - 1, index));
+
+            // Highlight current
+            var current = navItems[navIndex];
+            current.BorderBrush = (Brush)FindResource("GamepadFocusBorder");
+            current.Effect = new DropShadowEffect
+            {
+                BlurRadius = 14,
+                ShadowDepth = 0,
+                Direction = 0,
+                Color = Color.FromRgb(0x00, 0x70, 0xD1),
+                Opacity = 0.7
+            };
+
+            // Scroll into view
+            if (ScrollMain != null)
+            {
+                var transform = current.TransformToAncestor(ScrollMain);
+                var position = transform.Transform(new Point(0, 0));
+                double itemTop = position.Y + ScrollMain.VerticalOffset;
+                double itemBottom = itemTop + current.ActualHeight;
+                double viewTop = ScrollMain.VerticalOffset;
+                double viewBottom = viewTop + ScrollMain.ActualHeight;
+
+                if (itemTop < viewTop)
+                {
+                    ScrollMain.ScrollToVerticalOffset(itemTop - 8);
+                }
+                else if (itemBottom > viewBottom)
+                {
+                    ScrollMain.ScrollToVerticalOffset(itemBottom - ScrollMain.ActualHeight + 8);
+                }
+            }
+        }
+
+        private void ClearNavFocus()
+        {
+            if (navIndex >= 0 && navIndex < navItems.Count)
+            {
+                var item = navItems[navIndex];
+                item.BorderBrush = Brushes.Transparent;
+                item.Effect = null;
+            }
+            navIndex = -1;
+        }
+
+        private void OnGamepadAction(GamepadButtonAction action)
+        {
+            switch (action)
+            {
+                case GamepadButtonAction.Back:
+                    Hide();
+                    break;
+                case GamepadButtonAction.ActionY:
+                    OnOpenGameListClick(null, null);
+                    break;
+                case GamepadButtonAction.ActionX:
+                    if (BtnExcludeCurrentGame != null && BtnExcludeCurrentGame.Visibility == Visibility.Visible)
+                        OnExcludeCurrentGameClick(null, null);
+                    break;
+                case GamepadButtonAction.Select:
+                    ActivateCurrentNavItem();
+                    break;
+            }
+        }
+
+        private void ActivateCurrentNavItem()
+        {
+            if (navIndex < 0 || navIndex >= navItems.Count) return;
+            var item = navItems[navIndex];
+
+            if (item == NavAutoDetect)
+            {
+                ChkAutoDetect.IsChecked = !ChkAutoDetect.IsChecked;
+            }
+            else if (item == NavCriteriaAdaptive)
+            {
+                if (settings.AutoDetectGames)
+                    ChkTriggerAdaptive.IsChecked = !ChkTriggerAdaptive.IsChecked;
+            }
+            else if (item == NavCriteriaHaptic)
+            {
+                if (settings.AutoDetectGames)
+                    ChkTriggerHaptic.IsChecked = !ChkTriggerHaptic.IsChecked;
+            }
+            else if (item == NavNotifications)
+            {
+                ChkNotifications.IsChecked = !ChkNotifications.IsChecked;
+            }
+            else if (item == NavSyncLightbar)
+            {
+                ChkSyncLightbar.IsChecked = !ChkSyncLightbar.IsChecked;
+            }
+            else if (item == NavManualBridge)
+            {
+                ChkManualBridge.IsChecked = !ChkManualBridge.IsChecked;
+            }
+            else if (item == NavLanguage)
+            {
+                // Toggle between the two languages
+                if (RadLangFr.IsChecked == true)
+                    RadLangEn.IsChecked = true;
+                else
+                    RadLangFr.IsChecked = true;
+            }
+            else if (item == NavDatabase)
+            {
+                OnOpenGameListClick(null, null);
+            }
+            else if (item == NavUpdate)
+            {
+                OnCheckUpdatesClick(null, null);
+            }
+        }
+
+        private void OnGamepadScroll(double deltaY)
+        {
+            if (ScrollMain != null)
+            {
+                ScrollMain.ScrollToVerticalOffset(ScrollMain.VerticalOffset + deltaY);
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            if (gamepadNav != null)
+            {
+                gamepadNav.Dispose();
+            }
+            base.OnClosed(e);
+        }
+
+        #endregion
     }
 }

@@ -14,33 +14,58 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Fetch and Parse PCGamingWiki DualSense Data
-        run: |
-          python scripts/update_pcgw_list.py
-
-      - name: Test executable enrichment
-        run: |
-          python tests/test_update_pcgw_list.py
-
-      - name: Validate Generated JSON Schema
-        run: |
-          python scripts/validate_supported_games.py
-
-      - name: Commit and Push if Changed
+      - name: Configure Git identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update stable branch
+        run: |
+          git checkout stable
+          python scripts/update_pcgw_list.py
+          python tests/test_update_pcgw_list.py
+          python scripts/validate_supported_games.py
           if [ -n "$(git status --porcelain data/supported_games.json)" ]; then
             git add data/supported_games.json
             git commit -m "chore(data): update DualSense games and Discord executables"
-            git push
-            echo "Successfully updated supported_games.json and pushed to main."
+            git push origin stable
+            echo "Successfully updated supported_games.json on stable."
           else
-            echo "No changes detected in supported_games.json."
+            echo "No changes detected on stable."
+          fi
+
+      - name: Update dev branch and sync with stable
+        run: |
+          git checkout dev
+          # Integrate stable commit into dev so dev never lags behind stable
+          git merge -X theirs stable -m "chore(data): sync supported_games.json from stable into dev" || true
+
+          # Regenerate on dev to ensure dev-specific profiles (e.g. death-stranding-2) are preserved
+          python scripts/update_pcgw_list.py
+          python tests/test_update_pcgw_list.py
+          python scripts/validate_supported_games.py
+
+          if [ -f .git/MERGE_HEAD ]; then
+            git add data/supported_games.json
+            git commit -m "chore(data): sync supported_games.json from stable into dev"
+            git push origin dev
+            echo "Completed merge from stable and updated dev."
+          elif [ -n "$(git status --porcelain data/supported_games.json)" ]; then
+            git add data/supported_games.json
+            git commit -m "chore(data): update DualSense games and Discord executables"
+            git push origin dev
+            echo "Committed fresh updates to dev."
+          elif [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/dev)" ]; then
+            git push origin dev
+            echo "Pushed pending sync commits to dev."
+          else
+            echo "No changes detected on dev."
           fi

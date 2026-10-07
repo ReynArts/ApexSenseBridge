@@ -8,12 +8,14 @@
 #include "platform/SessionControl.h"
 
 #include <cassert>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstring>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 namespace {
 
@@ -23,7 +25,11 @@ std::wstring widen(std::string_view value) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc == 2 && std::string_view(argv[1]) == "--short-lived-owner") {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        return 0;
+    }
     using namespace asb::platform;
 
     constexpr std::string_view token = "0123456789abcdef0123456789abcdef";
@@ -50,7 +56,7 @@ int main() {
     std::memset(status, 0, kSessionStatusSize);
 
     std::string error;
-    auto control = connectSessionControl(token, error);
+    auto control = connectSessionControl(token, std::nullopt, error);
     assert(control);
     assert(error.empty());
     assert(control->publish(SessionPhase::Starting, 0,
@@ -71,6 +77,33 @@ int main() {
     assert(SetEvent(stop));
     assert(control->stopRequested());
 
+    assert(ResetEvent(stop));
+    std::array<wchar_t, 32768> executable{};
+    const auto executableLength = GetModuleFileNameW(
+        nullptr, executable.data(), static_cast<DWORD>(executable.size()));
+    assert(executableLength > 0 && executableLength < executable.size());
+    std::wstring command = L"\"" + std::wstring(executable.data(), executableLength) +
+                           L"\" --short-lived-owner";
+    std::vector<wchar_t> commandBuffer(command.begin(), command.end());
+    commandBuffer.push_back(L'\0');
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION child{};
+    assert(CreateProcessW(executable.data(), commandBuffer.data(), nullptr, nullptr,
+                          FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
+                          &startup, &child));
+    CloseHandle(child.hThread);
+
+    auto ownerControl = connectSessionControl(
+        token, static_cast<std::uint32_t>(child.dwProcessId), error);
+    assert(ownerControl);
+    assert(!ownerControl->stopRequested());
+    assert(WaitForSingleObject(child.hProcess, 3000) == WAIT_OBJECT_0);
+    assert(ownerControl->stopRequested());
+    assert(WaitForSingleObject(stop, 0) == WAIT_OBJECT_0);
+    ownerControl.reset();
+    CloseHandle(child.hProcess);
+
     const std::string oversized(700, 'x');
     assert(control->publish(SessionPhase::Failed, 42, oversized, error));
     assert(status->phase == static_cast<std::uint16_t>(SessionPhase::Failed));
@@ -79,6 +112,28 @@ int main() {
     assert(status->message.back() == '\0');
 
     control.reset();
+    // Progress is optional: the original launcher above has no extra mapping.
+    const auto progressName = widen("Local\\ApexSenseBridge.Session." + std::string(token) + ".Progress");
+    HANDLE progressMapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
+                                               sizeof(SessionProgressBlock), progressName.c_str());
+    assert(progressMapping);
+    auto* progress = static_cast<SessionProgressBlock*>(MapViewOfFile(progressMapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(SessionProgressBlock)));
+    assert(progress);
+    control = connectSessionControl(token, std::nullopt, error);
+    assert(control && progress->magic == 0x50534241 && progress->version == 1);
+    assert(progress->stages == 0 && progress->interruption == 0);
+    control->markProgress(SessionProgress::ControllerVerified);
+    control->markProgress(SessionProgress::VirtualReady);
+    control->markProgress(SessionProgress::IsolationVerified);
+    control->markProgress(SessionProgress::RuntimeReady);
+    assert(progress->stages == 15);
+    control->markInterrupted(SessionInterruption::PhysicalDisconnected);
+    assert(progress->interruption == 1);
+    assert(control->publish(SessionPhase::Failed, 11, "Cleanup failed after disconnect", error));
+    assert(progress->interruption == 1); // Cleanup must not mask the disconnect.
+    control.reset();
+    UnmapViewOfFile(progress);
+    CloseHandle(progressMapping);
     UnmapViewOfFile(status);
     CloseHandle(mapping);
     CloseHandle(stop);

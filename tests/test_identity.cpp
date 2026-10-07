@@ -4,9 +4,12 @@
 
 #include "flydigi/Apex5Device.h"
 #include "core/ApexProfileRestoreGuard.h"
+#include "core/ApexMotionDiagnosticGuard.h"
+#include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 
 #include <algorithm>
 #include <cassert>
@@ -26,16 +29,20 @@ public:
     explicit FakeTransport(std::uint8_t deviceType,
                            bool silent = false,
                            bool apex4 = false,
-                           std::size_t ignoredApex4Requests = 0)
+                           std::size_t ignoredApex4Requests = 0,
+                           bool apex6 = false,
+                           std::size_t ignoredApex5Requests = 0)
         : deviceType_(deviceType), silent_(silent), apex4_(apex4),
-          ignoredApex4Requests_(ignoredApex4Requests) {
+          apex6_(apex6), ignoredApex4Requests_(ignoredApex4Requests),
+          ignoredApex5Requests_(ignoredApex5Requests) {
         info_.vendorId = apex4 ? asb::flydigi::kApex4VendorId
                                : asb::flydigi::kVendorId;
-        info_.productId = apex4 ? asb::flydigi::kApex4ProductId : 0x2501;
+        info_.productId = apex4 ? asb::flydigi::kApex4ProductId
+                                : (apex6 ? asb::flydigi::apex6::kProductId : 0x2501);
         info_.usagePage = asb::flydigi::kVendorUsagePage;
         info_.interfaceNumber = apex4 ? L"MI_02" : L"MI_01";
-        info_.inputReportLength = 32;
-        info_.outputReportLength = 32;
+        info_.inputReportLength = apex6 ? 33 : 32;
+        info_.outputReportLength = apex6 ? 33 : 32;
     }
 
     [[nodiscard]] bool isOpen() const noexcept override { return true; }
@@ -57,8 +64,25 @@ public:
             reply[13] = 1;
             reply[15] = asb::flydigi::kApex4CmdGetInfo;
             replies_.push_back(std::move(reply));
+        } else if (!silent_ && apex6_ && report.size() == 33 &&
+                   report[3] == asb::flydigi::apex6::kCmdGetInfo) {
+            std::vector<std::uint8_t> reply(33, 0);
+            reply[1] = asb::flydigi::apex6::kMagic0;
+            reply[2] = asb::flydigi::apex6::kMagic1;
+            reply[3] = asb::flydigi::apex6::kCmdGetInfo;
+            reply[4] = 1;
+            reply[6] = deviceType_;
+            reply[30] = apex6Features;
+            reply[32] = asb::flydigi::apex6::checksum(
+                std::span<const std::uint8_t>(reply).subspan(1));
+            if (corruptApex6Checksum) reply[32] ^= 1;
+            replies_.push_back(std::move(reply));
         } else if (!silent_ && !apex4_ && report.size() > 3 &&
                    report[3] == asb::flydigi::kCmdGetInfo) {
+            if (ignoredApex5Requests_ != 0) {
+                --ignoredApex5Requests_;
+                return true;
+            }
             std::vector<std::uint8_t> reply(32, 0);
             reply[0] = asb::flydigi::kReportIdIn;
             reply[1] = asb::flydigi::kMagic0;
@@ -87,6 +111,26 @@ public:
             reply[2] = asb::flydigi::kMagic1;
             reply[3] = asb::flydigi::kCmdApplyProfile;
             replies_.push_back(std::move(reply));
+        } else if (!silent_ && !apex4_ && report.size() > 3 &&
+                   report[3] == asb::flydigi::kCmdReadInputTransport) {
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdReadInputTransport;
+            reply[6] = controllerData_ ? 1 : 0;
+            reply[7] = rawData_ ? 1 : 0;
+            replies_.push_back(std::move(reply));
+        } else if (!silent_ && !apex4_ && report.size() > 6 &&
+                   report[3] == asb::flydigi::kCmdSetInputTransport) {
+            controllerData_ = report[5] != 0;
+            rawData_ = report[6] != 0;
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdSetInputTransport;
+            replies_.push_back(std::move(reply));
         }
         return true;
     }
@@ -109,14 +153,20 @@ public:
     }
 
     std::vector<std::vector<std::uint8_t>> writes;
+    std::uint8_t apex6Features = 0x9F;
+    bool corruptApex6Checksum = false;
 
 private:
     asb::HidDeviceInfo info_{};
     std::uint8_t deviceType_ = 0;
     bool silent_ = false;
     bool apex4_ = false;
+    bool apex6_ = false;
     std::size_t ignoredApex4Requests_ = 0;
+    std::size_t ignoredApex5Requests_ = 0;
     std::uint8_t activeProfile_ = 0;
+    bool controllerData_ = true;
+    bool rawData_ = false;
     std::deque<std::vector<std::uint8_t>> replies_;
 };
 
@@ -124,8 +174,12 @@ asb::flydigi::Apex5Device makeDevice(FakeTransport*& fake,
                                       std::uint8_t deviceType,
                                       bool silent = false,
                                       bool apex4 = false,
-                                      std::size_t ignoredApex4Requests = 0) {
-    fake = new FakeTransport(deviceType, silent, apex4, ignoredApex4Requests);
+                                      std::size_t ignoredApex4Requests = 0,
+                                      bool apex6 = false,
+                                      std::size_t ignoredApex5Requests = 0) {
+    fake = new FakeTransport(
+        deviceType, silent, apex4, ignoredApex4Requests, apex6,
+        ignoredApex5Requests);
     return asb::flydigi::Apex5Device(asb::flydigi::TransportPtr(fake));
 }
 
@@ -134,6 +188,8 @@ asb::flydigi::Apex5Device makeDevice(FakeTransport*& fake,
 int main() {
     using namespace asb;
     using namespace asb::flydigi;
+    TriggerEffect effect{};
+    std::string error;
 
     const auto request = Apex5Identity::buildRequest();
     assert(request[0] == 0x03);
@@ -141,7 +197,7 @@ int main() {
     assert(request[2] == 0xA5);
     assert(request[3] == 0x01);
     assert(request[4] == 2);
-    assert(request[5] == 3); // 8-bit sum of command + length.
+    assert(request[5] == 3);
 
     std::vector<std::uint8_t> reply(32, 0);
     reply[0] = kReportIdIn;
@@ -156,12 +212,89 @@ int main() {
     assert(parsed->isApex5());
     assert(!parsed->isWired());
     assert(parsed->batteryLevel() == 5);
+    assert(parsed->batteryPercent() == 100);
+    assert(parsed->chargeState() == 0);
+
+    reply[12] = 0x15;
+    const auto parsedCharging = Apex5Identity::parseReply(reply);
+    assert(parsedCharging);
+    assert(parsedCharging->isCharging());
+    assert(parsedCharging->batteryLevel() == 5);
+    assert(parsedCharging->batteryPercent() == 100);
+    assert(parsedCharging->chargeState() == 4);
+
+    reply[12] = 0x13;
+    const auto parsedChargingMid = Apex5Identity::parseReply(reply);
+    assert(parsedChargingMid);
+    assert(parsedChargingMid->isCharging());
+    assert(parsedChargingMid->batteryLevel() == 3);
+    assert(parsedChargingMid->batteryPercent() == 60);
+    assert(parsedChargingMid->chargeState() == 2);
+
+    reply[12] = 0;
+    const auto parsedEmpty = Apex5Identity::parseReply(reply);
+    assert(parsedEmpty);
+    assert(!parsedEmpty->isCharging());
+    assert(parsedEmpty->batteryLevel() == 0);
+    assert(parsedEmpty->batteryPercent() == 10);
+    assert(parsedEmpty->chargeState() == 0);
 
     for (const auto deviceType : {128, 129, 133, 134, 135, 136}) {
         assert(Apex5Identity::isApex5DeviceType(static_cast<std::uint8_t>(deviceType)));
     }
     assert(!Apex5Identity::isApex5DeviceType(130)); // Vader 5 Pro.
     assert(!Apex5Identity::isApex5DeviceType(149)); // Apex 6.
+
+    FakeTransport* apex6Transport = nullptr;
+    auto apex6Device = makeDevice(
+        apex6Transport, apex6::kDeviceType, false, false, 0, true);
+    error.clear();
+    assert(apex6Device.verifyIdentity(error));
+    assert(apex6Device.identity() && apex6Device.identity()->isApex6());
+    assert(apex6Device.identity()->isWired());
+    assert(!apex6Device.identity()->supportsAdaptiveTriggers());
+    assert(apex6Device.identity()->supportsRealtimeHaptics());
+    assert(apex6Transport->writes.size() == 1);
+    assert(apex6Transport->writes.front().size() == apex6::kReportSize);
+    assert(apex6Transport->writes.front()[0] == apex6::kReportId);
+    assert(!apex6Device.setTrigger(effect, error));
+    assert(apex6Transport->writes.size() == 1);
+    assert(apex6Device.enableApex6Haptics(error));
+    assert(apex6Transport->writes.size() == 3);
+    assert(apex6Transport->writes[1][3] == apex6::kCmdMotorRoute);
+
+    FakeTransport* variantTransport = nullptr;
+    auto variant = makeDevice(variantTransport, 0x98, false, false, 0, true);
+    error.clear();
+    assert(variant.verifyIdentity(error));
+    assert(variant.identity()->deviceType() == 0x98);
+    assert(variant.identity()->supportsRealtimeHaptics());
+    assert(!variant.setTrigger(effect, error)); // Never use APEX 4/5 FORCEADAPT on a K6 variant.
+    assert(variant.enableApex6Haptics(error));
+    for (const auto type : {0x95, 0x99}) {
+        FakeTransport* unknownTransport = nullptr;
+        auto unknown = makeDevice(unknownTransport, static_cast<std::uint8_t>(type),
+                                  false, false, 0, true);
+        assert(!unknown.verifyIdentity(error));
+        assert(error.find("valid command 0x01 reply received") != std::string::npos);
+        assert(!unknown.enableApex6Haptics(error));
+        assert(unknownTransport->writes.size() == 1);
+    }
+    for (const auto features : {0x10, 0x80, 0x00}) {
+        FakeTransport* incompleteTransport = nullptr;
+        auto incomplete = makeDevice(incompleteTransport, 0x98, false, false, 0, true);
+        incompleteTransport->apex6Features = static_cast<std::uint8_t>(features);
+        assert(!incomplete.verifyIdentity(error));
+        assert(error.find("Identity refused") != std::string::npos);
+        assert(!incomplete.enableApex6Haptics(error));
+        assert(incompleteTransport->writes.size() == 1);
+    }
+    FakeTransport* corruptTransport = nullptr;
+    auto corrupt = makeDevice(corruptTransport, 0x98, false, false, 0, true);
+    corruptTransport->corruptApex6Checksum = true;
+    assert(!corrupt.verifyIdentity(error));
+    assert(!corrupt.enableApex6Haptics(error));
+    assert(corruptTransport->writes.size() == 1);
 
     for (const auto deviceType : {84, 86, 87, 92, 93, 102, 103, 104}) {
         assert(Apex5Identity::isApex4DeviceType(static_cast<std::uint8_t>(deviceType)));
@@ -181,11 +314,16 @@ int main() {
     assert(parsedApex4->isWired());
     assert(parsedApex4->firmwareVersion() == 0x1234);
     assert(!parsedApex4->hasBatteryLevel());
+    assert(parsedApex4->batteryPercent() == 100);
+    assert(parsedApex4->chargeState() == dualsense::chargeStatus::kFull);
+
+    apex4Reply[13] = 2;
+    const auto parsedWirelessApex4 = Apex5Identity::parseApex4Reply(apex4Reply);
+    assert(parsedWirelessApex4 && !parsedWirelessApex4->isWired());
+    assert(parsedWirelessApex4->chargeState() == dualsense::chargeStatus::kDischarging);
 
     FakeTransport* acceptedTransport = nullptr;
     auto accepted = makeDevice(acceptedTransport, 128);
-    TriggerEffect effect{};
-    std::string error;
     assert(!accepted.setTrigger(effect, error));
     assert(acceptedTransport->writes.empty());
     assert(accepted.verifyIdentity(error));
@@ -195,6 +333,51 @@ int main() {
     assert(accepted.setTrigger(effect, error));
     assert(acceptedTransport->writes.size() == 2);
     assert(acceptedTransport->writes[1][3] == kCmdSetForceTrigger);
+    assert(accepted.requestBatteryRefresh(error));
+    assert(acceptedTransport->writes.size() == 3);
+    assert(acceptedTransport->writes[2][3] == kCmdGetInfo);
+
+    FakeTransport* wakingTransport = nullptr;
+    auto waking = makeDevice(
+        wakingTransport, 128, false, false, 0, false, 2);
+    error.clear();
+    assert(waking.verifyIdentity(error));
+    assert(waking.identity() && waking.identity()->isApex5());
+    assert(wakingTransport->writes.size() == 3);
+
+    InputTransportStatus transportStatus{};
+    assert(accepted.readInputTransportStatus(transportStatus, error));
+    assert(transportStatus.controllerData && !transportStatus.rawData);
+    assert(accepted.setInputTransport(false, true, error));
+    assert(accepted.readInputTransportStatus(transportStatus, error));
+    assert(!transportStatus.controllerData && transportStatus.rawData);
+    assert(accepted.setInputTransport(true, false, error));
+
+    // Diagnostics enable raw motion while preserving the ordinary controller
+    // output, then restore the exact initial routing on normal or early exit.
+    for (const bool controllerOutput : {false, true}) {
+        assert(accepted.setInputTransport(controllerOutput, false, error));
+        {
+            ApexMotionDiagnosticGuard motion(accepted);
+            assert(motion.enable(error));
+            assert(accepted.readInputTransportStatus(transportStatus, error));
+            assert(transportStatus.controllerData == controllerOutput && transportStatus.rawData);
+        }
+        assert(accepted.readInputTransportStatus(transportStatus, error));
+        assert(transportStatus.controllerData == controllerOutput && !transportStatus.rawData);
+    }
+    assert(accepted.setInputTransport(true, true, error));
+    {
+        ApexMotionDiagnosticGuard motion(accepted);
+        const auto writesBefore = acceptedTransport->writes.size();
+        assert(motion.enable(error));
+        assert(motion.restore(error));
+        assert(motion.restore(error));
+        assert(acceptedTransport->writes.size() == writesBefore + 1); // Read only when already enabled.
+    }
+    assert(accepted.readInputTransportStatus(transportStatus, error));
+    assert(transportStatus.controllerData && transportStatus.rawData);
+    assert(accepted.setInputTransport(true, false, error));
 
     ProfileStatus profileStatus{};
     error.clear();
@@ -273,7 +456,7 @@ int main() {
     error.clear();
     assert(!silent.verifyIdentity(error));
     assert(error.find("No valid command 0x01") != std::string::npos);
-    assert(silentTransport->writes.size() == 1);
+    assert(silentTransport->writes.size() == 3);
 
     std::cout << "Identity guard tests passed\n";
     return 0;

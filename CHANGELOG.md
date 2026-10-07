@@ -1,9 +1,514 @@
 # Changelog
 
+## 1.0.0
+
+### HidHide in use by DSX or another application ([#28](https://github.com/ReynArts/ApexSenseBridge/issues/28))
+
+- HidHide's control device accepts one application at a time. When DSX (or
+  DS4Windows, the HidHide Configuration Client, BetterJoy...) keeps it open,
+  isolation failed with a misleading "restart Windows / repair HidHide" message.
+  On an access-denied open, ASB now lists the running applications known to use
+  HidHide and asks to close them completely before starting the bridge again.
+  The same message applies when restoring visibility at the end of a session.
+- No process is closed automatically, and isolation, restoration and retry
+  behavior are unchanged. When no known application is running, the message
+  still mentions these applications before suggesting a restart or repair.
+
+### APEX 5 bridge no longer stops while a game is loading
+
+- A short stall of the bridge loop (session start, CPU spike while Call of Duty
+  loads) delivered queued LT/RT vendor reports as one burst that was reported
+  as a lost stream; the second occurrence ended the session. The stream now
+  gets a 1.5 s grace (mapped input keeps flowing, independent bytes withheld)
+  and up to three routing restarts per 10 minutes instead of one per session.
+
+### Recently added DualSense games on the home screen ([#29](https://github.com/ReynArts/ApexSenseBridge/issues/29))
+
+- Each catalogue entry now records `addedAt`, the date it first entered the
+  supported-games list. Dates for the current 215 games were rebuilt from the
+  catalogue's git history (the initial import plus eight later additions).
+- The daily importer keeps every stored date and dates only games absent from
+  the previous catalogue; a missing or unreadable cache never marks the whole
+  list as new. The validator rejects malformed dates.
+- The Tray home shelf leads with the latest additions, newest first, and flags
+  those from the last 30 days with a "New" badge (also shown in the games list).
+  Older catalogues without dates keep the previous featured shelf.
+
+### Console interface refresh
+
+- Modern console UI for the main window, controller diagnostic and
+  language picker, fully usable with a gamepad and now with the keyboard
+  (arrows, Enter, Escape, Ctrl+Tab, Ctrl+F). The home shelf scrolls with the
+  mouse wheel and hover arrows.
+- Always-visible support button (also on the gamepad Menu button) with a
+  one-time introduction callout.
+- Controller feel settings are shown only for the identified model; the
+  diagnostic window draws clean thumbsticks with precise stick pads and
+  trigger travel gauges.
+
+### Expanded language localization
+
+- Added 5 new languages: Russian (`ru`), Korean (`ko`), Vietnamese (`vi`),
+  Japanese (`ja`), and Brazilian Portuguese (`pt`), bringing the total supported
+  languages to 9 (alongside English, French, Spanish, and Simplified Chinese).
+- Full 367-key dictionary parity across all 9 languages, covering session
+  recovery, controller diagnostics, adaptive triggers, rumble calibration,
+  and bug reporting.
+- Native system language auto-detection and dynamic language catalog discovery
+  in the system tray context menu and console language picker.
+
+## 1.0.0-beta.11
+
+### APEX 4/5 grip vibration gain ([#25](https://github.com/ReynArts/ApexSenseBridge/issues/25))
+
+- Extend conventional grip vibration strength to 0–200% in CLI, verified-model
+  Tray profiles and Playnite settings. Preserve the 100% default and the entire
+  previous 0–100% mapping. Amplify both HID rumble and audio-derived grip output
+  after mixing/gating, saturating at 255 rather than overflowing motor bytes.
+  Silence and explicit stop commands remain zero.
+- Keep trigger strength at 0–100%, with no changes to trigger resistance,
+  translation, travel, frequency or timing. The audio activation threshold still
+  filters only audio-derived grip output; it never gates standard HID rumble.
+  Amplification cannot recover a signal already removed by that threshold.
+- Preserve independent controller profiles and offline UI locking. APEX 6
+  profiles retain their 0–100% common-strength range; legacy CLI/Playnite strength
+  above 100% is capped only after verifying APEX 6 hardware. Its separate native
+  PCM gain/renderer remain unchanged.
+- Add localized guidance on moderate increases and the continuing influence of
+  Space Station motor intensity. No firmware/profile overwrite, automatic gain,
+  per-game intensity, new version or release package is introduced.
+- **Far Cry 6 resistance report remains unverified:** tests compare identical
+  LT/RT resistance, weapon/recoil and stop commands at audio thresholds 0% and
+  95%, including amplified grip output. Request the exact slider/version,
+  connection/firmware and a reproducible scene with `tray_bridge.log` before
+  claiming a fix for the reported loss of trigger resistance.
+
+### Controller-specific Tray calibration
+
+- Lock controller strength, grip vibration, threshold, gyroscope and RGB controls
+  until a single supported controller is connected and its identity is verified.
+  Keep general Tray preferences available offline. Relock on disconnect, changed
+  HID interface, failed identification or ambiguous multiple-controller detection.
+- Save separate APEX 4/5/6 calibration profiles in the existing settings file.
+  Migrate existing strength/rumble preferences without resetting them; restrict
+  gyro tuning to APEX 4, RGB to APEX 5 and retain fixed zero threshold on APEX 6.
+  Settings apply to the next Tray session, not a running bridge.
+- Select calibration in the engine **after hardware identity verification**,
+  before configuring output. Do not trust the last UI model during hot swaps;
+  never fall back to another model's supplied profile. Existing CLI/Playnite
+  launches without model profiles retain their previous behavior.
+- Fix the detection process timeout by draining stdout/stderr asynchronously;
+  fingerprint the single vendor HID interface to avoid retaining a replaced device.
+  Reverify idle receivers whose HID path stays present while the controller sleeps.
+  During a bridge, use its live verified IPC identity instead of competing HID reads.
+
+### APEX 4 delayed trigger feedback investigation ([#23](https://github.com/ReynArts/ApexSenseBridge/issues/23))
+
+- Fix a Tray dashboard initialization crash found in the reporter's logs:
+  ignore navigation/status updates raised while XAML controls are still being
+  created, and guard the game-title control during Starting/Failed phases.
+- Serialize the APEX 4 async writer's pacing check with synchronous vendor
+  writes. Keep the existing 25 ms pacing and latest-state LT/RT/rumble
+  coalescing; do not change trigger translation or APEX 5/6 output behavior.
+- Add shutdown diagnostics for async write attempts, replaced pending updates,
+  writes taking at least 100 ms, and maximum queue/HID-write durations in
+  microseconds. Successful writes may still be slow; zero write failures alone
+  does not establish low output latency.
+- Add a blocked-write regression with 200 trigger/rumble updates: feedback
+  capture remains non-blocking and only the latest pending states, including
+  recoil cancellation, are sent after the blocked write completes. Add 12 WPF
+  initialization/phase/tab regression scenarios.
+- **Still requires hardware validation:** the reporter confirms beta.10 fixes
+  detection and input lag, but delayed recoil in Cyberpunk is not yet reproduced
+  or confirmed fixed. Retest with the instrumented build, stop the bridge
+  cleanly, and collect `tray_bridge.log` to distinguish queue delay from slow HID
+  writes. No new release package or version change is included in this work.
+
+### APEX 6 Pro native grip intensity ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))
+
+- Automatically bypass the envelope activation threshold on APEX 6 Pro (effective
+  0), including launches from Tray/Playnite that pass the shared APEX 4/5 setting.
+  Preserve that saved setting, the conventional-motor filtering, HID rumble and
+  the remaining envelope mapping. Native PCM already bypasses gating since beta.10.
+  Diagnostics expose the effective zero threshold; UI hints clarify model scope.
+- Prepare experimental CLI-only `--apex6-haptic-gain 100..200` for quiet native
+  grip PCM. Default 100 remains bit-identical to beta.10. Higher settings use
+  continuous amplitude companding, preserving zero/sign and full-scale endpoints
+  without hard clipping, rather than multiplying every game by two. This changes
+  amplitude dynamics, not actuator calibration, and requires hardware comparison.
+- Restrict the gain option to a verified APEX 6 Pro with `--rumble`; ordinary
+  vibration strength/mute still applies afterwards. Gain does not affect trigger
+  rendering, envelope fallback, HID rumble, stereo routing or frame rate. APEX 4/5
+  behavior remains unchanged.
+  Startup and JSON diagnostics record the selected PCM gain. No UI preset,
+  automatic gain, frequency remapping or firmware/driver changes are added.
+- Beta.10 feedback confirms restored Endfield trigger consistency and good
+  PRAGMATA behavior on the reporting tester's setup, while ZZZ grip intensity
+  remains weak on another setup. Do not treat those results as universal
+  compatibility or as proof that lowering the threshold changes native PCM.
+  See the updated hardware comparison checklist. Existing beta.10 packages are
+  not replaced by this unreleased adjustment.
+
+## 1.0.0-beta.10
+
+### Open-issue fixes
+
+- **Apex 4 gyro completion ([#10](https://github.com/ReynArts/ApexSenseBridge/issues/10))**:
+  preserve the capture-derived calibration at 100% while exposing bounded
+  25–400% global sensitivity and a separate yaw correction in the engine,
+  Tray and Playnite. This addresses the hardware validation result that all
+  axes work in game but remain weak, especially yaw, without pretending the
+  available free-hand captures provide factory calibration.
+- **Stale external session after startup timeout ([#15](https://github.com/ReynArts/ApexSenseBridge/issues/15))**:
+  after a cooperative stop timeout, forcibly reap only the exact engine child
+  launched by Tray or Playnite. A failed initialization can no longer discard
+  its process handle while the orphan keeps the global session lock.
+- **Apex 4 degraded USB identity ([#26](https://github.com/ReynArts/ApexSenseBridge/issues/26))**:
+  classify the reported 32-byte output interface separately from the full
+  64-byte trigger interface. `identify` and bridge startup now state that HID
+  writes can succeed while RT remains unavailable, and advise reconnecting
+  instead of falsely reporting complete adaptive-trigger support.
+
+### APEX 6 Pro fixes ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))
+
+- **Known Pro variants**: accept the official `0x98` Phantom Blade Zero identity
+  alongside `0x96`, retaining checksum and grip/trigger capability checks.
+  Non-Pro `0x95` and unknown models remain refused before motor writes. A valid
+  but unsupported identity reply is reported explicitly instead of a timeout.
+- **Simultaneous trigger carriers**: continuous native feedback/vibration uses
+  a shared 1 kHz sample clock, including muted zones and independently installed
+  effects. Identical effects no longer remain phase-shifted after asymmetric
+  presses and unnecessarily fall back to alternating half-duty routing.
+  Different effects/strengths still require the protocol's alternating route.
+  This fixes a reproducible renderer defect; Endfield's reported progressive
+  weakening still needs an on-controller before/after comparison.
+- **Native Bow `0x22`**: decode the captured zones and independent draw/snap
+  strengths. Render a bounded draw-progress texture and a single 16 ms snap,
+  rearmed after release, including start zone zero. A held trigger does not
+  repeat the snap. This is a tactile approximation, not mechanical resistance.
+- **Quiet native grip haptics**: preserve native PCM at unity gain instead of
+  discarding each quiet 8 ms block below the global audio activation threshold.
+  The threshold still controls envelope fallback; strength/mute settings still
+  apply. No automatic boost, clipping, speaker-audio substitution or firmware
+  change is introduced. Historical PCM threshold-drop counters remain zero;
+  telemetry identifies the new `native-pcm-preserved` policy.
+- **Windows audio preflight**: inspect the newly observed virtual controller's
+  mix channels and speaker masks before announcing APEX 6 PCM-session readiness.
+  Stereo, unknown and missing endpoints produce actionable quadriphonic-setup
+  guidance and diagnostics. Inspection is read-only; ASB does not overwrite
+  Windows audio formats or select the virtual controller as the default output.
+  Automatic quadriphonic configuration and live game-audio reacquisition after
+  bridge recreation are not claimed fixed.
+
+### Release identification and validation
+
+- **Catalogue packaging regression**: restore the 29 manual-fix flags and
+  PCGamingWiki guidance URLs lost in the supported-games merge, from the last
+  pre-merge catalogue. Current games, capabilities, profiles, covers and
+  executable mappings are preserved; no new compatibility claim is invented.
+- Engine help, Windows product versions, Tray/Playnite informational versions
+  and setup display identify `1.0.0-beta.10`; numeric `1.0.0` versions, install
+  identity and user settings remain compatible. Release checks verify the full
+  candidate label as well as the numeric version. Setup and portable include
+  the updated APEX 6 validation checklist under `Docs`.
+- APEX 4/5 input, FORCEADAPT translation, rumble and audio timing paths remain
+  unchanged. The multichannel preflight is requested only for APEX 6 grip-PCM
+  sessions. Hardware/game validation and clean-VM installation remain release
+  gates; automated tests do not establish physical fidelity.
+
+## 1.0.0-beta.9
+
+### Touchpad & Motion
+
+- **Death Stranding 2 touchpad remapping ([#5](https://github.com/ReynArts/ApexSenseBridge/issues/5))**:
+  `View/Back` sends a right-side touchpad click immediately and preserves the
+  physical hold duration for Likes, communication and changing the Like icon.
+  `LB + Menu` sends a left-side click for Photo Mode, consuming the chord until
+  both buttons are released. Automatic Tray/Playnite selection and manual
+  profile selection are supported; older standard catalogue entries inherit
+  the embedded remapping. Other games remain unchanged. In-game validation
+  is still required.
+
+- **Experimental APEX 4 motion decoding**: use the native signed 16-bit gyro
+  fields found in the 2026-09-30 USB and dongle captures, including split yaw
+  bytes 18/20, instead of firmware mouse deltas. Correct accelerometer axis
+  orientation, add captured-report regression tests, and clarify diagnostic
+  yaw/roll instructions. Gyro gains are empirical estimates, not factory
+  calibration; on-device direction/sensitivity and in-game behavior still
+  require tester validation.
+
+### Tray application and shared features — APEX 4/5/6
+
+- **Guided disconnection recovery**: after a confirmed runtime controller or
+  virtual-stream disconnection, or physical-input stream loss (including sleep
+  with a dongle still connected), Tray pauses automatic activation and offers a
+  voluntary bridge restart with the original game, profile and APEX slot.
+  Controller identity, virtual DualSense readiness, HidHide isolation and final
+  runtime readiness are displayed from token-scoped structured IPC. A failed
+  retry remains paused; dismissing the notice does not silently restart it.
+  Games are never terminated or relaunched automatically and may need restarting
+  to reacquire the recreated DualSense. Playnite-owned interruptions remain
+  owned by Playnite and display guidance rather than a Tray takeover.
+
+- **Tray game settings and session status**: optional per-game executable path,
+  learned-path choices and exact configured-path detection; explicit session
+  phases, owner, controller, game/profile and refusal/stop reasons, including
+  sessions managed by the updated Playnite extension. Prepared `.exe` launching
+  is now in controller diagnostics rather than the dashboard.
+- **Controller feel**: global Tray trigger/vibration strength (0–100%) and
+  audio-haptic threshold (0–95%), applied at next session startup on APEX 4/5/6.
+  Output scaling preserves effect travel, timing and frequency; zero strength
+  stops the corresponding effect. APEX 6 PCM channels now honor the threshold.
+- **Clear main entry point**: launching the engine without arguments opens the
+  Tray application. Windows file descriptions, installer shortcuts and usage
+  distinguish the main Tray application from the command-line engine.
+
+### APEX 6-specific fixes
+
+- **APEX 6 trigger-vibration decoding ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  reads native `0x26` frequency from effect byte 9, not reserved byte 10. Empty
+  native zone masks and zero-frequency vibration are valid stop requests rather
+  than rejected effects. This corrects a confirmed beta.8 decoding defect;
+  Endfield's zipline effect still needs an in-game hardware retest.
+- **APEX 6 feedback evidence**: keeps a bounded 64-transition trace with raw
+  trigger bytes, elapsed time, side, position and acceptance status, plus the
+  last active/rejected request for each side even after an off command. Reports
+  malformed parameters separately from unsupported types and rejection-induced
+  stops separately from explicit stops. Adds pre-filter 48 kHz audio peaks/RMS,
+  filtered active-block RMS, thresholded channels and active queue-drop counts.
+  The optional audio trailer is backward compatible; its collection is limited
+  to waveform-enabled sessions. The integrated backend identifies its actual
+  ASB patch version instead of printing a hard-coded label. No PCM gain, USB
+  descriptor, driver installation or APEX 4/5 motor routing is changed by these
+  fixes. The reported ZZZ freeze remains unconfirmed and is not marked fixed.
+
+### APEX 4/5-specific fixes
+
+- **APEX 5 simultaneous LT/RT stream guard**: combined-axis HID sessions now
+  verify a live independent operator stream before announcing readiness, even
+  when the requested onboard profile is already active. Missing or stalled
+  streams receive one temporary raw-routing restart at startup and one at
+  runtime; settings are snapshotted before changes and restored by the existing
+  session/watchdog recovery. Runtime recovery neutralizes virtual input first;
+  repeated loss stops cleanly instead of silently canceling aim while firing.
+  Cached vendor pairs expire, mapped Space Station controls remain authoritative,
+  and separate-axis, APEX 4/6 and explicit XInput sources are unchanged. Recovery
+  attempts are logged. Call of Duty hardware validation is still required.
+
+- **Adaptive-trigger translation fixes for Horizon reports on APEX 4/5 ([#22](https://github.com/ReynArts/ApexSenseBridge/issues/22))**:
+  corrects defects in the existing adaptive-trigger support identified while
+  investigating continuous left-trigger twitching in Horizon Zero Dawn
+  Remastered and missing left-trigger effects in Horizon Forbidden West on
+  APEX 5. Valid left-trigger vibration effects are no longer discarded or tied
+  to grip rumble; native effect zones and strengths are decoded consistently
+  for LT and RT, and empty native effects or zero-frequency vibration reset
+  the corresponding trigger to Normal. Native weapon effects use the length
+  of the resistance interval rather than its absolute end position, matching
+  Space Station's breakthrough parameter. These shared translation fixes apply
+  to all games using the affected effects on APEX 4/5, rather than a
+  Horizon-specific profile. The current APEX 4/5 mapping still approximates
+  multi-zone effects with a single start and peak strength. Resolution of the
+  reported Horizon symptoms remains pending hardware validation in both games.
+
+## 1.0.0-beta.8
+
+- **APEX 6 DualSense trigger fidelity ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  decodes native feedback, weapon, and vibration effects using their packed
+  per-zone strengths. Frequency no longer raises trigger drive strength, weapon
+  break is a short retriggerable pulse, and explicit off commands stop the
+  corresponding actuator. The renderer remains specific to the APEX 6 voice
+  coils; APEX 4/5 FORCEADAPT translation is unchanged.
+- **APEX 6 haptic signal and session diagnostics**: reports actual trigger
+  requests, supported effects, rumble updates, non-silent left/right PCM blocks,
+  waveform peaks, output source, queue age, stale drops, route usage, and motor
+  enable/disable counts. APEX 6 summaries no longer present inapplicable APEX
+  4/5 effect and audio counters as zeros. The JSON telemetry gains an optional
+  `apex6` object without changing the existing schema for other controllers.
+- **APEX 6 grip routing**: a silent PCM channel no longer hides an active HID
+  rumble request on that side. Blocks older than 24 ms are discarded rather
+  than replayed after a transport stall.
+- **Prepared game launch**: the Tray dashboard can select a game executable,
+  wait for the bridge to become ready, then launch the game. Manual activation
+  remains in effect until the user turns it off, accommodating launchers that
+  exit before their child game process.
+- **Experimental APEX 4 motion decoding ([#10](https://github.com/ReynArts/ApexSenseBridge/issues/10))**:
+  decodes the legacy `04 FE` report's packed yaw/pitch rates, roll, and three
+  accelerometer axes into the virtual DualSense input path. The capture tool
+  now detects the firmware's all-zero IMU state and explains that gyro mapping
+  must be enabled in the active onboard profile before recording.
+- **APEX 5 Xbox Mode / AnyFSE trigger routing**: uses the controller's existing
+  NewXInput `0xEF` vendor stream to recover confirmed simultaneous LT+RT presses
+  in both Desktop and FSE. Mapped HID remains authoritative for profile-aware
+  controls and either trigger used alone, while ordinary XInput remains a
+  startup-only fallback and cannot collapse aim-and-fire input.
+
+## 1.0.0-beta.7
+
+- **APEX 5 simultaneous-trigger regression**:
+  keeps mapped HID authoritative for buttons, sticks, and the D-pad while
+  sourcing only LT and RT from the matching XInput device. Full-state XInput is
+  now limited to startup when mapped HID has not produced its first report,
+  preventing source alternation from releasing aim when fire is pressed.
+- **APEX 6 idle-input resilience ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  polls the independent XInput trigger axes while mapped HID is quiet and
+  publishes a bounded heartbeat. This prevents an otherwise healthy stationary
+  controller from tripping the mandatory one-second input watchdog, as observed
+  during PRAGMATA testing.
+- **APEX 6 waveform continuity ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  replaces the single pending waveform slot with a bounded three-block,
+  sequence-aware queue. Batched USB audio delivery can now be absorbed without
+  unbounded latency, while gaps, duplicates, reordering, underruns, and genuine
+  queue-overflow drops are reported separately.
+- **Simultaneous-trigger diagnostics**: bridge session summaries and telemetry
+  now record simultaneous LT/RT levels and report counts for both the physical
+  input and virtual DualSense paths, making trigger-concurrency regressions
+  directly observable in gameplay logs.
+- **Bridge runtime modularization**: separates command-line option parsing,
+  fixed-allocation runtime measurements, JSON support, and post-session
+  telemetry from the hardware bridge command. The input-forwarding loop and
+  its latency/button trackers remain allocation-free and inline, while new
+  contract tests cover option compatibility, malformed numeric values,
+  latency histograms, hold tracking, JSON escaping, and the telemetry schema.
+- **Launcher configuration consistency**: Tray and Playnite now share one
+  normalized bridge-argument builder, and manual forced-profile state is kept
+  transient instead of being serialized into user settings. Production engine
+  discovery no longer falls back to development build or distribution paths.
+- **Portable-driver verification**: pins the portable HidHide dependency to
+  the expected version and SHA-256 and verifies its product registration and
+  service state before accepting or completing installation.
+- **APEX 5 hardware regression validation**: an end-to-end dongle session
+  sustained roughly 800 physical and virtual reports per second with no lost
+  or coalesced reports. Simultaneous LT/RT reached 255 on both the physical and
+  virtual paths, forwarding latency remained below 30 microseconds at p99, and
+  virtual neutralization, trigger reset, profile recovery, and physical-device
+  restoration all completed successfully.
+
+## 1.0.0-beta.6
+
+- **APEX 5 physical-input startup ([#15](https://github.com/ReynArts/ApexSenseBridge/issues/15), [#6](https://github.com/ReynArts/ApexSenseBridge/issues/6))**:
+  standard controls now initialize from the mapped HID collection without
+  waiting for the optional vendor motion stream. Vendor reports are merged as
+  they arrive for gyro and accelerometer data, and the required raw-input
+  transport is enabled temporarily with crash-safe restoration.
+- **APEX 5 identity wake-retry resilience ([#17](https://github.com/ReynArts/ApexSenseBridge/issues/17))**:
+  retries read-only APEX 5 identity verification commands across controller
+  wake-up and benign detector races instead of aborting the session on the
+  first missing reply.
+- **APEX 5 mapped-HID XInput fallback ([#18](https://github.com/ReynArts/ApexSenseBridge/issues/18))**:
+  adds a seamless XInput polling fallback if the primary mapped-HID collection
+  times out, preventing input stalls while continuing to drain vendor motion
+  reports.
+- **APEX 6 independent trigger input ([#12](https://github.com/ReynArts/ApexSenseBridge/issues/12))**:
+  preserves the event-driven mapped-HID controls while sourcing only LT and RT
+  from the matching XInput device. This works around the controller's mapped HID
+  collection collapsing simultaneous trigger presses, without changing the
+  APEX 4 or APEX 5 input paths.
+- **APEX 6 haptic strength and cadence**: expands grip waveform samples to the
+  full safe signed 8-bit range, uses a high-resolution 125 Hz hardware deadline,
+  and keeps VIIPER isochronous completion pacing on an absolute timeline rather
+  than accumulating scheduler lateness. Integrated `libVIIPER v0.7.0-asb12`
+  and sidecar `v0.7.0-asb10` contain the corrected pacing.
+
+## 1.0.0-beta.5
+
+- **APEX 6 hardware-validation follow-up**: corrects the reversed Flydigi HID
+  LT/RT axis ordering shared with the APEX 5 mapped-HID path, drives the APEX 6
+  trigger voice coils with bipolar AC instead of a DC force level, and reports
+  the APEX 6 realtime routing state accurately in session diagnostics.
+- **APEX 6 realtime haptic pacing**: paces each virtual DualSense isochronous
+  audio transfer by its USB packet duration instead of completing every URB
+  after a fixed 2 ms. This prevents the 1 kHz waveform from being consumed
+  roughly six times too fast and losing most samples before the 125 Hz hardware
+  writer can render them. The behavior is gated by the APEX 6 waveform opt-in;
+  APEX 4/5 keep the original VIIPER path and timing. Diagnostics now report
+  rendered waveform blocks and average/maximum APEX 6 HID write duration.
+- **Upgraded VIIPER Sidecar & Library**: incorporates `libVIIPER v0.7.0-asb11`
+  and sidecar `v0.7.0-asb9` with packet-duration USB pacing and refined
+  decimated haptic stream delivery.
+
+## 1.0.0-beta.4
+
+- **In-app project support**: adds a dedicated, prominently placed Ko-fi card
+  to the Tray settings while keeping donations visually and functionally
+  separate from technical support.
+- **Consent-driven bug reports**: adds a localized report window requiring only
+  a title and explanation, with up to five optional screenshots, a previewable
+  anonymized installation diagnostic, and a prefilled GitHub issue draft. The
+  diagnostic reads only bounded local metadata when explicitly requested and
+  adds no timer, background scan, bridge activity, or idle network traffic. The
+  report entry uses the supplied vector bug icon and supports gamepad settings
+  navigation.
+- **Manual-fix game safety ([#14](https://github.com/ReynArts/ApexSenseBridge/issues/14))**:
+  the PCGamingWiki synchronizer now imports
+  `RequireManualFix` separately for adaptive triggers and haptic feedback.
+  Games whose selected features require an external modification no longer
+  activate the bridge and hide the working physical XInput controller. The
+  Tray identifies them with a localized badge and one-shot notification that
+  links to their PCGamingWiki instructions.
+- **Initial APEX 6 Pro realtime-haptics port**: recognizes the verified
+  `37D7:2502` / usage-page `FFA0` interface and its `0x96` identity without
+  routing it through the APEX 5 protocol. A dedicated 125 Hz writer performs
+  the `0x53` enable/disable handshake and streams `0x57` blocks containing
+  eight 1 kHz subframes for the two grip voice coils and the routed trigger
+  force channel. Independent LT/RT programs are position-gated and multiplexed
+  without starting any realtime worker on APEX 4 or APEX 5.
+- **Native APEX 6 haptic waveform transport**: VIIPER retains the existing
+  energy/peak/transient frame used by APEX 4/5 and additionally low-pass
+  decimates the virtual DualSense stereo haptic endpoint from 48 kHz to eight
+  signed 1 kHz samples. Integrated `libVIIPER v0.7.0-asb11` and sidecar
+  `v0.7.0-asb9` expose the new frame while preserving the existing format.
+- **Safe APEX 6 diagnostics and shutdown**: `identify`, `test-trigger`,
+  `test-rumble`, `clear`, and `bridge-triggers` select model-specific behavior.
+  Shutdown sends repeated neutral blocks followed by both motor-disable frames;
+  protocol, identity, waveform, and streamer tests ensure APEX 6 commands can
+  never be sent to APEX 4/5 transports. Real-hardware validation is still
+  required before marking APEX 6 support fully verified.
+- **Xbox Mode / AnyFSE input and Space Station compatibility**: the APEX 5
+  reader now combines the mapped game-controller HID collection with the
+  vendor motion stream instead of polling XInput. Full Screen Experience can
+  no longer neutralize the bridge's standard controls, and Space Station's
+  onboard mappings remain authoritative across Desktop ↔ FSE transitions.
+- **Stellar Blade ranged attacks ([#6](https://github.com/ReynArts/ApexSenseBridge/issues/6))**:
+  the virtual DualSense now mirrors host
+  timestamps and synthesizes the adaptive-trigger mechanism state reported by
+  real hardware. Weapon effects advance through ready, firing, and fired as RT
+  crosses the game-defined break points, so games that consume Sony's raw
+  trigger-status bytes no longer see an analog press with a permanently idle
+  trigger. Neutral trigger-arm, device-timestamp, and wired-connection metadata
+  now also match a physical USB DualSense.
+
+## 1.0.0-beta.3
+
+- **APEX 4 wireless stability**: avoids the trigger apply flag that stalls the
+  controller over its 2.4 GHz receiver, and paces/coalesces trigger and rumble
+  writes on a background writer so game input and haptics no longer queue
+  behind vendor commands.
+- **Game detection exclusions**: a removed game can be added again; both its
+  normalized identifier and display-title alias are now cleared together.
+- **Interactive Controller Diagnostic & Test suite (`ControllerTestWindow`)**:
+  - **6-axis Gyroscope & Accelerometer Suite (`TabGyro`)**: Real-time Artificial Horizon flight instrument with dynamic pitch elevation and roll banking; six telemetry gauges tracking angular velocity (DPS X/Y/Z) and gravitational acceleration (G-force X/Y/Z) at ~300 Hz; dynamic motion state detection (Stationary vs Moving) and interactive zero-calibration centering.
+  - **Adaptive Triggers Testing**: Real-time excitation of force feedback motors across multiple modes (Progressive Resistance, Weapon Break/Snap, Haptic Vibration, Elastic Bow Tension) and 4 resistance levels (Soft, Medium, Strong, Rigid/Ultra) with instant zero-reset.
+  - **Dual Rumble Motors Testing**: Independent and combined testing of heavy low-frequency and light high-frequency motors with 0-255 sliders, presets (20%, 50%, 100%), and 1-second pulse triggers.
+  - **LightSync RGB LED Testing**: Direct color customization and preset testing through the APEX 5 working LED configuration, with instant profile restoration and no flash commit.
+  - **Virtual DualSense Visualizer & Persistence Verifier**: Interactive real-time vector visualizer of a PlayStation 5 DualSense controller with pixel-perfect focus highlight overlays and verification of hardware NVRAM persistence and disk configuration integrity.
+  - **Zero-Cost Idle Architecture**: In tray/background mode, polling timers and test execution sub-processes are completely shut down (strictly 0% CPU and HID bus overhead).
+- **APEX 5 End-to-End Motion Support**: Decodes all three gyroscope and accelerometer axes from the event-driven vendor stream, converts accelerometer scale to virtual DualSense calibration, and forwards all six signed axes through VIIPER.
+- **Real Physical Battery & Charge Reporting**: Reports physical controller battery percentage and charging state via VIIPER report byte 53 (`kDischarging = 0`, `kCharging = 2`, `kFull = 4`), with periodic 15-second non-blocking refresh.
+- **Dynamic DualSense Lightbar (RGB) Synchronization**: Intercepts virtual DualSense lightbar packets and updates every APEX 5 working RGB frame to one uniform color in one continuous latched transfer, followed by a single unlock packet. Packet runs use protocol-relative indices and wait for the controller's acknowledgement after every report, preventing shifted frames and dropped colors with the smallest reliable transfer sequence. Shutdown restoration uses the same atomic path, avoiding a final half-profile/half-lightbar mixture. No flash commit is sent, and the non-functional factory `0xF5 TestLed` path is no longer used. Configurable via `--sync-lightbar` CLI switch, Tray dashboard, and Playnite extension.
+- **Faithful Lightbar Output Filtering**: `libVIIPER v0.7.0-asb8` now carries RGB bytes together with the DualSense `LIGHTBAR_CONTROL_ENABLE` bit in its raw feedback frame. Rumble-only and trigger-only reports are ignored by LightSync instead of being misread as black, eliminating invented color transitions and intermittent flashing.
+- **Call of Duty / Playnite Input Reliability**: Uses the APEX 5 vendor HID stream for motion and its matching XInput slot for sticks, triggers, D-Pad, and buttons, then forwards the merged state through the isolated virtual DualSense. Automatic onboard profile switching remains enabled; the bridge waits for the delayed firmware transition, restarts controller and raw-data routing, reopens the hybrid backend, requires three fresh reports, and resynchronizes the virtual controller before Playnite launches the game. Original routing is restored after normal exits and crashes.
+- **Physical Input Stall Protection**: Stops a bridge session after one second without a fresh event-driven physical report instead of indefinitely replaying a frozen neutral or cached state through an apparently connected virtual DualSense.
+- **LightSync RGB CPU Fix**: Replaces the RGB rate limiter's active wait with a blocking condition-variable wait. Enabled synchronization remains capped at 12.5 Hz without consuming a CPU core between writes; disabling RGB now creates no RGB worker, performs no RGB HID writes, and installs no RGB feedback branch.
+- **Gamepad-First Console UI**: Full 2D D-Pad / thumbstick navigation across Tray library and settings window (`GameListWindow`), featuring analog stick deadzone hysteresis, debounce protection, contextual HUD actions, and official Xbox Game Bar button glyphs (A, B, X, Y).
+- **Live Controller Hot-Plug Detection**: Polling connected Flydigi hardware every 2 seconds (`ControllerDetectionService`) to dynamically distinguish APEX 4, APEX 5, unsupported devices, or disconnected states with live status badges.
+- **Modernized Localization Architecture**: Embedded UTF-8 JSON language files (`en.json`, `fr.json`, `es.json`, `zh.json`) with strict key parity, supporting optional local folder overrides and automated English fallback.
+- **Dedicated Modal Language Picker (`LanguagePickerWindow`)**: Controller-friendly grid navigation replacing inline radio selectors.
+- **Hardened Virtual DualSense Startup & Recovery**: Preserves and concatenates pending recovery errors instead of overwriting diagnostic traces.
+- **Playnite Extension 1.0.0 Alignment**: Updated extension manifest, assembly metadata, settings view with Lightbar sync toggle, and streamlined session launching.
+
 ## 0.6.3
 
-Full validation and uninstall-policy details are available in
-[`RELEASE_NOTES_0.6.3.md`](RELEASE_NOTES_0.6.3.md).
+Full validation and uninstall-policy details are documented in the 0.6.3 release notes.
 
 - Never removes usbip-win2 from the ApexSenseBridge uninstaller. The Control
   Panel and silent uninstall no longer expose the legacy dependency-removal
@@ -26,9 +531,6 @@ Full validation and uninstall-policy details are available in
   marked for synchronous persistence before it becomes visible to readers.
 
 ## 0.6.2
-
-Full upgrade instructions, issue references and validation notes are available
-in [`RELEASE_NOTES_0.6.2.md`](RELEASE_NOTES_0.6.2.md).
 
 - Adds native usbip-win2 0.9.8.0 attach-ABI support to both integrated VIIPER
   and its sidecar, while retaining the two older ABI fallbacks. The command

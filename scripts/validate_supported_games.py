@@ -46,6 +46,10 @@ def main() -> int:
                     f"Steam AppID {steam_app_id} is shared by {previous!r} and {title!r}"
                 )
 
+        added_at = game.get("addedAt")
+        if added_at is not None and not updater.is_valid_added_date(added_at):
+            raise ValueError(f"{title}: addedAt must be an ISO date (YYYY-MM-DD), got {added_at!r}")
+
         if executables:
             games_with_executables += 1
         for executable in executables:

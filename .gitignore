@@ -21,7 +21,9 @@ MinSizeRel/
 # Compiled binaries and debug symbols generated outside a build directory
 *.exe
 !third_party/prerequisites/*.exe
+*.exe.config
 *.dll
+*.dll.config
 *.lib
 *.exp
 *.pdb
@@ -77,6 +79,7 @@ env/
 # Test/runtime generated results (test source code remains versioned)
 Testing/
 test-results/
+TestResults/
 coverage/
 *.coverage
 *.gcda
@@ -133,6 +136,7 @@ DESIGN*.md
 
 # Internal project briefs, AI prompts & private documentation
 ApexSenseBridge-PROJECT_BRIEF_CODEX.md
+COLLABORATION.md
 *PROJECT_BRIEF*
 *BRIEF*
 *CODEX*
@@ -146,9 +150,7 @@ scratch/
 work/
 tools/research/
 TODO.local*
-*.local.json
-*.local.ps1
-*.local.config
+*.local.*
 .agent/
 .agents/
 .gemini/
@@ -161,3 +163,15 @@ TODO.local*
 # Tray temporary logs
 tray_*.log
 
+# Internal test, research and validation documentation
+APEX45_FORCEADAPT_RESEARCH.md
+APEX45_TRIGGER_MEASUREMENTS.md
+APEX45_TRIGGER_TRANSLATION.md
+APEX4_GYRO_CAPTURE.md
+APEX4_GYRO_VALIDATION.md
+ISSUE_TRIAGE_*.md
+*TRIGGER_MEASUREMENTS*
+*FORCEADAPT_RESEARCH*
+*GYRO_CAPTURE*
+*GYRO_VALIDATION*
+*TRIAGE*

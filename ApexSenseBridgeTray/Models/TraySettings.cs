@@ -5,6 +5,27 @@ using System.Web.Script.Serialization;
 
 namespace ApexSenseBridgeTray.Models
 {
+    public sealed class ControllerCalibration
+    {
+        public int TriggerStrengthPercent { get; set; } = 100;
+        public int VibrationStrengthPercent { get; set; } = 100;
+        public int HapticThresholdPercent { get; set; } = 12;
+        public bool EnableRumble { get; set; } = true;
+        public bool SyncLightbar { get; set; }
+        public int GyroStrengthPercent { get; set; } = 100;
+        public int GyroYawStrengthPercent { get; set; } = 100;
+
+        internal void Normalize(string model)
+        {
+            TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent));
+            VibrationStrengthPercent = Math.Max(0, Math.Min(model == "apex6" ? 100 : 200, VibrationStrengthPercent));
+            HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
+            SyncLightbar = model == "apex5" && SyncLightbar;
+            GyroStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroStrengthPercent)) : 100;
+            GyroYawStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroYawStrengthPercent)) : 100;
+        }
+    }
+
     public class TraySettings
     {
         public bool AutoDetectGames { get; set; }
@@ -12,12 +33,79 @@ namespace ApexSenseBridgeTray.Models
         public bool TriggerOnHapticFeedback { get; set; }
         public bool EnableNotifications { get; set; }
         public bool EnableRumble { get; set; }
+        public bool SyncLightbar { get; set; }
         public int HapticThresholdPercent { get; set; }
+        public int TriggerStrengthPercent { get; set; }
+        public int VibrationStrengthPercent { get; set; }
+        public int Apex4GyroStrengthPercent { get; set; }
+        public int Apex4GyroYawStrengthPercent { get; set; }
+        public Dictionary<string, string> GameExecutables { get; set; }
         public int InitializationTimeoutSeconds { get; set; }
+        // Manual bridge mode describes the current process session, not a
+        // durable preference. Persisting it leaves automatic detection paused
+        // after a Tray restart without recreating the manual engine session.
+        [ScriptIgnore]
         public string ForcedProfile { get; set; }
         public string Language { get; set; }
+        // The support callout is introduced once, then never again.
+        public bool SupportHintShown { get; set; }
         public List<string> ExcludedGames { get; set; }
         public Dictionary<string, int> ApexProfileSlots { get; set; }
+        // Legacy scalar preferences remain for migration, not as an active
+        // cross-model calibration. Never persist the last connected model.
+        public Dictionary<string, ControllerCalibration> ControllerCalibrations { get; set; }
+
+        public static bool IsCalibrationModel(string model)
+        {
+            return model == "apex4" || model == "apex5" || model == "apex6";
+        }
+
+        public ControllerCalibration GetControllerCalibration(string model)
+        {
+            if (!IsCalibrationModel(model)) return null;
+            lock (this)
+            {
+                if (ControllerCalibrations == null)
+                    ControllerCalibrations = new Dictionary<string, ControllerCalibration>();
+                ControllerCalibration calibration;
+                if (!ControllerCalibrations.TryGetValue(model, out calibration) || calibration == null)
+                {
+                    // Preserve existing users' strengths/rumble on first migration.
+                    // Hardware-specific settings only migrate to their own model.
+                    calibration = new ControllerCalibration
+                    {
+                        TriggerStrengthPercent = TriggerStrengthPercent,
+                        VibrationStrengthPercent = VibrationStrengthPercent,
+                        HapticThresholdPercent = HapticThresholdPercent,
+                        EnableRumble = EnableRumble,
+                        SyncLightbar = SyncLightbar,
+                        GyroStrengthPercent = Apex4GyroStrengthPercent,
+                        GyroYawStrengthPercent = Apex4GyroYawStrengthPercent
+                    };
+                    ControllerCalibrations[model] = calibration;
+                }
+                calibration.Normalize(model);
+                return calibration;
+            }
+        }
+
+        internal string BuildControllerCalibrationArguments()
+        {
+            lock (this)
+            {
+                var result = new System.Text.StringBuilder();
+                foreach (var model in new[] { "apex4", "apex5", "apex6" })
+                {
+                    var c = GetControllerCalibration(model);
+                    result.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}",
+                        model, c.TriggerStrengthPercent, c.VibrationStrengthPercent,
+                        c.HapticThresholdPercent, c.EnableRumble ? 1 : 0, c.SyncLightbar ? 1 : 0,
+                        c.GyroStrengthPercent, c.GyroYawStrengthPercent);
+                }
+                return result.ToString();
+            }
+        }
 
         public TraySettings()
         {
@@ -26,7 +114,13 @@ namespace ApexSenseBridgeTray.Models
             TriggerOnHapticFeedback = true;
             EnableNotifications = true;
             EnableRumble = true;
+            SyncLightbar = false;
             HapticThresholdPercent = 12;
+            TriggerStrengthPercent = 100;
+            VibrationStrengthPercent = 100;
+            Apex4GyroStrengthPercent = 100;
+            Apex4GyroYawStrengthPercent = 100;
+            GameExecutables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";
             Language = "auto";
@@ -73,6 +167,12 @@ namespace ApexSenseBridgeTray.Models
             }
         }
 
+        public void SetGameExcludedAliases(string normalized, string title, bool excluded)
+        {
+            SetGameExcluded(normalized, excluded);
+            SetGameExcluded(title, excluded);
+        }
+
         public int GetApexProfileSlot(string normalizedOrTitle)
         {
             if (string.IsNullOrWhiteSpace(normalizedOrTitle) || ApexProfileSlots == null)
@@ -115,6 +215,61 @@ namespace ApexSenseBridgeTray.Models
             if (slot != 0) ApexProfileSlots[normalizedOrTitle.Trim()] = slot;
         }
 
+        internal void ResetTransientState()
+        {
+            ForcedProfile = "none";
+        }
+
+        public string GetGameExecutable(string game)
+        {
+            var current = GameExecutables;
+            if (current == null || string.IsNullOrWhiteSpace(game)) return string.Empty;
+            foreach (var entry in current)
+                if (string.Equals(entry.Key, game, StringComparison.OrdinalIgnoreCase)) return entry.Value ?? string.Empty;
+            return string.Empty;
+        }
+
+        public void SetGameExecutable(string game, string executable)
+        {
+            if (string.IsNullOrWhiteSpace(game)) return;
+            var path = string.IsNullOrWhiteSpace(executable) ? string.Empty : NormalizeExecutable(executable);
+            if (!string.IsNullOrWhiteSpace(executable) && path == null)
+                throw new ArgumentException("Select an absolute .exe path.", "executable");
+            var next = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (GameExecutables != null)
+                foreach (var item in GameExecutables) next[item.Key] = item.Value;
+            next.Remove(game);
+            if (path.Length > 0) next[game] = path;
+            GameExecutables = next;
+        }
+
+        public bool TryGetGameForExecutable(string executable, out string game)
+        {
+            game = null;
+            var path = NormalizeExecutable(executable);
+            var current = GameExecutables;
+            if (path == null || current == null) return false;
+            foreach (var item in current)
+            {
+                if (!string.Equals(path, NormalizeExecutable(item.Value), StringComparison.OrdinalIgnoreCase)) continue;
+                // A path assigned to several games is ambiguous.
+                if (game != null) { game = null; return false; }
+                game = item.Key;
+            }
+            return game != null;
+        }
+
+        private static string NormalizeExecutable(string path)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path) ||
+                    !string.Equals(Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase)) return null;
+                return Path.GetFullPath(path.Trim());
+            }
+            catch { return null; }
+        }
+
         private static string SettingsFilePath
         {
             get
@@ -136,6 +291,13 @@ namespace ApexSenseBridgeTray.Models
                     var settings = serializer.Deserialize<TraySettings>(json);
                     if (settings != null)
                     {
+                        settings.ResetTransientState();
+                        settings.TriggerStrengthPercent = Math.Max(0, Math.Min(100, settings.TriggerStrengthPercent));
+                        settings.VibrationStrengthPercent = Math.Max(0, Math.Min(200, settings.VibrationStrengthPercent));
+                        settings.Apex4GyroStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroStrengthPercent));
+                        settings.Apex4GyroYawStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroYawStrengthPercent));
+                        settings.HapticThresholdPercent = Math.Max(0, Math.Min(95, settings.HapticThresholdPercent));
+                        if (settings.GameExecutables == null) settings.GameExecutables = new Dictionary<string, string>();
                         if (settings.ExcludedGames == null) settings.ExcludedGames = new List<string>();
                         if (settings.ApexProfileSlots == null)
                         {
@@ -161,8 +323,8 @@ namespace ApexSenseBridgeTray.Models
                 {
                     Directory.CreateDirectory(dir);
                 }
-                var serializer = new JavaScriptSerializer();
-                var json = serializer.Serialize(this);
+                string json;
+                lock (this) json = new JavaScriptSerializer().Serialize(this);
                 File.WriteAllText(path, json);
             }
             catch

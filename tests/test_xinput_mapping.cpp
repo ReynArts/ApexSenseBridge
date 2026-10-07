@@ -10,6 +10,21 @@
 int main() {
     using namespace asb;
 
+    std::uint8_t combinedLeft = 0;
+    std::uint8_t combinedRight = 0;
+    platform::mapCombinedTriggerAxis(0x8000, combinedLeft, combinedRight);
+    assert(combinedLeft == 0 && combinedRight == 0);
+    platform::mapCombinedTriggerAxis(0x7FFF, combinedLeft, combinedRight);
+    assert(combinedLeft == 0 && combinedRight == 0);
+    platform::mapCombinedTriggerAxis(0x0000, combinedLeft, combinedRight);
+    assert(combinedLeft == 0 && combinedRight == 255);
+    platform::mapCombinedTriggerAxis(0xFFFF, combinedLeft, combinedRight);
+    assert(combinedLeft == 255 && combinedRight == 0);
+    platform::mapCombinedTriggerAxis(0x4000, combinedLeft, combinedRight);
+    assert(combinedLeft == 0 && combinedRight == 128);
+    platform::mapCombinedTriggerAxis(0xC000, combinedLeft, combinedRight);
+    assert(combinedLeft == 128 && combinedRight == 0);
+
     dualsense::DualSenseInputState state{};
     platform::mapXInputButtons(platform::xinputButton::kBack, 0, 0, state);
     assert(state.buttons == dualsense::button::kTouchpadClick);
@@ -52,6 +67,11 @@ int main() {
     assert(neutral.lx == 128 && neutral.ly == 127);
     assert(neutral.rx == 128 && neutral.ry == 127);
     assert(neutral.l2 == 0 && neutral.r2 == 0);
+    assert(neutral.batteryPercent == 100);
+    assert(neutral.chargeState == 0);
+    const auto customBattery = platform::mapXInputState({}, 60, 2);
+    assert(customBattery.batteryPercent == 60);
+    assert(customBattery.chargeState == 2);
 
     platform::XInputSnapshot endpoints{};
     endpoints.leftX = -32768;
@@ -101,6 +121,23 @@ int main() {
             dualsense::button::kL1 | dualsense::button::kR1 |
             dualsense::button::kL2 | dualsense::button::kR2 |
             dualsense::button::kL3 | dualsense::button::kR3));
+
+    dualsense::DualSenseInputState hidState{};
+    hidState.lx = 11;
+    hidState.ry = 222;
+    hidState.buttons = dualsense::button::kCross |
+                       dualsense::button::kL2;
+    platform::mergeIndependentTriggers(200, 201, hidState);
+    assert(hidState.l2 == 200);
+    assert(hidState.r2 == 201);
+    assert(hidState.lx == 11);
+    assert(hidState.ry == 222);
+    assert((hidState.buttons & dualsense::button::kCross) != 0);
+    assert((hidState.buttons & dualsense::button::kL2) != 0);
+    assert((hidState.buttons & dualsense::button::kR2) != 0);
+    platform::mergeIndependentTriggers(30, 31, hidState);
+    assert((hidState.buttons & dualsense::button::kL2) == 0);
+    assert((hidState.buttons & dualsense::button::kR2) != 0);
 
     for (unsigned int transition = 0; transition < 10000; ++transition) {
         platform::XInputSnapshot snapshot{};

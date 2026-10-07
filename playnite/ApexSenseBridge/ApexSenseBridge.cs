@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using ApexSenseBridge.Common;
 
 namespace ApexSenseBridge
 {
@@ -147,8 +148,9 @@ namespace ApexSenseBridge
                     bridgeExecutable,
                     arguments,
                     TimeSpan.FromSeconds(settings.Settings.InitializationTimeoutSeconds),
-                    logger,
-                    out error);
+                    msg => logger.Info(msg),
+                    msg => logger.Error(msg),
+                    out error, args.Game.Name, profile.ProfileType + " / APEX " + profile.ApexProfileSlot);
                 if (session == null)
                 {
                     CancelStartup(args, error);
@@ -224,7 +226,8 @@ namespace ApexSenseBridge
                 TouchpadRemappingMode.SpiderMan2,
                 TouchpadRemappingMode.MilesMorales,
                 TouchpadRemappingMode.GhostOfTsushima,
-                TouchpadRemappingMode.Warframe
+                TouchpadRemappingMode.Warframe,
+                TouchpadRemappingMode.DeathStranding2
             })
             {
                 var selectedChoice = choice;
@@ -337,48 +340,38 @@ namespace ApexSenseBridge
 
         private string BuildBridgeArguments(GameBridgeProfile profile)
         {
-            var arguments = new List<string> { "bridge-triggers" };
-
-            var gestureProfile = profile.ProfileType;
-
-            switch (gestureProfile)
+            string gestureProfile;
+            switch (profile.ProfileType)
             {
                 case BridgeProfileType.SpiderMan2:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("spider-man-2");
+                    gestureProfile = "spider-man-2";
                     break;
                 case BridgeProfileType.MilesMorales:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("miles-morales");
+                    gestureProfile = "miles-morales";
                     break;
                 case BridgeProfileType.GhostOfTsushima:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("ghost-of-tsushima");
+                    gestureProfile = "ghost-of-tsushima";
                     break;
                 case BridgeProfileType.Warframe:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("warframe");
+                    gestureProfile = "warframe";
+                    break;
+                case BridgeProfileType.DeathStranding2:
+                    gestureProfile = "death-stranding-2";
                     break;
                 default:
-                    arguments.Add("--touchpad-profile");
-                    arguments.Add("none");
+                    gestureProfile = "none";
                     break;
             }
-
-            if (profile.ApexProfileSlot >= 1 && profile.ApexProfileSlot <= 4)
-            {
-                arguments.Add("--apex-profile");
-                arguments.Add(profile.ApexProfileSlot.ToString());
-            }
-
-            if (settings.Settings.EnableRumble)
-            {
-                arguments.Add("--rumble");
-                arguments.Add("--haptic-threshold");
-                arguments.Add(settings.Settings.HapticThresholdPercent.ToString());
-            }
-
-            return string.Join(" ", arguments);
+            return BridgeArguments.Build(
+                gestureProfile,
+                settings.Settings.EnableRumble,
+                settings.Settings.HapticThresholdPercent,
+                settings.Settings.SyncLightbar,
+                profile.ApexProfileSlot,
+                100,
+                settings.Settings.VibrationStrengthPercent,
+                settings.Settings.Apex4GyroStrengthPercent,
+                settings.Settings.Apex4GyroYawStrengthPercent);
         }
 
         private static string Mark(bool selected)
@@ -498,7 +491,7 @@ namespace ApexSenseBridge
             }
 
             logger.Info($"Stopping ApexSenseBridge session: {reason}.");
-            if (!session.StopAndWait(TimeSpan.FromSeconds(15)))
+            if (!session.StopAndEnsureExit(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5)))
             {
                 logger.Error("ApexSenseBridge did not stop within 15 seconds after the stop signal.");
             }

@@ -11,6 +11,7 @@
 #include <cfgmgr32.h>
 #include <initguid.h>
 #include <devpkey.h>
+#include <tlhelp32.h>
 
 #include "platform/PhysicalControllerIsolation.h"
 
@@ -44,7 +45,7 @@ constexpr wchar_t kRunOnceKey[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce";
 constexpr wchar_t kRunOnceValue[] =
     L"!ApexSenseBridgeRestoreControllerVisibility";
-constexpr DWORD kRecoveryVersion = 2;
+constexpr DWORD kRecoveryVersion = 3;
 constexpr DWORD kPhasePrepared = 0;
 constexpr DWORD kPhaseConfigurationMayHaveChanged = 1;
 constexpr wchar_t kUninstallKey[] =
@@ -131,6 +132,9 @@ struct RecoverySnapshot {
     std::vector<std::wstring> originalWhitelist;
     std::vector<std::wstring> originalBlacklist;
     bool profileRestorePending = false;
+    bool inputTransportRestorePending = false;
+    bool originalControllerData = true;
+    bool originalRawData = false;
     DWORD originalProfileSlot = 0;
     std::wstring apexVendorPath;
     std::wstring apexContainerId;
@@ -208,6 +212,19 @@ std::vector<std::wstring> fromMultiString(const wchar_t* data,
     return values;
 }
 
+std::vector<std::wstring> runningExecutableNames() {
+    std::vector<std::wstring> names;
+    ScopedHandle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    if (!snapshot.valid()) return names;
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    for (BOOL more = Process32FirstW(snapshot.get(), &entry); more;
+         more = Process32NextW(snapshot.get(), &entry)) {
+        names.emplace_back(entry.szExeFile);
+    }
+    return names;
+}
+
 bool openHidHide(ScopedHandle& device, std::string& error) {
     constexpr int kAttempts = 5;
     DWORD code = ERROR_SUCCESS;
@@ -234,9 +251,8 @@ bool openHidHide(ScopedHandle& device, std::string& error) {
         error = "HidHide is not installed or Windows has not been restarted "
                 "since its installation.";
     } else if (code == ERROR_ACCESS_DENIED) {
-        error = "Opening the HidHide control device was denied after 5 attempts "
-                "(Windows error 5). Close the HidHide Configuration Client and "
-                "restart Windows; if this persists, repair HidHide 1.5.230.";
+        error = detail::describeHidHideControlDenied(
+            detail::findHidHideControlClients(runningExecutableNames()));
     } else {
         error = windowsError("Opening the HidHide control device", code);
     }
@@ -408,6 +424,12 @@ bool writeRecoverySnapshot(const RecoverySnapshot& snapshot, std::string& error)
                           snapshot.profileRestorePending ? 1 : 0, error) ||
         !setRegistryDword(key.get(), L"OriginalProfileSlot",
                           snapshot.originalProfileSlot, error) ||
+        !setRegistryDword(key.get(), L"InputTransportRestorePending",
+                          snapshot.inputTransportRestorePending ? 1 : 0, error) ||
+        !setRegistryDword(key.get(), L"OriginalControllerData",
+                          snapshot.originalControllerData ? 1 : 0, error) ||
+        !setRegistryDword(key.get(), L"OriginalRawData",
+                          snapshot.originalRawData ? 1 : 0, error) ||
         !setRecoveryRegistryString(key.get(), L"ApexVendorPath",
                                    snapshot.apexVendorPath, error) ||
         !setRecoveryRegistryString(key.get(), L"ApexContainerId",
@@ -439,7 +461,7 @@ bool readRecoverySnapshot(RecoverySnapshot& snapshot, bool& exists,
     DWORD active = 0;
     DWORD inverse = 0;
     if (!getRegistryDword(key.get(), L"Version", version, error) ||
-        (version != 1 && version != kRecoveryVersion) ||
+        (version < 1 || version > kRecoveryVersion) ||
         !getRegistryDword(key.get(), L"OwnerProcessId", snapshot.ownerProcessId, error) ||
         !getRegistryDword(key.get(), L"Phase", snapshot.phase, error) ||
         !getRegistryDword(key.get(), L"OriginalActive", active, error) ||
@@ -474,6 +496,30 @@ bool readRecoverySnapshot(RecoverySnapshot& snapshot, bool& exists,
             return false;
         }
         snapshot.profileRestorePending = pending != 0;
+    }
+    if (version >= 3) {
+        DWORD pending = 0;
+        DWORD controllerData = 0;
+        DWORD rawData = 0;
+        if (!getRegistryDword(key.get(), L"InputTransportRestorePending",
+                              pending, error) ||
+            !getRegistryDword(key.get(), L"OriginalControllerData",
+                              controllerData, error) ||
+            !getRegistryDword(key.get(), L"OriginalRawData", rawData, error)) {
+            return false;
+        }
+        if (pending > 1 || controllerData > 1 || rawData > 1 ||
+            (pending != 0 &&
+             (snapshot.apexVendorPath.empty() ||
+              snapshot.apexVendorId > 0xFFFF ||
+              snapshot.apexProductId > 0xFFFF ||
+              snapshot.apexUsagePage > 0xFFFF))) {
+            error = "The Apex input-transport recovery marker contains invalid values.";
+            return false;
+        }
+        snapshot.inputTransportRestorePending = pending != 0;
+        snapshot.originalControllerData = controllerData != 0;
+        snapshot.originalRawData = rawData != 0;
     }
     if (active > 1 || inverse > 1 ||
         (snapshot.phase != kPhasePrepared &&
@@ -553,6 +599,41 @@ bool setProfileRestorePending(bool pending, std::string& error) {
     ScopedRegistryKey key(rawKey);
     return setRegistryDword(
         key.get(), L"ProfileRestorePending", pending ? 1 : 0, error);
+}
+
+bool armInputTransportRestore(bool originalControllerData,
+                              bool originalRawData,
+                              std::string& error) {
+    HKEY rawKey = nullptr;
+    const auto status = RegOpenKeyExW(
+        HKEY_CURRENT_USER, kRecoveryKey, 0, KEY_SET_VALUE, &rawKey);
+    if (status != ERROR_SUCCESS) {
+        error = windowsError("Updating the Apex input-transport recovery marker",
+                             status);
+        return false;
+    }
+    ScopedRegistryKey key(rawKey);
+    // Commit the pending bit last so recovery never consumes partial values.
+    return setRegistryDword(key.get(), L"OriginalControllerData",
+                            originalControllerData ? 1 : 0, error) &&
+           setRegistryDword(key.get(), L"OriginalRawData",
+                            originalRawData ? 1 : 0, error) &&
+           setRegistryDword(key.get(), L"InputTransportRestorePending", 1,
+                            error);
+}
+
+bool setInputTransportRestorePending(bool pending, std::string& error) {
+    HKEY rawKey = nullptr;
+    const auto status = RegOpenKeyExW(
+        HKEY_CURRENT_USER, kRecoveryKey, 0, KEY_SET_VALUE, &rawKey);
+    if (status != ERROR_SUCCESS) {
+        error = windowsError("Updating the Apex input-transport recovery marker",
+                             status);
+        return false;
+    }
+    ScopedRegistryKey key(rawKey);
+    return setRegistryDword(key.get(), L"InputTransportRestorePending",
+                            pending ? 1 : 0, error);
 }
 
 bool processIsRunning(DWORD processId) noexcept {
@@ -1016,8 +1097,10 @@ bool apexGameDevicePaths(const HidDeviceInfo& apexInterface,
     return true;
 }
 
-bool restoreApexProfile(const RecoverySnapshot& snapshot,
-                        std::string& error) {
+bool selectRecoveryCandidate(const RecoverySnapshot& snapshot,
+                             HidDeviceInfo& selected,
+                             std::string_view purpose,
+                             std::string& error) {
     std::string enumerationError;
     const auto candidates = flydigi::Apex5Device::findCandidates(enumerationError);
     std::vector<HidDeviceInfo> matches;
@@ -1034,9 +1117,11 @@ bool restoreApexProfile(const RecoverySnapshot& snapshot,
     }
     if (matches.empty()) {
         error = enumerationError.empty()
-            ? "The saved Apex 5 profile-recovery interface is unavailable; "
+            ? "The saved Apex 5 " + std::string(purpose) +
+                  " interface is unavailable; "
               "wake the controller and retry recovery"
-            : "Could not enumerate the saved Apex 5 profile-recovery interface: " +
+            : "Could not enumerate the saved Apex 5 " + std::string(purpose) +
+                  " interface: " +
                   enumerationError;
         return false;
     }
@@ -1046,11 +1131,21 @@ bool restoreApexProfile(const RecoverySnapshot& snapshot,
             return equalsCaseInsensitive(candidate.path, snapshot.apexVendorPath);
         });
     if (exact == matches.end() && matches.size() != 1) {
-        error = "Several Apex 5 interfaces match the saved recovery container; "
+        error = "Several Apex 5 interfaces match the saved " +
+                std::string(purpose) + " container; "
                 "refusing to restore an ambiguous controller";
         return false;
     }
-    const auto& selected = exact != matches.end() ? *exact : matches.front();
+    selected = exact != matches.end() ? *exact : matches.front();
+    return true;
+}
+
+bool restoreApexProfile(const RecoverySnapshot& snapshot,
+                        std::string& error) {
+    HidDeviceInfo selected{};
+    if (!selectRecoveryCandidate(snapshot, selected, "profile-recovery", error)) {
+        return false;
+    }
 
     std::string lastError;
     for (int attempt = 1; attempt <= 3; ++attempt) {
@@ -1093,6 +1188,39 @@ bool restoreApexProfile(const RecoverySnapshot& snapshot,
     return false;
 }
 
+bool restoreApexInputTransport(const RecoverySnapshot& snapshot,
+                               std::string& error) {
+    HidDeviceInfo selected{};
+    if (!selectRecoveryCandidate(
+            snapshot, selected, "input-transport recovery", error)) {
+        return false;
+    }
+
+    std::string lastError;
+    for (int attempt = 1; attempt <= 3; ++attempt) {
+        std::string openError;
+        auto device = flydigi::Apex5Device::open(selected, openError);
+        if (!device || !device->verifyIdentity(openError) ||
+            !device->identity() || !device->identity()->isApex5()) {
+            lastError = openError.empty()
+                ? "The saved input-transport interface is not a verified Apex 5"
+                : openError;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            continue;
+        }
+        if (device->setInputTransport(
+                snapshot.originalControllerData,
+                snapshot.originalRawData, openError)) {
+            return true;
+        }
+        lastError = "Apex 5 input-transport restore attempt " +
+                    std::to_string(attempt) + " failed: " + openError;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    error = lastError;
+    return false;
+}
+
 bool recoverPendingImpl(bool& recovered, std::string& error) {
     recovered = false;
     RecoverySnapshot snapshot{};
@@ -1106,6 +1234,18 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
         profileRestored = restoreApexProfile(snapshot, profileError);
         if (profileRestored && !setProfileRestorePending(false, profileError)) {
             profileRestored = false;
+        }
+    }
+
+    // A profile restore can rewrite the input-routing bits.
+    bool inputTransportRestored = true;
+    std::string inputTransportError;
+    if (snapshot.inputTransportRestorePending) {
+        inputTransportRestored = restoreApexInputTransport(
+            snapshot, inputTransportError);
+        if (inputTransportRestored &&
+            !setInputTransportRestorePending(false, inputTransportError)) {
+            inputTransportRestored = false;
         }
     }
 
@@ -1148,15 +1288,29 @@ bool recoverPendingImpl(bool& recovered, std::string& error) {
             profileRestored = false;
         }
     }
+    if (!inputTransportRestored && visibilityRestored &&
+        snapshot.inputTransportRestorePending) {
+        inputTransportError.clear();
+        inputTransportRestored = restoreApexInputTransport(
+            snapshot, inputTransportError);
+        if (inputTransportRestored &&
+            !setInputTransportRestorePending(false, inputTransportError)) {
+            inputTransportRestored = false;
+        }
+    }
 
-    if (profileRestored && visibilityRestored) {
+    if (inputTransportRestored && profileRestored && visibilityRestored) {
         clearRecoveryRegistration();
         recovered = true;
         return true;
     }
 
     error.clear();
-    if (!profileRestored) error = profileError;
+    if (!inputTransportRestored) error = inputTransportError;
+    if (!profileRestored) {
+        if (!error.empty()) error += "; ";
+        error += profileError;
+    }
     if (!visibilityRestored) {
         if (!error.empty()) error += "; ";
         error += visibilityError;
@@ -1204,19 +1358,22 @@ bool TemporaryPhysicalControllerIsolation::activate(
     if (!openHidHide(device, error)) return false;
     RecoverySnapshot snapshot{};
     snapshot.ownerProcessId = GetCurrentProcessId();
+    if (apexInterface.path.empty()) {
+        error = "The Apex recovery target is invalid.";
+        return false;
+    }
+    snapshot.apexVendorPath = apexInterface.path;
+    snapshot.apexContainerId = apexInterface.containerId;
+    snapshot.apexVendorId = apexInterface.vendorId;
+    snapshot.apexProductId = apexInterface.productId;
+    snapshot.apexUsagePage = apexInterface.usagePage;
     if (originalApexProfile) {
-        if (*originalApexProfile >= flydigi::kProfileSlotCount ||
-            apexInterface.path.empty()) {
+        if (*originalApexProfile >= flydigi::kProfileSlotCount) {
             error = "The Apex profile recovery target is invalid.";
             return false;
         }
         snapshot.profileRestorePending = true;
         snapshot.originalProfileSlot = *originalApexProfile;
-        snapshot.apexVendorPath = apexInterface.path;
-        snapshot.apexContainerId = apexInterface.containerId;
-        snapshot.apexVendorId = apexInterface.vendorId;
-        snapshot.apexProductId = apexInterface.productId;
-        snapshot.apexUsagePage = apexInterface.usagePage;
     }
     if (!getBoolean(device.get(), kIoctlGetActive, snapshot.originalActive,
                     "active state", error) ||
@@ -1339,6 +1496,24 @@ bool TemporaryPhysicalControllerIsolation::activate(
     impl_->active = true;
     impl_->profileRecoveryArmed = originalApexProfile.has_value();
     return true;
+}
+
+bool TemporaryPhysicalControllerIsolation::armApexInputTransportRestore(
+    bool originalControllerData,
+    bool originalRawData,
+    std::string& error) noexcept {
+    if (!impl_ || !impl_->active) {
+        error = "Physical controller isolation must be active before changing "
+                "the Apex 5 input transport.";
+        return false;
+    }
+    try {
+        return armInputTransportRestore(
+            originalControllerData, originalRawData, error);
+    } catch (...) {
+        error = "Unexpected failure while arming Apex 5 input-transport recovery.";
+        return false;
+    }
 }
 
 bool TemporaryPhysicalControllerIsolation::confirmApexProfileRestored(
@@ -1479,6 +1654,44 @@ bool matchesApexProfileRecoveryDevice(
     }
     return !originalContainerId.empty() && !candidate.containerId.empty() &&
            equalsCaseInsensitive(candidate.containerId, originalContainerId);
+}
+
+std::vector<std::string> findHidHideControlClients(
+    const std::vector<std::wstring>& runningExecutables) {
+    static constexpr std::string_view kKnownClients[] = {
+        "DSX.exe",          "DualSenseX.exe", "HidHideClient.exe",
+        "HidHideCLI.exe",   "DS4Windows.exe", "BetterJoy.exe",
+    };
+    std::vector<std::string> found;
+    for (const auto client : kKnownClients) {
+        const std::wstring wide(client.begin(), client.end());
+        if (containsCaseInsensitive(runningExecutables, wide)) {
+            found.emplace_back(client);
+        }
+    }
+    return found;
+}
+
+std::string describeHidHideControlDenied(
+    const std::vector<std::string>& runningClients) {
+    if (runningClients.empty()) {
+        return "Opening the HidHide control device was denied after 5 attempts "
+               "(Windows error 5). HidHide accepts only one application at a "
+               "time: close any application that uses HidHide (DSX, DS4Windows, "
+               "the HidHide Configuration Client...) and retry. If none is "
+               "running, restart Windows; if this persists, repair HidHide "
+               "1.5.230.";
+    }
+    std::string names;
+    for (const auto& client : runningClients) {
+        if (!names.empty()) names += ", ";
+        names += client;
+    }
+    return "HidHide is in use by another application (" + names +
+           "). HidHide accepts only one application at a time: close " +
+           names +
+           " completely, including its notification-area icon, then start "
+           "the bridge again.";
 }
 
 } // namespace detail

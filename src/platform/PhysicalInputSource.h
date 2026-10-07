@@ -23,6 +23,11 @@ struct PhysicalInputSourceStats {
     std::uint64_t reports = 0;
     std::uint64_t timeouts = 0;
     std::uint64_t parseFailures = 0;
+    std::uint64_t mappedReports = 0;
+    std::uint64_t vendorReports = 0;
+    std::uint64_t vendorStates = 0;
+    std::uint64_t vendorParseFailures = 0;
+    std::uint64_t vendorReadFailures = 0;
 };
 
 // Reads the complete physical APEX game state for the mandatory
@@ -40,6 +45,14 @@ public:
     [[nodiscard]] virtual std::string_view backendName() const noexcept = 0;
     [[nodiscard]] virtual bool eventDriven() const noexcept = 0;
     [[nodiscard]] virtual PhysicalInputSourceStats stats() const noexcept = 0;
+    // A centered HID trigger axis cannot represent LT+RT together. Such a
+    // source is only gameplay-ready while its independent stream is live.
+    [[nodiscard]] virtual bool requiresIndependentTriggers() const noexcept { return false; }
+    [[nodiscard]] virtual bool independentTriggersReady() const noexcept { return true; }
+    virtual void setBatteryState(std::uint8_t batteryPercent, std::uint8_t chargeState) noexcept {
+        (void)batteryPercent;
+        (void)chargeState;
+    }
 };
 
 // Uses the game-controller HID collection belonging to the same Windows

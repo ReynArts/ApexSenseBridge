@@ -3,6 +3,9 @@
 #endif
 
 #include "dualsense/RumbleBridge.h"
+#include "dualsense/LightbarBridge.h"
+#include "dualsense/AdaptiveTriggerBridge.h"
+#include "dualsense/EffectStrength.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Protocol.h"
 
@@ -11,12 +14,37 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <deque>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 namespace {
+
+double processCpuMilliseconds() {
+#ifdef _WIN32
+    FILETIME creation{}, exit{}, kernel{}, user{};
+    if (!GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) {
+        return 0.0;
+    }
+    ULARGE_INTEGER kernelValue{};
+    kernelValue.LowPart = kernel.dwLowDateTime;
+    kernelValue.HighPart = kernel.dwHighDateTime;
+    ULARGE_INTEGER userValue{};
+    userValue.LowPart = user.dwLowDateTime;
+    userValue.HighPart = user.dwHighDateTime;
+    return static_cast<double>(kernelValue.QuadPart + userValue.QuadPart) / 10000.0;
+#else
+    return 1000.0 * static_cast<double>(std::clock()) / CLOCKS_PER_SEC;
+#endif
+}
 
 class FakeTransport final : public asb::platform::HidTransport {
 public:
@@ -26,6 +54,7 @@ public:
         info_.usagePage = asb::flydigi::kVendorUsagePage;
         info_.inputReportLength = 32;
         info_.outputReportLength = 32;
+        rgbConfig_ = asb::flydigi::buildStaticRgbPayload(32, 48, 64, 70);
     }
 
     [[nodiscard]] bool isOpen() const noexcept override { return true; }
@@ -49,6 +78,54 @@ public:
             reply[6] = 128;
             reply[7] = 2;
             replies_.push_back(std::move(reply));
+        } else if (report.size() > 3 &&
+                   report[3] == asb::flydigi::kCmdReadRgbConfig) {
+            for (std::uint8_t packet = 0;
+                 packet < asb::flydigi::kRgbPacketCount; ++packet) {
+                std::vector<std::uint8_t> reply(32, 0);
+                reply[0] = asb::flydigi::kReportIdIn;
+                reply[1] = asb::flydigi::kMagic0;
+                reply[2] = asb::flydigi::kMagic1;
+                reply[3] = asb::flydigi::kCmdReadRgbConfig;
+                reply[4] = 23;
+                reply[5] = packet;
+                const auto offset = static_cast<std::size_t>(packet) *
+                                    asb::flydigi::kRgbPacketSize;
+                std::copy_n(rgbConfig_.begin() + offset,
+                            asb::flydigi::kRgbPacketSize, reply.begin() + 7);
+                replies_.push_back(std::move(reply));
+            }
+        } else if (report.size() > 5 &&
+                   report[3] == asb::flydigi::kCmdWriteRgbStart) {
+            rgbWriteStart_ = report[6];
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdWriteRgbStart;
+            replies_.push_back(std::move(reply));
+        } else if (report.size() > 5 &&
+                   report[3] == asb::flydigi::kCmdWriteRgbPack) {
+            const auto packet = static_cast<std::size_t>(rgbWriteStart_) + report[5];
+            if (packet < asb::flydigi::kRgbPacketCount) {
+                const auto offset = packet * asb::flydigi::kRgbPacketSize;
+                std::copy_n(report.begin() + 6, asb::flydigi::kRgbPacketSize,
+                            rgbConfig_.begin() + offset);
+            }
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdWriteRgbPack;
+            replies_.push_back(std::move(reply));
+        } else if (report.size() > 3 &&
+                   report[3] == asb::flydigi::kCmdApplyProfile) {
+            std::vector<std::uint8_t> reply(32, 0);
+            reply[0] = asb::flydigi::kReportIdIn;
+            reply[1] = asb::flydigi::kMagic0;
+            reply[2] = asb::flydigi::kMagic1;
+            reply[3] = asb::flydigi::kCmdApplyProfile;
+            replies_.push_back(std::move(reply));
         }
         return true;
     }
@@ -62,7 +139,7 @@ public:
         if (replies_.empty()) return asb::platform::HidReadStatus::Timeout;
         const auto reply = std::move(replies_.front());
         replies_.pop_front();
-        const auto count = std::min(report.size(), reply.size());
+        const auto count = (std::min)(report.size(), reply.size());
         std::copy_n(reply.begin(), count, report.begin());
         bytesRead = count;
         return asb::platform::HidReadStatus::Data;
@@ -71,14 +148,112 @@ public:
     bool failWrites = false;
     std::vector<std::vector<std::uint8_t>> writes;
 
+    [[nodiscard]] const auto& rgbConfig() const noexcept { return rgbConfig_; }
+
 private:
     asb::HidDeviceInfo info_{};
+    std::array<std::uint8_t, asb::flydigi::kRgbConfigSize> rgbConfig_{};
+    std::uint8_t rgbWriteStart_ = 0;
     std::deque<std::vector<std::uint8_t>> replies_;
 };
 
 } // namespace
 
+void testRumbleGain() {
+    using namespace asb::dualsense;
+    for (unsigned percent : {0U, 50U, 100U, 125U, 150U, 200U, 201U, ~0U}) {
+        unsigned previous = 0;
+        for (unsigned value = 0; value <= 255; ++value) {
+            const auto actual = scaleRumbleStrength(static_cast<std::uint8_t>(value), percent);
+            const auto expected = (std::min)(255U, value * (std::min)(percent, 200U) / 100U);
+            assert(actual == expected);
+            assert(actual >= previous);
+            if (percent <= 100) assert(actual == scaleEffectStrength(static_cast<std::uint8_t>(value), percent));
+            previous = actual;
+        }
+    }
+    auto* transport = new FakeTransport();
+    asb::flydigi::Apex5Device device{asb::flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    RumbleBridge rumble(device, {}, 150);
+    DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x01;
+    feedback.rumbleLeft = 100;
+    feedback.rumbleRight = 200;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 150);
+    assert(transport->writes.back()[6] == 255);
+    feedback.rumbleLeft = feedback.rumbleRight = 0;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 0 && transport->writes.back()[6] == 0);
+    feedback.kind = FeedbackKind::AudioHaptics;
+    feedback.leftEnergy = feedback.leftPeak = feedback.leftTransient = 65535;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 255 && transport->writes.back()[6] == 0);
+    feedback.leftEnergy = feedback.leftPeak = feedback.leftTransient = 0;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 0 && transport->writes.back()[6] == 0);
+}
+
+void testThresholdAndTriggerIndependence() {
+    using namespace asb::dualsense;
+    std::vector<std::vector<std::uint8_t>> baseline;
+    for (double threshold : {0.0, 0.95}) {
+        auto* transport = new FakeTransport();
+        asb::flydigi::Apex5Device device{asb::flydigi::TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        asb::haptics::HapticConfig config{};
+        config.activationThreshold = threshold;
+        RumbleBridge rumble(device, config, 150);
+        AdaptiveTriggerBridge triggers(device, 100);
+        const std::array<std::array<std::uint8_t, 11>, 6> effects = {{
+            {1, 25, 40}, {2, 25, 90, 60}, {0x21, 0xFF, 0x03},
+            {0x25, 0x84, 0, 3}, {0x26, 0xFF, 0x03, 0, 0, 0, 0, 0, 0, 35}, {5}
+        }};
+        std::vector<std::vector<std::uint8_t>> sentTriggers;
+        for (const auto& effect : effects) {
+            DualSenseFeedback hid{};
+            hid.enableBits1 = 0x0C;
+            hid.leftTriggerEffect = hid.rightTriggerEffect = effect;
+            triggers.handle(hid);
+            rumble.handle(hid);
+            DualSenseFeedback audio{};
+            audio.kind = FeedbackKind::AudioHaptics;
+            audio.leftEnergy = audio.rightEnergy = 10000;
+            audio.leftPeak = audio.rightPeak = 20000;
+            audio.leftTransient = audio.rightTransient = 8000;
+            triggers.handle(audio);
+            rumble.handle(audio);
+        }
+        for (const auto& report : transport->writes) {
+            if (report[3] == asb::flydigi::kCmdSetForceTrigger) sentTriggers.push_back(report);
+        }
+        assert(sentTriggers.size() == effects.size() * 2);
+        assert(triggers.stats().writeFailures == 0);
+        if (threshold == 0.0) {
+            assert(rumble.stats().lastLowFrequency > 0);
+            baseline = sentTriggers;
+        } else {
+            assert(rumble.stats().lastLowFrequency == 0);
+            assert(sentTriggers == baseline);
+        }
+        // Threshold never gates conventional game rumble, even at 95%.
+        DualSenseFeedback hid{};
+        hid.enableBits1 = 0x01;
+        hid.rumbleLeft = 100;
+        hid.rumbleRight = 200;
+        rumble.handle(hid);
+        assert(transport->writes.back()[5] == 150 && transport->writes.back()[6] == 255);
+        assert(triggers.stats().lastLeftCommand->mode == asb::TriggerMode::Normal);
+        assert(triggers.stats().lastRightCommand->mode == asb::TriggerMode::Normal);
+    }
+}
+
 int main() {
+    testRumbleGain();
+    testThresholdAndTriggerIndependence();
     using namespace asb::dualsense;
 
     auto* transport = new FakeTransport();
@@ -161,6 +336,132 @@ int main() {
     assert(audioStats.writes == 4);
     assert(audioStats.stops == 2);
 
+    {
+        LightbarBridge lightbar(device);
+        assert(!lightbar.failed());
+        const auto writesBeforeLightbarUpdate = transport->writes.size();
+        DualSenseFeedback lightbarFeedback{};
+        lightbarFeedback.hasLightbar = true;
+        lightbarFeedback.lightbarRed = 10;
+        lightbarFeedback.lightbarGreen = 20;
+        lightbarFeedback.lightbarBlue = 30;
+        lightbar.handle(lightbarFeedback);
+
+        const auto firstWriteDeadline = std::chrono::steady_clock::now() +
+                                        std::chrono::milliseconds(250);
+        while (lightbar.stats().writes == 0 &&
+               std::chrono::steady_clock::now() < firstWriteDeadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        const auto firstLightbarStats = lightbar.stats();
+        assert(firstLightbarStats.writes == 1);
+        std::array<std::uint8_t, asb::flydigi::kRgbConfigSize> writtenConfig{};
+        std::array<bool, asb::flydigi::kRgbPacketCount> packetsSeen{};
+        std::vector<std::uint8_t> latchValues;
+        std::uint8_t rangeStart = 0;
+        for (auto it = transport->writes.begin() + writesBeforeLightbarUpdate;
+             it != transport->writes.end(); ++it) {
+            const auto& report = *it;
+            if (report.size() > 6 &&
+                report[3] == asb::flydigi::kCmdWriteRgbStart) {
+                rangeStart = report[6];
+                continue;
+            }
+            if (report.size() <= 5 ||
+                report[3] != asb::flydigi::kCmdWriteRgbPack) {
+                continue;
+            }
+            const auto packet = static_cast<std::size_t>(rangeStart) + report[5];
+            assert(packet < asb::flydigi::kRgbPacketCount);
+            const auto offset = static_cast<std::size_t>(packet) *
+                                asb::flydigi::kRgbPacketSize;
+            std::copy_n(report.begin() + 6, asb::flydigi::kRgbPacketSize,
+                        writtenConfig.begin() + offset);
+            packetsSeen[packet] = true;
+            if (packet == 0) latchValues.push_back(report[8]);
+        }
+        assert(std::all_of(packetsSeen.begin(), packetsSeen.end(),
+                           [](bool seen) { return seen; }));
+        assert((latchValues == std::vector<std::uint8_t>{1, 0}));
+        assert(writtenConfig[3] == 0);
+        assert(writtenConfig[4] == 9);
+        assert(writtenConfig[8] == 4);
+        for (std::size_t offset = 20; offset + 2 < writtenConfig.size();
+             offset += 3) {
+            assert(writtenConfig[offset] == 10);
+            assert(writtenConfig[offset + 1] == 20);
+            assert(writtenConfig[offset + 2] == 30);
+        }
+
+        const auto cpuStartedAt = processCpuMilliseconds();
+        const auto stressDeadline = std::chrono::steady_clock::now() +
+                                    std::chrono::milliseconds(300);
+        bool alternate = false;
+        while (std::chrono::steady_clock::now() < stressDeadline) {
+            lightbarFeedback.lightbarRed = alternate ? 40 : 220;
+            lightbarFeedback.lightbarGreen = alternate ? 80 : 180;
+            lightbarFeedback.lightbarBlue = alternate ? 120 : 140;
+            lightbar.handle(lightbarFeedback);
+            alternate = !alternate;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        const auto cpuMilliseconds = processCpuMilliseconds() - cpuStartedAt;
+        const auto lightbarStats = lightbar.stats();
+        assert(lightbarStats.writes >= 3);
+        assert(lightbarStats.writes <= 5);
+        assert(lightbarStats.writeFailures == 0);
+        assert(cpuMilliseconds < 150.0);
+
+        const auto writesBeforeRestore = transport->writes.size();
+        lightbar.restore();
+        assert(!lightbar.failed());
+        const auto expectedBackup =
+            asb::flydigi::buildStaticRgbPayload(32, 48, 64, 70);
+        assert(transport->rgbConfig() == expectedBackup);
+
+        std::vector<std::pair<std::uint8_t, std::uint8_t>> restoreRanges;
+        std::vector<std::uint8_t> restoreLatchValues;
+        std::uint8_t restoreRangeStart = 0;
+        for (auto it = transport->writes.begin() + writesBeforeRestore;
+             it != transport->writes.end(); ++it) {
+            const auto& report = *it;
+            if (report.size() > 7 &&
+                report[3] == asb::flydigi::kCmdWriteRgbStart) {
+                restoreRangeStart = report[6];
+                restoreRanges.emplace_back(report[6], report[7]);
+            } else if (report.size() > 8 &&
+                       report[3] == asb::flydigi::kCmdWriteRgbPack &&
+                       restoreRangeStart == 0 && report[5] == 0) {
+                restoreLatchValues.push_back(report[8]);
+            }
+        }
+        assert((restoreRanges ==
+                std::vector<std::pair<std::uint8_t, std::uint8_t>>{
+                    {std::uint8_t{0}, std::uint8_t{19}},
+                    {std::uint8_t{0}, std::uint8_t{1}}}));
+        assert((restoreLatchValues == std::vector<std::uint8_t>{1, 0}));
+    }
+
+    {
+        auto* scaledTransport = new FakeTransport();
+        asb::flydigi::Apex5Device scaledDevice{asb::flydigi::TransportPtr(scaledTransport)};
+        assert(scaledDevice.verifyIdentity(error));
+        RumbleBridge scaled(scaledDevice, {}, 50);
+        DualSenseFeedback rumble{};
+        rumble.enableBits1 = 0x01;
+        rumble.rumbleLeft = 200;
+        rumble.rumbleRight = 100;
+        scaled.handle(rumble);
+        assert(scaledTransport->writes.back()[5] == 100 && scaledTransport->writes.back()[6] == 50);
+        rumble.kind = FeedbackKind::AudioHaptics;
+        rumble.leftEnergy = rumble.rightEnergy = 30000;
+        rumble.leftPeak = rumble.rightPeak = 32000;
+        scaled.handle(rumble);
+        assert(scaled.stats().lastLowFrequency <= 127 && scaled.stats().lastHighFrequency <= 127);
+        RumbleBridge disabled(scaledDevice, {}, 0);
+        disabled.handle(rumble);
+        assert(disabled.stats().lastLowFrequency == 0 && disabled.stats().lastHighFrequency == 0);
+    }
     transport->failWrites = true;
     feedback.rumbleLeft = 1;
     bridge.handle(feedback);

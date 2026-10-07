@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace asb::platform {
 
@@ -25,6 +26,9 @@ public:
                   std::string_view sessionToken,
                   std::optional<std::uint8_t> originalApexProfile,
                   std::string& error);
+    bool armApexInputTransportRestore(bool originalControllerData,
+                                      bool originalRawData,
+                                      std::string& error) noexcept;
     bool confirmApexProfileRestored(std::string& error) noexcept;
     bool restore(std::string& error) noexcept;
     [[nodiscard]] bool active() const noexcept;
@@ -71,6 +75,18 @@ namespace detail {
     std::uint16_t vendorId,
     std::uint16_t productId,
     std::uint16_t usagePage) noexcept;
+
+// HidHide's control device accepts one client at a time, so another
+// application that configures HidHide (DSX, DS4Windows, the HidHide
+// Configuration Client...) makes every open fail with ERROR_ACCESS_DENIED.
+// Returns the canonical names of such known applications found among the
+// running executable names, each once, in the known-application order.
+[[nodiscard]] std::vector<std::string> findHidHideControlClients(
+    const std::vector<std::wstring>& runningExecutables);
+
+// Actionable message for an access-denied open of the HidHide control device.
+[[nodiscard]] std::string describeHidHideControlDenied(
+    const std::vector<std::string>& runningClients);
 
 } // namespace detail
 

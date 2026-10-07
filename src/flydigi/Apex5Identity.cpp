@@ -1,6 +1,8 @@
 #include "flydigi/Apex5Identity.h"
 
+#include "dualsense/DualSenseInput.h"
 #include "flydigi/Apex4Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 
 #include <algorithm>
 #include <array>
@@ -35,13 +37,15 @@ Apex5Identity::Apex5Identity(ApexProtocol protocol,
                              std::uint8_t connectionType,
                              std::uint8_t batteryLevel,
                              bool charging,
-                             std::uint16_t firmwareVersion) noexcept
+                             std::uint16_t firmwareVersion,
+                             std::uint8_t features) noexcept
     : protocol_(protocol),
       deviceType_(deviceType),
       connectionType_(connectionType),
       batteryLevel_(batteryLevel),
       charging_(charging),
-      firmwareVersion_(firmwareVersion) {}
+      firmwareVersion_(firmwareVersion),
+      features_(features) {}
 
 Report Apex5Identity::buildRequest() {
     Report report{};
@@ -65,11 +69,24 @@ std::optional<Apex5Identity> Apex5Identity::parseReply(
     }
 
     const auto rawBattery = report[12];
-    const bool charging = (rawBattery >> 4U) == 1;
-    const auto level = static_cast<std::uint8_t>(
-        charging ? 6 : std::min<std::uint8_t>(rawBattery & 0x0F, 6));
+    const bool charging = (rawBattery >> 4U) != 0;
+    const auto rawLevel = static_cast<std::uint8_t>(rawBattery & 0x0F);
+    const auto level = rawLevel != 0
+        ? (rawLevel > 6 ? static_cast<std::uint8_t>(6) : rawLevel)
+        : (charging ? static_cast<std::uint8_t>(5) : static_cast<std::uint8_t>(0));
     return Apex5Identity(ApexProtocol::CurrentV2, report[6], report[7],
                          level, charging, 0);
+}
+
+std::uint8_t Apex5Identity::batteryPercent() const noexcept {
+    if (hasBatteryLevel()) {
+        return dualsense::toBatteryPercent(batteryLevel_);
+    }
+    return 100;
+}
+
+std::uint8_t Apex5Identity::chargeState() const noexcept {
+    return dualsense::toChargeState(charging_, isWired(), batteryPercent());
 }
 
 std::optional<Apex5Identity> Apex5Identity::parseApex4Reply(
@@ -83,6 +100,17 @@ std::optional<Apex5Identity> Apex5Identity::parseApex4Reply(
         report[9] | static_cast<std::uint16_t>(report[10]) << 8U);
     return Apex5Identity(ApexProtocol::LegacyV1, report[3], report[13],
                          0, false, firmware);
+}
+
+std::optional<Apex5Identity> Apex5Identity::parseApex6Reply(
+    std::span<const std::uint8_t> report) {
+    const auto parsed = apex6::parseDeviceInfo(report);
+    if (!parsed || !apex6::isProDeviceType(parsed->deviceType)) {
+        return std::nullopt;
+    }
+    return Apex5Identity(ApexProtocol::RealtimeV3, parsed->deviceType,
+                         parsed->connectionMode, 0, false, 0,
+                         parsed->features);
 }
 
 bool Apex5Identity::isApex4DeviceType(std::uint8_t deviceType) noexcept {
@@ -106,6 +134,11 @@ std::string Apex5Identity::describe() const {
         output << ')';
     } else if (isApex5()) {
         output << "Apex 5 (k5, DeviceType " << static_cast<unsigned int>(deviceType_) << ')';
+    } else if (isApex6()) {
+        output << "Apex 6 Pro (k6, DeviceType "
+               << static_cast<unsigned int>(deviceType_) << ", features 0x"
+               << std::hex << std::uppercase
+               << static_cast<unsigned int>(features_) << std::dec << ')';
     } else {
         output << "unsupported Flydigi controller (DeviceType "
                << static_cast<unsigned int>(deviceType_) << ')';

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 
 [assembly: AssemblyTitle("ApexSenseBridge Tray")]
-[assembly: AssemblyDescription("Standalone DualSense Bridge Auto-Detector for Flydigi APEX 4 and APEX 5")]
+[assembly: AssemblyDescription("Main application: game detection, controller settings and diagnostics for Flydigi APEX 4/5/6")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("ReynArts")]
 [assembly: AssemblyProduct("ApexSenseBridge")]
@@ -17,5 +17,6 @@ using System.Windows;
     ResourceDictionaryLocation.SourceAssembly
 )]
 
-[assembly: AssemblyVersion("0.6.3.0")]
-[assembly: AssemblyFileVersion("0.6.3.0")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyInformationalVersion("1.0.0")]

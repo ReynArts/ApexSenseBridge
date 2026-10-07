@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ApexSenseBridge"
         Icon="Resources/app.ico"
-        Height="630" Width="480"
+        Height="540" Width="460"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         WindowStyle="None"
@@ -215,11 +215,73 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="GamepadActionItem" TargetType="StackPanel">
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+        </Style>
+
+        <Style x:Key="GamepadActionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="5,0,0,0"/>
+        </Style>
+
+        <Style x:Key="XboxBtnA" TargetType="Border">
+            <Setter Property="Width" Value="19"/>
+            <Setter Property="Height" Value="19"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="XboxTextA" TargetType="Rectangle">
+            <Setter Property="Fill" Value="#2EBB4F"/>
+            <Setter Property="OpacityMask">
+                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-a.png"/></Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="XboxBtnB" TargetType="Border">
+            <Setter Property="Width" Value="19"/>
+            <Setter Property="Height" Value="19"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="XboxTextB" TargetType="Rectangle">
+            <Setter Property="Fill" Value="#F05252"/>
+            <Setter Property="OpacityMask">
+                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-b.png"/></Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="XboxBtnY" TargetType="Border">
+            <Setter Property="Width" Value="19"/>
+            <Setter Property="Height" Value="19"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="XboxTextY" TargetType="Rectangle">
+            <Setter Property="Fill" Value="#F5C542"/>
+            <Setter Property="OpacityMask">
+                <Setter.Value><ImageBrush ImageSource="Resources/xbox-button-y.png"/></Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border CornerRadius="12" Background="{DynamicResource WindowBackground}"
             BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
             MouseLeftButtonDown="OnWindowDrag">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="22" ShadowDepth="3" Opacity="0.55" Color="#000000"/>
+        </Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -227,7 +289,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Padding="20,14,16,10" Background="Transparent">
+            <Border Grid.Row="0" Padding="16,12,14,8" Background="Transparent">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
                         <Button Content="─" Style="{StaticResource BtnSecondary}" Padding="6,2" FontSize="10" Margin="0,0,4,0"
@@ -237,25 +299,21 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border CornerRadius="8" ClipToBounds="True" Margin="0,0,12,0" VerticalAlignment="Center">
-                            <Image Source="Resources/logo.png" Height="40" Width="40" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <Border CornerRadius="6" ClipToBounds="True" Margin="0,0,10,0" VerticalAlignment="Center">
+                            <Image Source="Resources/logo.png" Height="32" Width="32" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{DynamicResource Loc_AppName}" FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="{DynamicResource Loc_AppSubtitle}"
-                                       FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
-                        </StackPanel>
+                        <TextBlock Text="{DynamicResource Loc_AppName}" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </DockPanel>
             </Border>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="16,0,16,0">
+            <ScrollViewer x:Name="ScrollMain" Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="14,0,14,0">
                 <StackPanel>
 
-                    <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
-                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                            Padding="20,16" Margin="0,0,0,10">
+                    <Border x:Name="NavStatus" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,14" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -263,16 +321,14 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0">
-                                <Border x:Name="BadgeStatus" CornerRadius="6" Padding="10,3,10,3" HorizontalAlignment="Left" Margin="0,0,0,10"
+                                <Border x:Name="BadgeStatus" CornerRadius="6" Padding="10,3,10,3" HorizontalAlignment="Left" Margin="0,0,0,8"
                                         Background="{DynamicResource BadgeStandbyBg}">
                                     <TextBlock x:Name="TxtStatusBadge" Text="{DynamicResource Loc_StatusBadgeStandby}" FontSize="11" FontWeight="SemiBold"
                                                Foreground="{DynamicResource BadgeStandbyFg}"/>
                                 </Border>
 
                                 <TextBlock x:Name="TxtActiveGame" Text="{DynamicResource Loc_NoActiveGame}" FontSize="15" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4" TextWrapping="Wrap"/>
-                                <TextBlock Text="{DynamicResource Loc_WaitingHint}" FontSize="11"
-                                           Foreground="{DynamicResource TextMuted}" x:Name="TxtWaitHint"/>
+                                           Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap"/>
                                 
                                 <Button x:Name="BtnExcludeCurrentGame" Content="{DynamicResource Loc_BtnExcludeCurrent}" Style="{StaticResource BtnSecondary}"
                                         Padding="10,4" FontSize="11" Margin="0,8,0,0" HorizontalAlignment="Left"
@@ -300,118 +356,105 @@
                         </Grid>
                     </Border>
 
-                    <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
-                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                            Padding="20,16" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource Loc_SectionAutoDetect}" FontSize="13.5" FontWeight="Bold"
-                                       Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,14"/>
-
-                            <DockPanel Margin="0,0,0,12">
-                                <CheckBox x:Name="ChkAutoDetect" Style="{StaticResource ToggleSwitch}"
-                                          DockPanel.Dock="Right" VerticalAlignment="Center"
-                                          Checked="OnAutoDetectChanged" Unchecked="OnAutoDetectChanged"/>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{DynamicResource Loc_EnableDetection}" FontSize="13" FontWeight="Medium"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="{DynamicResource Loc_EnableDetectionHint}"
-                                               FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                                </StackPanel>
-                            </DockPanel>
-
-                            <Border Height="1" Background="{DynamicResource CardBorder}" Margin="0,0,0,12"/>
-
-                            <StackPanel x:Name="PnlTriggerCriteria" Margin="0,0,0,0">
-                                <TextBlock Text="{DynamicResource Loc_LaunchCriteria}" FontSize="11"
-                                           Foreground="{DynamicResource TextMuted}" Margin="0,0,10,10"/>
-
-                                <DockPanel Margin="0,0,0,8">
-                                    <CheckBox x:Name="ChkTriggerAdaptive" Style="{StaticResource PsCheckBox}"
-                                              DockPanel.Dock="Right" VerticalAlignment="Center"
-                                              Checked="OnTriggerCriteriaChanged" Unchecked="OnTriggerCriteriaChanged"/>
-                                    <TextBlock Text="{DynamicResource Loc_CriteriaAdaptive}" FontSize="12.5"
-                                               Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                                </DockPanel>
-
-                                <DockPanel>
-                                    <CheckBox x:Name="ChkTriggerHaptic" Style="{StaticResource PsCheckBox}"
-                                              DockPanel.Dock="Right" VerticalAlignment="Center"
-                                              Checked="OnTriggerCriteriaChanged" Unchecked="OnTriggerCriteriaChanged"/>
-                                    <TextBlock Text="{DynamicResource Loc_CriteriaHaptic}" FontSize="12.5"
-                                               Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                                </DockPanel>
-                            </StackPanel>
-                        </StackPanel>
+                    <Border x:Name="NavAutoDetect" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,12" Margin="0,0,0,6" Cursor="Hand"
+                            MouseLeftButtonDown="OnNavItemAutoDetectClick">
+                        <DockPanel>
+                            <CheckBox x:Name="ChkAutoDetect" Style="{StaticResource ToggleSwitch}"
+                                      DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Checked="OnAutoDetectChanged" Unchecked="OnAutoDetectChanged"/>
+                            <TextBlock Text="{DynamicResource Loc_EnableDetection}" FontSize="13" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
                     </Border>
 
-                    <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
-                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                            Padding="20,16" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource Loc_SectionConfig}" FontSize="13.5" FontWeight="Bold"
-                                       Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,14"/>
+                    <Border x:Name="NavCriteriaAdaptive" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,10" Margin="16,0,0,4" Cursor="Hand"
+                            MouseLeftButtonDown="OnNavItemAdaptiveClick">
+                        <DockPanel>
+                            <CheckBox x:Name="ChkTriggerAdaptive" Style="{StaticResource PsCheckBox}"
+                                      DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Checked="OnTriggerCriteriaChanged" Unchecked="OnTriggerCriteriaChanged"/>
+                            <TextBlock Text="{DynamicResource Loc_CriteriaAdaptive}" FontSize="12.5"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
 
-                            <!-- Language Selector -->
-                            <DockPanel Margin="0,0,0,14">
-                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-                                    <RadioButton x:Name="RadLangEn" Content="English" Style="{StaticResource LangOptionButton}"
-                                                 Checked="OnLanguageOptionChecked"/>
-                                    <RadioButton x:Name="RadLangFr" Content="Français" Style="{StaticResource LangOptionButton}"
-                                                 Checked="OnLanguageOptionChecked"/>
-                                </StackPanel>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{DynamicResource Loc_Language}" FontSize="13" FontWeight="Medium"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="{DynamicResource Loc_LanguageHint}"
-                                               FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                                </StackPanel>
-                            </DockPanel>
+                    <Border x:Name="NavCriteriaHaptic" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,10" Margin="16,0,0,8" Cursor="Hand"
+                            MouseLeftButtonDown="OnNavItemHapticClick">
+                        <DockPanel>
+                            <CheckBox x:Name="ChkTriggerHaptic" Style="{StaticResource PsCheckBox}"
+                                      DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Checked="OnTriggerCriteriaChanged" Unchecked="OnTriggerCriteriaChanged"/>
+                            <TextBlock Text="{DynamicResource Loc_CriteriaHaptic}" FontSize="12.5"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
 
-                            <Border Height="1" Background="{DynamicResource CardBorder}" Margin="0,0,0,14"/>
+                    <Border x:Name="NavNotifications" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,12" Margin="0,0,0,6" Cursor="Hand"
+                            MouseLeftButtonDown="OnNavItemNotificationsClick">
+                        <DockPanel>
+                            <CheckBox x:Name="ChkNotifications" Style="{StaticResource ToggleSwitch}"
+                                      DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Checked="OnNotificationsChanged" Unchecked="OnNotificationsChanged"/>
+                            <TextBlock Text="{DynamicResource Loc_Notifications}" FontSize="13" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
 
-                            <DockPanel Margin="0,0,0,14">
-                                <CheckBox x:Name="ChkNotifications" Style="{StaticResource ToggleSwitch}"
-                                          DockPanel.Dock="Right" VerticalAlignment="Center"
-                                          Checked="OnNotificationsChanged" Unchecked="OnNotificationsChanged"/>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{DynamicResource Loc_Notifications}" FontSize="13" FontWeight="Medium"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="{DynamicResource Loc_NotificationsHint}"
-                                               FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                                </StackPanel>
-                            </DockPanel>
+                    <Border x:Name="NavSyncLightbar" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,12" Margin="0,0,0,6" Cursor="Hand"
+                            MouseLeftButtonDown="OnNavItemSyncLightbarClick">
+                        <DockPanel>
+                            <CheckBox x:Name="ChkSyncLightbar" Style="{StaticResource ToggleSwitch}"
+                                      DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Checked="OnSyncLightbarChanged" Unchecked="OnSyncLightbarChanged"/>
+                            <TextBlock Text="{DynamicResource Loc_SyncLightbar}" FontSize="13" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
 
-                            <Border Height="1" Background="{DynamicResource CardBorder}" Margin="0,0,0,14"/>
+                    <Border x:Name="NavManualBridge" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,12" Margin="0,0,0,6" Cursor="Hand"
+                            MouseLeftButtonDown="OnNavItemManualBridgeClick">
+                        <DockPanel>
+                            <CheckBox x:Name="ChkManualBridge" Style="{StaticResource ToggleSwitch}"
+                                      DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Checked="OnManualBridgeChanged" Unchecked="OnManualBridgeChanged"/>
+                            <TextBlock Text="{DynamicResource Loc_ManualBridge}" FontSize="13" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
 
-                            <DockPanel Margin="0,0,0,14">
-                                <CheckBox x:Name="ChkManualBridge" Style="{StaticResource ToggleSwitch}"
-                                          DockPanel.Dock="Right" VerticalAlignment="Center"
-                                          Checked="OnManualBridgeChanged" Unchecked="OnManualBridgeChanged"/>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{DynamicResource Loc_ManualBridge}" FontSize="13" FontWeight="Medium"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="{DynamicResource Loc_ManualBridgeHint}"
-                                               FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                                </StackPanel>
-                            </DockPanel>
-
-                            <Border Height="1" Background="{DynamicResource CardBorder}" Margin="0,0,0,14"/>
-
-                            <DockPanel>
-                                <Button Content="{DynamicResource Loc_BtnCheck}" Style="{StaticResource BtnSmall}" DockPanel.Dock="Right"
-                                        VerticalAlignment="Center" Click="OnCheckUpdatesClick"/>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{DynamicResource Loc_SoftwareUpdate}" FontSize="13" FontWeight="Medium"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v0.6.3"
-                                               FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                                </StackPanel>
-                            </DockPanel>
-                        </StackPanel>
+                    <Border x:Name="NavLanguage" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,12" Margin="0,0,0,6">
+                        <DockPanel>
+                            <WrapPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                                <RadioButton x:Name="RadLangEn" Content="English" Style="{StaticResource LangOptionButton}"
+                                             Checked="OnLanguageOptionChecked"/>
+                                <RadioButton x:Name="RadLangFr" Content="Français" Style="{StaticResource LangOptionButton}"
+                                             Checked="OnLanguageOptionChecked"/>
+                                <RadioButton x:Name="RadLangEs" Content="Español" Style="{StaticResource LangOptionButton}"
+                                             Checked="OnLanguageOptionChecked"/>
+                                <RadioButton x:Name="RadLangZh" Content="简体中文" Style="{StaticResource LangOptionButton}"
+                                             Checked="OnLanguageOptionChecked"/>
+                            </WrapPanel>
+                            <TextBlock Text="{DynamicResource Loc_Language}" FontSize="13" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </DockPanel>
                     </Border>
 
                     <Border x:Name="BannerUpdate" CornerRadius="8" Background="{DynamicResource PlayStationBlue}"
-                            Padding="16,12" Margin="0,0,0,10" Visibility="Collapsed">
+                            Padding="16,12" Margin="0,0,0,8" Visibility="Collapsed">
                         <DockPanel>
                             <Button Content="{DynamicResource Loc_BtnDownload}" Style="{StaticResource BtnSecondary}"
                                     Background="White" Foreground="{DynamicResource PlayStationBlue}"
@@ -426,9 +469,25 @@
                         </DockPanel>
                     </Border>
 
-                    <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
-                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                            Padding="16,14" Margin="0,0,0,10">
+                    <Border x:Name="NavTestController" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="16,12" Margin="0,0,0,6" Cursor="Hand"
+                            MouseLeftButtonDown="OnOpenControllerTestClick">
+                        <DockPanel>
+                            <Button Content="{DynamicResource Loc_BtnTestController}" Style="{StaticResource BtnPrimary}"
+                                    DockPanel.Dock="Right" Padding="12,5" FontSize="11" Click="OnOpenControllerTestClick"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{DynamicResource Loc_NavTestControllerTitle}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                                <TextBlock Text="{DynamicResource Loc_NavTestControllerSubtitle}" FontSize="11"
+                                           Foreground="{DynamicResource TextMuted}" Margin="0,1,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Border x:Name="NavDatabase" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="16,12" Margin="0,0,0,6">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -436,10 +495,8 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock x:Name="TxtDatabaseInfo" Text="—" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" Margin="0,0,0,2"/>
-                                <TextBlock Text="{DynamicResource Loc_DatabaseTitle}" FontSize="11"
-                                           Foreground="{DynamicResource TextMuted}"/>
+                                <TextBlock x:Name="TxtDatabaseInfo" Text="…" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -451,18 +508,50 @@
                         </Grid>
                     </Border>
 
+                    <Border x:Name="NavUpdate" CornerRadius="8" Background="{DynamicResource CardBackground}"
+                            BorderBrush="Transparent" BorderThickness="1.6"
+                            Padding="18,12" Margin="0,0,0,8">
+                        <DockPanel>
+                            <Button Content="{DynamicResource Loc_BtnCheck}" Style="{StaticResource BtnSmall}" DockPanel.Dock="Right"
+                                    VerticalAlignment="Center" Click="OnCheckUpdatesClick"/>
+                            <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v1.0.0"
+                                       FontSize="12" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
+
                 </StackPanel>
             </ScrollViewer>
 
-            <Border Grid.Row="2" CornerRadius="0,0,12,12" Padding="16,10,16,14"
+            <Border Grid.Row="2" CornerRadius="0,0,12,12" Padding="14,8,14,10"
                     Background="{DynamicResource FooterBackground}">
-                <DockPanel>
-                    <TextBlock Text="{DynamicResource Loc_FooterStatus}" FontSize="11"
-                               Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
-                    <Button Content="{DynamicResource Loc_BtnHide}" Style="{StaticResource BtnSecondary}"
-                            DockPanel.Dock="Right" HorizontalAlignment="Right"
-                            Click="OnHideWindowClick"/>
-                </DockPanel>
+                <StackPanel x:Name="PnlGamepadHudMain" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Style="{StaticResource GamepadActionItem}">
+                        <Border Style="{StaticResource XboxBtnA}">
+                            <Rectangle Style="{StaticResource XboxTextA}"/>
+                        </Border>
+                        <TextBlock Text="{DynamicResource Loc_Gamepad_Select}" Style="{StaticResource GamepadActionLabel}"/>
+                    </StackPanel>
+
+                    <StackPanel Style="{StaticResource GamepadActionItem}">
+                        <Border Style="{StaticResource XboxBtnB}">
+                            <Rectangle Style="{StaticResource XboxTextB}"/>
+                        </Border>
+                        <TextBlock Text="{DynamicResource Loc_Hide}" Style="{StaticResource GamepadActionLabel}"/>
+                    </StackPanel>
+
+                    <StackPanel Style="{StaticResource GamepadActionItem}">
+                        <Border Style="{StaticResource XboxBtnY}">
+                            <Rectangle Style="{StaticResource XboxTextY}"/>
+                        </Border>
+                        <TextBlock Text="{DynamicResource Loc_BtnGameList}" Style="{StaticResource GamepadActionLabel}"/>
+                    </StackPanel>
+
+                    <StackPanel Style="{StaticResource GamepadActionItem}" Margin="0">
+                        <Border CornerRadius="6" Background="{DynamicResource ControlBackground}" Padding="5,2" VerticalAlignment="Center">
+                            <TextBlock Text="▲▼" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource TextSecondary}"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
             </Border>
         </Grid>
     </Border>

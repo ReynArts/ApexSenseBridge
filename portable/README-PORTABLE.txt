@@ -3,6 +3,9 @@ ApexSenseBridge portable package
 
 The application files are portable: extract the whole folder anywhere and run
 Start-ApexSenseBridge.cmd (or ApexSenseBridgeTray.exe directly).
+This is the main application for game detection, settings and diagnostics.
+ApexSenseBridge.exe is the engine and command-line diagnostic tool. Opening it
+without a command forwards to the main Tray application.
 
 Windows kernel drivers cannot be made portable. Before the first use:
 
@@ -33,3 +36,11 @@ the same game session.
 
 To remove the prerequisites later, uninstall USBip and HidHide from Windows
 Settings > Apps > Installed apps.
+
+DISCONNECTION RECOVERY
+After a confirmed runtime disconnection, open the Tray home page, reconnect or
+wake the controller, and choose Resume bridge. Recovery keeps the game, profile
+and APEX slot and rechecks the controller, virtual DualSense and HidHide isolation.
+The game is never closed or relaunched automatically. Restart it if it cannot
+reacquire the recreated virtual controller. Playnite-owned sessions must be
+restarted from Playnite; Tray does not take over.

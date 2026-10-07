@@ -12,6 +12,39 @@ std::uint8_t axisToByte(std::int16_t value, bool invert) noexcept {
 
 } // namespace
 
+void mapCombinedTriggerAxis(std::uint16_t combined,
+                            std::uint8_t& leftTrigger,
+                            std::uint8_t& rightTrigger) noexcept {
+    constexpr std::uint32_t kCenter = 0x8000;
+    constexpr std::uint32_t kPositiveRange = 0x7FFF;
+    leftTrigger = 0;
+    rightTrigger = 0;
+    if (combined < kCenter) {
+        const auto distance = kCenter - combined;
+        rightTrigger = static_cast<std::uint8_t>(
+            (distance * 255U + kCenter / 2) / kCenter);
+    } else if (combined > kCenter) {
+        const auto distance = combined - kCenter;
+        leftTrigger = static_cast<std::uint8_t>(
+            (distance * 255U + kPositiveRange / 2) / kPositiveRange);
+    }
+}
+
+void mergeIndependentTriggers(std::uint8_t leftTrigger,
+                              std::uint8_t rightTrigger,
+                              dualsense::DualSenseInputState& state) noexcept {
+    state.l2 = leftTrigger;
+    state.r2 = rightTrigger;
+    state.buttons = static_cast<std::uint16_t>(
+        state.buttons & ~(dualsense::button::kL2 | dualsense::button::kR2));
+    if (leftTrigger > xinputButton::kTriggerThreshold) {
+        state.buttons |= dualsense::button::kL2;
+    }
+    if (rightTrigger > xinputButton::kTriggerThreshold) {
+        state.buttons |= dualsense::button::kR2;
+    }
+}
+
 void mapXInputButtons(std::uint16_t raw,
                       std::uint8_t leftTrigger,
                       std::uint8_t rightTrigger,
@@ -43,8 +76,12 @@ void mapXInputButtons(std::uint16_t raw,
 }
 
 dualsense::DualSenseInputState mapXInputState(
-    const XInputSnapshot& snapshot) noexcept {
+    const XInputSnapshot& snapshot,
+    std::uint8_t batteryPercent,
+    std::uint8_t chargeState) noexcept {
     dualsense::DualSenseInputState converted{};
+    converted.batteryPercent = batteryPercent;
+    converted.chargeState = chargeState;
     converted.lx = axisToByte(snapshot.leftX, false);
     converted.ly = axisToByte(snapshot.leftY, true);
     converted.rx = axisToByte(snapshot.rightX, false);

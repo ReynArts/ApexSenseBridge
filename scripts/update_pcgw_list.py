@@ -37,6 +37,8 @@ SPECIAL_PROFILES = {
     "ghostoftsushima": "ghost-of-tsushima",
     "ghostoftsushimadirectorscut": "ghost-of-tsushima",
     "warframe": "warframe",
+    "deathstranding2": "death-stranding-2",
+    "deathstranding2onthebeach": "death-stranding-2",
 }
 
 BUILTIN_GAMES = [
@@ -323,8 +325,74 @@ def enrich_with_discord_executables(games: list, discord_index: dict) -> dict:
     }
 
 
-def fetch_pcgw_titles(page_titles: list) -> list:
-    """Queries PCGW parse API for table game titles across candidate page titles."""
+def is_valid_added_date(value) -> bool:
+    """Accepts only plain ISO calendar dates (YYYY-MM-DD)."""
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return False
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+
+def assign_added_dates(games: list, existing_cache: dict, today: str) -> int:
+    """Records when each game first entered the catalogue (issue #29).
+
+    Known games keep their stored date. Only games absent from a non-empty
+    previous catalogue are dated today, so a missing or unreadable cache never
+    relabels the whole list as new. The field is always written last to keep
+    regenerated files stable.
+    """
+    new_games = 0
+    for game in games:
+        cached = existing_cache.get(game.get("normalized", ""))
+        game.pop("addedAt", None)
+        if isinstance(cached, dict):
+            added = cached.get("addedAt")
+            if is_valid_added_date(added):
+                game["addedAt"] = added
+        elif existing_cache:
+            game["addedAt"] = today
+            new_games += 1
+    return new_games
+
+
+def parse_pcgw_support_rows(text_content: str) -> dict:
+    """Extracts game titles, wiki links, and support states from a PCGW list."""
+    games = {}
+    row_pattern = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
+    title_pattern = re.compile(
+        r'<td[^>]*>\s*<a href="([^"]*)" title="([^"]*)">',
+        re.IGNORECASE | re.DOTALL,
+    )
+    support_pattern = re.compile(
+        r'<div title="([^"]*)" class="[^"]*\btickcross-([a-z-]+)\b[^"]*"',
+        re.IGNORECASE,
+    )
+
+    for row in row_pattern.findall(text_content or ""):
+        title_match = title_pattern.search(row)
+        support_match = support_pattern.search(row)
+        if not title_match or not support_match:
+            continue
+
+        title = html.unescape(title_match.group(2)).strip()
+        if not title:
+            continue
+
+        href = html.unescape(title_match.group(1)).strip()
+        support_class = support_match.group(2).casefold()
+        games[title] = {
+            "requiresManualFix": support_class == "hackable",
+            "pcgwUrl": urllib.parse.urljoin("https://www.pcgamingwiki.com", href),
+        }
+
+    return games
+
+
+def fetch_pcgw_support(page_titles: list) -> dict:
+    """Queries PCGW for game titles and their native/manual-fix state."""
     for page_title in page_titles:
         params = {
             "action": "parse",
@@ -351,21 +419,24 @@ def fetch_pcgw_titles(page_titles: list) -> list:
         if not text_content:
             continue
 
-        pattern = re.compile(r'<tr>\s*<td><a href="[^"]*" title="([^"]*)">([^<]*)</a></td>')
-        matches = pattern.findall(text_content)
-
-        titles = []
-        for raw_title, text_title in matches:
-            title = html.unescape(raw_title or text_title).strip()
-            if title:
-                titles.append(title)
-
-        if titles:
-            print(f"[+] Successfully fetched {len(titles)} titles from PCGW page: '{page_title}'")
-            return titles
+        games = parse_pcgw_support_rows(text_content)
+        if games:
+            manual_fix_count = sum(
+                1 for details in games.values() if details["requiresManualFix"]
+            )
+            print(
+                f"[+] Successfully fetched {len(games)} titles from PCGW page: "
+                f"'{page_title}' ({manual_fix_count} require a manual fix)"
+            )
+            return games
 
     print(f"[ERROR] Could not fetch any titles from candidate pages: {page_titles}", file=sys.stderr)
-    return []
+    return {}
+
+
+def fetch_pcgw_titles(page_titles: list) -> list:
+    """Compatibility wrapper returning only titles."""
+    return list(fetch_pcgw_support(page_titles))
 
 
 def resolve_steam_identity(title: str) -> tuple:
@@ -423,20 +494,20 @@ def main():
             pass
 
     print(f"[*] Fetching Adaptive Triggers list from PCGamingWiki...")
-    adaptive_titles = fetch_pcgw_titles(ADAPTIVE_PAGES)
-    print(f"[+] Found {len(adaptive_titles)} games with Adaptive Triggers.")
+    adaptive_games = fetch_pcgw_support(ADAPTIVE_PAGES)
+    print(f"[+] Found {len(adaptive_games)} games with Adaptive Triggers.")
 
     print(f"[*] Fetching Haptic Feedback list from PCGamingWiki...")
-    haptic_titles = fetch_pcgw_titles(HAPTIC_PAGES)
-    print(f"[+] Found {len(haptic_titles)} games with Haptic Feedback.")
+    haptic_games = fetch_pcgw_support(HAPTIC_PAGES)
+    print(f"[+] Found {len(haptic_games)} games with Haptic Feedback.")
 
-    if not adaptive_titles or not haptic_titles:
-        print(f"[ERROR] Incomplete fetch (Adaptive: {len(adaptive_titles)}, Haptic: {len(haptic_titles)}). Aborting to prevent data loss.", file=sys.stderr)
+    if not adaptive_games or not haptic_games:
+        print(f"[ERROR] Incomplete fetch (Adaptive: {len(adaptive_games)}, Haptic: {len(haptic_games)}). Aborting to prevent data loss.", file=sys.stderr)
         sys.exit(1)
 
     games_dict = {}
 
-    for title in adaptive_titles:
+    for title, support in adaptive_games.items():
         norm = normalize_title(title)
         if not norm:
             continue
@@ -446,7 +517,10 @@ def main():
                 "title": title,
                 "normalized": norm,
                 "adaptiveTriggers": True,
+                "adaptiveTriggersManualFix": support["requiresManualFix"],
                 "hapticFeedback": False,
+                "hapticFeedbackManualFix": False,
+                "manualFixUrl": support["pcgwUrl"] if support["requiresManualFix"] else "",
                 "profile": get_special_profile(norm),
                 "steamAppId": cached.get("steamAppId", 0),
                 "steamAppIdVerified": bool(cached.get("steamAppIdVerified", False)),
@@ -455,8 +529,11 @@ def main():
             }
         else:
             games_dict[norm]["adaptiveTriggers"] = True
+            games_dict[norm]["adaptiveTriggersManualFix"] = support["requiresManualFix"]
+            if support["requiresManualFix"]:
+                games_dict[norm]["manualFixUrl"] = support["pcgwUrl"]
 
-    for title in haptic_titles:
+    for title, support in haptic_games.items():
         norm = normalize_title(title)
         if not norm:
             continue
@@ -466,7 +543,10 @@ def main():
                 "title": title,
                 "normalized": norm,
                 "adaptiveTriggers": False,
+                "adaptiveTriggersManualFix": False,
                 "hapticFeedback": True,
+                "hapticFeedbackManualFix": support["requiresManualFix"],
+                "manualFixUrl": support["pcgwUrl"] if support["requiresManualFix"] else "",
                 "profile": get_special_profile(norm),
                 "steamAppId": cached.get("steamAppId", 0),
                 "steamAppIdVerified": bool(cached.get("steamAppIdVerified", False)),
@@ -475,6 +555,9 @@ def main():
             }
         else:
             games_dict[norm]["hapticFeedback"] = True
+            games_dict[norm]["hapticFeedbackManualFix"] = support["requiresManualFix"]
+            if support["requiresManualFix"]:
+                games_dict[norm]["manualFixUrl"] = support["pcgwUrl"]
 
     # Merge built-in verified entries
     for b in BUILTIN_GAMES:
@@ -495,6 +578,28 @@ def main():
                 games_dict[norm]["adaptiveTriggers"] = True
             if b.get("hapticFeedback"):
                 games_dict[norm]["hapticFeedback"] = True
+
+    for game in games_dict.values():
+        adaptive_manual_fix = bool(
+            game.get("adaptiveTriggersManualFix", False)
+        )
+        haptic_manual_fix = bool(
+            game.get("hapticFeedbackManualFix", False)
+        )
+        if adaptive_manual_fix:
+            game["adaptiveTriggersManualFix"] = True
+        else:
+            game.pop("adaptiveTriggersManualFix", None)
+        if haptic_manual_fix:
+            game["hapticFeedbackManualFix"] = True
+        else:
+            game.pop("hapticFeedbackManualFix", None)
+
+        if adaptive_manual_fix or haptic_manual_fix:
+            game["requiresManualFix"] = True
+        else:
+            game.pop("requiresManualFix", None)
+            game.pop("manualFixUrl", None)
 
     # Audit every legacy/unverified AppID once. Future runs reuse verified identities.
     need_resolve = [
@@ -543,6 +648,11 @@ def main():
     if len(output_list) < 150:
         print(f"[ERROR] Extracted list suspiciously small ({len(output_list)} games). Aborting write to prevent data loss.", file=sys.stderr)
         sys.exit(1)
+
+    new_games = assign_added_dates(
+        output_list, existing_cache, datetime.now(timezone.utc).date().isoformat()
+    )
+    print(f"[+] {new_games} newly added games dated today.")
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 

@@ -1,23 +1,18 @@
 #include "dualsense/AdaptiveTriggerBridge.h"
 
 #include "dualsense/AdaptiveTriggerTranslation.h"
+#include "dualsense/EffectStrength.h"
 
 namespace asb::dualsense {
 
-AdaptiveTriggerBridge::AdaptiveTriggerBridge(flydigi::Apex5Device& device)
-    : device_(device) {}
+AdaptiveTriggerBridge::AdaptiveTriggerBridge(flydigi::Apex5Device& device, unsigned strengthPercent)
+    : device_(device), strengthPercent_(strengthPercent) {}
 
 void AdaptiveTriggerBridge::handle(const DualSenseFeedback& feedback) {
     if (failed_.load(std::memory_order_relaxed) || feedback.kind != FeedbackKind::HidOutput) return;
 
-    constexpr std::uint8_t kCompatibleVibration = 0x01;
-    constexpr std::uint8_t kCompatibleVibration2 = 0x04;
     constexpr std::uint8_t kRightTrigger = 0x04;
     constexpr std::uint8_t kLeftTrigger = 0x08;
-    if ((feedback.enableBits1 & kCompatibleVibration) != 0 ||
-        (feedback.enableBits3 & kCompatibleVibration2) != 0) {
-        leftMotor_ = feedback.rumbleLeft;
-    }
     if ((feedback.enableBits1 & kRightTrigger) != 0) {
         apply(TriggerSide::Right, feedback.rightTriggerEffect);
     }
@@ -34,11 +29,12 @@ void AdaptiveTriggerBridge::apply(TriggerSide side,
     }
     (side == TriggerSide::Left ? lastLeftType_ : lastRightType_)
         .store(effect[0], std::memory_order_relaxed);
-    const auto translated = translateAdaptiveTrigger(side, effect, leftMotor_);
+    auto translated = translateAdaptiveTrigger(side, effect, 0);
     if (!translated) {
         unsupported_.fetch_add(1, std::memory_order_relaxed);
         return;
     }
+    *translated = scaleTriggerStrength(*translated, strengthPercent_);
     {
         std::lock_guard lock(stateMutex_);
         auto& previous = side == TriggerSide::Left ? lastLeft_ : lastRight_;
@@ -49,7 +45,7 @@ void AdaptiveTriggerBridge::apply(TriggerSide side,
     }
 
     std::string writeError;
-    if (!device_.setTriggerRaw(*translated, writeError)) {
+    if (!device_.queueTriggerRaw(*translated, writeError)) {
         writeFailures_.fetch_add(1, std::memory_order_relaxed);
         {
             std::lock_guard lock(errorMutex_);

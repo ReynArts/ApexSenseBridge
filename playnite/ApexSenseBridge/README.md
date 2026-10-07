@@ -29,9 +29,16 @@ virtuelle standard ne peut pas les exposer comme quatre boutons indépendants.
 Le profil Spider-Man 2 ajoute uniquement les gestes tactiles vérifiés. Il ne modifie aucun réglage du jeu et fonctionne lorsque Steam est déjà ouvert.
 
 Les profils tactiles disponibles sont Spider-Man 2, Miles Morales, Ghost of
-Tsushima et Warframe. Un jeu inconnu ne reçoit aucun swipe synthétique : `View`
+Tsushima, Warframe et Death Stranding 2. Un jeu inconnu ne reçoit aucun swipe synthétique : `View`
 reste simplement le clic du touchpad. Le profil Warframe suppose le layout Xbox
 par défaut et doit rester désactivé si les boutons du jeu ont été remappés.
+
+Dans Death Stranding 2, `View/Back` clique sur la moitié droite du pavé tactile
+et transmet le maintien sans délai pour les Likes, la communication et le
+changement d'icône. `LB + Menu` clique sur la moitié gauche pour le mode photo ;
+la combinaison reste consommée jusqu'au relâchement des deux touches. `LB` et
+`Menu` seuls restent inchangés. Le profil suppose les commandes par défaut et
+reste à valider en jeu.
 
 Dans Spider-Man 2, un appui long sur D-pad haut ouvre l'appareil photo par swipe
 up ; l'appui long suivant le range par swipe down. Cette alternance est
@@ -44,6 +51,16 @@ supprime cet override. La détection globale peut aussi être coupée dans les
 paramètres de l'extension.
 
 ## Compilation
+
+La force des vibrations des poignées est réglable de 0 à 200 % dans les
+paramètres de l'extension, avec 100 % par défaut. Au-delà de 100 %, le moteur
+amplifie uniquement les vibrations conventionnelles APEX 4/5, sans dépasser
+la commande moteur 255. Sur APEX 6, ce réglage commun reste plafonné à 100 %.
+Le seuil haptique et la résistance des gâchettes restent indépendants ; le gain
+ne restaure pas l'audio filtré par le seuil. L'intensité sauvegardée dans Space
+Station reste influente. Commencer par une augmentation modérée et relancer
+la session pour appliquer le réglage. Aucun gain automatique ou par jeu n'est
+ajouté.
 
 Le projet cible .NET Framework 4.6.2 et Playnite SDK 6.16. Depuis la racine du dépôt :
 

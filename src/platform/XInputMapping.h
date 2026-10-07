@@ -34,6 +34,19 @@ inline constexpr std::uint16_t kY = 0x8000;
 inline constexpr std::uint8_t kTriggerThreshold = 30;
 } // namespace xinputButton
 
+// Decodes the centered trigger axis exposed by the Xbox HID compatibility
+// collection. LT occupies the negative half and RT the positive half.
+void mapCombinedTriggerAxis(std::uint16_t combined,
+                            std::uint8_t& leftTrigger,
+                            std::uint8_t& rightTrigger) noexcept;
+
+// Replaces only the two trigger axes and their digital threshold bits. The
+// APEX 5 and APEX 6 paths use this to retain their event-driven HID state while
+// sourcing LT/RT from independent bytes that represent both at once.
+void mergeIndependentTriggers(std::uint8_t leftTrigger,
+                              std::uint8_t rightTrigger,
+                              dualsense::DualSenseInputState& state) noexcept;
+
 // Applies only XInput digital controls and trigger-button thresholds. Axes and
 // analog trigger values are copied by the platform poller.
 void mapXInputButtons(std::uint16_t xinputButtons,
@@ -44,6 +57,8 @@ void mapXInputButtons(std::uint16_t xinputButtons,
 // Complete, allocation-free translation used by the fallback proxy and by
 // capture-replay tests. Y axes are inverted to DualSense USB coordinates.
 dualsense::DualSenseInputState mapXInputState(
-    const XInputSnapshot& snapshot) noexcept;
+    const XInputSnapshot& snapshot,
+    std::uint8_t batteryPercent = 100,
+    std::uint8_t chargeState = 0) noexcept;
 
 } // namespace asb::platform

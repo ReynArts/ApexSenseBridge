@@ -79,25 +79,34 @@ namespace ApexSenseBridgeTray.Common
 
             if (isDark)
             {
-                res["WindowBackground"] = new SolidColorBrush(Color.FromRgb(0x0E, 0x0E, 0x10));
-                res["CardBackground"] = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1E));
-                res["CardBorder"] = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
-                res["FooterBackground"] = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x18));
+                // Ultra-noir AMOLED / Deep Obsidian palette (sans contours visibles)
+                res["WindowBackground"] = new SolidColorBrush(Color.FromRgb(0x05, 0x05, 0x07));
+                res["CardBackground"] = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x12));
+                res["CardBorder"] = Brushes.Transparent;
+                res["FooterBackground"] = new SolidColorBrush(Color.FromRgb(0x07, 0x07, 0x09));
 
-                res["ControlBackground"] = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x30));
-                res["ControlBorder"] = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x42));
+                res["ControlBackground"] = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x1A));
+                res["ControlBorder"] = Brushes.Transparent;
 
-                res["TextPrimary"] = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF7));
-                res["TextSecondary"] = new SolidColorBrush(Color.FromArgb(0xB3, 0xFF, 0xFF, 0xFF));
-                res["TextMuted"] = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
+                res["TextPrimary"] = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
+                res["TextSecondary"] = new SolidColorBrush(Color.FromRgb(0xA0, 0xA0, 0xB0));
+                res["TextMuted"] = new SolidColorBrush(Color.FromRgb(0x5C, 0x5C, 0x6E));
 
-                res["BadgeActiveBg"] = new SolidColorBrush(Color.FromArgb(0x26, 0x34, 0xD3, 0x99));
+                res["BadgeActiveBg"] = new SolidColorBrush(Color.FromArgb(0x28, 0x10, 0xB9, 0x81));
                 res["BadgeActiveFg"] = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99));
-                res["BadgeStandbyBg"] = new SolidColorBrush(Color.FromArgb(0x1A, 0x60, 0xA5, 0xFA));
-                res["BadgeStandbyFg"] = new SolidColorBrush(Color.FromRgb(0x60, 0xA5, 0xFA));
+                res["BadgeStandbyBg"] = new SolidColorBrush(Color.FromArgb(0x24, 0x00, 0x70, 0xD1));
+                res["BadgeStandbyFg"] = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
 
-                res["FeaturePillBg"] = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
-                res["FeaturePillBorder"] = new SolidColorBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF));
+                res["FeaturePillBg"] = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+                res["FeaturePillBorder"] = Brushes.Transparent;
+
+                // Gamepad HUD & Focus
+                res["GamepadFocusBorder"] = new SolidColorBrush(Color.FromRgb(0x00, 0x70, 0xD1));
+                res["GamepadFocusGlow"] = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0x70, 0xD1));
+                res["GamepadHudBg"] = new SolidColorBrush(Color.FromRgb(0x07, 0x07, 0x0A));
+                res["GamepadBadgeBg"] = new SolidColorBrush(Color.FromRgb(0x18, 0x18, 0x22));
+                res["GamepadBadgeBorder"] = Brushes.Transparent;
+                res["GamepadBadgeFg"] = new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xF2));
             }
             else
             {
@@ -120,6 +129,13 @@ namespace ApexSenseBridgeTray.Common
 
                 res["FeaturePillBg"] = new SolidColorBrush(Color.FromArgb(0x0A, 0x00, 0x00, 0x00));
                 res["FeaturePillBorder"] = new SolidColorBrush(Color.FromArgb(0x0C, 0x00, 0x00, 0x00));
+
+                res["GamepadFocusBorder"] = new SolidColorBrush(Color.FromRgb(0x00, 0x70, 0xD1));
+                res["GamepadFocusGlow"] = new SolidColorBrush(Color.FromArgb(0x20, 0x00, 0x70, 0xD1));
+                res["GamepadHudBg"] = new SolidColorBrush(Color.FromRgb(0xEA, 0xEC, 0xF0));
+                res["GamepadBadgeBg"] = new SolidColorBrush(Color.FromRgb(0xDE, 0xE2, 0xE8));
+                res["GamepadBadgeBorder"] = new SolidColorBrush(Color.FromRgb(0xCD, 0xD2, 0xDC));
+                res["GamepadBadgeFg"] = new SolidColorBrush(Color.FromRgb(0x20, 0x22, 0x28));
             }
 
             res["PlayStationBlue"] = new SolidColorBrush(Color.FromRgb(0x00, 0x70, 0xD1));

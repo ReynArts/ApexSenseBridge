@@ -57,7 +57,16 @@ foreach ($directory in $temporaryDirectories) {
     Remove-WorkspaceItem (Join-Path $workspaceRoot $_)
 }
 
-@("ApexSenseBridgeTray.exe", "diagnose-*.json", "diagnostics-*.json", "tray_*.log") |
+@(
+    "ApexSenseBridge.exe",
+    "ApexSenseBridgeControl.exe",
+    "ApexSenseBridgeTray.exe",
+    "*.exe.config",
+    "diagnose-*.json",
+    "diagnostics-*.json",
+    "tray_*.log",
+    "space-station-bridge-test.*.log"
+) |
     ForEach-Object {
         Get-ChildItem -Path (Join-Path $workspaceRoot $_) -File -Force -ErrorAction SilentlyContinue |
             ForEach-Object { Remove-WorkspaceItem $_.FullName }

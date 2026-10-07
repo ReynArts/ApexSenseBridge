@@ -31,7 +31,7 @@ struct AdaptiveTriggerBridgeStats {
 
 class AdaptiveTriggerBridge {
 public:
-    explicit AdaptiveTriggerBridge(flydigi::Apex5Device& device);
+    explicit AdaptiveTriggerBridge(flydigi::Apex5Device& device, unsigned strengthPercent = 100);
     void handle(const DualSenseFeedback& feedback);
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
@@ -41,7 +41,7 @@ private:
     void apply(TriggerSide side, const std::array<std::uint8_t, 11>& effect);
 
     flydigi::Apex5Device& device_;
-    std::uint8_t leftMotor_ = 0;
+    unsigned strengthPercent_ = 100;
     std::optional<ForceTriggerCommand> lastLeft_;
     std::optional<ForceTriggerCommand> lastRight_;
     std::uint8_t lastActiveLeftType_ = 0;

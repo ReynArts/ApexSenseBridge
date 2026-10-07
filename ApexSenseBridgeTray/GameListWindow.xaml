@@ -1,10 +1,10 @@
 <Window x:Class="ApexSenseBridgeTray.GameListWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="{DynamicResource Loc_GameListTitle}"
+        Title="ApexSenseBridge"
         Icon="Resources/app.ico"
-        Height="700" Width="640"
-        MinHeight="580" MinWidth="580"
+        Height="804" Width="1224"
+        MinHeight="704" MinWidth="1044"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip"
         WindowStyle="None"
@@ -13,792 +13,1100 @@
         FontFamily="Segoe UI Variable Display, Segoe UI, sans-serif">
 
     <Window.Resources>
-        <!-- Include / Exclude Checkbox Button -->
-        <Style x:Key="ExcludeCheckBox" TargetType="CheckBox">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CheckBox">
-                        <Border x:Name="Box" CornerRadius="6" Padding="12,6"
-                                Background="{DynamicResource ControlBackground}"
-                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Path x:Name="Icon" Data="M 2,6 L 5,9 L 10,3"
-                                      Stroke="{DynamicResource BadgeActiveFg}" StrokeThickness="2"
-                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                      Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="Txt" Text="{DynamicResource Loc_StateIncluded}" FontSize="11.5" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Box" Property="Background" Value="#26EF4444"/>
-                                <Setter TargetName="Box" Property="BorderBrush" Value="#80EF4444"/>
-                                <Setter TargetName="Icon" Property="Data" Value="M 2,2 L 8,8 M 8,2 L 2,8"/>
-                                <Setter TargetName="Icon" Property="Stroke" Value="#EF4444"/>
-                                <Setter TargetName="Txt" Property="Text" Value="{DynamicResource Loc_StateExcluded}"/>
-                                <Setter TargetName="Txt" Property="Foreground" Value="#EF4444"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Navigation Segmented Tabs (Top Switcher) -->
-        <Style x:Key="NavSegmentButton" TargetType="RadioButton">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Pill" CornerRadius="6" Padding="14,8"
-                                Background="Transparent" BorderThickness="0">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsChecked" Value="False"/>
-                                    <Condition Property="IsMouseOver" Value="True"/>
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource ControlBackground}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Sub-filter FilterTabButton -->
-        <Style x:Key="FilterTabButton" TargetType="RadioButton">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="TabBorder" CornerRadius="5" Padding="10,5" Margin="0,0,5,0"
-                                Background="{DynamicResource ControlBackground}"
-                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
-                            <TextBlock x:Name="TabTxt" Text="{TemplateBinding Content}"
-                                       Foreground="{TemplateBinding Foreground}"
-                                       FontSize="{TemplateBinding FontSize}"
-                                       FontWeight="Medium"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter TargetName="TabTxt" Property="Foreground" Value="White"/>
-                                <Setter TargetName="TabTxt" Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Primary Button -->
-        <Style x:Key="BtnPrimary" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBluePressed}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource PlayStationBlueActive}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Secondary Button -->
-        <Style x:Key="BtnSecondary" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Danger Button (e.g. Delete) -->
-        <Style x:Key="BtnDanger" TargetType="Button">
-            <Setter Property="Background" Value="#1AEF4444"/>
-            <Setter Property="Foreground" Value="#EF4444"/>
-            <Setter Property="BorderBrush" Value="#4DEF4444"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="#33EF4444"/>
-                                <Setter TargetName="bg" Property="BorderBrush" Value="#EF4444"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.35"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Window Control Button (Close ✕) -->
-        <Style x:Key="WindowCloseBtn" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="6">
-                            <TextBlock Text="✕" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="#33EF4444"/>
-                                <Setter Property="Foreground" Value="#EF4444"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Theme-Adaptive ComboBoxItem Style -->
-        <Style x:Key="ModernComboBoxItem" TargetType="ComboBoxItem">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="ItemBorder" CornerRadius="5" Padding="8,5" Margin="2,1"
-                                Background="Transparent" BorderThickness="0">
-                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource ControlBackground}"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource PlayStationBlue}"/>
-                                <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Theme-Adaptive ToggleButton for ComboBox -->
-        <ControlTemplate x:Key="ModernComboBoxToggleButtonTemplate" TargetType="ToggleButton">
-            <Border x:Name="BtnBorder" CornerRadius="6"
-                    Background="{TemplateBinding Background}"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="{TemplateBinding BorderThickness}"
-                    Padding="{TemplateBinding Padding}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <Path x:Name="Arrow" Grid.Column="1" Data="M 0,0 L 3.5,3.5 L 7,0"
-                          Stroke="{DynamicResource TextMuted}" StrokeThickness="1.5"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                          HorizontalAlignment="Right" VerticalAlignment="Center"
-                          Margin="6,0,2,0"/>
-                </Grid>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="BtnBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                    <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource TextPrimary}"/>
-                </Trigger>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter TargetName="BtnBorder" Property="BorderBrush" Value="{DynamicResource PlayStationBlue}"/>
-                    <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource PlayStationBlue}"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
-
-        <!-- Theme-Adaptive ComboBox Style -->
-        <Style x:Key="ModernComboBox" TargetType="ComboBox">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="MaxDropDownHeight" Value="200"/>
-            <Setter Property="ItemContainerStyle" Value="{StaticResource ModernComboBoxItem}"/>
-            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
-            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid x:Name="MainGrid" SnapsToDevicePixels="True">
-                            <ToggleButton x:Name="ToggleButton"
-                                          Template="{StaticResource ModernComboBoxToggleButtonTemplate}"
-                                          Background="{TemplateBinding Background}"
-                                          BorderBrush="{TemplateBinding BorderBrush}"
-                                          BorderThickness="{TemplateBinding BorderThickness}"
-                                          Padding="{TemplateBinding Padding}"
-                                          Focusable="False"
-                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                          ClickMode="Press"/>
-
-                            <ContentPresenter x:Name="ContentSite"
-                                              IsHitTestVisible="False"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                                              Margin="8,0,22,0"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Left">
-                                <ContentPresenter.Resources>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                                        <Setter Property="FontSize" Value="11.5"/>
-                                    </Style>
-                                </ContentPresenter.Resources>
-                            </ContentPresenter>
-
-                            <Popup x:Name="PART_Popup"
-                                   Placement="Bottom"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   PopupAnimation="Slide">
-                                <Border x:Name="DropDownBorder"
-                                        MinWidth="{Binding ActualWidth, ElementName=MainGrid}"
-                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                        CornerRadius="8"
-                                        Background="{DynamicResource CardBackground}"
-                                        BorderBrush="{DynamicResource ControlBorder}"
-                                        BorderThickness="1"
-                                        Padding="3" Margin="0,4,0,4">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="16" ShadowDepth="3" Direction="270" Color="#000000" Opacity="0.5"/>
-                                    </Border.Effect>
-                                    <ScrollViewer SnapsToDevicePixels="True">
-                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="HasItems" Value="False">
-                                <Setter TargetName="DropDownBorder" Property="MinHeight" Value="30"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ComboBox" BasedOn="{StaticResource ModernComboBox}"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/ApexSenseBridgeTray;component/Themes/ConsoleTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Window.Resources>
 
-    <!-- Main Container with Drop Shadow and Rounded Corners -->
-    <Border CornerRadius="12" Background="{DynamicResource WindowBackground}"
-            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-            Margin="6">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="24" ShadowDepth="3" Direction="270" Color="#000000" Opacity="0.55"/>
-        </Border.Effect>
+    <Border Style="{StaticResource ConsoleWindowFrame}">
+
 
         <Grid>
-            <Grid.RowDefinitions>
-                <!-- Row 0: Window Header (Draggable) -->
-                <RowDefinition Height="Auto"/>
-                <!-- Row 1: Primary Navigation Switcher (Jeux certifiés / Exécutables appris) -->
-                <RowDefinition Height="Auto"/>
-                <!-- Row 2: Dynamic Content Area (Certified Games View or Learned View) -->
-                <RowDefinition Height="*"/>
-                <!-- Row 3: Footer -->
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+            <!-- Ambient light: soft blue halos, clipped to the rounded frame. -->
+            <Grid x:Name="Backdrop" IsHitTestVisible="False" ClipToBounds="True">
+                <Grid.OpacityMask>
+                    <VisualBrush>
+                        <VisualBrush.Visual>
+                            <Border Background="Black" CornerRadius="21"
+                                    Width="{Binding ActualWidth, ElementName=Backdrop}"
+                                    Height="{Binding ActualHeight, ElementName=Backdrop}"/>
+                        </VisualBrush.Visual>
+                    </VisualBrush>
+                </Grid.OpacityMask>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <RadialGradientBrush Center="0.88,0" GradientOrigin="0.88,0" RadiusX="0.45" RadiusY="0.7">
+                            <GradientStop Color="#552A6BFF" Offset="0"/>
+                            <GradientStop Color="#002A6BFF" Offset="1"/>
+                        </RadialGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <RadialGradientBrush Center="0,1" GradientOrigin="0,1" RadiusX="0.4" RadiusY="0.55">
+                            <GradientStop Color="#33163C9E" Offset="0"/>
+                            <GradientStop Color="#00163C9E" Offset="1"/>
+                        </RadialGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+            </Grid>
 
-            <!-- ══════════ 1. HEADER (DRAGGABLE) ══════════ -->
-            <Border Grid.Row="0" Padding="20,16,16,12" Background="Transparent"
-                    MouseLeftButtonDown="OnWindowDrag">
-                <DockPanel LastChildFill="True">
-                    <!-- Close button on top right -->
-                    <Button Style="{StaticResource WindowCloseBtn}" DockPanel.Dock="Right"
-                            VerticalAlignment="Top" Click="OnCloseClick"/>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                    <!-- App Icon + Titles -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border CornerRadius="8" ClipToBounds="True" Margin="0,0,12,0" VerticalAlignment="Center"
-                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1">
-                            <Image Source="Resources/logo.png" Height="34" Width="34" Stretch="Uniform"
-                                   RenderOptions.BitmapScalingMode="HighQuality"/>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{DynamicResource Loc_GameListTitle}" FontSize="16" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock x:Name="TxtHeaderSubtitle" Text="{DynamicResource Loc_GameListSubtitle}"
-                                       FontSize="11.5" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+                <!-- ═══ 1. TOP BAR (draggable) ═══ -->
+                <Border Grid.Row="0" Padding="26,16,16,4" Background="Transparent" MouseLeftButtonDown="OnWindowDrag">
+                    <DockPanel LastChildFill="True">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="BtnSupportKofi" Style="{StaticResource BtnSupport}"
+                                    ToolTip="{DynamicResource Loc_SupportProjectDescription}"
+                                    Margin="0,0,14,0" Click="OnSupportKofiClick">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="28" Height="28" CornerRadius="14" Background="White" Margin="0,0,9,0" VerticalAlignment="Center">
+                                        <Path Data="M 12,21 C 10,19 3,14 3,8.5 C 3,5.5 5.2,3.5 8,3.5 C 9.8,3.5 11.2,4.5 12,5.8 C 12.8,4.5 14.2,3.5 16,3.5 C 18.8,3.5 21,5.5 21,8.5 C 21,14 14,19 12,21 Z"
+                                              Fill="{DynamicResource SupportAccent}" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,1,0,0"/>
+                                    </Border>
+                                    <TextBlock Text="{DynamicResource Loc_SupportShort}" VerticalAlignment="Center"/>
+                                    <Border x:Name="HintSupportMenu" Style="{StaticResource GamepadBadgePill}" Margin="10,0,-6,0"
+                                            BorderBrush="#99FFFFFF" Background="#1FFFFFFF" Visibility="Collapsed">
+                                        <TextBlock Text="&#x2630;" Style="{StaticResource GamepadBadgeText}" FontSize="10"/>
+                                    </Border>
+                                </StackPanel>
+                            </Button>
 
-            <!-- ══════════ 2. PRIMARY NAVIGATION SEGMENTED SWITCHER ══════════ -->
-            <Border Grid.Row="1" Padding="20,0,20,12">
-                <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
-                        BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                        Padding="3">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Tab 1: Jeux certifiés -->
-                        <RadioButton x:Name="NavTabCertified" Grid.Column="0"
-                                     Style="{StaticResource NavSegmentButton}"
-                                     IsChecked="True" Checked="OnNavTabChanged">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{DynamicResource Loc_NavCertifiedGames}" VerticalAlignment="Center"/>
-                                <Border CornerRadius="10" Background="{DynamicResource ControlBackground}"
-                                        BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                        Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtNavCertifiedCount" Text="0" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"/>
-                                </Border>
-                            </StackPanel>
-                        </RadioButton>
-
-                        <!-- Tab 2: Exécutables appris -->
-                        <RadioButton x:Name="NavTabLearned" Grid.Column="1"
-                                     Style="{StaticResource NavSegmentButton}"
-                                     Checked="OnNavTabChanged">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{DynamicResource Loc_NavLearnedExecutables}" VerticalAlignment="Center"/>
-                                <Border CornerRadius="10" Background="{DynamicResource ControlBackground}"
-                                        BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                        Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtNavLearnedCount" Text="0" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextSecondary}"/>
-                                </Border>
-                            </StackPanel>
-                        </RadioButton>
-                    </Grid>
-                </Border>
-            </Border>
-
-            <!-- ══════════ 3. DYNAMIC CONTENT AREA ══════════ -->
-            <Grid Grid.Row="2">
-
-                <!-- ────────── VIEW A: CERTIFIED GAMES ────────── -->
-                <Grid x:Name="PanelCertifiedGames" Visibility="Visible">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Search Bar & Sub-Filters -->
-                    <Border Grid.Row="0" Padding="20,0,20,10">
-                        <StackPanel>
-                            <!-- Search Bar Input -->
-                            <Border CornerRadius="6" Background="{DynamicResource ControlBackground}"
-                                    BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                    Padding="12,7" Margin="0,0,0,10">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    
-                                    <Viewbox Width="14" Height="14" Margin="0,0,10,0" VerticalAlignment="Center">
-                                        <Path Data="M410.587,371.351l-50.044-50.044l-39.866-39.866c20.505-28.842,32.685-63.996,32.685-102.009 c0-97.424-79.263-176.687-176.684-176.687C79.251,2.745,0,82.008,0,179.432c0,97.423,79.251,176.675,176.678,176.675 c40.698,0,78.116-13.963,108.01-37.167l68.508,68.508c0.841,0.841,1.784,1.509,2.705,2.207l18.194,18.188L410.587,371.351z M176.689,314.548c-74.503-0.006-135.111-60.622-135.111-135.111c0-74.5,60.614-135.108,135.111-135.108 c74.498,0,135.108,60.608,135.108,135.108c0,30.998-10.59,59.507-28.218,82.333c-5.833,7.537-12.374,14.49-19.642,20.654 C240.374,302.409,209.94,314.548,176.689,314.548z"
-                                              Fill="{DynamicResource TextMuted}"/>
-                                    </Viewbox>
-
-                                    <TextBox x:Name="TxtSearch" Grid.Column="1" Background="Transparent" BorderThickness="0"
-                                             Foreground="{DynamicResource TextPrimary}" FontSize="13" VerticalAlignment="Center"
-                                             TextChanged="OnSearchTextChanged" CaretBrush="{DynamicResource PlayStationBlue}"/>
-                                    <TextBlock x:Name="TxtSearchPlaceholder" Grid.Column="1" Text="{DynamicResource Loc_SearchPlaceholder}"
-                                               FontSize="13" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
-                                               IsHitTestVisible="False" Visibility="Visible"/>
-                                    <Button x:Name="BtnClearSearch" Grid.Column="2" Content="✕" Style="{StaticResource BtnSecondary}"
-                                            Padding="4,1" FontSize="9" BorderThickness="0" Visibility="Collapsed"
-                                            Click="OnClearSearchClick"/>
-                                </Grid>
+                            <Border x:Name="BadgeHeaderController" CornerRadius="17" Height="34"
+                                    Background="#14FFFFFF" Padding="14,0" Margin="0,0,14,0" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path x:Name="IconHeaderController" Style="{StaticResource ControllerIconPath}"
+                                          Stroke="{DynamicResource TextMuted}" Margin="0,0,8,0"/>
+                                    <TextBlock x:Name="TxtHeaderController" Text="APEX" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                </StackPanel>
                             </Border>
 
-                            <!-- Secondary Filter Tabs & Stats -->
-                            <DockPanel>
-                                <TextBlock x:Name="TxtStats" Text="—" FontSize="11.5"
-                                           Foreground="{DynamicResource TextMuted}" DockPanel.Dock="Right" VerticalAlignment="Center"/>
-                                
-                                <StackPanel Orientation="Horizontal">
-                                    <RadioButton x:Name="RadAll" Content="{DynamicResource Loc_TabAll}" Style="{StaticResource FilterTabButton}"
-                                                 IsChecked="True" Checked="OnFilterTabChanged"/>
-                                    <RadioButton x:Name="RadAdaptive" Content="{DynamicResource Loc_TabTriggers}" Style="{StaticResource FilterTabButton}"
-                                                 Checked="OnFilterTabChanged"/>
-                                    <RadioButton x:Name="RadHaptic" Content="{DynamicResource Loc_TabHaptics}" Style="{StaticResource FilterTabButton}"
-                                                 Checked="OnFilterTabChanged"/>
-                                    <RadioButton x:Name="RadExcluded" Content="{DynamicResource Loc_TabExcluded}" Style="{StaticResource FilterTabButton}"
-                                                 Checked="OnFilterTabChanged"/>
-                                </StackPanel>
-                            </DockPanel>
+                            <TextBlock x:Name="TxtClock" FontSize="15" Foreground="{DynamicResource TextPrimary}"
+                                       VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+                            <Button Content="&#x2500;" Style="{StaticResource WindowCloseBtn}" Margin="0,0,2,0" Click="OnMinimizeClick"/>
+                            <Button Content="&#x2715;" Style="{StaticResource WindowCloseBtn}" Click="OnCloseClick"/>
                         </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="Resources/logo.png" Height="32" Width="32" Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,12,0"/>
+                            <TextBlock Text="{DynamicResource Loc_AppName}" FontSize="17" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <!-- ═══ 2. CONSOLE TABS (LB / RB) ═══ -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="26,8,26,14">
+                    <Border x:Name="HintBumperLeft" Style="{StaticResource GamepadBadgePill}" Margin="0,0,18,4" Visibility="Collapsed">
+                        <TextBlock Text="LB" Style="{StaticResource GamepadBadgeText}"/>
                     </Border>
 
-                    <!-- Scrollable Certified Games List -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,0,20,8">
-                        <ItemsControl x:Name="LstGames">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <VirtualizingStackPanel/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
-                                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                                            Padding="14,10" Margin="0,0,0,8" Opacity="{Binding CardOpacity}">
-                                        <DockPanel>
-                                            <!-- Inclus / Exclu Action Button -->
-                                            <CheckBox Style="{StaticResource ExcludeCheckBox}" DockPanel.Dock="Right"
-                                                      VerticalAlignment="Center" Margin="10,0,0,0"
-                                                      IsChecked="{Binding IsExcluded, Mode=TwoWay}"
-                                                      Click="OnGameExcludedToggled"/>
+                    <RadioButton x:Name="NavTabDashboard" Style="{StaticResource NavSegmentButton}"
+                                 IsChecked="True" Checked="OnNavTabChanged">
+                        <TextBlock Text="{DynamicResource Loc_NavDashboard}"/>
+                    </RadioButton>
+                    <RadioButton x:Name="NavTabCertified" Style="{StaticResource NavSegmentButton}" Checked="OnNavTabChanged">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{DynamicResource Loc_NavCertifiedGames}"/>
+                            <TextBlock x:Name="TxtNavCertifiedCount" Text="0" FontSize="11" FontWeight="Normal"
+                                       Foreground="{DynamicResource TextMuted}" Margin="6,0,0,0" VerticalAlignment="Top"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavTabLearned" Style="{StaticResource NavSegmentButton}" Checked="OnNavTabChanged">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{DynamicResource Loc_NavLearnedExecutables}"/>
+                            <TextBlock x:Name="TxtNavLearnedCount" Text="0" FontSize="11" FontWeight="Normal"
+                                       Foreground="{DynamicResource TextMuted}" Margin="6,0,0,0" VerticalAlignment="Top"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavTabSettings" Style="{StaticResource NavSegmentButton}" Checked="OnNavTabChanged">
+                        <TextBlock Text="{DynamicResource Loc_NavSettings}"/>
+                    </RadioButton>
 
-                                            <!-- Temporary onboard APEX profile for this game -->
-                                            <StackPanel DockPanel.Dock="Right" Width="132" Margin="10,0,0,0"
-                                                        VerticalAlignment="Center">
-                                                <TextBlock Text="{DynamicResource Loc_ApexProfile}" FontSize="10.5"
-                                                           Foreground="{DynamicResource TextMuted}" Margin="2,0,0,3"/>
-                                                <ComboBox ItemsSource="{Binding ApexProfileChoices}"
-                                                          DisplayMemberPath="Name" SelectedValuePath="Slot"
-                                                          SelectedValue="{Binding SelectedApexProfileSlot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                          ToolTip="{DynamicResource Loc_ApexProfileHint}"
-                                                          Style="{StaticResource ModernComboBox}"/>
+                    <Border x:Name="HintBumperRight" Style="{StaticResource GamepadBadgePill}" Margin="-12,0,0,4" Visibility="Collapsed">
+                        <TextBlock Text="RB" Style="{StaticResource GamepadBadgeText}"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- ═══ 3. CONTENT ═══ -->
+                <Grid Grid.Row="2">
+
+                    <!-- ────────── TAB 0 : HOME ────────── -->
+                    <Grid x:Name="PanelDashboard" Visibility="Visible" Margin="26,0,26,4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- HERO: active game over its blurred cover art + controller -->
+                        <Grid Grid.Row="0" MinHeight="176" Margin="0,0,0,14">
+                            <Border x:Name="PnlDashboardActiveCover" Visibility="Collapsed" IsHitTestVisible="False" Margin="-26,-40,-26,-10">
+                                <Border.OpacityMask>
+                                    <RadialGradientBrush Center="0.3,0.5" GradientOrigin="0.3,0.5" RadiusX="0.7" RadiusY="0.8">
+                                        <GradientStop Color="#C0000000" Offset="0"/>
+                                        <GradientStop Color="#00000000" Offset="1"/>
+                                    </RadialGradientBrush>
+                                </Border.OpacityMask>
+                                <Image x:Name="ImgDashboardActiveCover" Stretch="UniformToFill" Opacity="0.45">
+                                    <Image.Effect><BlurEffect Radius="28"/></Image.Effect>
+                                </Image>
+                            </Border>
+                            <StackPanel x:Name="PnlDashboardStandbyCover" Visibility="Collapsed"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="2,0,24,0">
+                                    <Border x:Name="BadgeDashboardStatus" CornerRadius="13" Height="26" Padding="12,0" HorizontalAlignment="Left"
+                                            Margin="0,0,0,10" Background="{DynamicResource BadgeStandbyBg}">
+                                        <TextBlock x:Name="TxtDashboardStatus" Text="{DynamicResource Loc_StatusBadgeStandby}" VerticalAlignment="Center"
+                                                   FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource BadgeStandbyFg}"/>
+                                    </Border>
+                                    <TextBlock x:Name="TxtDashboardGameTitle" Text="{DynamicResource Loc_NoActiveGame}"
+                                               FontSize="34" FontWeight="Light" Foreground="White"
+                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="96" Margin="0,0,0,10"/>
+                                    <WrapPanel x:Name="PnlDashboardFeatures" Orientation="Horizontal">
+                                        <Border x:Name="BadgeDashAdaptive" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_PillTriggers}" Style="{StaticResource FeaturePillText}"/>
                                             </StackPanel>
+                                        </Border>
+                                        <Border x:Name="BadgeDashHaptic" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Image Source="{StaticResource IconHaptic}" Style="{StaticResource FeaturePillIcon}"/>
+                                                <TextBlock Text="{DynamicResource Loc_PillHaptics}" Style="{StaticResource FeaturePillText}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border x:Name="BadgeDashTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Image Source="{StaticResource IconTouchpad}" Style="{StaticResource FeaturePillIcon}"/>
+                                                <TextBlock Text="{DynamicResource Loc_PillTouchpad}" Style="{StaticResource FeaturePillText}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </WrapPanel>
+                                    <!-- Session details as compact chips (owner · APEX profile · controller); full labels in the tooltip. -->
+                                    <WrapPanel x:Name="PnlSessionChips" Orientation="Horizontal" Visibility="Collapsed">
+                                        <Border x:Name="ChipSessionOwner" Style="{StaticResource FeaturePill}" Background="#0FFFFFFF">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Data="M 12,4 A 4,4 0 1 1 11.99,4 Z M 4,21 C 4,16.5 7.5,14 12,14 C 16.5,14 20,16.5 20,21"
+                                                      Style="{StaticResource PillIconPath}"/>
+                                                <TextBlock x:Name="TxtSessionOwner" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border x:Name="ChipSessionProfile" Style="{StaticResource FeaturePill}" Background="#0FFFFFFF">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Data="M 4,7 L 20,7 M 4,12 L 20,12 M 4,17 L 20,17 M 9,5 L 9,9 M 15,10 L 15,14 M 7,15 L 7,19"
+                                                      Style="{StaticResource PillIconPath}"/>
+                                                <TextBlock x:Name="TxtSessionProfile" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border x:Name="ChipSessionController" Style="{StaticResource FeaturePill}" Background="#0FFFFFFF">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Style="{StaticResource ControllerIconPath}" Stroke="{DynamicResource TextSecondary}" Width="16" Height="12" StrokeThickness="1.4" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtSessionController" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource TextSecondary}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </WrapPanel>
+                                    <!-- Only refusal / error reasons are spelled out. -->
+                                    <TextBlock x:Name="TxtDashboardHint" TextWrapping="Wrap" FontSize="12" Margin="2,2,0,0"
+                                               Foreground="#FCA5A5" MaxHeight="36" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
 
-                                            <!-- 2:3 Cover Poster -->
-                                            <Border Width="34" Height="48" CornerRadius="6"
-                                                    BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                                    ClipToBounds="True" Margin="0,0,14,0" VerticalAlignment="Center"
-                                                    DockPanel.Dock="Left">
-                                                <Grid>
-                                                    <!-- Stylized Monogram Sleeve (Immediate / Offline Fallback) -->
-                                                    <Border Background="{Binding MonogramBackground}" Visibility="{Binding PlaceholderVisibility}">
+                                <!-- Larger than its slot (negative margins) so the halo and shadow fade out instead of being clipped. -->
+                                <Grid Grid.Column="1" Width="360" Height="260" Margin="-30,-40,-30,-40" VerticalAlignment="Center">
+                                    <Ellipse Width="340" Height="230" IsHitTestVisible="False"
+                                             Visibility="{Binding Visibility, ElementName=ImgDashboardController}">
+                                        <Ellipse.Fill>
+                                            <RadialGradientBrush>
+                                                <GradientStop Color="#702C74FF" Offset="0"/>
+                                                <GradientStop Color="#002C74FF" Offset="1"/>
+                                            </RadialGradientBrush>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                    <!-- Faint silhouette while no exact controller picture is available. -->
+                                    <Image x:Name="ImgDashboardPlaceholder" Source="Resources/controller-placeholder.png"
+                                           Width="250" Height="167" Stretch="Uniform" IsHitTestVisible="False"
+                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Opacity" Value="0.55"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Visibility, ElementName=ImgDashboardController}" Value="Visible">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                    <Image x:Name="ImgDashboardController" Width="270" Height="170" Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality" Visibility="Collapsed">
+                                        <Image.Effect>
+                                            <DropShadowEffect BlurRadius="30" ShadowDepth="10" Direction="270" Color="#000000" Opacity="0.6"/>
+                                        </Image.Effect>
+                                    </Image>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+
+                        <!-- QUICK ACTIONS (or guided recovery when a session was interrupted) -->
+                        <Border x:Name="PnlSessionRecovery" Grid.Row="1" Visibility="Collapsed" Margin="0,0,0,16" Padding="20,16"
+                                CornerRadius="16" Background="#26F59E0B" BorderBrush="#80F59E0B" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock x:Name="TxtRecoveryTitle" FontSize="15" FontWeight="SemiBold" Foreground="White" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="TxtRecoverySteps" FontSize="12" Foreground="#FCD58A" Margin="0,7,0,5" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="TxtRecoveryHint" FontSize="12" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="BtnResumeSession" Content="{DynamicResource Loc_RecoveryResume}" Style="{StaticResource BtnPrimary}" Click="OnResumeSessionClick" Margin="0,0,8,0"/>
+                                    <Button x:Name="BtnDismissRecovery" Content="{DynamicResource Loc_RecoveryDismiss}" Style="{StaticResource BtnSecondary}" Click="OnDismissRecoveryClick"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Grid x:Name="PnlDashboardCounts" Grid.Row="1" Margin="0,0,0,16" Height="88">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.5*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border x:Name="TileManualBridge" Grid.Column="0" Style="{StaticResource ConsoleTile}"
+                                    MouseLeftButtonDown="OnToggleManualBridgeClick">
+                                <DockPanel LastChildFill="True">
+                                    <Border Style="{StaticResource IconBubble}" DockPanel.Dock="Left" Margin="0,0,14,0" Background="#331E6FE8">
+                                        <Path Data="M 13,2 L 4,14 L 11,14 L 10,22 L 20,9 L 13,9 Z" Style="{StaticResource IconPath}" Width="17" Height="17"/>
+                                    </Border>
+                                    <Border x:Name="BadgeManualBridgeToggle" DockPanel.Dock="Right" CornerRadius="12" Width="46" Height="26"
+                                            Background="{DynamicResource ControlBackground}"
+                                            BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1.5" VerticalAlignment="Center">
+                                        <Ellipse x:Name="DotManualBridgeToggle" Width="18" Height="18" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                 Fill="{DynamicResource TextMuted}"/>
+                                    </Border>
+                                    <TextBlock Text="{DynamicResource Loc_ManualBridge}" FontSize="14" Foreground="White"
+                                               TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0"
+                                               ToolTip="{DynamicResource Loc_ManualBridgeHint}"/>
+                                </DockPanel>
+                            </Border>
+
+                            <Border x:Name="TileJumpGames" Grid.Column="2" Style="{StaticResource ConsoleTile}"
+                                    MouseLeftButtonDown="OnJumpToGamesClick">
+                                <DockPanel>
+                                    <Border Style="{StaticResource IconBubble}" DockPanel.Dock="Left" Margin="0,0,14,0">
+                                        <Path Data="M 3,3 L 10,3 L 10,10 L 3,10 Z M 14,3 L 21,3 L 21,10 L 14,10 Z M 3,14 L 10,14 L 10,21 L 3,21 Z M 14,14 L 21,14 L 21,21 L 14,21 Z"
+                                              Style="{StaticResource IconPath}" Width="16" Height="16"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtDashCountGames" Text="0" FontSize="24" FontWeight="SemiBold" Foreground="White"/>
+                                        <TextBlock Text="{DynamicResource Loc_NavCertifiedGames}" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <Border x:Name="TileJumpLearned" Grid.Column="4" Style="{StaticResource ConsoleTile}"
+                                    MouseLeftButtonDown="OnJumpToLearnedClick">
+                                <DockPanel>
+                                    <Border Style="{StaticResource IconBubble}" DockPanel.Dock="Left" Margin="0,0,14,0">
+                                        <Path Data="M 9,11 L 12,14 L 21,4 M 20,12 L 20,19 C 20,20 19,21 18,21 L 5,21 C 4,21 3,20 3,19 L 3,6 C 3,5 4,4 5,4 L 15,4"
+                                              Style="{StaticResource IconPath}" Width="16" Height="16"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtDashCountLearned" Text="0" FontSize="24" FontWeight="SemiBold" Foreground="White"/>
+                                        <TextBlock Text="{DynamicResource Loc_NavLearnedExecutables}" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- GAME SHELF: latest catalogue additions first (issue #29) -->
+                        <Grid Grid.Row="2" x:Name="ShelfHost" Background="Transparent" MouseEnter="OnShelfHoverChanged" MouseLeave="OnShelfHoverChanged">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="TxtShelfTitle" Text="{DynamicResource Loc_NavCertifiedGames}" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}" Margin="2,0,0,2"/>
+
+                            <ScrollViewer x:Name="ScrollDashboardShelf" Grid.Row="1" CanContentScroll="False"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Focusable="False"
+                                          PreviewMouseWheel="OnShelfMouseWheel" ScrollChanged="OnShelfScrollChanged">
+                                <ItemsControl x:Name="LstDashboardFeatured" Margin="16,16,16,6">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Width="132" Margin="0,0,16,0" Cursor="Hand" ToolTip="{Binding AddedTooltip}"
+                                                        MouseLeftButtonDown="OnDashboardFeaturedGameClicked">
+                                                <Grid x:Name="PosterHost" Height="176" RenderTransformOrigin="0.5,0.5">
+                                                    <!-- Focus zoom through a setter: template transforms are frozen and cannot be animated. -->
+                                                    <Grid.Style>
+                                                        <Style TargetType="Grid">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="RenderTransform">
+                                                                        <Setter.Value><ScaleTransform ScaleX="1.06" ScaleY="1.06"/></Setter.Value>
+                                                                    </Setter>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Grid.Style>
+                                                    <!-- Crisp focus ring detached from the cover (no blur, never clipped: the shelf keeps room around it) -->
+                                                    <Border Style="{StaticResource FocusRing}" CornerRadius="20"
+                                                            Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}"/>
+                                                <Border x:Name="Poster" CornerRadius="14" BorderThickness="2">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="BorderBrush" Value="Transparent"/>
+                                                            <Setter Property="Background" Value="#161E36"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource TileHoverBorder}"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <Border CornerRadius="12" ClipToBounds="True">
                                                         <Grid>
-                                                            <TextBlock Text="{Binding Initials}" FontSize="11.5" FontWeight="Bold"
-                                                                       Foreground="#E2E8F0" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                       Opacity="0.88"/>
-                                                            <Viewbox Width="10" Height="7" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                                     Margin="0,0,3,3" Opacity="0.35">
-                                                                <Path Data="M 2,6 L 22,6 A 2,2 0 0,1 24,8 L 24,18 A 2,2 0 0,1 22,20 L 2,20 A 2,2 0 0,1 0,18 L 0,8 A 2,2 0 0,1 2,6 Z M 5,11 L 5,15 M 3,13 L 7,13"
-                                                                      Stroke="#FFFFFF" StrokeThickness="2" StrokeStartLineCap="Round"/>
-                                                            </Viewbox>
+                                                            <Border Background="{Binding MonogramBackground}" CornerRadius="12" Visibility="{Binding PlaceholderVisibility}">
+                                                                <TextBlock Text="{Binding Initials}" FontSize="26" FontWeight="Light"
+                                                                           Foreground="#E2E8F0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <Border CornerRadius="12" Visibility="{Binding IconVisibility}">
+                                                                <Border.Background>
+                                                                    <ImageBrush ImageSource="{Binding CoverImage}" Stretch="UniformToFill"/>
+                                                                </Border.Background>
+                                                            </Border>
+                                                            <!-- Bottom fade keeps the feature chips readable on bright covers -->
+                                                            <Border CornerRadius="0,0,12,12" Height="52" VerticalAlignment="Bottom" IsHitTestVisible="False">
+                                                                <Border.Background>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                        <GradientStop Color="#00060A16" Offset="0"/>
+                                                                        <GradientStop Color="#B3060A16" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Border.Background>
+                                                            </Border>
+                                                            <Border Style="{StaticResource NewBadge}" Margin="7,7,0,0" Visibility="{Binding NewBadgeVisibility}">
+                                                                <TextBlock Text="{DynamicResource Loc_BadgeNew}" Style="{StaticResource NewBadgeText}"/>
+                                                            </Border>
+                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6">
+                                                                <Border Style="{StaticResource IconChip}" Visibility="{Binding AdaptiveVisibility}" ToolTip="{DynamicResource Loc_PillTriggers}">
+                                                                    <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                                </Border>
+                                                                <Border Style="{StaticResource IconChip}" Visibility="{Binding HapticVisibility}" ToolTip="{DynamicResource Loc_PillHaptics}">
+                                                                    <Image Source="{StaticResource IconHaptic}" Width="17" Height="17"/>
+                                                                </Border>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </Border>
+                                                </Grid>
+                                                <TextBlock Text="{Binding Title}" FontSize="12" Margin="2,9,2,0"
+                                                           Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- Shown on hover, only on a side that can still scroll -->
+                            <Button x:Name="BtnShelfLeft" Grid.Row="1" Style="{StaticResource ShelfArrowButton}" HorizontalAlignment="Left"
+                                    VerticalAlignment="Center" Margin="-8,0,0,24" Click="OnShelfLeftClick" Visibility="Collapsed">
+                                <Path Data="{StaticResource GeoChevronLeft}" Style="{StaticResource ChevronPath}" Margin="0,0,2,0"/>
+                            </Button>
+                            <Button x:Name="BtnShelfRight" Grid.Row="1" Style="{StaticResource ShelfArrowButton}" HorizontalAlignment="Right"
+                                    VerticalAlignment="Center" Margin="0,0,-8,24" Click="OnShelfRightClick" Visibility="Collapsed">
+                                <Path Data="{StaticResource GeoChevronRight}" Style="{StaticResource ChevronPath}" Margin="2,0,0,0"/>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                    <!-- ────────── TAB 1 : CERTIFIED GAMES ────────── -->
+                    <Grid x:Name="PanelCertifiedGames" Visibility="Collapsed" Margin="26,0,26,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="380"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                                <Border CornerRadius="20" Height="40" Background="#14FFFFFF" Padding="16,0,12,0" Margin="0,0,0,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="M 10,3 A 7,7 0 1 0 10.001,3 Z M 15.5,15.5 L 21,21"
+                                              Style="{StaticResource IconPath}" Stroke="{DynamicResource TextMuted}" Width="14" Height="14" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtSearch" Grid.Column="1" Background="Transparent" BorderThickness="0"
+                                                 Foreground="{DynamicResource TextPrimary}" FontSize="13" VerticalAlignment="Center"
+                                                 TextChanged="OnSearchTextChanged" CaretBrush="White"/>
+                                        <TextBlock x:Name="TxtSearchPlaceholder" Grid.Column="1" Text="{DynamicResource Loc_SearchPlaceholder}"
+                                                   FontSize="13" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   IsHitTestVisible="False"/>
+                                        <Button x:Name="BtnClearSearch" Grid.Column="2" Content="&#x2715;" Style="{StaticResource BtnTinyRound}"
+                                                Visibility="Collapsed" Click="OnClearSearchClick"/>
+                                        <Border Grid.Column="3" Style="{StaticResource XboxBtnY}" Margin="8,0,0,0">
+                                            <Rectangle Style="{StaticResource XboxTextY}"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <DockPanel>
+                                    <TextBlock x:Name="TxtStats" Text="" FontSize="11.5"
+                                               Foreground="{DynamicResource TextMuted}" DockPanel.Dock="Right" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="RadAll" Content="{DynamicResource Loc_TabAll}" Style="{StaticResource FilterTabButton}"
+                                                     IsChecked="True" Checked="OnFilterTabChanged"/>
+                                        <RadioButton x:Name="RadAdaptive" Content="{DynamicResource Loc_TabTriggers}" Style="{StaticResource FilterTabButton}"
+                                                     Checked="OnFilterTabChanged"/>
+                                        <RadioButton x:Name="RadHaptic" Content="{DynamicResource Loc_TabHaptics}" Style="{StaticResource FilterTabButton}"
+                                                     Checked="OnFilterTabChanged"/>
+                                        <RadioButton x:Name="RadExcluded" Content="{DynamicResource Loc_TabExcluded}" Style="{StaticResource FilterTabButton}"
+                                                     Checked="OnFilterTabChanged"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </StackPanel>
+
+                            <ScrollViewer x:Name="ScrollCertified" Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
+                                <ItemsControl x:Name="LstGames" Margin="8,8,4,8">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,10,8">
+                                            <Border Style="{StaticResource FocusRing}" CornerRadius="22"
+                                                    Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}"/>
+                                            <Border Style="{StaticResource ConsoleCardItemStyle}"
+                                                    Opacity="{Binding CardOpacity}"
+                                                    MouseLeftButtonDown="OnGameCardClicked">
+                                                <DockPanel LastChildFill="True">
+                                                    <Border Width="38" Height="52" CornerRadius="8" ClipToBounds="True" Margin="0,0,14,0"
+                                                            VerticalAlignment="Center" DockPanel.Dock="Left">
+                                                        <Grid>
+                                                            <Border Background="{Binding MonogramBackground}" CornerRadius="8" Visibility="{Binding PlaceholderVisibility}">
+                                                                <TextBlock Text="{Binding Initials}" FontSize="12" FontWeight="SemiBold"
+                                                                           Foreground="#E2E8F0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <Border CornerRadius="8" Visibility="{Binding IconVisibility}">
+                                                                <Border.Background>
+                                                                    <ImageBrush ImageSource="{Binding CoverImage}" Stretch="UniformToFill"/>
+                                                                </Border.Background>
+                                                            </Border>
                                                         </Grid>
                                                     </Border>
 
-                                                    <!-- Cached High-Res Cover Image -->
-                                                    <Image Source="{Binding CoverImage}" Stretch="UniformToFill"
-                                                           RenderOptions.BitmapScalingMode="HighQuality"
-                                                           Visibility="{Binding IconVisibility}"/>
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
+                                                        <Border Style="{StaticResource StatusTag}" Background="{DynamicResource SupportGradient}"
+                                                                ToolTip="{Binding AddedTooltip}" Visibility="{Binding NewBadgeVisibility}">
+                                                            <TextBlock Text="{DynamicResource Loc_BadgeNew}" FontSize="10.5" Foreground="White" FontWeight="Bold"/>
+                                                        </Border>
+                                                        <Border Style="{StaticResource StatusTag}" Background="#26F59E0B"
+                                                                ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="{Binding ManualFixVisibility}">
+                                                            <TextBlock Text="{DynamicResource Loc_PillManualFix}" FontSize="10.5" Foreground="#FBBF24" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <Border Style="{StaticResource StatusTag}" Background="#26EF4444"
+                                                                Visibility="{Binding ExcludedBadgeVisibility}">
+                                                            <TextBlock Text="{DynamicResource Loc_StateExcluded}" FontSize="10.5" Foreground="#FF8A8A" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <Border Style="{StaticResource IconChip}" Background="#17FFFFFF"
+                                                                Visibility="{Binding AdaptiveVisibility}" ToolTip="{DynamicResource Loc_PillTriggers}">
+                                                            <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                        </Border>
+                                                        <Border Style="{StaticResource IconChip}" Background="#17FFFFFF"
+                                                                Visibility="{Binding HapticVisibility}" ToolTip="{DynamicResource Loc_PillHaptics}">
+                                                            <Image Source="{StaticResource IconHaptic}" Width="17" Height="17"/>
+                                                        </Border>
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding Title}" FontSize="14" Foreground="{DynamicResource TextPrimary}"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                </DockPanel>
+                                            </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <!-- Detail of the selected game -->
+                        <Border Grid.Column="2" CornerRadius="20" Background="{DynamicResource CardBackground}"
+                                BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" Padding="20,20,20,14">
+                            <Grid>
+                                <TextBlock x:Name="TxtDetailEmpty" Text="{DynamicResource Loc_DetailNoGame}"
+                                           FontSize="13" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" TextAlignment="Center"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+
+                                <ScrollViewer x:Name="ScrollDetail" VerticalScrollBarVisibility="Auto" Focusable="False">
+                                    <StackPanel x:Name="PnlDetailContent">
+                                        <Grid Margin="0,0,0,18">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="104" Height="146" CornerRadius="12" VerticalAlignment="Top">
+                                                <Grid>
+                                                    <Border x:Name="PnlDetailMonogram" Background="#1B2747" CornerRadius="12">
+                                                        <TextBlock x:Name="TxtDetailInitials" Text="AS" FontSize="30" FontWeight="Light"
+                                                                   Foreground="#CBD5E1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <Image x:Name="ImgDetailCover" Stretch="UniformToFill"
+                                                           RenderOptions.BitmapScalingMode="HighQuality" Visibility="Collapsed">
+                                                        <Image.Clip>
+                                                            <RectangleGeometry Rect="0,0,104,146" RadiusX="12" RadiusY="12"/>
+                                                        </Image.Clip>
+                                                    </Image>
                                                 </Grid>
                                             </Border>
-
-                                            <!-- Game Title and Badges -->
-                                            <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" Margin="0,0,0,5"/>
-                                                
-                                                <WrapPanel Orientation="Horizontal">
-                                                    <Border CornerRadius="4" Background="{DynamicResource FeaturePillBg}"
-                                                            BorderBrush="{DynamicResource FeaturePillBorder}" BorderThickness="1"
-                                                            Padding="7,2" Margin="0,0,6,3"
-                                                            Visibility="{Binding AdaptiveVisibility}">
-                                                        <TextBlock Text="{DynamicResource Loc_PillAdaptive}" FontSize="10" FontWeight="Medium"
-                                                                   Foreground="{DynamicResource TextSecondary}"/>
+                                            <StackPanel Grid.Column="1" Margin="16,2,0,0">
+                                                <TextBlock x:Name="TxtDetailTitle" Text="Game Title" FontSize="20" FontWeight="SemiBold"
+                                                           Foreground="White" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                                <WrapPanel>
+                                                    <Border x:Name="BadgeDetailAdaptive" Style="{StaticResource FeaturePill}" ToolTip="{DynamicResource Loc_CriteriaAdaptive}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <ContentControl Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                                            <TextBlock Text="{DynamicResource Loc_PillTriggers}" Style="{StaticResource FeaturePillText}"/>
+                                                        </StackPanel>
                                                     </Border>
-
-                                                    <Border CornerRadius="4" Background="{DynamicResource FeaturePillBg}"
-                                                            BorderBrush="{DynamicResource FeaturePillBorder}" BorderThickness="1"
-                                                            Padding="7,2" Margin="0,0,6,3"
-                                                            Visibility="{Binding HapticVisibility}">
-                                                        <TextBlock Text="{DynamicResource Loc_PillHaptic}" FontSize="10" FontWeight="Medium"
-                                                                   Foreground="{DynamicResource TextSecondary}"/>
+                                                    <Border x:Name="BadgeDetailHaptic" Style="{StaticResource FeaturePill}" ToolTip="{DynamicResource Loc_CriteriaHaptic}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Image Source="{StaticResource IconHaptic}" Style="{StaticResource FeaturePillIcon}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_PillHaptics}" Style="{StaticResource FeaturePillText}"/>
+                                                        </StackPanel>
                                                     </Border>
-
-                                                    <Border CornerRadius="4" Background="{DynamicResource FeaturePillBg}"
-                                                            BorderBrush="{DynamicResource FeaturePillBorder}" BorderThickness="1"
-                                                            Padding="7,2" Margin="0,0,6,3"
-                                                            Visibility="{Binding RemappingVisibility}">
-                                                        <TextBlock Text="{DynamicResource Loc_PillTouchpad}" FontSize="10" FontWeight="Medium"
-                                                                   Foreground="{DynamicResource PlayStationBlue}"/>
+                                                    <Border x:Name="BadgeDetailManualFix" Style="{StaticResource FeaturePill}" Background="#26F59E0B"
+                                                            ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="Collapsed">
+                                                        <TextBlock Text="{DynamicResource Loc_PillManualFix}" Style="{StaticResource FeaturePillText}" Foreground="#FBBF24" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                    <Border x:Name="BadgeDetailTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Image Source="{StaticResource IconTouchpad}" Style="{StaticResource FeaturePillIcon}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_PillTouchpad}" Style="{StaticResource FeaturePillText}"/>
+                                                        </StackPanel>
                                                     </Border>
                                                 </WrapPanel>
                                             </StackPanel>
-                                        </DockPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Grid>
+                                        </Grid>
 
-                <!-- ────────── VIEW B: LEARNED EXECUTABLES ────────── -->
-                <Grid x:Name="PanelLearnedExecutables" Visibility="Collapsed">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+                                        <!-- APEX profile: D-pad left/right -->
+                                        <Border CornerRadius="26" Height="52" Background="#12FFFFFF" Padding="8" Margin="0,0,0,10"
+                                                ToolTip="{DynamicResource Loc_ApexProfileHint}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button x:Name="BtnProfileLeft" Grid.Column="0" Style="{StaticResource BtnRound}" Click="OnCycleProfileLeftClick">
+                                                    <Path Data="{StaticResource GeoChevronLeft}" Style="{StaticResource ChevronPath}" Margin="0,0,2,0"/>
+                                                </Button>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                    <TextBlock Text="{DynamicResource Loc_ApexProfile}" FontSize="10.5"
+                                                               Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtDetailApexProfile" Text="{DynamicResource Loc_ApexProfileKeep}"
+                                                               FontSize="14" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+                                                </StackPanel>
+                                                <Button x:Name="BtnProfileRight" Grid.Column="2" Style="{StaticResource BtnRound}" Click="OnCycleProfileRightClick">
+                                                    <Path Data="{StaticResource GeoChevronRight}" Style="{StaticResource ChevronPath}" Margin="2,0,0,0"/>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
 
-                    <!-- Search Bar & Action Buttons -->
-                    <Border Grid.Row="0" Padding="20,0,20,10">
-                        <StackPanel>
-                            <!-- Search Bar Input for Learned Items -->
-                            <Border CornerRadius="6" Background="{DynamicResource ControlBackground}"
-                                    BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                    Padding="12,7" Margin="0,0,0,10">
+                                        <Button x:Name="BtnDetailToggleExclude" Style="{StaticResource BtnSecondary}"
+                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,18"
+                                                Click="OnDetailToggleExcludeClick">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <Border Style="{StaticResource XboxBtnX}" Margin="0,0,8,0">
+                                                    <Rectangle Style="{StaticResource XboxTextX}"/>
+                                                </Border>
+                                                <TextBlock x:Name="TxtDetailExcludeAction" Text="{DynamicResource Loc_BtnExcludeCurrent}"
+                                                           FontSize="12.5" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Advanced: optional executable association -->
+                                        <TextBlock Text="{DynamicResource Loc_GameExecutable}" ToolTip="{DynamicResource Loc_GameExecutableHint}"
+                                                   FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" Margin="4,0,0,6"/>
+                                        <ComboBox x:Name="CmbGameExecutable" Style="{StaticResource ExecutableCombo}" DisplayMemberPath="Label"
+                                                  SelectionChanged="OnGameExecutableChanged" Margin="0,0,0,6"
+                                                  ToolTip="{Binding SelectedItem.Path, RelativeSource={RelativeSource Self}}"/>
+                                        <TextBlock x:Name="TxtExecutablePath" Foreground="{DynamicResource TextMuted}" FontSize="10.5"
+                                                   TextWrapping="Wrap" Margin="4,0,0,8"/>
+                                        <Button Content="{DynamicResource Loc_BrowseExecutable}" Style="{StaticResource BtnSecondary}"
+                                                HorizontalAlignment="Left" FontSize="11.5" Click="OnBrowseGameExecutable"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ────────── TAB 2 : LEARNED EXECUTABLES ────────── -->
+                    <Grid x:Name="PanelLearnedExecutables" Visibility="Collapsed" Margin="26,0,26,4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                            <Border CornerRadius="20" Height="40" Background="#14FFFFFF" Padding="16,0,12,0" Margin="0,0,0,10">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    
-                                    <Viewbox Width="14" Height="14" Margin="0,0,10,0" VerticalAlignment="Center">
-                                        <Path Data="M410.587,371.351l-50.044-50.044l-39.866-39.866c20.505-28.842,32.685-63.996,32.685-102.009 c0-97.424-79.263-176.687-176.684-176.687C79.251,2.745,0,82.008,0,179.432c0,97.423,79.251,176.675,176.678,176.675 c40.698,0,78.116-13.963,108.01-37.167l68.508,68.508c0.841,0.841,1.784,1.509,2.705,2.207l18.194,18.188L410.587,371.351z M176.689,314.548c-74.503-0.006-135.111-60.622-135.111-135.111c0-74.5,60.614-135.108,135.111-135.108 c74.498,0,135.108,60.608,135.108,135.108c0,30.998-10.59,59.507-28.218,82.333c-5.833,7.537-12.374,14.49-19.642,20.654 C240.374,302.409,209.94,314.548,176.689,314.548z"
-                                              Fill="{DynamicResource TextMuted}"/>
-                                    </Viewbox>
-
+                                    <Path Grid.Column="0" Data="M 10,3 A 7,7 0 1 0 10.001,3 Z M 15.5,15.5 L 21,21"
+                                          Style="{StaticResource IconPath}" Stroke="{DynamicResource TextMuted}" Width="14" Height="14" Margin="0,0,10,0"/>
                                     <TextBox x:Name="TxtSearchLearned" Grid.Column="1" Background="Transparent" BorderThickness="0"
                                              Foreground="{DynamicResource TextPrimary}" FontSize="13" VerticalAlignment="Center"
-                                             TextChanged="OnSearchLearnedTextChanged" CaretBrush="{DynamicResource PlayStationBlue}"/>
+                                             TextChanged="OnSearchLearnedTextChanged" CaretBrush="White"/>
                                     <TextBlock x:Name="TxtSearchLearnedPlaceholder" Grid.Column="1"
                                                Text="{DynamicResource Loc_LearnedSearchPlaceholder}"
                                                FontSize="13" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
-                                               IsHitTestVisible="False" Visibility="Visible"/>
-                                    <Button x:Name="BtnClearSearchLearned" Grid.Column="2" Content="✕" Style="{StaticResource BtnSecondary}"
-                                            Padding="4,1" FontSize="9" BorderThickness="0" Visibility="Collapsed"
-                                            Click="OnClearSearchLearnedClick"/>
+                                               IsHitTestVisible="False"/>
+                                    <Button x:Name="BtnClearSearchLearned" Grid.Column="2" Content="&#x2715;" Style="{StaticResource BtnTinyRound}"
+                                            Visibility="Collapsed" Click="OnClearSearchLearnedClick"/>
+                                    <Border Grid.Column="3" Style="{StaticResource XboxBtnY}" Margin="8,0,0,0">
+                                        <Rectangle Style="{StaticResource XboxTextY}"/>
+                                    </Border>
                                 </Grid>
                             </Border>
 
-                            <!-- Actions Toolbar & Count -->
                             <DockPanel LastChildFill="False">
-                                <TextBlock x:Name="TxtLearnedStats" Text="—" FontSize="11.5"
-                                           Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
-
+                                <TextBlock x:Name="TxtLearnedStats" Text="" FontSize="11.5"
+                                           Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="4,0,0,0"/>
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                    <Button Content="{DynamicResource Loc_BtnSelectAll}" Style="{StaticResource BtnSecondary}"
-                                            Margin="0,0,6,0" Click="OnSelectAllLearnedClick"/>
+                                    <Button x:Name="BtnSelectAllLearned" Content="{DynamicResource Loc_BtnSelectAll}" Style="{StaticResource BtnSecondary}"
+                                            Margin="0,0,8,0" Click="OnSelectAllLearnedClick"/>
                                     <Button x:Name="BtnExportLearned" Content="{DynamicResource Loc_BtnExportLearned}"
-                                            Style="{StaticResource BtnSecondary}" Margin="0,0,6,0"
+                                            Style="{StaticResource BtnSecondary}" Margin="0,0,8,0"
                                             IsEnabled="False" Click="OnExportLearnedClick"/>
                                     <Button x:Name="BtnDeleteLearned" Content="{DynamicResource Loc_BtnDeleteLearned}"
-                                            Style="{StaticResource BtnDanger}"
-                                            IsEnabled="False" Click="OnDeleteLearnedClick"/>
+                                            Style="{StaticResource BtnDanger}" IsEnabled="False" Click="OnDeleteLearnedClick"/>
                                 </StackPanel>
                             </DockPanel>
                         </StackPanel>
-                    </Border>
 
-                    <!-- Scrollable Learned Executables Cards List -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,0,20,8">
-                        <Grid>
-                            <ItemsControl x:Name="LstLearned">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <VirtualizingStackPanel/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border CornerRadius="8" Background="{DynamicResource CardBackground}"
-                                                BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                                                Padding="14,12" Margin="0,0,0,8">
-                                            <DockPanel LastChildFill="True">
-                                                <!-- CheckBox to select item on left -->
-                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                          VerticalAlignment="Center" Margin="0,0,12,0"
-                                                          DockPanel.Dock="Left" Cursor="Hand"/>
-
-                                                <!-- Quick Delete button on right -->
-                                                <Button Style="{StaticResource BtnDanger}" Padding="8,4" FontSize="11"
-                                                        DockPanel.Dock="Right" VerticalAlignment="Center" Margin="10,0,0,0"
-                                                        ToolTip="{DynamicResource Loc_BtnDeleteSingle}"
-                                                        Click="OnDeleteSingleLearnedItemClick">
-                                                    <TextBlock Text="✕" FontSize="11"/>
-                                                </Button>
-
-                                                <!-- Central Details -->
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <!-- Title & Executable Pill -->
-                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                        <TextBlock Text="{Binding GameTitle}" FontSize="13.5" FontWeight="SemiBold"
-                                                                   Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                                                        <Border CornerRadius="4" Background="{DynamicResource ControlBackground}"
-                                                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                                                Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Executable}" FontSize="11"
-                                                                       FontFamily="Consolas, Segoe UI" FontWeight="SemiBold"
-                                                                       Foreground="{DynamicResource PlayStationBlue}"/>
+                        <ScrollViewer x:Name="ScrollLearned" Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
+                            <Grid>
+                                <ItemsControl x:Name="LstLearned" Margin="8,8,4,8">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,10,8">
+                                            <Border Style="{StaticResource FocusRing}" CornerRadius="20"
+                                                    Visibility="{Binding IsGamepadFocused, Converter={StaticResource BoolToVisibility}}"/>
+                                            <Border CornerRadius="14" Padding="14,11" Cursor="Hand"
+                                                    MouseLeftButtonDown="OnLearnedItemClicked">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#0DFFFFFF"/>
+                                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Background" Value="#17FFFFFF"/>
+                                                            </Trigger>
+                                                            <DataTrigger Binding="{Binding IsGamepadFocused}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource GamepadFocusFill}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <DockPanel LastChildFill="True">
+                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Style="{StaticResource ModernCheckBox}"
+                                                              VerticalAlignment="Center" Margin="0,0,14,0" DockPanel.Dock="Left"/>
+                                                    <Button Style="{StaticResource BtnDanger}" Width="36" Height="36" Padding="0" DockPanel.Dock="Right"
+                                                            VerticalAlignment="Center" Margin="10,0,0,0"
+                                                            ToolTip="{DynamicResource Loc_BtnDeleteSingle}" Click="OnDeleteSingleLearnedItemClick">
+                                                        <TextBlock Text="&#x2715;" FontSize="10"/>
+                                                    </Button>
+                                                    <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="10,0,0,0">
+                                                        <Border Style="{StaticResource FeaturePill}" Margin="0,0,6,0">
+                                                            <TextBlock Text="{Binding SessionsDisplay}" FontSize="10.5" Foreground="{DynamicResource TextSecondary}"/>
                                                         </Border>
-                                                    </StackPanel>
-
-                                                    <!-- Truncated Path -->
-                                                    <TextBlock Text="{Binding Path}" FontSize="11" Foreground="{DynamicResource TextMuted}"
-                                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6"
-                                                               ToolTip="{Binding Path}"/>
-
-                                                    <!-- Metadata Tags -->
-                                                    <WrapPanel Orientation="Horizontal">
-                                                        <!-- Detection Method -->
-                                                        <Border CornerRadius="4" Background="{DynamicResource FeaturePillBg}"
-                                                                BorderBrush="{DynamicResource FeaturePillBorder}" BorderThickness="1"
-                                                                Padding="6,2" Margin="0,0,6,2">
-                                                            <TextBlock Text="{Binding DetectionMethod}" FontSize="10.5"
-                                                                       Foreground="{DynamicResource TextSecondary}"/>
-                                                        </Border>
-
-                                                        <!-- Sessions Count -->
-                                                        <Border CornerRadius="4" Background="{DynamicResource FeaturePillBg}"
-                                                                BorderBrush="{DynamicResource FeaturePillBorder}" BorderThickness="1"
-                                                                Padding="6,2" Margin="0,0,6,2">
-                                                            <TextBlock Text="{Binding SessionsDisplay}" FontSize="10.5"
-                                                                       Foreground="{DynamicResource TextSecondary}"/>
-                                                        </Border>
-
-                                                        <!-- Last Seen -->
-                                                        <Border CornerRadius="4" Background="{DynamicResource FeaturePillBg}"
-                                                                BorderBrush="{DynamicResource FeaturePillBorder}" BorderThickness="1"
-                                                                Padding="6,2" Margin="0,0,6,2">
-                                                            <TextBlock Text="{Binding LastSeenDisplay}" FontSize="10.5"
-                                                                       Foreground="{DynamicResource TextMuted}"/>
+                                                        <Border Style="{StaticResource FeaturePill}" Margin="0">
+                                                            <TextBlock Text="{Binding LastSeenDisplay}" FontSize="10.5" Foreground="{DynamicResource TextMuted}"/>
                                                         </Border>
                                                     </WrapPanel>
-                                                </StackPanel>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                            <TextBlock Text="{Binding GameTitle}" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                                                            <Border CornerRadius="10" Height="20" Background="#261E6FE8" Padding="8,0" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Executable}" FontSize="11" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas, Segoe UI"
+                                                                           Foreground="#8DB7FF"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Path}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding DetectionMethod}"/>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel x:Name="PnlLearnedEmpty" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            Margin="20,50" Visibility="Collapsed">
+                                    <Border Width="72" Height="72" CornerRadius="36" Background="#14FFFFFF" HorizontalAlignment="Center" Margin="0,0,0,18">
+                                        <Path Style="{StaticResource ControllerIconPath}" Stroke="{DynamicResource TextSecondary}"
+                                              Width="34" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="{DynamicResource Loc_LearnedEmpty}" FontSize="16" Foreground="White"
+                                               HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="TxtLearnedEmptySubtitle" Text="{DynamicResource Loc_LearnedEmptySubtitle}"
+                                               FontSize="12.5" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               TextAlignment="Center" MaxWidth="380" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- ────────── TAB 3 : SETTINGS ────────── -->
+                    <ScrollViewer x:Name="ScrollSettings" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
+                                  Padding="26,0,26,4" Focusable="False">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="18"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- LEFT: general -->
+                            <StackPanel Grid.Column="0">
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Loc_SectionDetectionEngine}" Style="{StaticResource SectionTitle}"/>
+
+                                        <Border x:Name="TileSettingAutoDetect" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                MouseLeftButtonDown="OnSettingAutoDetectToggled" ToolTip="{DynamicResource Loc_EnableDetectionHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingAutoDetect" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingAutoDetect" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 12,3 A 9,9 0 1 0 12.001,3 Z M 12,8 A 4,4 0 1 0 12.001,8 Z"
+                                                      Style="{StaticResource IconPath}" Width="17" Height="17" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_EnableDetection}" Style="{StaticResource RowLabel}"/>
                                             </DockPanel>
                                         </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
 
-                            <!-- Empty State View -->
-                            <StackPanel x:Name="PnlLearnedEmpty" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                        Margin="20,40" Visibility="Collapsed">
-                                <Border Width="56" Height="56" CornerRadius="28"
-                                        Background="{DynamicResource ControlBackground}"
-                                        BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
-                                        HorizontalAlignment="Center" Margin="0,0,0,16">
-                                    <Viewbox Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.4">
-                                        <Path Data="M 2,6 L 22,6 A 2,2 0 0,1 24,8 L 24,18 A 2,2 0 0,1 22,20 L 2,20 A 2,2 0 0,1 0,18 L 0,8 A 2,2 0 0,1 2,6 Z M 5,11 L 5,15 M 3,13 L 7,13 M 17,11 L 17,11.01 M 19,13 L 19,13.01 M 15,13 L 15,13.01 M 17,15 L 17,15.01"
-                                              Stroke="{DynamicResource TextPrimary}" StrokeThickness="2"
-                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                                    </Viewbox>
+                                        <StackPanel x:Name="PnlSettingCriteria" Margin="22,0,0,0">
+                                            <Border x:Name="TileSettingAdaptive" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                    MouseLeftButtonDown="OnSettingAdaptiveToggled" ToolTip="{DynamicResource Loc_LaunchCriteria}">
+                                                <DockPanel>
+                                                    <Border x:Name="BadgeSettingAdaptive" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                            Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                            BorderThickness="1.5" VerticalAlignment="Center">
+                                                        <Ellipse x:Name="DotSettingAdaptive" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                                 Fill="{DynamicResource TextMuted}"/>
+                                                    </Border>
+                                                    <ContentControl DockPanel.Dock="Left" Template="{StaticResource TriggerGlyph}" Width="18" Height="15" Focusable="False" IsTabStop="False" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                                    <TextBlock Text="{DynamicResource Loc_CriteriaAdaptive}" Style="{StaticResource RowLabel}" FontSize="13"/>
+                                                </DockPanel>
+                                            </Border>
+                                            <Border x:Name="TileSettingHaptic" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                    MouseLeftButtonDown="OnSettingHapticToggled" ToolTip="{DynamicResource Loc_LaunchCriteria}">
+                                                <DockPanel>
+                                                    <Border x:Name="BadgeSettingHaptic" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                            Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                            BorderThickness="1.5" VerticalAlignment="Center">
+                                                        <Ellipse x:Name="DotSettingHaptic" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                                 Fill="{DynamicResource TextMuted}"/>
+                                                    </Border>
+                                                    <Image DockPanel.Dock="Left" Source="{StaticResource IconHaptic}" Width="19" Height="19" Margin="0,0,11,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{DynamicResource Loc_CriteriaHaptic}" Style="{StaticResource RowLabel}" FontSize="13"/>
+                                                </DockPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
                                 </Border>
-                                <TextBlock Text="{DynamicResource Loc_LearnedEmpty}" FontSize="14" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                <TextBlock x:Name="TxtLearnedEmptySubtitle" Text="{DynamicResource Loc_LearnedEmptySubtitle}"
-                                           FontSize="12" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                           TextAlignment="Center" MaxWidth="360" HorizontalAlignment="Center"/>
+
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Loc_SectionSystemPreferences}" Style="{StaticResource SectionTitle}"/>
+
+                                        <Border x:Name="TileSettingNotifications" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                MouseLeftButtonDown="OnSettingNotificationsToggled" ToolTip="{DynamicResource Loc_NotificationsHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingNotifications" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingNotifications" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 6,16 L 6,11 C 6,7.5 8.7,5 12,5 C 15.3,5 18,7.5 18,11 L 18,16 L 20,18 L 4,18 Z M 10,21 L 14,21"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_Notifications}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
+                                        <Border x:Name="TileSettingLanguage" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                MouseLeftButtonDown="OnLanguagePickerClick" ToolTip="{DynamicResource Loc_LanguageHint}">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtCurrentLanguage" Style="{StaticResource ValueLabel}" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <Path Data="M 2,2 L 7,7 L 2,12" Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.8"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="7" Height="12" Stretch="Uniform" Margin="12,0,4,0"/>
+                                                </StackPanel>
+                                                <Path DockPanel.Dock="Left" Data="M 12,3 A 9,9 0 1 0 12.001,3 Z M 3,12 L 21,12 M 12,3 C 8,7 8,17 12,21 M 12,3 C 16,7 16,17 12,21"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_Language}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Loc_SectionControllerDiagnostic}" Style="{StaticResource SectionTitle}"/>
+                                        <WrapPanel Margin="0,0,0,10">
+                                            <Button x:Name="BtnOpenControllerTest" Style="{StaticResource BtnPrimary}" Margin="0,0,8,8"
+                                                    ToolTip="{DynamicResource Loc_ControllerDiagnosticDesc}" Click="OnOpenControllerTestClick">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path Data="M 3,12 L 7,12 L 10,5 L 14,19 L 17,12 L 21,12" Style="{StaticResource IconPath}"
+                                                          Stroke="White" Width="14" Height="14" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{DynamicResource Loc_BtnTestController}"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="BtnPreparedLaunch" Style="{StaticResource BtnSecondary}" Margin="0,0,8,8"
+                                                    ToolTip="{DynamicResource Loc_PreparedLaunchHint}" Click="OnPreparedLaunchClick">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path Data="M 7,4 L 19,12 L 7,20 Z" Fill="White" Stretch="Uniform" Width="10" Height="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{DynamicResource Loc_PreparedLaunch}"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="BtnReportBug" Style="{StaticResource BtnSecondary}" Margin="0,0,8,8"
+                                                    ToolTip="{DynamicResource Loc_BugReportSectionDescription}" Click="OnReportBugClick">
+                                                <TextBlock Text="{DynamicResource Loc_BugReportSectionTitle}"/>
+                                            </Button>
+                                        </WrapPanel>
+                                        <DockPanel Margin="4,0,0,6">
+                                            <Button x:Name="BtnCheckUpdates" Content="{DynamicResource Loc_BtnCheck}"
+                                                    Style="{StaticResource BtnSecondary}" DockPanel.Dock="Right"
+                                                    VerticalAlignment="Center" Click="OnCheckUpdatesClick"/>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge" FontSize="13" Foreground="White"/>
+                                                <TextBlock x:Name="TxtUpdateStatus" Text="{DynamicResource Loc_SoftwareUpdate}" FontSize="11"
+                                                           Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- RIGHT: controller feel (per model) -->
+                            <StackPanel Grid.Column="2">
+                                <Border Style="{StaticResource SectionCard}">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,4">
+                                            <Path DockPanel.Dock="Left" Style="{StaticResource ControllerIconPath}" Stroke="{DynamicResource TextMuted}"
+                                                  Width="17" Height="13" Margin="4,0,8,12" VerticalAlignment="Top"/>
+                                            <TextBlock Text="{DynamicResource Loc_ControllerEffects}" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+                                        </DockPanel>
+                                        <TextBlock x:Name="TxtControllerCalibrationStatus" FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                                   TextWrapping="Wrap" Margin="4,0,0,12" ToolTip="{DynamicResource Loc_EffectsHint}"/>
+
+                                        <Border x:Name="TileSettingSyncLightbar" Style="{StaticResource SettingRow}" Cursor="Hand" Visibility="Collapsed"
+                                                MouseLeftButtonDown="OnSettingSyncLightbarToggled" ToolTip="{DynamicResource Loc_SyncLightbarHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingSyncLightbar" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingSyncLightbar" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 12,2 L 12,5 M 12,19 L 12,22 M 2,12 L 5,12 M 19,12 L 22,12 M 5,5 L 7,7 M 17,17 L 19,19 M 5,19 L 7,17 M 17,7 L 19,5 M 12,8 A 4,4 0 1 0 12.001,8 Z"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_SyncLightbar}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
+                                        <StackPanel x:Name="PnlControllerEffects" Visibility="Collapsed">
+                                            <Border x:Name="RowTriggerStrength" Style="{StaticResource SettingRow}">
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <TextBlock x:Name="TxtTriggerStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                        <TextBlock Text="{DynamicResource Loc_TriggerStrength}" Style="{StaticResource RowLabel}"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderTriggerStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="RowVibrationStrength" Style="{StaticResource SettingRow}" ToolTip="{DynamicResource Loc_VibrationStrengthHint}">
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <TextBlock x:Name="TxtVibrationStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                        <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Style="{StaticResource RowLabel}"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderVibrationStrength" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <StackPanel x:Name="PnlApex4GyroSettings" Visibility="Collapsed">
+                                                <Border x:Name="RowGyroStrength" Style="{StaticResource SettingRow}">
+                                                    <StackPanel>
+                                                        <DockPanel>
+                                                            <TextBlock x:Name="TxtApex4GyroStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_Apex4GyroStrength}" Style="{StaticResource RowLabel}"/>
+                                                        </DockPanel>
+                                                        <Slider x:Name="SliderApex4GyroStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border x:Name="RowGyroYawStrength" Style="{StaticResource SettingRow}">
+                                                    <StackPanel>
+                                                        <DockPanel>
+                                                            <TextBlock x:Name="TxtApex4GyroYawStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_Apex4GyroYawStrength}" Style="{StaticResource RowLabel}"/>
+                                                        </DockPanel>
+                                                        <Slider x:Name="SliderApex4GyroYawStrength" Style="{StaticResource EffectSlider}" Minimum="25" Maximum="400" TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                            <StackPanel x:Name="PnlHapticThresholdSettings" Visibility="Collapsed">
+                                                <Border x:Name="RowVibrationThreshold" Style="{StaticResource SettingRow}" ToolTip="{DynamicResource Loc_EffectsHint}">
+                                                    <StackPanel>
+                                                        <DockPanel>
+                                                            <TextBlock x:Name="TxtVibrationThreshold" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Style="{StaticResource RowLabel}"/>
+                                                        </DockPanel>
+                                                        <Slider x:Name="SliderVibrationThreshold" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                            <Border x:Name="RowGripVibrations" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                    MouseLeftButtonDown="OnGripVibrationsRowClick">
+                                                <DockPanel>
+                                                    <CheckBox x:Name="ChkGripVibrations" DockPanel.Dock="Right" Style="{StaticResource SwitchCheckBox}"
+                                                              VerticalAlignment="Center" Click="OnGripVibrationsChanged"/>
+                                                    <TextBlock Text="{DynamicResource Loc_EnableRumble}" Style="{StaticResource RowLabel}"/>
+                                                </DockPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Grid>
                     </ScrollViewer>
                 </Grid>
+
+                <!-- ═══ 4. GAMEPAD HUD ═══ -->
+                <Border Grid.Row="3" Padding="26,10,26,14" Background="{DynamicResource FooterBackground}" MinHeight="18">
+                    <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Focusable="False">
+                        <StackPanel x:Name="PnlGamepadHud" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <StackPanel x:Name="HudTabs" Style="{StaticResource GamepadActionItem}">
+                                <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="LB / RB" Style="{StaticResource GamepadBadgeText}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Tabs}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudAdjust" Style="{StaticResource GamepadActionItem}" Visibility="Collapsed">
+                                <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="&#x25C0; &#x25B6;" Style="{StaticResource GamepadBadgeText}" FontSize="8.5"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Adjust}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudFilter" Style="{StaticResource GamepadActionItem}" Visibility="Collapsed">
+                                <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="&#x29C9;" Style="{StaticResource GamepadBadgeText}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Filter}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudActionY" Style="{StaticResource GamepadActionItem}">
+                                <Border Style="{StaticResource XboxBtnY}"><Rectangle Style="{StaticResource XboxTextY}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Search}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudActionX" Style="{StaticResource GamepadActionItem}">
+                                <Border Style="{StaticResource XboxBtnX}"><Rectangle Style="{StaticResource XboxTextX}"/></Border>
+                                <TextBlock x:Name="TxtHudActionX" Text="{DynamicResource Loc_Gamepad_ToggleExclude}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudScroll" Style="{StaticResource GamepadActionItem}">
+                                <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="RS" Style="{StaticResource GamepadBadgeText}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Scroll}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudSupport" Style="{StaticResource GamepadActionItem}">
+                                <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="&#x2630;" Style="{StaticResource GamepadBadgeText}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_SupportShort}" Style="{StaticResource GamepadActionLabel}" Foreground="#FF8FA8"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudBack" Style="{StaticResource GamepadActionItem}">
+                                <Border Style="{StaticResource XboxBtnB}"><Rectangle Style="{StaticResource XboxTextB}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Back}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudSelect" Style="{StaticResource GamepadActionItem}" Margin="0">
+                                <Border Style="{StaticResource XboxBtnA}"><Rectangle Style="{StaticResource XboxTextA}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Select}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
             </Grid>
 
-            <!-- ══════════ 4. FOOTER ══════════ -->
-            <Border Grid.Row="3" CornerRadius="0,0,12,12" Padding="20,12,20,14"
-                    Background="{DynamicResource FooterBackground}">
-                <DockPanel>
-                    <TextBlock Text="{DynamicResource Loc_ExclusionsSavedHint}"
-                               FontSize="11" Foreground="{DynamicResource TextMuted}"
-                               VerticalAlignment="Center" DockPanel.Dock="Left"/>
-
-                    <Button Content="{DynamicResource Loc_BtnClose}" Style="{StaticResource BtnPrimary}"
-                            DockPanel.Dock="Right" HorizontalAlignment="Right"
-                            Click="OnCloseClick"/>
-                </DockPanel>
-            </Border>
-        </Grid>
+            <!-- First-run callout under the support button (shown once, positioned from code). -->
+            <Grid x:Name="SupportHintLayer" Visibility="Collapsed" Width="340" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Grid.RenderTransform><TranslateTransform x:Name="SupportHintSlide"/></Grid.RenderTransform>
+                <Path x:Name="SupportHintArrow" Data="M 0,10 L 10,0 L 20,10 Z" Fill="#141E3A" Width="20" Height="10"
+                      HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                <Border Margin="0,9,0,0" CornerRadius="20" Background="#141E3A" BorderThickness="1.5" Padding="18,16,16,14">
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#99E0285F" Offset="0"/>
+                            <GradientStop Color="#33FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="26" ShadowDepth="8" Direction="270" Color="#000000" Opacity="0.55"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <DockPanel>
+                            <Border Width="38" Height="38" CornerRadius="19" Background="{DynamicResource SupportGradient}" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Path Data="M 12,21 C 10,19 3,14 3,8.5 C 3,5.5 5.2,3.5 8,3.5 C 9.8,3.5 11.2,4.5 12,5.8 C 12.8,4.5 14.2,3.5 16,3.5 C 18.8,3.5 21,5.5 21,8.5 C 21,14 14,19 12,21 Z"
+                                      Fill="White" Width="17" Height="17" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,1,0,0"/>
+                            </Border>
+                            <TextBlock Text="{DynamicResource Loc_SupportHintTitle}" FontSize="15.5" FontWeight="SemiBold" Foreground="White"
+                                       VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        </DockPanel>
+                        <TextBlock Text="{DynamicResource Loc_SupportHintBody}" FontSize="12.5" Foreground="{DynamicResource TextSecondary}"
+                                   TextWrapping="Wrap" LineHeight="18" Margin="0,10,0,14"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button x:Name="BtnSupportHintLater" Content="{DynamicResource Loc_SupportHintLater}" Style="{StaticResource BtnSecondary}"
+                                    Margin="0,0,8,0" Click="OnSupportHintLaterClick"/>
+                            <Button x:Name="BtnSupportHintGo" Style="{StaticResource BtnSupport}" Height="36" Click="OnSupportHintSupportClick">
+                                <StackPanel Orientation="Horizontal" Margin="6,0,0,0">
+                                    <TextBlock Text="{DynamicResource Loc_BtnSupportKofi}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>        </Grid>
     </Border>
 </Window>

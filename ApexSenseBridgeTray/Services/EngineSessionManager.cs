@@ -1,8 +1,7 @@
+using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.Threading;
 
 namespace ApexSenseBridgeTray.Services
@@ -16,6 +15,124 @@ namespace ApexSenseBridgeTray.Services
         private string activeGameTitle;
         private string activeProfile;
         private bool isStarting;
+        private bool isStopping;
+        private bool stopAfterStart;
+        private string lastReason;
+        private bool failed;
+        private string controller;
+        private readonly Timer healthTimer;
+        private int checkingHealth;
+        private string activeProfileName;
+        private int activeApexSlot;
+        private readonly SessionRecoveryState recovery = new SessionRecoveryState();
+        private BridgeSession.SessionInfo observedExternalSession;
+        private readonly Func<string> engineLocator;
+        private readonly Func<bool> externalSessionProbe;
+        private readonly string sessionDiscoveryName;
+        public SessionRecoveryState Recovery { get { lock (syncLock) return recovery.Snapshot(); } }
+        public bool AutomaticActivationBlocked { get { lock (syncLock) return recovery.BlocksAutomaticActivation; } }
+        public void UpdateRecoveryController(bool available) { lock (syncLock) recovery.ControllerDetected(available); }
+        public void DismissRecovery() { lock (syncLock) recovery.Dismiss(); StateChanged?.Invoke(); }
+
+        public bool ResumeSession(TraySettings settings, out string error)
+        {
+            string game, profile;
+            int slot;
+            lock (syncLock)
+            {
+                if (activeSession != null || isStarting || isStopping || !recovery.Begin())
+                { error = "Loc_RecoveryBusy"; return false; }
+                game = recovery.Game; profile = recovery.Profile; slot = recovery.ApexSlot;
+            }
+            StateChanged?.Invoke();
+            bool success = false;
+            try { success = StartSessionCore(game, profile, settings, slot, true, out error); return success; }
+            finally { lock (syncLock) { if (recovery.Resuming) recovery.Complete(success); } StateChanged?.Invoke(); }
+        }
+
+        public EngineSessionManager() : this(() => InstallLocator.ResolveEngine(),
+            "Local\\ApexSenseBridge.ActiveSession.Info.v1", IsExternalSessionActive) { }
+
+        internal EngineSessionManager(Func<string> engineLocator, string discoveryName, Func<bool> externalSessionProbe)
+        {
+            this.engineLocator = engineLocator;
+            this.externalSessionProbe = externalSessionProbe;
+            sessionDiscoveryName = discoveryName;
+            healthTimer = new Timer(CheckHealth, null, 500, 500);
+        }
+
+        public string StateName { get { lock (syncLock) { return isStarting ? "Starting" : isStopping ? "Stopping" : activeSession != null ? activeSession.ReadStatus().Phase.ToString() : failed ? "Failed" : "Stopped"; } } }
+        public string LastReason { get { lock (syncLock) { return lastReason; } } }
+        public string ActiveController { get { lock (syncLock) { return controller; } } }
+        public bool HasExternalSession { get { return externalSessionProbe(); } }
+        public event Action StateChanged;
+
+        private void CheckHealth(object unused)
+        {
+            if (Interlocked.Exchange(ref checkingHealth, 1) != 0) return;
+            try
+            {
+                string exitReason = null;
+                lock (syncLock)
+                {
+                    if (activeSession == null)
+                    {
+                        if (isStarting || isStopping) return;
+                        var external = BridgeSession.ReadActiveSession(sessionDiscoveryName);
+                        if (external != null && external.Owner != "Tray")
+                        {
+                            observedExternalSession = external;
+                            if (external.Phase == SessionPhase.Ready) recovery.Clear();
+                            return;
+                        }
+                        if (observedExternalSession == null) return;
+                        var previous = observedExternalSession;
+                        observedExternalSession = null;
+                        var final = BridgeSession.ReadSessionStatus(previous.Token);
+                        if (final == null || final.Phase != SessionPhase.Failed ||
+                            !recovery.Offer(previous.Game, previous.Profile, 0, final.Interruption, final.Stages, previous.Owner)) return;
+                        activeGameTitle = previous.Game;
+                        activeProfile = previous.Profile;
+                        controller = previous.Controller;
+                        failed = true;
+                        lastReason = final.Message;
+                        exitReason = lastReason;
+                    }
+                    else
+                    {
+                        var status = activeSession.ReadStatus();
+                        if (activeSession.ProcessId != 0) return;
+                        failed = status.Phase != SessionPhase.Stopped;
+                        lastReason = status.Message;
+                        if (string.IsNullOrWhiteSpace(lastReason) || status.Phase == SessionPhase.Ready || status.Phase == SessionPhase.Stopping)
+                            lastReason = "Le moteur s'est arrêté de façon inattendue.";
+                        exitReason = lastReason;
+                        if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages)) recovery.Clear();
+                        activeSession.Dispose();
+                        activeSession = null;
+                    }
+                }
+                StateChanged?.Invoke();
+                SessionStopped?.Invoke(exitReason);
+            }
+            catch (Exception ex) { RaiseLogMessage("Session health: " + ex.Message); }
+            finally { Interlocked.Exchange(ref checkingHealth, 0); }
+        }
+
+        public void Dispose() { healthTimer.Dispose(); }
+
+        public void ReportActivationRefused(string gameTitle, string reason)
+        {
+            lock (syncLock)
+            {
+                if (activeSession != null || isStarting || isStopping || recovery.BlocksAutomaticActivation) return;
+                activeGameTitle = gameTitle;
+                activeProfile = null;
+                lastReason = reason;
+                failed = true;
+            }
+            StateChanged?.Invoke();
+        }
 
         public bool IsSessionActive
         {
@@ -74,28 +191,47 @@ namespace ApexSenseBridgeTray.Services
         public bool StartSession(string gameTitle, string profileName, TraySettings settings,
                                  int apexProfileSlot, out string error)
         {
+            return StartSessionCore(gameTitle, profileName, settings, apexProfileSlot, false, out error);
+        }
+
+        private bool StartSessionCore(string gameTitle, string profileName, TraySettings settings,
+                                 int apexProfileSlot, bool resuming, out string error)
+        {
             error = null;
 
             lock (syncLock)
             {
-                if (activeSession != null || isStarting)
+                if (activeSession != null || isStarting || isStopping)
                 {
                     error = "Une session est déjà active ou en cours d'initialisation.";
                     return false;
                 }
+                if (!resuming && recovery.BlocksAutomaticActivation)
+                { error = "Loc_RecoveryBusy"; return false; }
+                if (!resuming) recovery.Clear();
                 isStarting = true;
+                stopAfterStart = false;
+                activeGameTitle = gameTitle;
+                activeProfile = profileName + (apexProfileSlot > 0 ? " / APEX " + apexProfileSlot : "");
+                lastReason = null;
+                failed = false;
+                controller = null;
+                activeProfileName = profileName;
+                activeApexSlot = apexProfileSlot;
             }
+            StateChanged?.Invoke();
 
             try
             {
-                if (IsExternalSessionActive())
+                if (externalSessionProbe())
                 {
                     error = "Une session ApexSenseBridge gérée par Playnite ou une autre application est déjà active.";
                     RaiseLogMessage(error + " Le Tray laisse cette session intacte.");
+                    RaiseSessionError(error);
                     return false;
                 }
 
-                var enginePath = InstallLocator.ResolveEngine();
+                var enginePath = engineLocator();
                 if (string.IsNullOrWhiteSpace(enginePath))
                 {
                     error = "ApexSenseBridge.exe est introuvable. Veuillez installer ou réparer ApexSenseBridge.";
@@ -113,7 +249,10 @@ namespace ApexSenseBridgeTray.Services
                     TimeSpan.FromSeconds(timeoutSec),
                     msg => RaiseLogMessage(msg),
                     err => RaiseLogMessage("[ERROR] " + err),
-                    out error);
+                    out error, gameTitle, activeProfile, sessionDiscoveryName, progressChanged: state =>
+                    {
+                        lock (syncLock) recovery.Observe(state.Stages);
+                    });
 
                 if (session == null)
                 {
@@ -121,11 +260,25 @@ namespace ApexSenseBridgeTray.Services
                     return false;
                 }
 
+                bool cancelled;
                 lock (syncLock)
                 {
-                    activeSession = session;
-                    activeGameTitle = gameTitle;
-                    activeProfile = profileName;
+                    cancelled = stopAfterStart;
+                    if (!cancelled)
+                    {
+                        activeSession = session;
+                        activeGameTitle = gameTitle;
+                        activeProfile = profileName + (apexProfileSlot > 0 ? " / APEX " + apexProfileSlot : "");
+                        var status = session.ReadStatus();
+                        controller = status.Message != null && status.Message.StartsWith("ASB_READY|") ? status.Message.Substring(10) : null;
+                    }
+                }
+                if (cancelled)
+                {
+                    session.StopAndEnsureExit(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
+                    session.Dispose();
+                    error = "Initialisation annulée.";
+                    return false;
                 }
 
                 var startHandler = SessionStarted;
@@ -141,6 +294,7 @@ namespace ApexSenseBridgeTray.Services
                 {
                     isStarting = false;
                 }
+                StateChanged?.Invoke();
             }
         }
 
@@ -149,20 +303,38 @@ namespace ApexSenseBridgeTray.Services
             BridgeSession sessionToStop = null;
             lock (syncLock)
             {
+                recovery.Clear();
+                if (isStarting && activeSession == null) stopAfterStart = true;
                 if (activeSession == null) return;
                 sessionToStop = activeSession;
                 activeSession = null;
+                isStopping = true;
                 activeGameTitle = null;
                 activeProfile = null;
+                failed = false;
+                lastReason = reason;
             }
 
             RaiseLogMessage(string.Format("Stopping session: {0}", reason));
 
+            StateChanged?.Invoke();
             if (sessionToStop != null)
             {
-                sessionToStop.StopAndWait(TimeSpan.FromSeconds(15));
+                var clean = sessionToStop.StopAndEnsureExit(
+                    TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
+                var final = sessionToStop.ReadStatus();
+                lock (syncLock)
+                {
+                    isStopping = false;
+                    if (!clean || final.Phase == SessionPhase.Failed)
+                    {
+                        failed = true;
+                        lastReason = !clean ? "L'arrêt du moteur n'a pas été confirmé." : final.Message;
+                    }
+                }
                 sessionToStop.Dispose();
             }
+            StateChanged?.Invoke();
 
             var stopHandler = SessionStopped;
             if (stopHandler != null)
@@ -173,6 +345,8 @@ namespace ApexSenseBridgeTray.Services
 
         private void RaiseSessionError(string err)
         {
+            lock (syncLock) { lastReason = err; failed = true; }
+            StateChanged?.Invoke();
             var errHandler = SessionError;
             if (errHandler != null)
             {
@@ -180,7 +354,7 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
-        private static bool IsExternalSessionActive()
+        internal static bool IsExternalSessionActive()
         {
             try
             {
@@ -226,44 +400,10 @@ namespace ApexSenseBridgeTray.Services
         private static string BuildArguments(string profileName, TraySettings settings,
                                              int apexProfileSlot)
         {
-            var args = new List<string> { "bridge-triggers" };
-
-            var profile = profileName != null ? profileName.ToLowerInvariant() : "standard";
-            if (profile == "spider-man-2")
-            {
-                args.Add("--touchpad-profile spider-man-2");
-            }
-            else if (profile == "miles-morales")
-            {
-                args.Add("--touchpad-profile miles-morales");
-            }
-            else if (profile == "ghost-of-tsushima")
-            {
-                args.Add("--touchpad-profile ghost-of-tsushima");
-            }
-            else if (profile == "warframe")
-            {
-                args.Add("--touchpad-profile warframe");
-            }
-            else
-            {
-                args.Add("--touchpad-profile none");
-            }
-
-            if (settings != null && settings.EnableRumble)
-            {
-                args.Add("--rumble");
-                args.Add("--haptic-threshold");
-                args.Add(settings.HapticThresholdPercent.ToString());
-            }
-
-            if (apexProfileSlot >= 1 && apexProfileSlot <= 4)
-            {
-                args.Add("--apex-profile");
-                args.Add(apexProfileSlot.ToString(CultureInfo.InvariantCulture));
-            }
-
-            return string.Join(" ", args.ToArray());
+            var arguments = BridgeArguments.Build(profileName, false, 12, false, apexProfileSlot);
+            // Send all model profiles; only the engine's verified device selects
+            // one. A stale UI label / hot swap can never select another model's data.
+            return arguments + (settings != null ? settings.BuildControllerCalibrationArguments() : string.Empty);
         }
     }
 }

@@ -1,7 +1,5 @@
 #include "cli/Commands.h"
 #include "cli/CommandSupport.h"
-#include "core/TriggerResetGuard.h"
-#include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"
@@ -47,9 +45,13 @@ namespace asb::cli {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 0.6.3\n\n"
+        << "ApexSenseBridge 1.0.0\n\n"
+#ifdef ASB_RELEASE_LABEL
+        << "Release: " ASB_RELEASE_LABEL "\n\n"
+#endif
+        << "Engine / command-line diagnostics. Main application: ApexSenseBridgeTray.exe\n\n"
         << "Commands:\n"
-        << "  list                         List APEX 4/5 vendor HID candidates\n"
+        << "  list                         List APEX 4/5/6 vendor HID candidates\n"
         << "  diagnose [--all-hid] [--json]\n"
         << "                               Read-only HID interface diagnostic\n"
         << "  input-status [index] [--seconds N] [--json]\n"
@@ -60,29 +62,42 @@ void printUsage() {
         << "                               Create a neutral virtual DualSense and count feedback\n"
         << "  bridge-triggers [index] [--seconds N] [--viiper PATH]\n"
         << "                  [--telemetry-json PATH]\n"
-        << "                  [--proxy-xinput] [--xinput-index 0..3]\n"
+        << "                  [--xinput-index 0..3]\n"
         << "                  [--rumble]\n"
-        << "                  [--haptic-threshold 0..95]\n"
+        << "                  [--sync-lightbar]\n"
+        << "                  [--haptic-threshold 0..95] (APEX 4/5; APEX 6 always uses 0)\n"
+        << "                  [--trigger-strength 0..100] [--vibration-strength 0..200]\n"
+        << "                  Vibration above 100% boosts APEX 4/5 grip motors only; APEX 6 stays capped at 100%.\n"
+        << "                  [--apex6-haptic-gain 100..200] (experimental native grip PCM only)\n"
         << "                  [--verify-virtual-input]\n"
         << "                  [--virtual-backend auto|integrated|sidecar]\n"
         << "                  [--touchpad-profile NAME]\n"
         << "                  [--apex-profile 1..4]\n"
         << "                  [--view-hold-swipe-up]\n"
-        << "                  [--isolate-apex]\n"
-        << "                  [--session-token 32HEX]\n"
+        << "                  [--session-token 32HEX] [--session-owner-pid PID]\n"
         << "                               Route adaptive triggers and optional grip/audio haptics\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
-        << "  test-rumble [index]          Gentle grip-motor vibration test (~1 s)\n"
+        << "  test-trigger [index] [--side lt|rt|both] [--mode resistance|weapon|vibration|bow|normal]\n"
+        << "                       [--level 1..4] [--seconds N]\n"
+        << "                               Test adaptive triggers on Flydigi APEX controllers\n"
+        << "  test-rumble [index] [--left 0..255] [--right 0..255] [--seconds N]\n"
+        << "                               Grip-motor vibration test\n"
         << "  test-profile-switch [index] [--target 1..4]\n"
         << "                               Temporarily switch an Apex 5 profile, then restore it\n"
+        << "  test-rgb [index] [R G B | #RRGGBB]\n"
+        << "                               Test direct Apex 5 RGB lighting with backup/restore\n"
+        << "  test-gyro [index] [--seconds N] [--stream] [--json]\n"
+        << "                               Test 6-axis motion sensor (gyroscope & accelerometer)\n"
         << "  apex4-port-test [index] [--seconds N] [--rumble] [--forceadapt]\n"
         << "                               Validate APEX 4 input/effects with one identity exchange\n"
+        << "  apex4-gyro-capture [index] [--phase-seconds N] [--output PATH]\n"
+        << "                               Capture guided raw APEX 4 motion reports (read-only)\n"
         << "  xinput-view-test [index] [--seconds N]\n"
         << "                               Measure View/Back hold duration without writes\n"
         << "  clear [index]                Clear LT/RT effects and stop grip rumble\n"
         << "  dry-run                      Print the test packet without HID I/O\n\n"
-        << "Hardware writes only target a verified Apex 4 (04B4:2412, DInput) or\n"
-        << "Apex 5 (Flydigi 37D7 controller family). Pass an index if several are found.\n"
+        << "Hardware writes only target a verified Apex 4, Apex 5, or Apex 6 Pro.\n"
+        << "Pass an index if several supported controllers are found.\n"
         << "virtual-ds never opens the APEX HID interface and never routes feedback to it.\n";
 }
 
@@ -90,6 +105,24 @@ int run(int argc, char** argv) {
     installConsoleHandler();
 
     if (argc < 2) {
+#ifdef _WIN32
+        wchar_t executablePath[32768]{};
+        const auto length = GetModuleFileNameW(nullptr, executablePath, 32768);
+        if (length > 0 && length < 32768) {
+            const auto tray = std::filesystem::path(executablePath).parent_path() / L"ApexSenseBridgeTray.exe";
+            std::wstring commandLine = L"\"" + tray.wstring() + L"\" --show";
+            STARTUPINFOW startup{};
+            startup.cb = sizeof(startup);
+            PROCESS_INFORMATION launched{};
+            if (std::filesystem::exists(tray) && CreateProcessW(tray.c_str(), commandLine.data(), nullptr,
+                    nullptr, FALSE, 0, nullptr, tray.parent_path().c_str(), &startup, &launched)) {
+                CloseHandle(launched.hThread);
+                CloseHandle(launched.hProcess);
+                return 0;
+            }
+        }
+        std::cerr << "Open ApexSenseBridgeTray.exe (main application). The engine accepts diagnostic commands only.\n";
+#endif
         printUsage();
         return 0;
     }
@@ -179,14 +212,26 @@ int run(int argc, char** argv) {
     if (command == "test-rt") {
         return commandTestRt(argc, argv);
     }
+    if (command == "test-trigger") {
+        return commandTestTrigger(argc, argv);
+    }
     if (command == "test-rumble") {
         return commandTestRumble(argc, argv);
     }
     if (command == "test-profile-switch") {
         return commandTestProfileSwitch(argc, argv);
     }
+    if (command == "test-rgb") {
+        return commandTestRgb(argc, argv);
+    }
+    if (command == "test-gyro") {
+        return commandTestGyro(argc, argv);
+    }
     if (command == "apex4-port-test") {
         return commandApex4PortTest(argc, argv);
+    }
+    if (command == "apex4-gyro-capture") {
+        return commandApex4GyroCapture(argc, argv);
     }
     if (command == "clear") {
         return commandClear(argc, argv);

@@ -149,6 +149,7 @@ namespace ApexSenseBridge
                 case "miles-morales": return BridgeProfileType.MilesMorales;
                 case "ghost-of-tsushima": return BridgeProfileType.GhostOfTsushima;
                 case "warframe": return BridgeProfileType.Warframe;
+                case "death-stranding-2": return BridgeProfileType.DeathStranding2;
                 default: return BridgeProfileType.StandardDualSense;
             }
         }

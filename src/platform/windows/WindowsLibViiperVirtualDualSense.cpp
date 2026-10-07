@@ -54,6 +54,7 @@ using SetDualSenseASBRawOutputCallbackFn = ViiperBool(__cdecl*)(
     RawOutputCallback,
     std::uintptr_t);
 using RemoveDualSenseDeviceFn = ViiperBool(__cdecl*)(ViiperHandle);
+using GetASBPatchVersionFn = std::uint32_t(__cdecl*)();
 
 std::filesystem::path executableDirectory() {
     std::vector<wchar_t> buffer(32768);
@@ -201,7 +202,11 @@ public:
             return false;
         }
 
-        backendVersion_ = "libVIIPER v0.7.0-asb7 (integrated)";
+        const auto patchVersion = reinterpret_cast<GetASBPatchVersionFn>(
+            GetProcAddress(library_, "GetVIIPERASBPatchVersion"));
+        backendVersion_ = patchVersion
+            ? "libVIIPER v0.7.0-asb" + std::to_string(patchVersion()) + " (integrated)"
+            : "libVIIPER v0.7.0 (integrated, ASB patch version unavailable)";
         connected_.store(true, std::memory_order_release);
         error.clear();
         return true;
@@ -261,12 +266,25 @@ public:
             error = "Integrated virtual DualSense input is not connected.";
             return false;
         }
-        const auto input = buildViiperInput(state);
+        const auto input = buildViiperInput(
+            state, options_.captureAudioHapticsWaveform);
         std::lock_guard inputLock(inputMutex_);
+        const auto updateStartedAt = std::chrono::steady_clock::now();
         if (!setInputState_(deviceHandle_, input.data(),
                             static_cast<std::uint32_t>(input.size()))) {
             error = "Integrated libVIIPER could not update controller input.";
             return false;
+        }
+        const auto elapsedUs = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - updateStartedAt).count());
+        auto currentMax = maxInputUpdateDurationUs_.load(std::memory_order_relaxed);
+        while (elapsedUs > currentMax &&
+               !maxInputUpdateDurationUs_.compare_exchange_weak(
+                   currentMax, elapsedUs, std::memory_order_relaxed)) {
+        }
+        if (elapsedUs >= 10000) {
+            inputUpdateBlockEvents_.fetch_add(1, std::memory_order_relaxed);
         }
         inputUpdates_.fetch_add(1, std::memory_order_relaxed);
         error.clear();
@@ -297,6 +315,10 @@ public:
         result.initializationDeviceUs = initializationDeviceUs_;
         result.initializationFeedbackUs = initializationFeedbackUs_;
         result.initializationInputUs = initializationInputUs_;
+        result.maxInputUpdateDurationUs =
+            maxInputUpdateDurationUs_.load(std::memory_order_relaxed);
+        result.inputUpdateBlockEvents =
+            inputUpdateBlockEvents_.load(std::memory_order_relaxed);
         result.backendVersion = backendVersion_;
         return result;
     }
@@ -324,7 +346,7 @@ private:
             return;
         }
         const std::uint8_t frameType = frame[0];
-        if (frameType != 0x01 && frameType != 0x02) {
+        if (frameType != 0x01 && frameType != 0x02 && frameType != 0x03) {
             unknownFrames_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
@@ -347,6 +369,13 @@ private:
                 rumbleReports_.fetch_add(1, std::memory_order_relaxed);
             }
             deliver(feedback);
+            return;
+        }
+
+        if (feedback.kind == FeedbackKind::AudioHapticWaveform) {
+            audioHapticsFrames_.fetch_add(1, std::memory_order_relaxed);
+            deliver(feedback);
+            audioHapticsDelivered_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
 
@@ -472,6 +501,8 @@ private:
         initializationDeviceUs_ = 0;
         initializationFeedbackUs_ = 0;
         initializationInputUs_ = 0;
+        maxInputUpdateDurationUs_.store(0, std::memory_order_relaxed);
+        inputUpdateBlockEvents_.store(0, std::memory_order_relaxed);
         backendVersion_.clear();
     }
 
@@ -513,6 +544,8 @@ private:
     std::atomic_uint64_t audioHapticsCoalesced_{0};
     std::atomic_uint64_t malformedFrames_{0};
     std::atomic_uint64_t unknownFrames_{0};
+    std::atomic_uint64_t maxInputUpdateDurationUs_{0};
+    std::atomic_uint64_t inputUpdateBlockEvents_{0};
     std::uint64_t initializationBootstrapUs_ = 0;
     std::uint64_t initializationServerUs_ = 0;
     std::uint64_t initializationBusUs_ = 0;

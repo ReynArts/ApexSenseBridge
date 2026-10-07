@@ -137,6 +137,49 @@ Report buildRumble(std::uint8_t lowFrequencyMotor,
     return report;
 }
 
+Report buildReadRgbConfig(std::uint8_t slot, std::uint8_t packetSize) {
+    const std::array<std::uint8_t, 2> payload{slot, packetSize};
+    return buildChecksummedCommand(kCmdReadRgbConfig, payload);
+}
+
+Report buildWriteRgbStart(std::uint8_t slot, std::uint8_t startIndex,
+                          std::uint8_t packetCount, std::uint8_t packetSize) {
+    const std::array<std::uint8_t, 4> payload{slot, startIndex, packetCount, packetSize};
+    return buildChecksummedCommand(kCmdWriteRgbStart, payload);
+}
+
+Report buildWriteRgbPack(std::uint8_t packetIndex, std::span<const std::uint8_t> data) {
+    std::array<std::uint8_t, 1 + kRgbPacketSize> payload{};
+    payload[0] = packetIndex;
+    const auto copyLen = std::min<std::size_t>(data.size(), kRgbPacketSize);
+    std::copy_n(data.begin(), copyLen, payload.begin() + 1);
+    return buildChecksummedCommand(
+        kCmdWriteRgbPack,
+        std::span<const std::uint8_t>(payload.data(), 1 + copyLen));
+}
+
+std::array<std::uint8_t, kRgbConfigSize> buildStaticRgbPayload(
+    std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t brightness) {
+    std::array<std::uint8_t, kRgbConfigSize> payload{};
+    payload[0] = 0x00;
+    payload[1] = 0x03;
+    payload[2] = 0x00;
+    payload[3] = 0x00;
+    payload[4] = 0x00;
+    payload[5] = 0x00;
+    payload[6] = brightness;
+    payload[7] = static_cast<std::uint8_t>(kApex5LedCount);
+    payload[8] = 0x04;
+    payload[9] = 0x00;
+    std::fill_n(payload.begin() + 10, 10, std::uint8_t{0xFF});
+    for (std::size_t offset = 20; offset + 2 < kRgbConfigSize; offset += 3) {
+        payload[offset] = r;
+        payload[offset + 1] = g;
+        payload[offset + 2] = b;
+    }
+    return payload;
+}
+
 Report buildProfileStatusRequest() {
     return buildChecksummedCommand(kCmdProfileStatus, {});
 }
@@ -145,6 +188,21 @@ std::optional<Report> buildApplyProfile(std::uint8_t slot) {
     if (slot >= kProfileSlotCount) return std::nullopt;
     const std::array payload{slot};
     return buildChecksummedCommand(kCmdApplyProfile, payload);
+}
+
+Report buildInputTransportStatusRequest() {
+    return buildChecksummedCommand(kCmdReadInputTransport, {});
+}
+
+Report buildSetInputTransport(bool controllerData, bool rawData) {
+    // Keyboard, mouse and third-party ownership are deliberately left
+    // unchanged. 0xFF is Flydigi's "keep current value" sentinel.
+    const std::array<std::uint8_t, 5> payload{
+        static_cast<std::uint8_t>(controllerData ? 1 : 0),
+        static_cast<std::uint8_t>(rawData ? 1 : 0),
+        0xFF, 0xFF, 0xFF,
+    };
+    return buildChecksummedCommand(kCmdSetInputTransport, payload);
 }
 
 bool isProfileCommandReply(
@@ -171,6 +229,24 @@ std::optional<ProfileStatus> parseProfileStatus(
         static_cast<std::uint8_t>(
             switchBank ? rawSlot - kProfileSlotCount : rawSlot),
         switchBank,
+    };
+}
+
+std::optional<InputTransportStatus> parseInputTransportStatus(
+    std::span<const std::uint8_t> report) noexcept {
+    if (report.size() < 11 ||
+        !isProfileCommandReply(report, kCmdReadInputTransport)) {
+        return std::nullopt;
+    }
+    for (std::size_t index = 6; index <= 10; ++index) {
+        if (report[index] > 1) return std::nullopt;
+    }
+    return InputTransportStatus{
+        report[6] != 0,
+        report[7] != 0,
+        report[8] != 0,
+        report[9] != 0,
+        report[10] != 0,
     };
 }
 

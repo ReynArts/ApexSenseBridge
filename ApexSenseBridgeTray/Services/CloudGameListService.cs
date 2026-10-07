@@ -1,6 +1,7 @@
 using ApexSenseBridgeTray.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -20,6 +21,8 @@ namespace ApexSenseBridgeTray.Services
             new Dictionary<int, SupportedGame>();
         private readonly HashSet<int> ambiguousSteamAppIds = new HashSet<int>();
         private readonly List<SupportedGame> allGames = new List<SupportedGame>();
+        private static readonly Lazy<Dictionary<string, string>> EmbeddedProfiles =
+            new Lazy<Dictionary<string, string>>(LoadEmbeddedProfiles);
         private volatile Dictionary<string, SupportedGame> gamesByExecutableName =
             new Dictionary<string, SupportedGame>(StringComparer.OrdinalIgnoreCase);
 
@@ -265,6 +268,18 @@ namespace ApexSenseBridgeTray.Services
                         : string.Empty;
                     g.AdaptiveTriggers = item.ContainsKey("adaptiveTriggers") && Convert.ToBoolean(item["adaptiveTriggers"]);
                     g.HapticFeedback = item.ContainsKey("hapticFeedback") && Convert.ToBoolean(item["hapticFeedback"]);
+                    bool legacyManualFix = item.ContainsKey("requiresManualFix") &&
+                        item["requiresManualFix"] != null &&
+                        Convert.ToBoolean(item["requiresManualFix"]);
+                    g.AdaptiveTriggersManualFix = item.ContainsKey("adaptiveTriggersManualFix")
+                        ? Convert.ToBoolean(item["adaptiveTriggersManualFix"])
+                        : legacyManualFix && g.AdaptiveTriggers;
+                    g.HapticFeedbackManualFix = item.ContainsKey("hapticFeedbackManualFix")
+                        ? Convert.ToBoolean(item["hapticFeedbackManualFix"])
+                        : legacyManualFix && g.HapticFeedback;
+                    g.ManualFixUrl = item.ContainsKey("manualFixUrl") && item["manualFixUrl"] != null
+                        ? item["manualFixUrl"].ToString()
+                        : string.Empty;
                     g.Profile = item.ContainsKey("profile") && item["profile"] != null ? item["profile"].ToString() : "standard";
                     g.IconUrl = item.ContainsKey("iconUrl") && item["iconUrl"] != null ? item["iconUrl"].ToString() : string.Empty;
                     if (item.ContainsKey("steamAppId") && item["steamAppId"] != null)
@@ -278,11 +293,16 @@ namespace ApexSenseBridgeTray.Services
                     g.Executables = g.SteamAppIdVerified
                         ? ParseExecutables(item)
                         : new string[0];
+                    g.AddedAt = ParseAddedAt(item);
 
                     var titleNormalized = Normalize(g.Title);
                     g.Normalized = string.Equals(providedNormalized, titleNormalized, StringComparison.Ordinal)
                         ? providedNormalized
                         : titleNormalized;
+                    string embeddedProfile;
+                    if (string.Equals(g.Profile, "standard", StringComparison.OrdinalIgnoreCase) &&
+                        EmbeddedProfiles.Value.TryGetValue(g.Normalized, out embeddedProfile))
+                        g.Profile = embeddedProfile;
 
                     if (!string.IsNullOrWhiteSpace(g.Normalized))
                     {
@@ -334,6 +354,17 @@ namespace ApexSenseBridgeTray.Services
             {
                 return false;
             }
+        }
+
+        // "addedAt" is an optional ISO calendar date (YYYY-MM-DD); anything else is ignored.
+        internal static DateTime? ParseAddedAt(Dictionary<string, object> item)
+        {
+            if (item == null || !item.ContainsKey("addedAt") || item["addedAt"] == null) return null;
+            DateTime date;
+            return DateTime.TryParseExact(item["addedAt"].ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out date)
+                ? date.Date
+                : (DateTime?)null;
         }
 
         private static string[] ParseExecutables(Dictionary<string, object> item)
@@ -397,6 +428,30 @@ namespace ApexSenseBridgeTray.Services
             {
                 return string.Empty;
             }
+        }
+
+        private static Dictionary<string, string> LoadEmbeddedProfiles()
+        {
+            var profiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(
+                "ApexSenseBridgeTray.supported_games.json"))
+            {
+                if (stream == null) return profiles;
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                    var root = serializer.Deserialize<Dictionary<string, object>>(reader.ReadToEnd());
+                    var games = root["games"] as System.Collections.IEnumerable;
+                    if (games == null) return profiles;
+                    foreach (Dictionary<string, object> item in games)
+                    {
+                        var profile = item.ContainsKey("profile") ? item["profile"] as string : null;
+                        if (!string.IsNullOrEmpty(profile) && profile != "standard" && profile != "none")
+                            profiles[Normalize(item["title"] as string)] = profile;
+                    }
+                }
+            }
+            return profiles;
         }
 
         private void LoadEmbeddedDatabase()

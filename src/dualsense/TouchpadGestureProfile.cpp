@@ -95,6 +95,7 @@ std::optional<TouchpadGestureProfile> parseTouchpadGestureProfile(
     if (name == "miles-morales") return TouchpadGestureProfile::MilesMorales;
     if (name == "ghost-of-tsushima") return TouchpadGestureProfile::GhostOfTsushima;
     if (name == "warframe") return TouchpadGestureProfile::Warframe;
+    if (name == "death-stranding-2") return TouchpadGestureProfile::DeathStranding2;
     return std::nullopt;
 }
 
@@ -107,6 +108,7 @@ std::string_view touchpadGestureProfileName(TouchpadGestureProfile profile) noex
     case TouchpadGestureProfile::MilesMorales: return "miles-morales";
     case TouchpadGestureProfile::GhostOfTsushima: return "ghost-of-tsushima";
     case TouchpadGestureProfile::Warframe: return "warframe";
+    case TouchpadGestureProfile::DeathStranding2: return "death-stranding-2";
     }
     return "none";
 }
@@ -317,10 +319,30 @@ void TouchpadGestureMapper::transformWarframe(DualSenseInputState& state,
     warframeModifierWasPressed_ = modifierPressed;
 }
 
+void TouchpadGestureMapper::transformDeathStranding(DualSenseInputState& state) noexcept {
+    constexpr auto photoButtons = button::kL1 | button::kOptions;
+    const auto buttons = state.buttons;
+    const bool photoPressed = (buttons & photoButtons) == photoButtons;
+    if (photoPressed) deathStrandingPhotoChord_ = true;
+    if (deathStrandingPhotoChord_) {
+        state.buttons = static_cast<std::uint16_t>(
+            buttons & ~(photoButtons | button::kTouchpadClick));
+        if (photoPressed) state.buttons |= button::kTouchpadClick;
+        if ((buttons & photoButtons) == 0) deathStrandingPhotoChord_ = false;
+    }
+    state.touch1Active = (state.buttons & button::kTouchpadClick) != 0;
+    if (state.touch1Active) deathStrandingTouchLeft_ = photoPressed;
+    state.touch1X = deathStrandingTouchLeft_ ? kTouchLeftX : kTouchRightX;
+    state.touch1Y = kTouchCenterY;
+}
+
 void TouchpadGestureMapper::transform(DualSenseInputState& state,
                                       Clock::time_point now) noexcept {
     switch (profile_) {
     case TouchpadGestureProfile::None:
+        return;
+    case TouchpadGestureProfile::DeathStranding2:
+        transformDeathStranding(state);
         return;
     case TouchpadGestureProfile::LegacyViewHoldSwipeUp:
         transformHold(viewHold_, HoldSource::View, TouchpadSwipeDirection::Up,

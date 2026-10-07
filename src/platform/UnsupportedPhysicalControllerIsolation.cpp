@@ -15,6 +15,12 @@ bool TemporaryPhysicalControllerIsolation::activate(
     return false;
 }
 
+bool TemporaryPhysicalControllerIsolation::armApexInputTransportRestore(
+    bool, bool, std::string& error) noexcept {
+    error = "Apex input-transport recovery is only available on Windows.";
+    return false;
+}
+
 bool TemporaryPhysicalControllerIsolation::confirmApexProfileRestored(
     std::string&) noexcept { return true; }
 bool TemporaryPhysicalControllerIsolation::restore(std::string&) noexcept { return true; }

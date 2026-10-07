@@ -12,6 +12,40 @@ SPEC.loader.exec_module(UPDATER)
 
 
 class DiscordExecutableTests(unittest.TestCase):
+    def test_death_stranding_2_profile_survives_catalogue_regeneration(self):
+        for title in ("Death Stranding 2", "Death Stranding 2: On the Beach"):
+            self.assertEqual(
+                "death-stranding-2",
+                UPDATER.get_special_profile(UPDATER.normalize_title(title)),
+            )
+        for title in ("Death Stranding", "Death Stranding Director's Cut"):
+            self.assertEqual(
+                "standard", UPDATER.get_special_profile(UPDATER.normalize_title(title))
+            )
+
+    def test_pcgw_support_parser_preserves_manual_fix_state_and_page_url(self):
+        markup = """
+        <table><tbody>
+          <tr>
+            <td><a href="/wiki/Native_Game" title="Native Game">Native Game</a></td>
+            <td><div title="Native support" class="svg-icon tickcross-true"></div></td>
+          </tr>
+          <tr>
+            <td><a href="/wiki/Dying_Light" title="Dying Light">Dying Light</a></td>
+            <td><div title="Hackable" class="svg-icon svg-25 tickcross-hackable"></div></td>
+          </tr>
+        </tbody></table>
+        """
+
+        games = UPDATER.parse_pcgw_support_rows(markup)
+
+        self.assertFalse(games["Native Game"]["requiresManualFix"])
+        self.assertTrue(games["Dying Light"]["requiresManualFix"])
+        self.assertEqual(
+            "https://www.pcgamingwiki.com/wiki/Dying_Light",
+            games["Dying Light"]["pcgwUrl"],
+        )
+
     def test_extracts_only_windows_non_launcher_executables_by_exact_steam_id(self):
         applications = [
             {
@@ -153,6 +187,59 @@ class DiscordExecutableTests(unittest.TestCase):
             status, app_id, icon = UPDATER.resolve_steam_identity("Alpha Game")
 
         self.assertEqual(("no_match", 0, ""), (status, app_id, icon))
+
+
+class AddedDateTests(unittest.TestCase):
+    TODAY = "2026-10-07"
+
+    def test_known_games_keep_their_first_catalogue_date(self):
+        games = [{"normalized": "known", "addedAt": "1999-01-01", "title": "Known"}]
+        cache = {"known": {"normalized": "known", "addedAt": "2026-09-11"}}
+
+        new_games = UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertEqual(0, new_games)
+        self.assertEqual("2026-09-11", games[0]["addedAt"])
+
+    def test_only_games_absent_from_previous_catalogue_are_dated_today(self):
+        games = [{"normalized": "known"}, {"normalized": "fresh"}]
+        cache = {"known": {"normalized": "known", "addedAt": "2026-09-01"}}
+
+        new_games = UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertEqual(1, new_games)
+        self.assertEqual("2026-09-01", games[0]["addedAt"])
+        self.assertEqual(self.TODAY, games[1]["addedAt"])
+
+    def test_known_games_without_valid_date_are_never_relabelled_as_new(self):
+        games = [{"normalized": "legacy"}, {"normalized": "broken"}]
+        cache = {"legacy": {"normalized": "legacy"}, "broken": {"addedAt": "2026-13-45"}}
+
+        UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertNotIn("addedAt", games[0])
+        self.assertNotIn("addedAt", games[1])
+
+    def test_missing_previous_catalogue_does_not_mark_everything_new(self):
+        games = [{"normalized": "first"}, {"normalized": "second"}]
+
+        new_games = UPDATER.assign_added_dates(games, {}, self.TODAY)
+
+        self.assertEqual(0, new_games)
+        self.assertTrue(all("addedAt" not in game for game in games))
+
+    def test_added_date_is_written_last_for_stable_files(self):
+        games = [{"addedAt": "2026-09-01", "normalized": "known", "title": "Known", "executables": ["a.exe"]}]
+        cache = {"known": {"addedAt": "2026-09-01"}}
+
+        UPDATER.assign_added_dates(games, cache, self.TODAY)
+
+        self.assertEqual("addedAt", list(games[0])[-1])
+
+    def test_added_date_format_validation(self):
+        self.assertTrue(UPDATER.is_valid_added_date("2026-09-30"))
+        for value in ("2026-9-30", "2026-09-31", "2026-09-30T00:00:00", "", None, 20260930):
+            self.assertFalse(UPDATER.is_valid_added_date(value), value)
 
 
 class _FakeResponse:

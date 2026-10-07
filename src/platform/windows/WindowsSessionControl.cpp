@@ -26,17 +26,34 @@ public:
     WindowsSessionControl(HANDLE readyEvent,
                           HANDLE stopEvent,
                           HANDLE statusMapping,
-                          SessionStatusBlock* status) noexcept
+                          SessionStatusBlock* status,
+                          HANDLE ownerProcess,
+                          HANDLE progressMapping,
+                          SessionProgressBlock* progress) noexcept
         : readyEvent_(readyEvent),
           stopEvent_(stopEvent),
           statusMapping_(statusMapping),
-          status_(status) {}
+          status_(status),
+          ownerProcess_(ownerProcess), progressMapping_(progressMapping), progress_(progress) {
+        if (progress_) *progress_ = SessionProgressBlock{};
+    }
 
     ~WindowsSessionControl() override {
+        if (progress_) UnmapViewOfFile(progress_);
+        if (progressMapping_) CloseHandle(progressMapping_);
+        if (ownerProcess_) CloseHandle(ownerProcess_);
         if (status_) UnmapViewOfFile(status_);
         if (statusMapping_) CloseHandle(statusMapping_);
         if (stopEvent_) CloseHandle(stopEvent_);
         if (readyEvent_) CloseHandle(readyEvent_);
+    }
+
+    void markProgress(SessionProgress stage) noexcept override {
+        if (progress_) InterlockedOr(reinterpret_cast<volatile LONG*>(&progress_->stages), static_cast<LONG>(stage));
+    }
+
+    void markInterrupted(SessionInterruption cause) noexcept override {
+        if (progress_) InterlockedExchange(reinterpret_cast<volatile LONG*>(&progress_->interruption), static_cast<LONG>(cause));
     }
 
     bool publish(SessionPhase phase,
@@ -68,7 +85,15 @@ public:
     }
 
     [[nodiscard]] bool stopRequested() const noexcept override {
-        return WaitForSingleObject(stopEvent_, 0) == WAIT_OBJECT_0;
+        if (WaitForSingleObject(stopEvent_, 0) == WAIT_OBJECT_0) return true;
+        if (ownerProcess_ &&
+            WaitForSingleObject(ownerProcess_, 0) == WAIT_OBJECT_0) {
+            // Wake the recovery watchdog too. It waits on the same event after
+            // the engine exits and would otherwise retain an orphan handle.
+            (void)SetEvent(stopEvent_);
+            return true;
+        }
+        return false;
     }
 
 private:
@@ -76,6 +101,9 @@ private:
     HANDLE stopEvent_ = nullptr;
     HANDLE statusMapping_ = nullptr;
     SessionStatusBlock* status_ = nullptr;
+    HANDLE ownerProcess_ = nullptr;
+    HANDLE progressMapping_ = nullptr;
+    SessionProgressBlock* progress_ = nullptr;
 };
 
 constexpr wchar_t kGlobalStopEventName[] =
@@ -233,7 +261,9 @@ bool requestGlobalSessionStop(
 }
 
 std::unique_ptr<SessionControl> connectSessionControl(
-    std::string_view token, std::string& error) {
+    std::string_view token,
+    std::optional<std::uint32_t> ownerProcessId,
+    std::string& error) {
     if (!isValidSessionToken(token)) {
         error = "The session token must contain exactly 32 hexadecimal characters.";
         return {};
@@ -250,7 +280,8 @@ std::unique_ptr<SessionControl> connectSessionControl(
         return {};
     }
 
-    HANDLE stopEvent = OpenEventW(SYNCHRONIZE, FALSE, stopName.c_str());
+    HANDLE stopEvent = OpenEventW(
+        SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, stopName.c_str());
     if (!stopEvent) {
         error = windowsError("OpenEvent(session stop)", GetLastError());
         CloseHandle(readyEvent);
@@ -276,8 +307,35 @@ std::unique_ptr<SessionControl> connectSessionControl(
         return {};
     }
 
+    HANDLE ownerProcess = nullptr;
+    if (ownerProcessId) {
+        if (*ownerProcessId == 0) {
+            error = "The bridge session owner PID must be non-zero.";
+            UnmapViewOfFile(status);
+            CloseHandle(statusMapping);
+            CloseHandle(stopEvent);
+            CloseHandle(readyEvent);
+            return {};
+        }
+        ownerProcess = OpenProcess(SYNCHRONIZE, FALSE, *ownerProcessId);
+        if (!ownerProcess) {
+            error = windowsError(
+                "Opening the bridge session owner process", GetLastError());
+            UnmapViewOfFile(status);
+            CloseHandle(statusMapping);
+            CloseHandle(stopEvent);
+            CloseHandle(readyEvent);
+            return {};
+        }
+    }
+
+    const auto progressName = widenAscii("Local\\ApexSenseBridge.Session." + std::string(token) + ".Progress");
+    HANDLE progressMapping = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, progressName.c_str());
+    auto* progress = progressMapping ? static_cast<SessionProgressBlock*>(MapViewOfFile(
+        progressMapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(SessionProgressBlock))) : nullptr;
+    if (progressMapping && !progress) { CloseHandle(progressMapping); progressMapping = nullptr; }
     return std::make_unique<WindowsSessionControl>(
-        readyEvent, stopEvent, statusMapping, status);
+        readyEvent, stopEvent, statusMapping, status, ownerProcess, progressMapping, progress);
 }
 
 } // namespace asb::platform

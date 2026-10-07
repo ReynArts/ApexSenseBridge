@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -23,6 +24,21 @@ enum class SessionPhase : std::uint16_t {
     Failed = 5,
 };
 
+// Optional additive IPC: old launchers keep the original 512-byte status ABI.
+enum class SessionProgress : std::uint32_t {
+    ControllerVerified = 1, VirtualReady = 2, IsolationVerified = 4, RuntimeReady = 8,
+};
+enum class SessionInterruption : std::uint32_t {
+    None = 0, PhysicalDisconnected = 1, VirtualDisconnected = 2, InputStreamLost = 3,
+};
+struct SessionProgressBlock {
+    std::uint32_t magic = 0x50534241; // "ABSP"
+    std::uint32_t version = 1;
+    std::uint32_t stages = 0;
+    std::uint32_t interruption = 0;
+};
+static_assert(sizeof(SessionProgressBlock) == 16);
+
 struct SessionStatusBlock {
     std::uint32_t magic = kSessionStatusMagic;
     std::uint16_t protocolVersion = kSessionProtocolVersion;
@@ -40,6 +56,8 @@ static_assert(sizeof(SessionStatusBlock) == kSessionStatusSize);
 
 class SessionControl {
 public:
+    virtual void markProgress(SessionProgress) noexcept {}
+    virtual void markInterrupted(SessionInterruption) noexcept {}
     virtual ~SessionControl() = default;
 
     virtual bool publish(SessionPhase phase,
@@ -65,8 +83,12 @@ public:
     std::chrono::milliseconds timeout, std::string& error) noexcept;
 
 // The Playnite-side owner creates all three named objects before launching the
-// bridge. The bridge only opens and signals them; it never widens access rights.
+// bridge. When an owner PID is supplied, the bridge also watches that process
+// so an abrupt Playnite exit cannot leave an orphan virtual controller or an
+// active HidHide configuration behind.
 [[nodiscard]] std::unique_ptr<SessionControl> connectSessionControl(
-    std::string_view token, std::string& error);
+    std::string_view token,
+    std::optional<std::uint32_t> ownerProcessId,
+    std::string& error);
 
 } // namespace asb::platform

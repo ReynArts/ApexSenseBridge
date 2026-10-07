@@ -2,6 +2,9 @@
 #include <windows.h>
 
 #include <devicetopology.h>
+#include <audioclient.h>
+#include <mmreg.h>
+#include <initguid.h>
 #include <mmdeviceapi.h>
 #include <propkey.h>
 #include <functiondiscoverykeys_devpkey.h>
@@ -231,6 +234,39 @@ constexpr std::array<ERole, 3> kRoles{
     eConsole, eMultimedia, eCommunications,
 };
 
+HapticAudioFormat inspectHapticAudioFormat(
+    IMMDeviceEnumerator* enumerator, const std::wstring& endpointId) {
+    HapticAudioFormat format{HapticAudioFormatStatus::Unknown};
+    ComPtr<IMMDevice> endpoint;
+    if (FAILED(enumerator->GetDevice(endpointId.c_str(), &endpoint))) return format;
+    ComPtr<IPropertyStore> properties;
+    if (SUCCEEDED(endpoint->OpenPropertyStore(STGM_READ, &properties))) {
+        PROPVARIANT value;
+        PropVariantInit(&value);
+        if (SUCCEEDED(properties->GetValue(PKEY_AudioEndpoint_PhysicalSpeakers, &value)) &&
+            value.vt == VT_UI4) {
+            format.physicalSpeakerMask = value.ulVal;
+        }
+        PropVariantClear(&value);
+    }
+    ComPtr<IAudioClient> client;
+    if (FAILED(endpoint->Activate(__uuidof(IAudioClient), CLSCTX_INPROC_SERVER,
+        nullptr, reinterpret_cast<void**>(client.GetAddressOf())))) return format;
+    WAVEFORMATEX* mix = nullptr;
+    if (FAILED(client->GetMixFormat(&mix)) || !mix) return format;
+    format.channels = mix->nChannels;
+    if (mix->wFormatTag == WAVE_FORMAT_EXTENSIBLE &&
+        mix->cbSize >= sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX)) {
+        format.channelMask = reinterpret_cast<const WAVEFORMATEXTENSIBLE*>(mix)->dwChannelMask;
+    } else if (mix->nChannels <= 2) {
+        format.channelMask = mix->nChannels == 1 ? 0x4 : 0x3;
+    }
+    CoTaskMemFree(mix);
+    format.status = classifyHapticAudioFormat(
+        format.channels, format.channelMask, format.physicalSpeakerMask);
+    return format;
+}
+
 } // namespace
 
 struct VirtualDualSenseAudioEndpointProtection::Impl {
@@ -239,6 +275,7 @@ struct VirtualDualSenseAudioEndpointProtection::Impl {
     AudioDefaultProtectionStatus status = AudioDefaultProtectionStatus::NotCaptured;
     std::size_t restoredRoles = 0;
     bool captured = false;
+    HapticAudioFormat hapticFormat{};
 };
 
 VirtualDualSenseAudioEndpointProtection::VirtualDualSenseAudioEndpointProtection()
@@ -305,9 +342,11 @@ bool VirtualDualSenseAudioEndpointProtection::capture(std::string& error) noexce
 }
 
 bool VirtualDualSenseAudioEndpointProtection::protectAfterVirtualDualSenseStart(
-    std::chrono::milliseconds timeout, std::string& error) noexcept {
+    std::chrono::milliseconds timeout, std::string& error, bool inspectHapticFormat) noexcept {
     error.clear();
     impl_->restoredRoles = 0;
+    impl_->hapticFormat = {inspectHapticFormat ? HapticAudioFormatStatus::NotObserved
+                                            : HapticAudioFormatStatus::NotRequested};
     if (!impl_->captured) {
         impl_->status = AudioDefaultProtectionStatus::Failed;
         error = "The default playback endpoints were not captured before DualSense creation.";
@@ -332,6 +371,7 @@ bool VirtualDualSenseAudioEndpointProtection::protectAfterVirtualDualSenseStart(
         std::optional<std::chrono::steady_clock::time_point> candidateObservedAt;
         std::optional<std::chrono::steady_clock::time_point> lastRestoreAt;
         bool restored = false;
+        bool hapticFormatInspected = false;
 
         while (std::chrono::steady_clock::now() <= deadline ||
                (candidateObservedAt &&
@@ -355,6 +395,26 @@ bool VirtualDualSenseAudioEndpointProtection::protectAfterVirtualDualSenseStart(
             }
 
             const auto now = std::chrono::steady_clock::now();
+            if (inspectHapticFormat && !hapticFormatInspected && candidateObservedAt &&
+                now >= *candidateObservedAt + std::chrono::milliseconds(250) &&
+                !candidates.empty()) {
+                // Do not select a controller by name when multiple new audio
+                // endpoints match. Reading is harmless, but a positive result
+                // for the wrong endpoint would conceal the real configuration.
+                impl_->hapticFormat = {HapticAudioFormatStatus::Unknown};
+                if (candidates.size() == 1) {
+                    const auto endpoint = std::find_if(endpoints.begin(), endpoints.end(),
+                        [&candidates](const auto& info) {
+                            return candidates.contains(normalized(info.id));
+                        });
+                    if (endpoint != endpoints.end()) {
+                        // Endpoint IDs are opaque. Pass the exact GetId value,
+                        // not the normalized key used for identity comparisons.
+                        impl_->hapticFormat = inspectHapticAudioFormat(enumerator.Get(), endpoint->id);
+                    }
+                }
+                hapticFormatInspected = true;
+            }
             if (!candidates.empty() && !candidateObservedAt) {
                 candidateObservedAt = now;
             }
@@ -435,6 +495,10 @@ AudioDefaultProtectionStatus VirtualDualSenseAudioEndpointProtection::status() c
 }
 std::size_t VirtualDualSenseAudioEndpointProtection::restoredRoles() const noexcept {
     return impl_->restoredRoles;
+}
+
+HapticAudioFormat VirtualDualSenseAudioEndpointProtection::hapticFormat() const noexcept {
+    return impl_->hapticFormat;
 }
 
 } // namespace asb::platform

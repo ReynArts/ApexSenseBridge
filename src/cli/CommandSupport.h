@@ -1,8 +1,10 @@
 #pragma once
 
+#include "cli/JsonSupport.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
-#include "dualsense/VirtualDualSense.h"
+#include "dualsense/DualSenseInput.h"
+#include "dualsense/VirtualDualSenseStartup.h"
 #include "flydigi/Apex5Device.h"
 
 #include <atomic>
@@ -23,13 +25,20 @@ std::string narrowAscii(const std::wstring& value);
 std::string hex16(std::uint16_t value);
 bool isDualSenseGamepadInterface(const asb::HidDeviceInfo& info);
 std::vector<std::wstring> snapshotDualSensePaths();
-std::optional<asb::dualsense::DualSenseFirmwareInfo> readNewVirtualDualSenseFirmware(
+bool waitForNewVirtualDualSenseRemoval(
     const std::vector<std::wstring>& preexistingPaths,
     std::chrono::milliseconds timeout,
     std::string& error);
+
+using VirtualDualSenseDiscovery = asb::dualsense::VirtualDualSenseReadiness;
+
+std::optional<VirtualDualSenseDiscovery> readNewVirtualDualSenseFirmware(
+    const std::vector<std::wstring>& preexistingPaths,
+    std::chrono::milliseconds timeout,
+    std::string& error,
+    const asb::dualsense::DualSenseInputState* expectedInitialInput = nullptr);
 std::optional<asb::dualsense::VirtualDualSenseBackend> parseVirtualDualSenseBackend(
     std::string_view name);
-std::string jsonEscape(std::string_view value);
 void printDevice(const asb::HidDeviceInfo& info, std::size_t index);
 std::optional<std::size_t> parseIndex(int argc, char** argv);
 std::optional<asb::flydigi::Apex5Device> openSelected(

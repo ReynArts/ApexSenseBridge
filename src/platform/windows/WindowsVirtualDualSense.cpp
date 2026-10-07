@@ -421,6 +421,10 @@ public:
         result.initializationDeviceUs = initializationDeviceUs_;
         result.initializationFeedbackUs = initializationFeedbackUs_;
         result.initializationInputUs = initializationInputUs_;
+        result.maxInputUpdateDurationUs =
+            maxInputUpdateDurationUs_.load(std::memory_order_relaxed);
+        result.inputUpdateBlockEvents =
+            inputUpdateBlockEvents_.load(std::memory_order_relaxed);
         result.backendVersion = backendVersion_;
         return result;
     }
@@ -435,11 +439,24 @@ public:
             error = "Virtual DualSense input stream is not connected.";
             return false;
         }
-        const auto input = buildViiperInput(state);
+        const auto input = buildViiperInput(
+            state, options_.captureAudioHapticsWaveform);
         std::lock_guard lock(inputWriteMutex_);
+        const auto updateStartedAt = std::chrono::steady_clock::now();
         if (!sendAll(toSocket(socketValue), input.data(), input.size())) {
             error = "Could not update the virtual DualSense input state.";
             return false;
+        }
+        const auto elapsedUs = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - updateStartedAt).count());
+        auto currentMax = maxInputUpdateDurationUs_.load(std::memory_order_relaxed);
+        while (elapsedUs > currentMax &&
+               !maxInputUpdateDurationUs_.compare_exchange_weak(
+                   currentMax, elapsedUs, std::memory_order_relaxed)) {
+        }
+        if (elapsedUs >= 10000) {
+            inputUpdateBlockEvents_.fetch_add(1, std::memory_order_relaxed);
         }
         inputUpdates_.fetch_add(1, std::memory_order_relaxed);
         return true;
@@ -463,6 +480,8 @@ private:
         initializationDeviceUs_ = 0;
         initializationFeedbackUs_ = 0;
         initializationInputUs_ = 0;
+        maxInputUpdateDurationUs_.store(0, std::memory_order_relaxed);
+        inputUpdateBlockEvents_.store(0, std::memory_order_relaxed);
         backendVersion_.clear();
     }
 
@@ -722,7 +741,7 @@ private:
                 break;
             }
 
-            if (frameType != 0x01 && frameType != 0x02) {
+            if (frameType != 0x01 && frameType != 0x02 && frameType != 0x03) {
                 unknownFrames_.fetch_add(1, std::memory_order_relaxed);
                 continue;
             }
@@ -748,6 +767,10 @@ private:
                 }
                 // Trigger and conventional rumble requests remain immediate.
                 deliver(feedback);
+            } else if (feedback.kind == FeedbackKind::AudioHapticWaveform) {
+                audioHapticsFrames_.fetch_add(1, std::memory_order_relaxed);
+                deliver(feedback);
+                audioHapticsDelivered_.fetch_add(1, std::memory_order_relaxed);
             } else {
                 audioHapticsFrames_.fetch_add(1, std::memory_order_relaxed);
                 constexpr auto kAudioWindow = std::chrono::milliseconds(5);
@@ -820,6 +843,8 @@ private:
     std::atomic_uint64_t audioHapticsCoalesced_{0};
     std::atomic_uint64_t malformedFrames_{0};
     std::atomic_uint64_t unknownFrames_{0};
+    std::atomic_uint64_t maxInputUpdateDurationUs_{0};
+    std::atomic_uint64_t inputUpdateBlockEvents_{0};
     std::uint64_t initializationBootstrapUs_ = 0;
     std::uint64_t initializationServerUs_ = 0;
     std::uint64_t initializationBusUs_ = 0;

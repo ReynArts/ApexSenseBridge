@@ -67,6 +67,11 @@ namespace ApexSenseBridge
                 profileType = BridgeProfileType.GhostOfTsushima;
                 return true;
             }
+            if (normalized == "deathstranding2" || normalized == "deathstranding2onthebeach")
+            {
+                profileType = BridgeProfileType.DeathStranding2;
+                return true;
+            }
             if (normalized == "warframe" || normalized.StartsWith("warframe", StringComparison.Ordinal))
             {
                 profileType = BridgeProfileType.Warframe;

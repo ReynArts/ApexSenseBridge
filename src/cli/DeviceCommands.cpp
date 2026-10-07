@@ -2,14 +2,19 @@
 #include "cli/CommandSupport.h"
 #include "core/TriggerResetGuard.h"
 #include "core/RumbleResetGuard.h"
+#include "core/ApexMotionDiagnosticGuard.h"
+#include "diagnostics/Apex4GyroCapture.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/VirtualDualSense.h"
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/AdaptiveTriggerTranslation.h"
+#include "dualsense/Apex6HapticBridge.h"
+#include "dualsense/LightbarBridge.h"
 #include "dualsense/RumbleBridge.h"
 #include "dualsense/TouchpadGestureProfile.h"
 #include "flydigi/Apex5Device.h"
+#include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
 #include "platform/AudioEndpointProtection.h"
@@ -22,6 +27,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -116,6 +122,14 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
     asb::dualsense::DualSenseInputState lastState{};
     std::uint64_t stateChanges = 0;
     std::uint8_t seenDpad = 0;
+    std::uint32_t seenButtons = 0;
+    std::uint8_t minLx = 255, maxLx = 0;
+    std::uint8_t minLy = 255, maxLy = 0;
+    std::uint8_t minRx = 255, maxRx = 0;
+    std::uint8_t minRy = 255, maxRy = 0;
+    std::uint8_t maxL2 = 0, maxR2 = 0;
+    std::uint8_t maxSimultaneousTriggers = 0;
+    std::uint64_t simultaneousTriggerReports = 0;
     bool receivedState = false;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
     while (std::chrono::steady_clock::now() < deadline &&
@@ -126,6 +140,22 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
         if (status == asb::platform::PhysicalInputStatus::State) {
             if (!receivedState || state != lastState) ++stateChanges;
             seenDpad = static_cast<std::uint8_t>(seenDpad | state.dpad);
+            seenButtons |= state.buttons;
+            minLx = (std::min)(minLx, state.lx);
+            maxLx = (std::max)(maxLx, state.lx);
+            minLy = (std::min)(minLy, state.ly);
+            maxLy = (std::max)(maxLy, state.ly);
+            minRx = (std::min)(minRx, state.rx);
+            maxRx = (std::max)(maxRx, state.rx);
+            minRy = (std::min)(minRy, state.ry);
+            maxRy = (std::max)(maxRy, state.ry);
+            maxL2 = (std::max)(maxL2, state.l2);
+            maxR2 = (std::max)(maxR2, state.r2);
+            maxSimultaneousTriggers = (std::max)(
+                maxSimultaneousTriggers, (std::min)(state.l2, state.r2));
+            if (state.l2 > 30 && state.r2 > 30) {
+                ++simultaneousTriggerReports;
+            }
             lastState = state;
             receivedState = true;
         } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
@@ -146,17 +176,42 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
             << "  \"state_changes\": " << stateChanges << ",\n"
             << "  \"timeouts\": " << stats.timeouts << ",\n"
             << "  \"parse_failures\": " << stats.parseFailures << ",\n"
+            << "  \"vendor_reports\": " << stats.vendorReports << ",\n"
+            << "  \"vendor_states\": " << stats.vendorStates << ",\n"
+            << "  \"vendor_parse_failures\": " << stats.vendorParseFailures << ",\n"
+            << "  \"vendor_read_failures\": " << stats.vendorReadFailures << ",\n"
             << "  \"lx\": " << static_cast<unsigned int>(lastState.lx) << ",\n"
             << "  \"ly\": " << static_cast<unsigned int>(lastState.ly) << ",\n"
             << "  \"rx\": " << static_cast<unsigned int>(lastState.rx) << ",\n"
             << "  \"ry\": " << static_cast<unsigned int>(lastState.ry) << ",\n"
+            << "  \"min_lx\": " << static_cast<unsigned int>(minLx) << ",\n"
+            << "  \"max_lx\": " << static_cast<unsigned int>(maxLx) << ",\n"
+            << "  \"min_ly\": " << static_cast<unsigned int>(minLy) << ",\n"
+            << "  \"max_ly\": " << static_cast<unsigned int>(maxLy) << ",\n"
+            << "  \"min_rx\": " << static_cast<unsigned int>(minRx) << ",\n"
+            << "  \"max_rx\": " << static_cast<unsigned int>(maxRx) << ",\n"
+            << "  \"min_ry\": " << static_cast<unsigned int>(minRy) << ",\n"
+            << "  \"max_ry\": " << static_cast<unsigned int>(maxRy) << ",\n"
             << "  \"l2\": " << static_cast<unsigned int>(lastState.l2) << ",\n"
             << "  \"r2\": " << static_cast<unsigned int>(lastState.r2) << ",\n"
+            << "  \"max_l2\": " << static_cast<unsigned int>(maxL2) << ",\n"
+            << "  \"max_r2\": " << static_cast<unsigned int>(maxR2) << ",\n"
+            << "  \"max_simultaneous_triggers\": "
+            << static_cast<unsigned int>(maxSimultaneousTriggers) << ",\n"
+            << "  \"simultaneous_trigger_reports\": "
+            << simultaneousTriggerReports << ",\n"
             << "  \"dpad\": " << static_cast<unsigned int>(lastState.dpad) << ",\n"
             << "  \"dpad_name\": \"" << dpadDescription(lastState.dpad) << "\",\n"
             << "  \"seen_dpad\": " << static_cast<unsigned int>(seenDpad) << ",\n"
             << "  \"seen_dpad_directions\": \"" << dpadDescription(seenDpad) << "\",\n"
             << "  \"buttons\": " << lastState.buttons << ",\n"
+            << "  \"seen_buttons\": " << seenButtons << ",\n"
+            << "  \"gyro_x\": " << lastState.gyroX << ",\n"
+            << "  \"gyro_y\": " << lastState.gyroY << ",\n"
+            << "  \"gyro_z\": " << lastState.gyroZ << ",\n"
+            << "  \"accel_x\": " << lastState.accelX << ",\n"
+            << "  \"accel_y\": " << lastState.accelY << ",\n"
+            << "  \"accel_z\": " << lastState.accelZ << ",\n"
             << "  \"warning\": \"" << jsonEscape(warning) << "\"\n"
             << "}\n";
     } else {
@@ -167,17 +222,38 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
                   << "state_changes=" << stateChanges << '\n'
                   << "timeouts=" << stats.timeouts << '\n'
                   << "parse_failures=" << stats.parseFailures << '\n'
+                  << "vendor_reports=" << stats.vendorReports << '\n'
+                  << "vendor_states=" << stats.vendorStates << '\n'
+                  << "vendor_parse_failures=" << stats.vendorParseFailures << '\n'
+                  << "vendor_read_failures=" << stats.vendorReadFailures << '\n'
                   << "sticks=" << static_cast<unsigned int>(lastState.lx) << ','
                   << static_cast<unsigned int>(lastState.ly) << ','
                   << static_cast<unsigned int>(lastState.rx) << ','
                   << static_cast<unsigned int>(lastState.ry) << '\n'
+                  << "min_sticks=" << static_cast<unsigned int>(minLx) << ','
+                  << static_cast<unsigned int>(minLy) << ','
+                  << static_cast<unsigned int>(minRx) << ','
+                  << static_cast<unsigned int>(minRy) << '\n'
+                  << "max_sticks=" << static_cast<unsigned int>(maxLx) << ','
+                  << static_cast<unsigned int>(maxLy) << ','
+                  << static_cast<unsigned int>(maxRx) << ','
+                  << static_cast<unsigned int>(maxRy) << '\n'
                   << "triggers=" << static_cast<unsigned int>(lastState.l2) << ','
                   << static_cast<unsigned int>(lastState.r2) << '\n'
+                  << "max_triggers=" << static_cast<unsigned int>(maxL2) << ','
+                  << static_cast<unsigned int>(maxR2) << '\n'
+                  << "max_simultaneous_triggers="
+                  << static_cast<unsigned int>(maxSimultaneousTriggers) << '\n'
+                  << "simultaneous_trigger_reports="
+                  << simultaneousTriggerReports << '\n'
                   << "dpad=" << static_cast<unsigned int>(lastState.dpad)
                   << " (" << dpadDescription(lastState.dpad) << ")\n"
                   << "seen_dpad=" << static_cast<unsigned int>(seenDpad)
                   << " (" << dpadDescription(seenDpad) << ")\n"
-                  << "buttons=" << lastState.buttons << '\n';
+                  << "buttons=" << lastState.buttons << '\n'
+                  << "seen_buttons=" << seenButtons << '\n'
+                  << "gyro=" << lastState.gyroX << ',' << lastState.gyroY << ',' << lastState.gyroZ << '\n'
+                  << "accel=" << lastState.accelX << ',' << lastState.accelY << ',' << lastState.accelZ << '\n';
         if (!warning.empty()) std::cout << "warning=" << warning << '\n';
     }
     return receivedState ? 0 : 5;
@@ -239,7 +315,7 @@ int commandList() {
         std::cerr << "HID enumeration warning: " << error << "\n";
     }
     if (candidates.empty()) {
-        std::cout << "No APEX 4/5 vendor HID interface found.\n";
+        std::cout << "No APEX 4/5/6 vendor HID interface found.\n";
         return 2;
     }
     std::cout << "Found " << candidates.size() << " candidate(s):\n\n";
@@ -284,9 +360,26 @@ int commandIdentify(int argc, char** argv) {
     if (identity->hasBatteryLevel()) {
         std::cout << "Battery level: "
                   << static_cast<unsigned int>(identity->batteryLevel())
+                  << " (" << static_cast<unsigned int>(identity->batteryPercent()) << "%)"
                   << (identity->isCharging() ? " (charging)" : "") << '\n';
     }
-    std::cout << "Adaptive triggers: yes\n";
+    std::cout << "Adaptive triggers: ";
+    const auto apex4Capability =
+        asb::flydigi::classifyApex4TriggerInterface(device->info());
+    if (apex4Capability ==
+        asb::flydigi::Apex4TriggerInterfaceCapability::Degraded32Byte) {
+        std::cout << "partial (degraded 32-byte Apex 4 interface; LT may work, RT unavailable)\n"
+                  << "Action: reconnect the controller/receiver until this command reports "
+                     "the full 64-byte Apex 4 interface.\n";
+    } else if (apex4Capability ==
+               asb::flydigi::Apex4TriggerInterfaceCapability::Full64Byte) {
+        std::cout << "yes (full 64-byte Apex 4 interface)\n";
+    } else {
+        std::cout << (identity->supportsAdaptiveTriggers() ? "yes" : "no") << '\n';
+    }
+    std::cout
+              << "Realtime voice-coil haptics: "
+              << (identity->supportsRealtimeHaptics() ? "yes" : "no") << '\n';
     return 0;
 }
 
@@ -296,6 +389,14 @@ int commandClear(int argc, char** argv) {
     if (!device) {
         std::cerr << "Error: " << error << "\n";
         return 3;
+    }
+    if (device->identity() && device->identity()->isApex6()) {
+        if (!device->disableApex6Haptics(error)) {
+            std::cerr << "Error while stopping Apex 6 haptics: " << error << '\n';
+            return 4;
+        }
+        std::cout << "Apex 6 trigger and grip haptics stopped.\n";
+        return 0;
     }
     std::string triggerError;
     std::string rumbleError;
@@ -362,10 +463,211 @@ int commandTestRt(int argc, char** argv) {
     return runTestRt(*device);
 }
 
-int runTestRumble(asb::flydigi::Apex5Device& device) {
+int runTestTrigger(asb::flydigi::Apex5Device& device,
+                   std::string_view side,
+                   std::string_view mode,
+                   unsigned int level,
+                   std::optional<std::uint8_t> customStart,
+                   std::optional<std::uint8_t> customForce,
+                   unsigned long seconds) {
     std::string error;
     std::cout << "Using: " << narrowAscii(device.info().product) << " ("
               << hex16(device.info().vendorId) << ':' << hex16(device.info().productId) << ")\n";
+
+    std::vector<asb::TriggerSide> targets;
+    if (side == "lt" || side == "left" || side == "l2") {
+        targets.push_back(asb::TriggerSide::Left);
+    } else if (side == "rt" || side == "right" || side == "r2") {
+        targets.push_back(asb::TriggerSide::Right);
+    } else {
+        targets.push_back(asb::TriggerSide::Left);
+        targets.push_back(asb::TriggerSide::Right);
+    }
+
+    asb::ForceTriggerCommand cmd{};
+    if (mode == "normal" || mode == "off" || mode == "clear") {
+        cmd.mode = asb::TriggerMode::Normal;
+    } else if (mode == "weapon" || mode == "break" || mode == "sniper") {
+        cmd.mode = asb::TriggerMode::SniperBreak;
+        std::uint8_t s = customStart.value_or(level == 1 ? 60 : (level == 2 ? 40 : (level == 3 ? 25 : 10)));
+        std::uint8_t f = customForce.value_or(level == 1 ? 40 : (level == 2 ? 90 : (level == 3 ? 160 : 230)));
+        std::uint8_t snap = level == 1 ? 60 : (level == 2 ? 130 : (level == 3 ? 200 : 255));
+        cmd.params = {s, f, snap, 0, 0};
+    } else if (mode == "vibration" || mode == "rattle" || mode == "recoil") {
+        cmd.mode = asb::TriggerMode::RecoilRattle;
+        std::uint8_t freq = level == 1 ? 10 : (level == 2 ? 20 : (level == 3 ? 30 : 40));
+        std::uint8_t str = level == 1 ? 30 : (level == 2 ? 60 : (level == 3 ? 100 : 150));
+        cmd.params = {freq, 1, str, 0, 0};
+    } else if (mode == "bow") {
+        cmd.mode = asb::TriggerMode::Race;
+        std::uint8_t s = customStart.value_or(level == 1 ? 40 : (level == 2 ? 25 : (level == 3 ? 15 : 5)));
+        std::uint8_t f = customForce.value_or(level == 1 ? 40 : (level == 2 ? 90 : (level == 3 ? 160 : 230)));
+        cmd.params = {s, f, 0, 0, 0};
+    } else { // default: resistance / race
+        cmd.mode = asb::TriggerMode::Race;
+        std::uint8_t s = customStart.value_or(level == 1 ? 60 : (level == 2 ? 40 : (level == 3 ? 20 : 5)));
+        std::uint8_t f = customForce.value_or(level == 1 ? 30 : (level == 2 ? 80 : (level == 3 ? 160 : 240)));
+        cmd.params = {s, f, 0, 0, 0};
+    }
+
+    std::cout << "Applying " << mode << " (level " << level << ") on " << side << " for " << seconds << "s...\n";
+
+    if (device.identity() && device.identity()->isApex6()) {
+        if (seconds == 0) {
+            std::cerr << "Apex 6 realtime trigger tests require a bounded --seconds duration.\n";
+            return 4;
+        }
+        asb::dualsense::Apex6HapticBridge bridge(device, {}, false);
+        bridge.updateTriggerPositions(255, 255);
+        for (auto targetSide : targets) {
+            cmd.side = targetSide;
+            bridge.setDiagnosticTrigger(cmd);
+        }
+        if (!bridge.start(error)) {
+            std::cerr << "Could not start the Apex 6 trigger test: " << error << '\n';
+            return 4;
+        }
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::seconds(seconds);
+        while (std::chrono::steady_clock::now() < deadline &&
+               !g_stopRequested.load(std::memory_order_relaxed) &&
+               !bridge.failed()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        if (!bridge.stop(error)) {
+            std::cerr << "WARNING: Apex 6 trigger stop failed: " << error << '\n';
+            return 5;
+        }
+        if (bridge.failed()) {
+            std::cerr << "Apex 6 trigger stream failed: " << bridge.error() << '\n';
+            return 4;
+        }
+        std::cout << "Apex 6 trigger haptics stopped.\n";
+        return 0;
+    }
+
+    asb::TriggerResetGuard resetOnExit(device);
+
+    for (auto targetSide : targets) {
+        cmd.side = targetSide;
+        if (!device.setTriggerRaw(cmd, error)) {
+            std::cerr << "Write failed for " << (targetSide == asb::TriggerSide::Left ? "LT" : "RT") << ": " << error << "\n";
+            return 4;
+        }
+    }
+
+    if (seconds > 0) {
+        const auto duration = std::chrono::seconds(seconds);
+        constexpr auto slice = std::chrono::milliseconds(25);
+        auto elapsed = std::chrono::milliseconds::zero();
+        while (elapsed < duration && !g_stopRequested.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_for(slice);
+            elapsed += slice;
+        }
+
+        if (!device.clearAll(error)) {
+            std::cerr << "WARNING: automatic reset write failed: " << error << "\n";
+            return 5;
+        }
+        resetOnExit.dismiss();
+        std::cout << "Triggers reset to Normal.\n";
+    } else {
+        resetOnExit.dismiss();
+        std::cout << "Triggers armed (hold mode until clear).\n";
+    }
+    return 0;
+}
+
+int commandTestTrigger(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    std::string side = "both";
+    std::string mode = "resistance";
+    unsigned int level = 2;
+    unsigned long seconds = 2;
+    std::optional<std::uint8_t> customStart;
+    std::optional<std::uint8_t> customForce;
+
+    for (int i = 2; i < argc; ++i) {
+        std::string_view opt = argv[i];
+        if (opt == "--side" && i + 1 < argc) {
+            side = argv[++i];
+        } else if (opt == "--mode" && i + 1 < argc) {
+            mode = argv[++i];
+        } else if (opt == "--level" && i + 1 < argc) {
+            try {
+                level = std::clamp(static_cast<unsigned int>(std::stoul(argv[++i])), 1U, 4U);
+            } catch (...) {}
+        } else if (opt == "--seconds" && i + 1 < argc) {
+            try {
+                seconds = std::clamp(static_cast<unsigned long>(std::stoul(argv[++i])), 0UL, 60UL);
+            } catch (...) {}
+        } else if (opt == "--start" && i + 1 < argc) {
+            try {
+                customStart = static_cast<std::uint8_t>(std::clamp(std::stoul(argv[++i]), 0UL, 255UL));
+            } catch (...) {}
+        } else if (opt == "--force" && i + 1 < argc) {
+            try {
+                customForce = static_cast<std::uint8_t>(std::clamp(std::stoul(argv[++i]), 0UL, 255UL));
+            } catch (...) {}
+        } else if (!opt.empty() && opt[0] != '-' && !deviceIndex) {
+            try {
+                deviceIndex = static_cast<std::size_t>(std::stoul(std::string(opt)));
+            } catch (...) {}
+        }
+    }
+
+    std::string error;
+    auto device = openSelectedIndex(deviceIndex, error);
+    if (!device) {
+        std::cerr << "Error: " << error << "\n";
+        return 3;
+    }
+    return runTestTrigger(*device, side, mode, level, customStart, customForce, seconds);
+}
+
+int runTestRumble(asb::flydigi::Apex5Device& device,
+                  std::uint8_t lowFrequency = 48,
+                  std::uint8_t highFrequency = 32,
+                  unsigned long seconds = 1) {
+    std::string error;
+    std::cout << "Using: " << narrowAscii(device.info().product) << " ("
+              << hex16(device.info().vendorId) << ':' << hex16(device.info().productId) << ")\n";
+
+    if (device.identity() && device.identity()->isApex6()) {
+        if (seconds == 0) {
+            std::cerr << "Apex 6 realtime haptics require a bounded --seconds duration.\n";
+            return 12;
+        }
+        asb::dualsense::Apex6HapticBridge bridge(device, {}, true);
+        bridge.setDiagnosticGrips(lowFrequency, highFrequency);
+        if (!bridge.start(error)) {
+            std::cerr << "Could not start the Apex 6 haptic stream: " << error << '\n';
+            return 12;
+        }
+        std::cout << "Applying Apex 6 grip voice-coil test (left="
+                  << static_cast<unsigned int>(lowFrequency) << ", right="
+                  << static_cast<unsigned int>(highFrequency)
+                  << ", carrier=120 Hz) for "
+                  << seconds << "s...\n";
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::seconds(seconds);
+        while (std::chrono::steady_clock::now() < deadline &&
+               !g_stopRequested.load(std::memory_order_relaxed) &&
+               !bridge.failed()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        if (!bridge.stop(error)) {
+            std::cerr << "WARNING: Apex 6 haptic stop failed: " << error
+                      << "\nPower-cycle the controller before continuing.\n";
+            return 12;
+        }
+        if (bridge.failed()) {
+            std::cerr << "Apex 6 haptic stream failed: " << bridge.error() << '\n';
+            return 12;
+        }
+        std::cout << "Apex 6 grip haptics stopped.\n";
+        return 0;
+    }
 
     if (!device.stopRumble(error)) {
         std::cerr << "Could not establish a stopped rumble baseline: " << error << '\n';
@@ -373,40 +675,70 @@ int runTestRumble(asb::flydigi::Apex5Device& device) {
     }
     asb::RumbleResetGuard resetOnExit(device);
 
-    std::cout << "Applying a GENTLE low/high-frequency grip vibration for about 1 second...\n";
-    constexpr std::uint8_t kGentleLowFrequency = 48;
-    constexpr std::uint8_t kGentleHighFrequency = 32;
-    if (!device.setRumble(kGentleLowFrequency, kGentleHighFrequency, error)) {
+    std::cout << "Applying grip vibration (L=" << static_cast<unsigned int>(lowFrequency)
+              << ", R=" << static_cast<unsigned int>(highFrequency) << ") for " << seconds << "s...\n";
+    if (!device.setRumble(lowFrequency, highFrequency, error)) {
         std::cerr << "Rumble write failed: " << error << '\n';
         return 12;
     }
 
-    constexpr auto duration = std::chrono::milliseconds(1000);
-    constexpr auto slice = std::chrono::milliseconds(20);
-    auto elapsed = std::chrono::milliseconds::zero();
-    while (elapsed < duration && !g_stopRequested.load(std::memory_order_relaxed)) {
-        std::this_thread::sleep_for(slice);
-        elapsed += slice;
-    }
+    if (seconds > 0) {
+        const auto duration = std::chrono::seconds(seconds);
+        constexpr auto slice = std::chrono::milliseconds(20);
+        auto elapsed = std::chrono::milliseconds::zero();
+        while (elapsed < duration && !g_stopRequested.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_for(slice);
+            elapsed += slice;
+        }
 
-    if (!device.stopRumble(error)) {
-        std::cerr << "WARNING: automatic rumble stop failed: " << error
-                  << "\nPower-cycle the controller before continuing.\n";
-        return 12;
+        if (!device.stopRumble(error)) {
+            std::cerr << "WARNING: automatic rumble stop failed: " << error
+                      << "\nPower-cycle the controller before continuing.\n";
+            return 12;
+        }
+        resetOnExit.dismiss();
+        std::cout << "Grip rumble stopped.\n";
+    } else {
+        resetOnExit.dismiss();
+        std::cout << "Grip rumble active (hold mode until clear).\n";
     }
-    resetOnExit.dismiss();
-    std::cout << "Grip rumble stopped. If both handles vibrated gently, the APEX rumble command works.\n";
     return 0;
 }
 
 int commandTestRumble(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    std::uint8_t leftMotor = 48;
+    std::uint8_t rightMotor = 32;
+    unsigned long seconds = 1;
+
+    for (int i = 2; i < argc; ++i) {
+        std::string_view opt = argv[i];
+        if (opt == "--left" && i + 1 < argc) {
+            try {
+                leftMotor = static_cast<std::uint8_t>(std::clamp(std::stoul(argv[++i]), 0UL, 255UL));
+            } catch (...) {}
+        } else if (opt == "--right" && i + 1 < argc) {
+            try {
+                rightMotor = static_cast<std::uint8_t>(std::clamp(std::stoul(argv[++i]), 0UL, 255UL));
+            } catch (...) {}
+        } else if (opt == "--seconds" && i + 1 < argc) {
+            try {
+                seconds = std::clamp(static_cast<unsigned long>(std::stoul(argv[++i])), 0UL, 60UL);
+            } catch (...) {}
+        } else if (!opt.empty() && opt[0] != '-' && !deviceIndex) {
+            try {
+                deviceIndex = static_cast<std::size_t>(std::stoul(std::string(opt)));
+            } catch (...) {}
+        }
+    }
+
     std::string error;
-    auto device = openSelected(argc, argv, error);
+    auto device = openSelectedIndex(deviceIndex, error);
     if (!device) {
         std::cerr << "Error: " << error << "\n";
         return 3;
     }
-    return runTestRumble(*device);
+    return runTestRumble(*device, leftMotor, rightMotor, seconds);
 }
 
 int commandTestProfileSwitch(int argc, char** argv) {
@@ -681,6 +1013,229 @@ int commandApex4PortTest(int argc, char** argv) {
     return forceAdaptCode;
 }
 
+int commandApex4GyroCapture(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    unsigned int phaseSeconds = 5;
+    std::optional<std::filesystem::path> requestedOutput;
+
+    const auto printUsage = [] {
+        std::cerr
+            << "Usage: ApexSenseBridge apex4-gyro-capture [index] "
+               "[--phase-seconds N] [--output PATH]\n";
+    };
+
+    for (int index = 2; index < argc; ++index) {
+        const std::string_view option = argv[index];
+        if (option == "--phase-seconds") {
+            if (++index >= argc) {
+                printUsage();
+                return 1;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(argv[index], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[index]).size() ||
+                    parsed < 2 || parsed > 30) {
+                    throw std::out_of_range("phase-seconds");
+                }
+                phaseSeconds = static_cast<unsigned int>(parsed);
+            } catch (...) {
+                std::cerr << "--phase-seconds requires an integer from 2 to 30.\n";
+                return 1;
+            }
+        } else if (option == "--output") {
+            if (++index >= argc || std::string_view(argv[index]).empty()) {
+                printUsage();
+                return 1;
+            }
+            requestedOutput = std::filesystem::path(argv[index]);
+        } else {
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(std::string(option), &parsedCharacters);
+                if (parsedCharacters != option.size() || deviceIndex) {
+                    throw std::invalid_argument("index");
+                }
+                deviceIndex = static_cast<std::size_t>(parsed);
+            } catch (...) {
+                std::cerr << "Unknown apex4-gyro-capture option: " << option << '\n';
+                printUsage();
+                return 1;
+            }
+        }
+    }
+
+    std::string error;
+    auto device = openSelectedIndex(deviceIndex, error);
+    if (!device) {
+        std::cerr << "APEX identity verification failed: " << error << '\n';
+        return 2;
+    }
+    if (!device->identity() || !device->identity()->isApex4()) {
+        std::cerr << "apex4-gyro-capture requires a verified APEX 4.\n";
+        return 3;
+    }
+
+    std::filesystem::path outputPath;
+    if (requestedOutput) {
+        outputPath = *requestedOutput;
+    } else {
+        const auto stamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        outputPath = "apex4-gyro-capture-" + std::to_string(stamp) + ".json";
+    }
+    std::error_code filesystemError;
+    if (std::filesystem::exists(outputPath, filesystemError)) {
+        std::cerr << "Refusing to overwrite existing capture: "
+                  << outputPath.string() << '\n';
+        return 4;
+    }
+    if (filesystemError) {
+        std::cerr << "Could not validate the output path: "
+                  << filesystemError.message() << '\n';
+        return 4;
+    }
+
+    struct PhaseDefinition {
+        std::string_view name;
+        std::string_view instruction;
+    };
+    constexpr std::array<PhaseDefinition, 4> definitions{{
+        {"still", "Place the controller flat and do not touch it."},
+        {"yaw", "Keep the controller flat, face up; turn it left/right around a vertical axis, without tilting the grips."},
+        {"pitch", "Keep buttons and sticks untouched; tilt the front edge up and down repeatedly."},
+        {"roll", "Raise one grip while lowering the other, then reverse; do not turn the controller left/right."},
+    }};
+
+    std::cout
+        << "APEX 4 raw motion capture\n"
+        << "Verified: " << device->identity()->describe() << '\n'
+        << "Connection: "
+        << (device->identity()->isWired() ? "wired" : "dongle") << '\n'
+        << "This diagnostic reads controller HID input only. It does not change "
+           "profiles, mappings, firmware, or onboard settings.\n"
+        << "Required: in the active onboard profile, set gyro mapping to Mouse "
+           "and leave it always enabled. Apex 4 firmware sends no IMU data while "
+           "gyro mapping is Off.\n"
+        << "Do not press buttons, move sticks, or pull triggers during the four phases.\n"
+        << "Output: " << outputPath.string() << "\n\n";
+
+    std::vector<asb::diagnostics::Apex4MotionPhaseCapture> phases;
+    phases.reserve(definitions.size());
+    const auto bufferSize = (std::max)(
+        asb::diagnostics::kApex4MinimumStateReportSize,
+        static_cast<std::size_t>(device->info().inputReportLength));
+    std::vector<std::uint8_t> report(bufferSize, 0);
+    g_stopRequested.store(false, std::memory_order_relaxed);
+
+    bool captureFailed = false;
+    for (std::size_t phaseIndex = 0; phaseIndex < definitions.size(); ++phaseIndex) {
+        const auto& definition = definitions[phaseIndex];
+        std::cout << "Phase " << (phaseIndex + 1) << '/' << definitions.size()
+                  << " - " << definition.name << "\n"
+                  << definition.instruction << "\n"
+                  << "Press Enter when ready..." << std::flush;
+        std::string line;
+        if (!std::getline(std::cin, line)) {
+            std::cerr << "\nInteractive input closed before capture completed.\n";
+            captureFailed = true;
+            break;
+        }
+        for (int countdown = 3; countdown >= 1; --countdown) {
+            std::cout << countdown << "..." << std::flush;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+        std::cout << " GO\n";
+
+        phases.emplace_back(
+            std::string(definition.name), std::string(definition.instruction));
+        auto& phase = phases.back();
+        const auto startedAt = std::chrono::steady_clock::now();
+        const auto deadline = startedAt + std::chrono::seconds(phaseSeconds);
+        while (!g_stopRequested.load(std::memory_order_relaxed) &&
+               std::chrono::steady_clock::now() < deadline) {
+            const auto now = std::chrono::steady_clock::now();
+            auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - now);
+            remaining = (std::min)(remaining, std::chrono::milliseconds(250));
+            if (remaining.count() <= 0) break;
+
+            std::size_t bytesRead = 0;
+            error.clear();
+            const auto status = device->readRawInputReport(
+                report, remaining, bytesRead, error);
+            if (status == asb::platform::HidReadStatus::Timeout) continue;
+            if (status == asb::platform::HidReadStatus::Error) {
+                std::cerr << "APEX 4 raw input failed: " << error << '\n';
+                captureFailed = true;
+                break;
+            }
+            const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - startedAt).count();
+            phase.addReport(
+                std::span<const std::uint8_t>(report.data(), bytesRead),
+                static_cast<std::uint64_t>((std::max)(elapsed, std::int64_t{0})));
+        }
+
+        std::cout << "Captured " << phase.samples().size()
+                  << " state reports; changing byte offsets:";
+        bool printedCandidate = false;
+        for (const auto& activity : phase.byteActivity()) {
+            if (activity.knownControl) continue;
+            std::cout << ' ' << activity.offset;
+            printedCandidate = true;
+        }
+        if (!printedCandidate) std::cout << " none";
+        std::cout << "\n\n";
+        if (captureFailed || g_stopRequested.load(std::memory_order_relaxed)) break;
+    }
+
+    asb::diagnostics::Apex4GyroCaptureMetadata metadata{};
+    metadata.model = device->identity()->describe();
+    metadata.connection = device->identity()->isWired() ? "wired" : "dongle";
+    metadata.connectionRaw = device->identity()->connectionTypeRaw();
+    metadata.vendorId = device->info().vendorId;
+    metadata.productId = device->info().productId;
+    metadata.declaredInputReportLength = device->info().inputReportLength;
+    metadata.phaseSeconds = phaseSeconds;
+    metadata.interrupted = captureFailed ||
+        g_stopRequested.load(std::memory_order_relaxed) ||
+        phases.size() != definitions.size();
+
+    std::ofstream output(outputPath, std::ios::binary | std::ios::out);
+    if (!output) {
+        std::cerr << "Could not create capture file: " << outputPath.string() << '\n';
+        return 5;
+    }
+    output << asb::diagnostics::formatApex4GyroCaptureJson(metadata, phases);
+    output.close();
+    if (!output) {
+        std::cerr << "Could not finish writing capture file: "
+                  << outputPath.string() << '\n';
+        return 5;
+    }
+
+    std::cout << "Capture saved: " << std::filesystem::absolute(outputPath).string()
+              << '\n';
+    if (metadata.interrupted) {
+        std::cerr << "The capture is partial but was saved for inspection.\n";
+        return 6;
+    }
+    const bool motionDataObserved = std::any_of(
+        phases.begin(), phases.end(),
+        [](const auto& phase) { return phase.motionDataObserved(); });
+    if (!motionDataObserved) {
+        std::cerr
+            << "No Apex 4 IMU bytes were present. The capture was saved, but it "
+               "cannot validate gyro compatibility. Set the active profile's "
+               "gyro mapping to Mouse (always enabled), apply the profile, and "
+               "run the capture again.\n";
+        return 7;
+    }
+    std::cout << "Please attach this JSON file to GitHub issue #10.\n";
+    return 0;
+}
+
 int commandXInputViewTest(int argc, char** argv) {
     g_stopRequested.store(false, std::memory_order_relaxed);
     std::optional<unsigned int> requestedIndex;
@@ -763,6 +1318,382 @@ int commandXInputViewTest(int argc, char** argv) {
               << (maximumHold >= std::chrono::milliseconds(1500) ? "yes" : "no")
               << '\n';
     return 0;
+}
+
+int commandTestRgb(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    std::vector<std::string_view> colorArgs;
+
+    for (int i = 2; i < argc; ++i) {
+        const std::string_view arg = argv[i];
+        if (colorArgs.empty() && !deviceIndex) {
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(std::string(arg), &parsedCharacters);
+                if (parsedCharacters == arg.size()) {
+                    if (arg.size() == 1 || (arg.size() <= 2 && parsed < 16)) {
+                        deviceIndex = static_cast<std::size_t>(parsed);
+                        continue;
+                    }
+                }
+            } catch (...) {
+            }
+        }
+        colorArgs.push_back(arg);
+    }
+
+    std::string error;
+    auto device = openSelectedIndex(deviceIndex, error);
+    if (!device) {
+        std::cerr << "Error: " << error << '\n';
+        return 3;
+    }
+
+    struct RgbStep {
+        std::string name;
+        std::uint8_t r = 0;
+        std::uint8_t g = 0;
+        std::uint8_t b = 0;
+    };
+    std::vector<RgbStep> steps;
+
+    if (colorArgs.empty()) {
+        steps = {
+            {"Red", 255, 0, 0},
+            {"Green", 0, 255, 0},
+            {"Blue", 0, 0, 255},
+            {"White", 255, 255, 255}
+        };
+    } else if (colorArgs.size() == 1) {
+        std::string_view hex = colorArgs[0];
+        if (!hex.empty() && hex[0] == '#') hex.remove_prefix(1);
+        if (hex.size() != 6) {
+            std::cerr << "Invalid hex color format: " << colorArgs[0]
+                      << " (expected #RRGGBB or RRGGBB)\n";
+            return 1;
+        }
+        try {
+            const unsigned long value = std::stoul(std::string(hex), nullptr, 16);
+            steps.push_back({
+                std::string(colorArgs[0]),
+                static_cast<std::uint8_t>((value >> 16) & 0xFF),
+                static_cast<std::uint8_t>((value >> 8) & 0xFF),
+                static_cast<std::uint8_t>(value & 0xFF)
+            });
+        } catch (...) {
+            std::cerr << "Failed to parse hex color: " << colorArgs[0] << '\n';
+            return 1;
+        }
+    } else if (colorArgs.size() == 3) {
+        try {
+            const auto r = std::stoul(std::string(colorArgs[0]));
+            const auto g = std::stoul(std::string(colorArgs[1]));
+            const auto b = std::stoul(std::string(colorArgs[2]));
+            if (r > 255 || g > 255 || b > 255) throw std::out_of_range("rgb");
+            steps.push_back({
+                "Custom",
+                static_cast<std::uint8_t>(r),
+                static_cast<std::uint8_t>(g),
+                static_cast<std::uint8_t>(b)
+            });
+        } catch (...) {
+            std::cerr << "Invalid RGB values (expected 0-255 for R, G, B)\n";
+            return 1;
+        }
+    } else {
+        std::cerr << "Usage: ApexSenseBridge test-rgb [index] [R G B | #RRGGBB]\n";
+        return 1;
+    }
+
+    asb::flydigi::ProfileStatus originalProfile{};
+    const bool hasProfile = device->readProfileStatus(originalProfile, error);
+    error.clear();
+
+    const std::uint8_t activeSlot = hasProfile ? originalProfile.slot : 0;
+
+    asb::dualsense::LightbarBridge lightbar(*device, activeSlot);
+    if (lightbar.failed()) {
+        std::cerr << "Could not initialize temporary RGB control: "
+                  << lightbar.error() << '\n';
+        return 12;
+    }
+
+    for (const auto& step : steps) {
+        if (g_stopRequested.load(std::memory_order_relaxed)) break;
+
+        std::cout << "Setting RGB: " << step.name << " ("
+                  << static_cast<int>(step.r) << ", "
+                  << static_cast<int>(step.g) << ", "
+                  << static_cast<int>(step.b) << ")... ";
+
+        asb::dualsense::DualSenseFeedback feedback{};
+        feedback.hasLightbar = true;
+        feedback.lightbarRed = step.r;
+        feedback.lightbarGreen = step.g;
+        feedback.lightbarBlue = step.b;
+        const auto previousWrites = lightbar.stats().writes;
+        lightbar.handle(feedback);
+        const auto writeDeadline = std::chrono::steady_clock::now() +
+                                   std::chrono::milliseconds(500);
+        while (!lightbar.failed() && lightbar.stats().writes == previousWrites &&
+               std::chrono::steady_clock::now() < writeDeadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        if (lightbar.failed() || lightbar.stats().writes == previousWrites) {
+            std::cout << "FAILED: "
+                      << (lightbar.failed() ? lightbar.error() : "RGB write timed out")
+                      << '\n';
+            return 12;
+        }
+        std::cout << "OK\n";
+
+        constexpr auto stepDuration = std::chrono::milliseconds(2000);
+        constexpr auto slice = std::chrono::milliseconds(25);
+        auto elapsed = std::chrono::milliseconds::zero();
+        while (elapsed < stepDuration && !g_stopRequested.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_for(slice);
+            elapsed += slice;
+        }
+    }
+
+    std::cout << "Restoring controller profile lighting... ";
+    lightbar.restore();
+    if (lightbar.failed()) {
+        std::cout << "FAILED: " << lightbar.error() << '\n';
+        return 12;
+    }
+    std::cout << "OK\n";
+    return 0;
+}
+
+int commandTestGyro(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    unsigned long seconds = 3;
+    bool json = false;
+    bool stream = false;
+    std::string sessionToken;
+    std::optional<std::uint32_t> ownerPid;
+
+    for (int index = 2; index < argc; ++index) {
+        const std::string_view option = argv[index];
+        if (option == "--json") {
+            json = true;
+        } else if (option == "--stream") {
+            stream = true;
+        } else if (option == "--session-token") {
+            if (++index >= argc || !asb::platform::isValidSessionToken(argv[index])) {
+                std::cerr << "--session-token requires 32 hexadecimal characters.\n";
+                return 1;
+            }
+            sessionToken = argv[index];
+        } else if (option == "--session-owner-pid") {
+            if (++index >= argc) return 1;
+            try {
+                std::size_t consumed = 0;
+                const auto pid = std::stoul(argv[index], &consumed);
+                if (!pid || consumed != std::string_view(argv[index]).size() ||
+                    pid > (std::numeric_limits<std::uint32_t>::max)()) {
+                    throw std::out_of_range("pid");
+                }
+                ownerPid = static_cast<std::uint32_t>(pid);
+            } catch (...) {
+                std::cerr << "--session-owner-pid requires a non-zero process ID.\n";
+                return 1;
+            }
+        } else if (option == "--seconds") {
+            if (++index >= argc) {
+                std::cerr << "--seconds requires an integer from 1 to 60.\n";
+                return 1;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                seconds = std::stoul(argv[index], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[index]).size() ||
+                    seconds == 0 || seconds > 60) {
+                    throw std::out_of_range("seconds");
+                }
+            } catch (...) {
+                std::cerr << "--seconds requires an integer from 1 to 60.\n";
+                return 1;
+            }
+        } else if (option.rfind("--", 0) == 0) {
+            std::cerr << "Unknown option: " << option << '\n';
+            return 1;
+        } else if (!deviceIndex) {
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(std::string(option), &parsedCharacters);
+                if (parsedCharacters != option.size()) {
+                    throw std::invalid_argument("trailing characters");
+                }
+                deviceIndex = parsed;
+            } catch (...) {
+                std::cerr << "Invalid device index: " << option << '\n';
+                return 1;
+            }
+        } else {
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(std::string(option), &parsedCharacters);
+                if (parsedCharacters != option.size() || deviceIndex) {
+                    throw std::invalid_argument("index");
+                }
+                deviceIndex = static_cast<std::size_t>(parsed);
+            } catch (...) {
+                std::cerr << "Unknown test-gyro option: " << option << "\n"
+                          << "Usage: ApexSenseBridge test-gyro [index] [--seconds N] [--stream] [--json]\n";
+                return 1;
+            }
+        }
+    }
+
+    std::string error;
+    std::unique_ptr<asb::platform::SessionControl> session;
+    if (!sessionToken.empty()) {
+        session = asb::platform::connectSessionControl(sessionToken, ownerPid, error);
+        if (!session) {
+            std::cerr << error << '\n';
+            return 1;
+        }
+    } else if (ownerPid) {
+        std::cerr << "--session-owner-pid requires --session-token.\n";
+        return 1;
+    }
+    const auto fail = [&](int code, const std::string& message) {
+        std::cerr << message << '\n';
+        if (session) {
+            std::string ignored;
+            (void)session->publish(asb::platform::SessionPhase::Failed, code, message, ignored);
+            (void)session->signalReady(ignored);
+        }
+        return code;
+    };
+    // Serialize routing changes with the bridge and other diagnostics.
+    auto sessionOwner = asb::platform::createGlobalSessionStop(error);
+    if (!sessionOwner) return fail(6, error);
+    auto device = openSelectedIndex(deviceIndex, error);
+    if (!device) {
+        return fail(2, "APEX identity verification failed: " + error);
+    }
+
+    asb::ApexMotionDiagnosticGuard motionRouting(*device);
+    if (!motionRouting.enable(error)) {
+        return fail(7, "Could not enable APEX motion input: " + error);
+    }
+    auto input = asb::platform::openPhysicalInputSource(device->info(), std::nullopt, error);
+    if (!input) {
+        return fail(3, "APEX input source unavailable: " + error);
+    }
+    if (session &&
+        (!session->publish(asb::platform::SessionPhase::Ready, 0, "Motion diagnostic ready", error) ||
+         !session->signalReady(error))) {
+        return fail(1, error);
+    }
+
+    const auto deadline = stream
+        ? (std::chrono::steady_clock::now() + std::chrono::hours(24))
+        : (std::chrono::steady_clock::now() + std::chrono::seconds(seconds));
+
+    std::uint64_t sampleCount = 0;
+    std::int16_t minGyroX = (std::numeric_limits<std::int16_t>::max)();
+    std::int16_t maxGyroX = (std::numeric_limits<std::int16_t>::min)();
+    std::int16_t minGyroY = (std::numeric_limits<std::int16_t>::max)();
+    std::int16_t maxGyroY = (std::numeric_limits<std::int16_t>::min)();
+    std::int16_t minGyroZ = (std::numeric_limits<std::int16_t>::max)();
+    std::int16_t maxGyroZ = (std::numeric_limits<std::int16_t>::min)();
+
+    asb::dualsense::DualSenseInputState lastState{};
+    bool received = false;
+
+    while ((stream || std::chrono::steady_clock::now() < deadline) &&
+           !g_stopRequested.load(std::memory_order_relaxed) &&
+           !sessionOwner->stopRequested() && !(session && session->stopRequested())) {
+        asb::dualsense::DualSenseInputState state{};
+        error.clear();
+        const auto status = input->waitForState(state, std::chrono::milliseconds(200), error);
+        if (status == asb::platform::PhysicalInputStatus::State) {
+            received = true;
+            ++sampleCount;
+            lastState = state;
+            minGyroX = (std::min)(minGyroX, state.gyroX);
+            maxGyroX = (std::max)(maxGyroX, state.gyroX);
+            minGyroY = (std::min)(minGyroY, state.gyroY);
+            maxGyroY = (std::max)(maxGyroY, state.gyroY);
+            minGyroZ = (std::min)(minGyroZ, state.gyroZ);
+            maxGyroZ = (std::max)(maxGyroZ, state.gyroZ);
+
+            if (stream) {
+                const double ax = state.accelX / 10000.0;
+                const double ay = state.accelY / 10000.0;
+                const double az = state.accelZ / 10000.0;
+                const double pitchDeg = std::atan2(-ay, std::sqrt(ax * ax + az * az)) * (180.0 / 3.141592653589793);
+                const double rollDeg = std::atan2(ax, az) * (180.0 / 3.141592653589793);
+
+                std::cout << "GYRO:" << state.gyroX << ',' << state.gyroY << ',' << state.gyroZ
+                          << " ACCEL:" << state.accelX << ',' << state.accelY << ',' << state.accelZ
+                          << " PITCH:" << static_cast<int>(pitchDeg)
+                          << " ROLL:" << static_cast<int>(rollDeg)
+                          << std::endl;
+            }
+        } else if (status == asb::platform::PhysicalInputStatus::Disconnected ||
+                   status == asb::platform::PhysicalInputStatus::Error) {
+            input.reset();
+            return fail(4, "APEX input stream error: " + error);
+        }
+    }
+
+    // Close the secondary reader before exchanging the restoration command.
+    const std::string backend(input->backendName());
+    input.reset();
+    if (!motionRouting.restore(error)) {
+        return fail(8, "Could not restore APEX motion input: " + error);
+    }
+    if (session) {
+        (void)session->publish(asb::platform::SessionPhase::Stopped, 0,
+                               "Motion diagnostic stopped; routing restored", error);
+    }
+    if (stream) {
+        return 0;
+    }
+
+    const double ax = lastState.accelX / 10000.0;
+    const double ay = lastState.accelY / 10000.0;
+    const double az = lastState.accelZ / 10000.0;
+    const double pitchDeg = std::atan2(-ay, std::sqrt(ax * ax + az * az)) * (180.0 / 3.141592653589793);
+    const double rollDeg = std::atan2(ax, az) * (180.0 / 3.141592653589793);
+
+    const bool motionDetected = (maxGyroX - minGyroX > 15) ||
+                                (maxGyroY - minGyroY > 15) ||
+                                (maxGyroZ - minGyroZ > 15);
+
+    if (json) {
+        std::cout << "{\n"
+                  << "  \"backend\": \"" << jsonEscape(backend) << "\",\n"
+                  << "  \"received\": " << (received ? "true" : "false") << ",\n"
+                  << "  \"samples\": " << sampleCount << ",\n"
+                  << "  \"motion_detected\": " << (motionDetected ? "true" : "false") << ",\n"
+                  << "  \"gyro_x\": " << lastState.gyroX << ",\n"
+                  << "  \"gyro_y\": " << lastState.gyroY << ",\n"
+                  << "  \"gyro_z\": " << lastState.gyroZ << ",\n"
+                  << "  \"min_gyro_x\": " << (sampleCount ? minGyroX : 0) << ",\n"
+                  << "  \"max_gyro_x\": " << (sampleCount ? maxGyroX : 0) << ",\n"
+                  << "  \"accel_x\": " << lastState.accelX << ",\n"
+                  << "  \"accel_y\": " << lastState.accelY << ",\n"
+                  << "  \"accel_z\": " << lastState.accelZ << ",\n"
+                  << "  \"pitch_deg\": " << static_cast<int>(pitchDeg) << ",\n"
+                  << "  \"roll_deg\": " << static_cast<int>(rollDeg) << "\n"
+                  << "}\n";
+    } else {
+        std::cout << "--- 6-Axis Motion Sensor Diagnostic ---\n"
+                  << "Backend: " << backend << '\n'
+                  << "Samples collected: " << sampleCount << '\n'
+                  << "Motion detected: " << (motionDetected ? "YES" : "NO (still)") << '\n'
+                  << "Latest Gyro (deg/s units): X=" << lastState.gyroX << " Y=" << lastState.gyroY << " Z=" << lastState.gyroZ << '\n'
+                  << "Latest Accel (10000=1G):   X=" << lastState.accelX << " Y=" << lastState.accelY << " Z=" << lastState.accelZ << '\n'
+                  << "Orientation: Pitch=" << static_cast<int>(pitchDeg) << " deg  Roll=" << static_cast<int>(rollDeg) << " deg\n";
+    }
+
+    return received ? 0 : 5;
 }
 
 } // namespace asb::cli

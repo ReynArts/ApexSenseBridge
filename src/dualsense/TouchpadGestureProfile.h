@@ -18,6 +18,7 @@ enum class TouchpadGestureProfile {
     MilesMorales,
     GhostOfTsushima,
     Warframe,
+    DeathStranding2,
 };
 
 enum class TouchpadSwipeDirection : std::size_t {
@@ -90,6 +91,7 @@ private:
                         Clock::time_point now) noexcept;
     void transformWarframe(DualSenseInputState& state,
                            Clock::time_point now) noexcept;
+    void transformDeathStranding(DualSenseInputState& state) noexcept;
     bool startSwipe(TouchpadSwipeDirection direction,
                     Clock::time_point now) noexcept;
     void emitSwipe(DualSenseInputState& state,
@@ -101,6 +103,8 @@ private:
     HoldState dpadUpHold_{};
     SwipeState swipe_{};
     bool spiderManCameraOpen_ = false;
+    bool deathStrandingPhotoChord_ = false;
+    bool deathStrandingTouchLeft_ = false;
 
     bool ghostModifierWasPressed_ = false;
     bool ghostArmed_ = false;

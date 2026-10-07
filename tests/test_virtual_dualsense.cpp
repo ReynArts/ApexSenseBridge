@@ -5,13 +5,209 @@
 #include "dualsense/DualSenseFeedback.h"
 #include "dualsense/DualSenseFirmware.h"
 #include "dualsense/DualSenseInput.h"
+#include "dualsense/VirtualDualSenseStartup.h"
 #include "dualsense/ViiperProtocol.h"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <utility>
+#include <vector>
+
+namespace {
+
+class FakeVirtualDualSense final : public asb::dualsense::VirtualDualSense {
+public:
+    bool open(std::string& error, FeedbackHandler handler) override {
+        ++openCalls;
+        handler_ = std::move(handler);
+        const bool succeeds = openCalls > openFailures;
+        connected_ = succeeds;
+        if (!succeeds) error = "synthetic open failure";
+        return succeeds;
+    }
+
+    void close() noexcept override {
+        ++closeCalls;
+        connected_ = false;
+        handler_ = {};
+    }
+
+    bool updateInput(const asb::dualsense::DualSenseInputState& state,
+                     std::string& error) override {
+        ++updateCalls;
+        lastInput = state;
+        if (updateFails) {
+            error = "synthetic input failure";
+            return false;
+        }
+        return connected_;
+    }
+
+    [[nodiscard]] bool connected() const noexcept override { return connected_; }
+
+    asb::dualsense::VirtualDualSenseStats stats() const override {
+        asb::dualsense::VirtualDualSenseStats result{};
+        result.connected = connected_;
+        return result;
+    }
+
+    std::size_t openFailures = 0;
+    bool updateFails = false;
+    std::size_t openCalls = 0;
+    std::size_t closeCalls = 0;
+    std::size_t updateCalls = 0;
+    asb::dualsense::DualSenseInputState lastInput{};
+
+private:
+    bool connected_ = false;
+    FeedbackHandler handler_;
+};
+
+void testVerifiedStartupRetriesReadinessFailure() {
+    using namespace asb::dualsense;
+
+    FakeVirtualDualSense backend;
+    DualSenseInputState initial{};
+    initial.lx = 0x31;
+    initial.r2 = 0x72;
+    std::size_t probeCalls = 0;
+    std::size_t removalWaits = 0;
+    VirtualDualSenseStartupResult result{};
+    std::string error;
+
+    const bool started = startVerifiedVirtualDualSense(
+        backend, initial, {},
+        [&probeCalls](std::string& probeError)
+            -> std::optional<DualSenseFirmwareInfo> {
+            ++probeCalls;
+            if (probeCalls == 1) {
+                probeError = "synthetic HID publication timeout";
+                return std::nullopt;
+            }
+            DualSenseFirmwareInfo firmware{};
+            firmware.updateVersion = 0x0630;
+            return firmware;
+        },
+        [&removalWaits](std::string&) {
+            ++removalWaits;
+            return true;
+        },
+        2, result, error);
+
+    assert(started);
+    assert(error.empty());
+    assert(result.failure == VirtualDualSenseStartupFailure::None);
+    assert(result.attempts == 2);
+    assert(result.firmware && result.firmware->updateVersion == 0x0630);
+    assert(result.inputReadyAt != std::chrono::steady_clock::time_point{});
+    assert(result.verifiedAt >= result.inputReadyAt);
+    assert(backend.openCalls == 2);
+    assert(backend.updateCalls == 2);
+    assert(backend.closeCalls == 1);
+    assert(backend.connected());
+    assert(backend.lastInput == initial);
+    assert(probeCalls == 2);
+    assert(removalWaits == 1);
+}
+
+void testVerifiedStartupFailsClosed() {
+    using namespace asb::dualsense;
+
+    FakeVirtualDualSense backend;
+    std::size_t probeCalls = 0;
+    std::size_t removalWaits = 0;
+    VirtualDualSenseStartupResult result{};
+    std::string error;
+    const bool started = startVerifiedVirtualDualSense(
+        backend, {}, {},
+        [&probeCalls](std::string& probeError)
+            -> std::optional<DualSenseFirmwareInfo> {
+            ++probeCalls;
+            probeError = "synthetic HID publication timeout";
+            return std::nullopt;
+        },
+        [&removalWaits](std::string&) {
+            ++removalWaits;
+            return true;
+        },
+        2, result, error);
+
+    assert(!started);
+    assert(!backend.connected());
+    assert(result.failure == VirtualDualSenseStartupFailure::ReadinessVerification);
+    assert(result.attempts == 2);
+    assert(!result.firmware);
+    assert(error.find("after 2 attempts") != std::string::npos);
+    assert(error.find("synthetic HID publication timeout") != std::string::npos);
+    assert(backend.openCalls == 2);
+    assert(backend.updateCalls == 2);
+    assert(backend.closeCalls == 2);
+    assert(probeCalls == 2);
+    assert(removalWaits == 1);
+}
+
+void testVerifiedStartupStopsWhenRemovalFails() {
+    using namespace asb::dualsense;
+
+    FakeVirtualDualSense backend;
+    VirtualDualSenseStartupResult result{};
+    std::string error;
+    const bool started = startVerifiedVirtualDualSense(
+        backend, {}, {},
+        [](std::string& probeError) -> std::optional<DualSenseFirmwareInfo> {
+            probeError = "synthetic readiness failure";
+            return std::nullopt;
+        },
+        [](std::string& removalError) {
+            removalError = "synthetic removal timeout";
+            return false;
+        },
+        2, result, error);
+
+    assert(!started);
+    assert(!backend.connected());
+    assert(result.failure == VirtualDualSenseStartupFailure::DeviceRemoval);
+    assert(result.attempts == 1);
+    assert(error.find("could not be removed") != std::string::npos);
+    assert(error.find("synthetic removal timeout") != std::string::npos);
+    assert(backend.openCalls == 1);
+    assert(backend.updateCalls == 1);
+    assert(backend.closeCalls == 1);
+}
+
+void testVerifiedStartupDoesNotRetryHardFailures() {
+    using namespace asb::dualsense;
+
+    VirtualDualSenseStartupResult result{};
+    std::string error;
+    FakeVirtualDualSense openFailure;
+    openFailure.openFailures = 1;
+    assert(!startVerifiedVirtualDualSense(
+        openFailure, {}, {},
+        [](std::string&) { return std::optional<DualSenseFirmwareInfo>{}; },
+        [](std::string&) { return true; }, 2, result, error));
+    assert(result.failure == VirtualDualSenseStartupFailure::BackendOpen);
+    assert(openFailure.openCalls == 1);
+    assert(openFailure.updateCalls == 0);
+    assert(openFailure.closeCalls == 1);
+
+    FakeVirtualDualSense inputFailure;
+    inputFailure.updateFails = true;
+    assert(!startVerifiedVirtualDualSense(
+        inputFailure, {}, {},
+        [](std::string&) { return std::optional<DualSenseFirmwareInfo>{}; },
+        [](std::string&) { return true; }, 2, result, error));
+    assert(result.failure == VirtualDualSenseStartupFailure::InitialInput);
+    assert(inputFailure.openCalls == 1);
+    assert(inputFailure.updateCalls == 1);
+    assert(inputFailure.closeCalls == 1);
+}
+
+} // namespace
 
 int main() {
     using namespace asb::dualsense;
@@ -55,13 +251,21 @@ int main() {
     assert(encodedLive[16] == 0xF0 && encodedLive[17] == 0xDE);
     assert(encodedLive[18] == 1);
     assert(encodedLive[31] == 87 && encodedLive[32] == 4);
+    const auto encodedWaveform = buildViiperInput(live, true);
+    assert(encodedWaveform[32] == 0x84);
+    assert(std::equal(encodedLive.begin(), encodedLive.begin() + 32,
+                      encodedWaveform.begin()));
 
-    std::array<std::uint8_t, 27> hidPayload{};
+    std::array<std::uint8_t, 30> hidPayload{};
     hidPayload[0] = 0x0F;
+    hidPayload[1] = 0x04;
     hidPayload[2] = 17;
     hidPayload[3] = 42;
     hidPayload[5] = 0x21;
     hidPayload[16] = 0x05;
+    hidPayload[27] = 12;
+    hidPayload[28] = 34;
+    hidPayload[29] = 56;
 
     DualSenseFeedback feedback{};
     assert(decodeViiperFeedbackFrame(0x01, hidPayload, feedback));
@@ -73,6 +277,14 @@ int main() {
     assert(feedback.hasRumble());
     assert(feedback.requestsRumbleUpdate());
     assert(feedback.hasTriggerEffect());
+    assert(feedback.hasLightbarColor());
+    assert(feedback.lightbarRed == 12);
+    assert(feedback.lightbarGreen == 34);
+    assert(feedback.lightbarBlue == 56);
+
+    hidPayload[1] = 0;
+    assert(decodeViiperFeedbackFrame(0x01, hidPayload, feedback));
+    assert(!feedback.hasLightbarColor());
 
     std::array<std::uint8_t, 26> shortHid{};
     assert(!decodeViiperFeedbackFrame(0x01, shortHid, feedback));
@@ -93,6 +305,56 @@ int main() {
     assert(feedback.rightPeak == 4);
     assert(feedback.leftTransient == 5);
     assert(feedback.rightTransient == 6);
+
+    std::array<std::uint8_t, 36> waveformPayload{};
+    waveformPayload[0] = 0x04;
+    waveformPayload[1] = 0x03;
+    waveformPayload[2] = 0x02;
+    waveformPayload[3] = 0x01;
+    for (std::size_t index = 0; index < 8; ++index) {
+        const auto left = static_cast<std::uint16_t>(1000 + index);
+        const auto right = static_cast<std::uint16_t>(0xFC18 - index);
+        waveformPayload[4 + index * 4] = static_cast<std::uint8_t>(left);
+        waveformPayload[5 + index * 4] = static_cast<std::uint8_t>(left >> 8U);
+        waveformPayload[6 + index * 4] = static_cast<std::uint8_t>(right);
+        waveformPayload[7 + index * 4] = static_cast<std::uint8_t>(right >> 8U);
+    }
+    assert(decodeViiperFeedbackFrame(0x03, waveformPayload, feedback));
+    assert(feedback.kind == FeedbackKind::AudioHapticWaveform);
+    assert(feedback.audioSequence == 0x01020304);
+    assert(feedback.leftHapticSamples.front() == 1000);
+    assert(feedback.leftHapticSamples.back() == 1007);
+    assert(feedback.rightHapticSamples.front() == -1000);
+    assert(feedback.rightHapticSamples.back() == -1007);
+    assert(!feedback.hasRawAudioMeasurements);
+    std::array<std::uint8_t, 64> measuredWaveform{};
+    std::copy(waveformPayload.begin(), waveformPayload.end(), measuredWaveform.begin());
+    const auto putLittleEndian = [&measuredWaveform](std::size_t offset,
+                                                    std::uint64_t value, std::size_t size) {
+        for (std::size_t byte = 0; byte < size; ++byte) {
+            measuredWaveform[offset + byte] = static_cast<std::uint8_t>(value >> (byte * 8));
+        }
+    };
+    putLittleEndian(36, 1234, 2);
+    putLittleEndian(38, 5678, 2);
+    putLittleEndian(40, 10000, 2);
+    putLittleEndian(42, 32768, 2);
+    putLittleEndian(44, 384ULL * 10000 * 10000, 8);
+    putLittleEndian(52, 384ULL * 32768 * 32768, 8);
+    putLittleEndian(60, 384, 4);
+    assert(decodeViiperFeedbackFrame(0x03, measuredWaveform, feedback));
+    assert(feedback.hasRawAudioMeasurements && feedback.rawAudioFrames == 384);
+    assert((feedback.rawAudioPeaks == std::array<std::uint16_t, 4>{1234, 5678, 10000, 32768}));
+    assert(feedback.rawHapticLeftSumSquares == 384ULL * 10000 * 10000);
+    assert(feedback.rawHapticRightSumSquares == 384ULL * 32768 * 32768);
+    assert(feedback.leftHapticSamples.front() == 1000);
+    assert(decodeViiperFeedbackFrame(0x03, waveformPayload, feedback));
+    assert(!feedback.hasRawAudioMeasurements && feedback.rawAudioFrames == 0);
+    assert(decodeViiperFeedbackFrame(0x03,
+        std::span<const std::uint8_t>(measuredWaveform).first(63), feedback));
+    assert(!feedback.hasRawAudioMeasurements);
+    assert(!decodeViiperFeedbackFrame(
+        0x03, std::span<const std::uint8_t>(waveformPayload).first(35), feedback));
     assert(!feedback.hasRumble());
     assert(!feedback.requestsRumbleUpdate());
     assert(!feedback.hasTriggerEffect());
@@ -150,6 +412,34 @@ int main() {
     assert(compatibleVibrationV2.hasRumble());
     assert(compatibleVibrationV2.requestsRumbleUpdate());
 
+    DualSenseFeedback feedbackNoLed{};
+    assert(!feedbackNoLed.hasLightbarColor());
+
+    DualSenseFeedback feedbackLed{};
+    feedbackLed.kind = FeedbackKind::HidOutput;
+    feedbackLed.hasLightbar = true;
+    feedbackLed.lightbarRed = 0xFF;
+    feedbackLed.lightbarGreen = 0x80;
+    feedbackLed.lightbarBlue = 0x00;
+    assert(feedbackLed.hasLightbarColor());
+    assert(feedbackLed.lightbarRed == 255);
+    assert(feedbackLed.lightbarGreen == 128);
+    assert(feedbackLed.lightbarBlue == 0);
+
+    assert(toBatteryPercent(0) == 10);
+    assert(toBatteryPercent(1) == 20);
+    assert(toBatteryPercent(2) == 40);
+    assert(toBatteryPercent(3) == 60);
+    assert(toBatteryPercent(4) == 80);
+    assert(toBatteryPercent(5) == 100);
+    assert(toBatteryPercent(6) == 100);
+
+    assert(toChargeState(false, false, 80) == chargeStatus::kDischarging);
+    assert(toChargeState(true, false, 80) == chargeStatus::kCharging);
+    assert(toChargeState(true, false, 100) == chargeStatus::kFull);
+    assert(toChargeState(false, true, 80) == chargeStatus::kCharging);
+    assert(toChargeState(false, true, 100) == chargeStatus::kFull);
+
     const std::string request = viiper::buildRequest("bus/create", "0");
     assert(request.size() == 13);
     assert(request.substr(0, 12) == "bus/create 0");
@@ -174,6 +464,11 @@ int main() {
     assert(!viiper::isDualSenseCompatibleVersion("v0.7.0-notasb1"));
     assert(viiper::isDualSenseCompatibleVersion("v0.7.0-asb1"));
     assert(viiper::isDualSenseCompatibleVersion("v0.8.0-asb2"));
+
+    testVerifiedStartupRetriesReadinessFailure();
+    testVerifiedStartupFailsClosed();
+    testVerifiedStartupStopsWhenRemovalFails();
+    testVerifiedStartupDoesNotRetryHardFailures();
 
     std::uint32_t busId = 0;
     std::string deviceId;
