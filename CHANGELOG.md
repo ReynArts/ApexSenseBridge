@@ -235,7 +235,7 @@
   orientation, add captured-report regression tests, and clarify diagnostic
   yaw/roll instructions. Gyro gains are empirical estimates, not factory
   calibration; on-device direction/sensitivity and in-game behavior still
-  require tester validation. See `APEX4_GYRO_VALIDATION.md`.
+  require tester validation.
 
 ### Tray application and shared features — APEX 4/5/6
 
@@ -508,8 +508,7 @@
 
 ## 0.6.3
 
-Full validation and uninstall-policy details are available in
-[`RELEASE_NOTES_0.6.3.md`](RELEASE_NOTES_0.6.3.md).
+Full validation and uninstall-policy details are documented in the 0.6.3 release notes.
 
 - Never removes usbip-win2 from the ApexSenseBridge uninstaller. The Control
   Panel and silent uninstall no longer expose the legacy dependency-removal

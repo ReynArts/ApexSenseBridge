@@ -51,7 +51,7 @@ void decodeMotion(std::span<const std::uint8_t> report,
     // these captures: ~0.45, ~0.25 and ~0.12 degrees/s per pitch/yaw/roll count.
     // Express these in the existing ASB motion scale (20 units per degree/s).
     // These are NOT factory calibration; yaw is the least constrained axis.
-    // See APEX4_GYRO_VALIDATION.md for evidence and remaining limitations.
+    // Captured validation traces document sensor orientation and remaining limitations.
     state.gyroX = scaleSigned(pitch, 9);
     state.gyroY = scaleSigned(yaw, 5);
     state.gyroZ = scaleSigned(-static_cast<std::int32_t>(roll), 12, 5);
