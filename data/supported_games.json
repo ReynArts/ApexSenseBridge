@@ -1,7 +1,7 @@
-{
+﻿{
     "version":  1,
-    "updatedAt":  "2026-09-30T10:19:12.338393+00:00",
-    "totalGames":  214,
+    "updatedAt":  "2026-10-06T11:03:22.134484+00:00",
+    "totalGames":  215,
     "discordExecutableGames":  130,
     "games":  [
                   {
@@ -14,6 +14,17 @@
                       "steamAppIdVerified":  true,
                       "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3768760/library_600x900.jpg",
                       "addedAt":  "2026-09-01"
+                  },
+                  {
+                      "title":  "Ace Combat 8: Wings of Theve",
+                      "normalized":  "acecombat8wingsoftheve",
+                      "adaptiveTriggers":  true,
+                      "hapticFeedback":  true,
+                      "profile":  "standard",
+                      "steamAppId":  2288340,
+                      "steamAppIdVerified":  true,
+                      "iconUrl":  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2288340/library_600x900.jpg",
+                      "addedAt":  "2026-10-06"
                   },
                   {
                       "title":  "A Plague Tale: Requiem",
@@ -1140,8 +1151,8 @@
                       "addedAt":  "2026-09-01"
                   },
                   {
-                      "title":  "God of War Ragnar├Âk",
-                      "normalized":  "godofwarragnar├Âk",
+                      "title":  "God of War RagnarÔö£├ék",
+                      "normalized":  "godofwarragnarÔö£├ék",
                       "adaptiveTriggers":  true,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -1521,8 +1532,8 @@
                       "addedAt":  "2026-09-01"
                   },
                   {
-                      "title":  "Marvel T┼ìkon: Fighting Souls",
-                      "normalized":  "marvelt┼ìkonfightingsouls",
+                      "title":  "Marvel TÔö╝├¼kon: Fighting Souls",
+                      "normalized":  "marveltÔö╝├¼konfightingsouls",
                       "adaptiveTriggers":  false,
                       "hapticFeedback":  true,
                       "profile":  "standard",
@@ -1623,8 +1634,8 @@
                       "addedAt":  "2026-09-01"
                   },
                   {
-                      "title":  "Metal Gear Solid ╬ö: Snake Eater",
-                      "normalized":  "metalgearsolid╬┤snakeeater",
+                      "title":  "Metal Gear Solid Ôò¼├Â: Snake Eater",
+                      "normalized":  "metalgearsolidÔò¼Ôöñsnakeeater",
                       "adaptiveTriggers":  false,
                       "hapticFeedback":  true,
                       "profile":  "standard",
