@@ -20,6 +20,8 @@ interface in nine languages.
 [![Release](https://img.shields.io/github/v/release/ReynArts/ApexSenseBridge?color=brightgreen)](https://github.com/ReynArts/ApexSenseBridge/releases/latest)
 [![Authenticode](https://img.shields.io/badge/code%20signing-Authenticode-blueviolet.svg)](#security-signing--crash-recovery)
 
+<img width="500" alt="screen ASB 1 0" src="https://github.com/user-attachments/assets/c47eba4c-e718-4890-9947-4afcca206aa8" />
+
 ---
 
 ## Contents
