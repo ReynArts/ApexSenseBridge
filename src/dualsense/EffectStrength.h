@@ -2,6 +2,7 @@
 
 #include "core/TriggerEffect.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 namespace asb::dualsense {
@@ -12,11 +13,18 @@ template<class T>
 }
 
 // Conventional grip-motor gain only. Never use this on signed PCM samples or
-// trigger force fields. Saturation prevents an amplified value wrapping to zero.
+// trigger force fields. At or below 100% it is linear; above, a saturating
+// curve lifts low/mid/high levels without hard clipping or wrapping.
 [[nodiscard]] inline std::uint8_t scaleRumbleStrength(std::uint8_t value,
                                                      unsigned percent) noexcept {
-    const auto scaled = static_cast<unsigned>(value) * (std::min)(percent, 200U) / 100U;
-    return static_cast<std::uint8_t>((std::min)(scaled, 255U));
+    const unsigned capped = (std::min)(percent, 200U);
+    if (capped <= 100U) {
+        return static_cast<std::uint8_t>(static_cast<unsigned>(value) * capped / 100U);
+    }
+    const double remaining = 1.0 - static_cast<double>(value) / 255.0;
+    const double exponent = 2.0 * static_cast<double>(capped) / 100.0 - 1.0;
+    const long lifted = std::lround(255.0 * (1.0 - std::pow(remaining, exponent)));
+    return static_cast<std::uint8_t>(std::clamp<long>(lifted, value, 255));
 }
 
 // Scale only force fields. Travel, zones, frequency and effect timing stay intact.

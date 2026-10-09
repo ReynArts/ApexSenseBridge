@@ -6,6 +6,8 @@
 namespace asb::haptics {
 namespace {
 
+constexpr double kKneeWidth = 0.08;
+
 double toUnit(std::uint16_t value, std::uint16_t floor) noexcept {
     if (value <= floor || floor == 0xFFFFu) {
         return 0.0;
@@ -13,6 +15,20 @@ double toUnit(std::uint16_t value, std::uint16_t floor) noexcept {
     return std::clamp(static_cast<double>(value - floor) /
                           static_cast<double>(0xFFFFu - floor),
                       0.0, 1.0);
+}
+
+// Excess over the threshold with a quadratic knee of +/-width around it.
+double softKnee(double value, double threshold) noexcept {
+    const double width = std::min({kKneeWidth, threshold, 1.0 - threshold});
+    const double over = value - threshold;
+    if (width <= 0.0 || over >= width) {
+        return std::max(over, 0.0);
+    }
+    if (over <= -width) {
+        return 0.0;
+    }
+    const double shifted = over + width;
+    return shifted * shifted / (4.0 * width);
 }
 
 std::uint8_t mapChannel(std::uint16_t energy,
@@ -28,14 +44,15 @@ std::uint8_t mapChannel(std::uint16_t energy,
             transientUnit * config.transientWeight,
         0.0, 1.0);
     const double threshold = std::clamp(config.activationThreshold, 0.0, 0.95);
-    if (combined <= threshold) {
+    const double over = softKnee(combined, threshold);
+    if (over <= 0.0) {
         return 0;
     }
 
     // Remove the low-level texture that makes conventional eccentric motors
     // feel permanently active, then expand the useful range back to 0..1 so
     // the game's remaining intensity variations are not compressed.
-    const double gated = (combined - threshold) / (1.0 - threshold);
+    const double gated = over / (1.0 - threshold);
     const double curve = std::clamp(config.responseCurve, 0.01, 4.0);
     const double output = std::pow(gated, curve) *
                           std::clamp(config.outputGain, 0.0, 1.0) * 255.0;
