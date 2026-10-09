@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-08T11:10:35.605284+00:00",
-  "totalGames": 216,
-  "discordExecutableGames": 130,
+  "updatedAt": "2026-10-09T11:09:29.375259+00:00",
+  "totalGames": 217,
+  "discordExecutableGames": 131,
   "games": [
     {
       "title": "007 First Light",
@@ -79,6 +79,20 @@
         "r5apex_dx12.exe"
       ],
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "ARC Raiders",
+      "normalized": "arcraiders",
+      "adaptiveTriggers": false,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 1808500,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1808500/e33d26c3175e3f590a0153fdcf0f4863f6c84288/library_600x900_2x.jpg?t=1791401542",
+      "executables": [
+        "pioneergame.exe"
+      ],
+      "addedAt": "2026-10-09"
     },
     {
       "title": "Arknights: Endfield",
@@ -373,7 +387,7 @@
       "profile": "standard",
       "steamAppId": 0,
       "steamAppIdVerified": false,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
+      "iconUrl": "",
       "addedAt": "2026-09-01"
     },
     {
@@ -436,7 +450,7 @@
       "title": "Clive Barker's Hellraiser: Revival",
       "normalized": "clivebarkershellraiserrevival",
       "adaptiveTriggers": true,
-      "hapticFeedback": false,
+      "hapticFeedback": true,
       "profile": "standard",
       "steamAppId": 1551980,
       "steamAppIdVerified": true,
