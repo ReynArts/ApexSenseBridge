@@ -12,13 +12,15 @@ haptic audio and translated trigger feedback.
 Playnite integration, controller-specific settings and a gamepad-friendly
 interface in nine languages.
 
-[Download the latest release](https://github.com/ReynArts/ApexSenseBridge/releases/latest) ·
+[Download ApexSenseBridge 1.0.0](https://github.com/ReynArts/ApexSenseBridge/releases/latest) ·
 [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md)
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-lightgrey.svg)](#requirements)
 [![Release](https://img.shields.io/github/v/release/ReynArts/ApexSenseBridge?color=brightgreen)](https://github.com/ReynArts/ApexSenseBridge/releases/latest)
 [![Authenticode](https://img.shields.io/badge/code%20signing-Authenticode-blueviolet.svg)](#security-signing--crash-recovery)
+
+<img width="500" alt="screen ASB 1 0" src="https://github.com/user-attachments/assets/c47eba4c-e718-4890-9947-4afcca206aa8" />
 
 ---
 
