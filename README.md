@@ -228,11 +228,13 @@ editing hardware settings. Controls lock on disconnect, failed identification
 or ambiguous detection. APEX 4, APEX 5 and APEX 6 profiles are saved separately
 in the settings file; the engine selects the matching profile after
 verifying the actual hardware, not from the last model displayed in the UI.
-Gyro tuning is APEX 4-only (25–400% sensitivity and separate yaw correction),
-RGB is APEX 5-only, and the APEX 6 haptic threshold is fixed at 0. General Tray
-preferences remain editable without a controller. Existing strength/rumble
-preferences migrate without being reset; subsequent edits affect only the
-selected model. Playnite keeps its independent settings.
+Gyro tuning is APEX 4-only (25–400% sensitivity and separate yaw correction);
+for APEX 4 gyro to work, the active Flydigi Space Station profile must map
+gyro to "Mouse, always on". RGB is APEX 5-only, and the APEX 6 haptic
+threshold is fixed at 0. General Tray preferences remain editable without a
+controller. Existing strength/rumble preferences migrate without being reset;
+subsequent edits affect only the selected model. Playnite keeps its independent
+settings.
 
 ### Disconnection Recovery
 

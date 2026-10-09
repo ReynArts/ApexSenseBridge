@@ -4,6 +4,7 @@
 #include "cli/BridgeTelemetry.h"
 #include "cli/CommandSupport.h"
 #include "core/ApexProfileRestoreGuard.h"
+#include "core/Apex4GyroValidation.h"
 #include "core/TriggerResetGuard.h"
 #include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
@@ -907,6 +908,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     constexpr auto kBatteryRefreshInterval = std::chrono::seconds(15);
     asb::platform::PhysicalInputFreshnessWatchdog inputFreshness(
         std::chrono::seconds(1), started);
+    asb::Apex4GyroValidation apex4GyroValidation;
     std::string asyncWriteError;
     while (!g_stopRequested.load(std::memory_order_relaxed) &&
            !globalSessionStop->stopRequested() &&
@@ -977,6 +979,11 @@ int commandBridgeTriggers(int argc, char** argv) {
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
             tunePhysicalInput(input);
+            if (apex4 && apex4GyroValidation.observe(input, inputObservedAt)) {
+                std::cerr << "WARNING: [bridge] APEX 4 motion sensors report zero. "
+                          << "In Flydigi Space Station, set the active profile's gyro to "
+                          << "'Mouse, always on' to enable DualSense gyro aiming.\n";
+            }
             inputFreshness.observeFreshState(inputObservedAt);
             if (apex6Bridge) {
                 apex6Bridge->updateTriggerPositions(input.l2, input.r2);
