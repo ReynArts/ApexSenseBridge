@@ -155,6 +155,7 @@ TODO.local*
 .agents/
 .gemini/
 .claude/
+CLAUDE.md
 .cursor/
 .cline/
 .roo/
