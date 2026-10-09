@@ -7,9 +7,10 @@
 - New DualSense effect translations: `0x22` Bow and `0x25` Weapon with one or
   three+ zones (SniperBreak), `0x23` Galloping and `0x27` Machine
   (RecoilRattle), `0x11`/`0x12` limited variants (Race/SniperBreak).
-- Unsupported effects (`0xFC`, unknown modes, invalid zones) and all-zero
-  blocks now release the trigger to Normal instead of leaving the previous
-  resistance or recoil stuck.
+- Empty blocks and unsupported effects (`0xFC`, unknown modes, invalid zones)
+  keep the current effect, like a DualSense. Call of Duty interleaves empty
+  blocks with its weapon effect; releasing on them made the trigger reset
+  several times per second.
 - `0x26` Vibration uses the averaged zone amplitude from where the effect
   reaches half its peak, so a held bow (Horizon, 4 Hz) pulses gently instead of
   rattling at full strength from the top of travel.

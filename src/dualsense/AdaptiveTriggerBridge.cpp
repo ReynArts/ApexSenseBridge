@@ -62,27 +62,23 @@ void AdaptiveTriggerBridge::apply(TriggerSide side, std::uint8_t enableBits,
                                   const std::array<std::uint8_t, 11>& effect) {
     recordBlock(side, enableBits, effect);
 
-    std::optional<ForceTriggerCommand> translated;
+    // Like a DualSense, keep the current effect: games such as Call of Duty interleave
+    // empty blocks with active effects, and releasing on them makes the trigger oscillate.
     if (effect[0] == 0) {
         neutral_.fetch_add(1, std::memory_order_relaxed);
-        translated = ForceTriggerCommand{side, TriggerMode::Normal, {}};
-    } else {
-        translated = translateAdaptiveTrigger(side, effect, 0);
-        if (translated) {
-            (side == TriggerSide::Left ? lastLeftType_ : lastRightType_)
-                .store(effect[0], std::memory_order_relaxed);
-        } else {
-            // Release the previously latched effect instead of leaving it on.
-            unsupported_.fetch_add(1, std::memory_order_relaxed);
-            (side == TriggerSide::Left ? lastUnsupportedLeftType_ : lastUnsupportedRightType_)
-                .store(effect[0], std::memory_order_relaxed);
-            {
-                std::lock_guard lock(stateMutex_);
-                ++unsupportedByType_[effect[0]];
-            }
-            translated = ForceTriggerCommand{side, TriggerMode::Normal, {}};
-        }
+        return;
     }
+    auto translated = translateAdaptiveTrigger(side, effect, 0);
+    if (!translated) {
+        unsupported_.fetch_add(1, std::memory_order_relaxed);
+        (side == TriggerSide::Left ? lastUnsupportedLeftType_ : lastUnsupportedRightType_)
+            .store(effect[0], std::memory_order_relaxed);
+        std::lock_guard lock(stateMutex_);
+        ++unsupportedByType_[effect[0]];
+        return;
+    }
+    (side == TriggerSide::Left ? lastLeftType_ : lastRightType_)
+        .store(effect[0], std::memory_order_relaxed);
     *translated = scaleTriggerStrength(*translated, strengthPercent_);
     {
         std::lock_guard lock(stateMutex_);

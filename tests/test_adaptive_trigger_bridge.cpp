@@ -215,21 +215,19 @@ void testBridge(bool apex4) {
     feedback.leftTriggerEffect = {};
     bridge.handle(feedback);
     assert(bridge.stats().neutral == 1);
-    assert(transport->writes.size() == 11);
-    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
+    assert(transport->writes.size() == 10);
     feedback.leftTriggerEffect = {1, 25, 40};
     bridge.handle(feedback);
-    assert(transport->writes.size() == 12);
+    assert(transport->writes.size() == 10);
 
     feedback.leftTriggerEffect = {0x26, 0xFF, 0x83};
     bridge.handle(feedback);
-    assert(transport->writes.size() == 13);
-    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
+    assert(transport->writes.size() == 10);
     assert(bridge.stats().lastUnsupportedLeftDualSenseType == 0x26);
     assert(bridge.stats().lastLeftDualSenseType == 1);
     feedback.leftTriggerEffect = {99};
     bridge.handle(feedback);
-    assert(transport->writes.size() == 13);
+    assert(transport->writes.size() == 10);
     auto stats = bridge.stats();
     assert(stats.unsupported == 2);
     assert(stats.lastUnsupportedLeftDualSenseType == 99);
@@ -240,22 +238,43 @@ void testBridge(bool apex4) {
 
     feedback.kind = dualsense::FeedbackKind::AudioHaptics;
     bridge.handle(feedback);
-    assert(transport->writes.size() == 13);
-    assert(bridge.stats().lastLeftCommand->mode == TriggerMode::Normal);
+    assert(transport->writes.size() == 10);
+    assert(bridge.stats().lastLeftCommand->mode == TriggerMode::Race);
 
     feedback.kind = dualsense::FeedbackKind::HidOutput;
-    feedback.leftTriggerEffect = {1, 25, 40};
+    feedback.leftTriggerEffect = {1, 30, 40};
     transport->failWrites = true;
     bridge.handle(feedback);
     assert(bridge.failed());
     assert(bridge.error() == "simulated trigger failure");
     assert(bridge.stats().writeFailures == 1);
     transport->failWrites = false;
+    feedback.leftTriggerEffect = {1, 35, 40};
     bridge.handle(feedback);
-    assert(transport->writes.size() == 13);
+    assert(transport->writes.size() == 10);
 }
 
-void testUnsupportedReleasesActiveEffect(bool apex4) {
+void testEmptyBlocksKeepActiveEffect(bool apex4) {
+    using namespace asb;
+    auto* transport = new FakeTransport(apex4);
+    flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    dualsense::AdaptiveTriggerBridge bridge(device);
+    dualsense::DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x04;
+    for (int i = 0; i < 5; ++i) {
+        feedback.rightTriggerEffect = {0x25, 0x90, 0, 2};
+        bridge.handle(feedback);
+        feedback.rightTriggerEffect = {};
+        bridge.handle(feedback);
+    }
+    assert(transport->writes.size() == 1);
+    expectReport(*transport, apex4, TriggerSide::Right, TriggerMode::SniperBreak, {77, 57, 24, 0, 0});
+    assert(bridge.stats().neutral == 5);
+}
+
+void testUnsupportedKeepsActiveEffect(bool apex4) {
     using namespace asb;
     auto* transport = new FakeTransport(apex4);
     flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
@@ -269,8 +288,7 @@ void testUnsupportedReleasesActiveEffect(bool apex4) {
     assert(transport->writes.size() == 1);
     feedback.rightTriggerEffect = {0xFC, 1, 2, 3};
     bridge.handle(feedback);
-    assert(transport->writes.size() == 2);
-    expectReport(*transport, apex4, TriggerSide::Right, TriggerMode::Normal, {});
+    assert(transport->writes.size() == 1);
     const auto stats = bridge.stats();
     assert(stats.unsupported == 1);
     assert(stats.lastUnsupportedRightDualSenseType == 0xFC);
@@ -376,8 +394,10 @@ void testAsyncCoalescing() {
 int main() {
     testBridge(false);
     testBridge(true);
-    testUnsupportedReleasesActiveEffect(false);
-    testUnsupportedReleasesActiveEffect(true);
+    testUnsupportedKeepsActiveEffect(false);
+    testEmptyBlocksKeepActiveEffect(false);
+    testUnsupportedKeepsActiveEffect(true);
+    testEmptyBlocksKeepActiveEffect(true);
     testStrength(false);
     testStrength(true);
     testAsyncCoalescing();
