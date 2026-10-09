@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "正在采集和分析陀螺仪数据...",
   "Loc_GyroTestResult": "六轴测试完成：收到 {0} 个采样，传感器{1}。",
   "Loc_GyroSensorOk": "正常",
-  "Loc_GyroSensorStill": "静止"
+  "Loc_GyroSensorStill": "静止",
+  "Loc_SteamAlreadyRunningTitle": "Steam已在运行",
+  "Loc_SteamAlreadyRunningBody": "Steam在控制器被隐藏时已在运行。如果看到重复输入，请完全退出Steam，然后在Bridge活跃时重新打开它。对游戏禁用Steam Input。"
 }

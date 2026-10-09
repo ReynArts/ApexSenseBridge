@@ -69,6 +69,7 @@ internal static class TrayLearningTests
             TestPlatformClientsNeverCountAsGameProcesses();
             TestPidTrackingFastPathPerformance();
             TestMissPerformance(testRoot);
+            TestSteamAlreadyRunningDetection();
             Console.WriteLine("Tray executable learning tests passed ({0} assertions).", assertions);
             return 0;
         }
@@ -1451,6 +1452,29 @@ internal static class TrayLearningTests
         {
             return false;
         }
+    }
+
+    private static void TestSteamAlreadyRunningDetection()
+    {
+        var session = new DateTime(2026, 10, 9, 12, 0, 0, DateTimeKind.Utc);
+        var before = session.AddMinutes(-30);
+        var restarted = session.AddMinutes(-5);
+        DateTime? steamStart;
+
+        Assert(!SteamProcessChecker.Decide(new DateTime?[0], session, null, out steamStart),
+            "No Steam process must not warn");
+        Assert(!SteamProcessChecker.Decide(new DateTime?[] { session.AddSeconds(5) }, session, null, out steamStart),
+            "Steam started after isolation must not warn");
+        Assert(SteamProcessChecker.Decide(new DateTime?[] { before }, session, null, out steamStart) && steamStart == before,
+            "Steam already running when isolation started must warn");
+        Assert(!SteamProcessChecker.Decide(new DateTime?[] { before }, session, before, out steamStart),
+            "The same Steam instance must be warned only once");
+        Assert(SteamProcessChecker.Decide(new DateTime?[] { restarted }, session, before, out steamStart) && steamStart == restarted,
+            "A restarted Steam instance that predates the session must warn again");
+        Assert(SteamProcessChecker.Decide(new DateTime?[] { null }, session, null, out steamStart),
+            "An unreadable Steam start time is treated as already running");
+        Assert(!SteamProcessChecker.Decide(new DateTime?[] { null }, session, DateTime.MinValue, out steamStart),
+            "An unreadable Steam start time is warned only once");
     }
 
     private static void Assert(bool condition, string message)

@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "자이로 데이터 수집 및 분석 중...",
   "Loc_GyroTestResult": "6축 테스트 완료: {0}개 샘플 수신됨, 센서 {1}.",
   "Loc_GyroSensorOk": "정상 작동",
-  "Loc_GyroSensorStill": "정지됨"
+  "Loc_GyroSensorStill": "정지됨",
+  "Loc_SteamAlreadyRunningTitle": "Steam이 이미 실행 중입니다",
+  "Loc_SteamAlreadyRunningBody": "컨트롤러가 숨겨졌을 때 Steam이 이미 실행 중이었습니다. 중복 입력이 보이면 Steam을 완전히 종료하고 Bridge가 활성화된 상태에서 다시 열어주세요. 게임에 대해 Steam Input을 비활성화하세요."
 }

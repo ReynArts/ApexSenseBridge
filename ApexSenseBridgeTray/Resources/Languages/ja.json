@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "ジャイロスコープデータを取得・分析中...",
   "Loc_GyroTestResult": "6軸テスト完了: {0} サンプルを受信、センサー {1}。",
   "Loc_GyroSensorOk": "正常",
-  "Loc_GyroSensorStill": "静止中"
+  "Loc_GyroSensorStill": "静止中",
+  "Loc_SteamAlreadyRunningTitle": "Steamは既に実行中です",
+  "Loc_SteamAlreadyRunningBody": "コントローラーが隠された時、Steamは既に実行中でした。重複した入力が見られる場合は、Steamを完全に終了してからBridgeがアクティブな状態で再度開いてください。ゲームのSteam Inputは無効にしてください。"
 }

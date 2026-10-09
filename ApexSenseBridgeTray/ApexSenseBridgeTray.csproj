@@ -122,6 +122,7 @@
     <Compile Include="Services\ProcessMonitorService.cs" />
     <Compile Include="Services\EngineSessionManager.cs" />
     <Compile Include="Services\SessionRecoveryState.cs" />
+    <Compile Include="Services\SteamProcessChecker.cs" />
     <Compile Include="Services\UpdateCheckerService.cs" />
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Common\ReleaseSecurity.cs</Link>

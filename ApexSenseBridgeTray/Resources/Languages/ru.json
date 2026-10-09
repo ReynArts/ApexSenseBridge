@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "Получение и анализ данных гироскопа...",
   "Loc_GyroTestResult": "6-осевой тест завершён: получено {0} отсчётов, сенсор {1}.",
   "Loc_GyroSensorOk": "исправен",
-  "Loc_GyroSensorStill": "неподвижен"
+  "Loc_GyroSensorStill": "неподвижен",
+  "Loc_SteamAlreadyRunningTitle": "Steam уже был запущен",
+  "Loc_SteamAlreadyRunningBody": "Steam был запущен при скрытии контроллера. Если вы видите повторяющиеся входные данные, полностью закройте Steam и снова откройте его, пока Bridge активен. Отключите Steam Input для игры."
 }

@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "Đang thu thập và phân tích dữ liệu con quay hồi chuyển...",
   "Loc_GyroTestResult": "Kiểm tra 6 trục hoàn tất: nhận được {0} mẫu, cảm biến {1}.",
   "Loc_GyroSensorOk": "hoạt động tốt",
-  "Loc_GyroSensorStill": "đứng yên"
+  "Loc_GyroSensorStill": "đứng yên",
+  "Loc_SteamAlreadyRunningTitle": "Steam đã chạy trước đó",
+  "Loc_SteamAlreadyRunningBody": "Steam đã chạy khi bộ điều khiển bị ẩn. Nếu bạn thấy đầu vào trùng lặp, hãy thoát hoàn toàn Steam và mở lại nó trong khi Bridge đang hoạt động. Vô hiệu hóa Steam Input cho trò chơi."
 }

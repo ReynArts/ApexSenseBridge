@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "Acquiring and analyzing gyroscope data...",
   "Loc_GyroTestResult": "6-axis test completed: {0} samples received, sensor {1}.",
   "Loc_GyroSensorOk": "healthy",
-  "Loc_GyroSensorStill": "stationary"
+  "Loc_GyroSensorStill": "stationary",
+  "Loc_SteamAlreadyRunningTitle": "Steam was already running",
+  "Loc_SteamAlreadyRunningBody": "Steam was running when the controller was hidden. If you see duplicate inputs, fully exit Steam and reopen it while the bridge is active. Keep Steam Input disabled for the game."
 }

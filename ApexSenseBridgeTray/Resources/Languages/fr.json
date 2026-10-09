@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "Acquisition et analyse du gyroscope en cours...",
   "Loc_GyroTestResult": "Test 6-axes terminé : {0} échantillons reçus, capteur {1}.",
   "Loc_GyroSensorOk": "opérationnel",
-  "Loc_GyroSensorStill": "immobile"
+  "Loc_GyroSensorStill": "immobile",
+  "Loc_SteamAlreadyRunningTitle": "Steam était déjà ouvert",
+  "Loc_SteamAlreadyRunningBody": "Steam était ouvert quand la manette a été masquée. Si les commandes sont doublées, quittez complètement Steam puis rouvrez-le pendant que le bridge est actif. Laissez Steam Input désactivé pour ce jeu."
 }

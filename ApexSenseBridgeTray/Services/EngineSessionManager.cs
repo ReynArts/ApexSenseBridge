@@ -2,6 +2,7 @@ using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace ApexSenseBridgeTray.Services
@@ -182,6 +183,7 @@ namespace ApexSenseBridgeTray.Services
         public event Action<string> SessionStopped;
         public event Action<string> SessionError;
         public event Action<string> LogMessage;
+        public event Action SteamAlreadyRunning;
 
         public bool StartSession(string gameTitle, string profileName, TraySettings settings, out string error)
         {
@@ -280,6 +282,21 @@ namespace ApexSenseBridgeTray.Services
                     error = "Initialisation annulée.";
                     return false;
                 }
+
+                try
+                {
+                    if (session.ProcessId != 0)
+                    {
+                        var engineProcess = Process.GetProcessById(session.ProcessId);
+                        var sessionStartUtc = engineProcess.StartTime.ToUniversalTime();
+                        if (SteamProcessChecker.ShouldWarn(sessionStartUtc))
+                        {
+                            var handler = SteamAlreadyRunning;
+                            if (handler != null) handler();
+                        }
+                    }
+                }
+                catch { }
 
                 var startHandler = SessionStarted;
                 if (startHandler != null)

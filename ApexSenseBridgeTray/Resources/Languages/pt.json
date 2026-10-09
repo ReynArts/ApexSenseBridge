@@ -365,5 +365,7 @@
   "Loc_GyroTestingStatus": "Adquirindo e analisando dados do giroscópio...",
   "Loc_GyroTestResult": "Teste de 6 eixos concluído: {0} amostras recebidas, sensor {1}.",
   "Loc_GyroSensorOk": "saudável",
-  "Loc_GyroSensorStill": "estacionário"
+  "Loc_GyroSensorStill": "estacionário",
+  "Loc_SteamAlreadyRunningTitle": "Steam já estava em execução",
+  "Loc_SteamAlreadyRunningBody": "Steam estava em execução quando o controlador foi ocultado. Se você vir entradas duplicadas, saia completamente do Steam e reabra-o enquanto o Bridge está ativo. Mantenha o Steam Input desabilitado para o jogo."
 }

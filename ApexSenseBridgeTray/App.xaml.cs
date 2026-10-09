@@ -209,6 +209,25 @@ namespace ApexSenseBridgeTray
                     }));
                 };
 
+                sessionManager.SteamAlreadyRunning += () =>
+                {
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try
+                        {
+                            if (settings.EnableNotifications && notifyIcon != null)
+                            {
+                                notifyIcon.ShowBalloonTip(
+                                    5000,
+                                    LocalizationManager.Get("Loc_SteamAlreadyRunningTitle"),
+                                    LocalizationManager.Get("Loc_SteamAlreadyRunningBody"),
+                                    ToolTipIcon.Warning);
+                            }
+                        }
+                        catch { }
+                    }));
+                };
+
                 sessionManager.LogMessage += (msg) =>
                 {
                     try
