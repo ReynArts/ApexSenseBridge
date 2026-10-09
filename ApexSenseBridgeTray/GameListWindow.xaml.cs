@@ -1339,12 +1339,21 @@ namespace ApexSenseBridgeTray
                 if (!string.IsNullOrWhiteSpace(reason))
                 {
                     readable = reason.StartsWith("Loc_") ? LocalizationManager.Get(reason) : reason;
-                    if (reason.StartsWith("Temporary APEX isolation failed:", StringComparison.Ordinal))
+                    var hidHideBusy = HidHideBusyMessage.TryLocalize(reason);
+                    if (hidHideBusy != null)
+                    {
+                        details += "\n" + reason;
+                        readable = hidHideBusy;
+                    }
+                    else if (reason.StartsWith("Temporary APEX isolation failed:", StringComparison.Ordinal))
                     {
                         details += "\n" + reason;
                         readable = LocalizationManager.Get("Loc_RefusedIsolation");
                     }
                 }
+                if (BtnRetryStart != null)
+                    BtnRetryStart.Visibility = !isActive && external == null && sessionManager != null && sessionManager.CanRetryHidHideBusy
+                        ? Visibility.Visible : Visibility.Collapsed;
                 // Idle home stays clean; chips appear for a live, starting, failed or interrupted session.
                 bool showDetails = anyActive || phase == "Starting" || phase == "Failed" || readable != null ||
                     (recovery != null && (recovery.Pending || recovery.Recovered));
@@ -1433,6 +1442,22 @@ namespace ApexSenseBridgeTray
             if (!success) MessageBox.Show(this, error != null && error.StartsWith("Loc_") ? LocalizationManager.Get(error) : error,
                 "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Warning);
             UpdateDashboardStatus();
+        }
+
+        private async void OnRetryStartClick(object sender, RoutedEventArgs e)
+        {
+            if (sessionManager == null || settings == null) return;
+            BtnRetryStart.IsEnabled = false;
+            try
+            {
+                string error = null;
+                await Task.Run(() => sessionManager.RetryLastStart(settings, out error));
+            }
+            finally
+            {
+                BtnRetryStart.IsEnabled = true;
+                UpdateDashboardStatus();
+            }
         }
 
         private void OnDismissRecoveryClick(object sender, RoutedEventArgs e)

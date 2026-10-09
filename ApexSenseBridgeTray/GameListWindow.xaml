@@ -221,6 +221,8 @@
                                     <!-- Only refusal / error reasons are spelled out. -->
                                     <TextBlock x:Name="TxtDashboardHint" TextWrapping="Wrap" FontSize="12" Margin="2,2,0,0"
                                                Foreground="#FCA5A5" MaxHeight="36" TextTrimming="CharacterEllipsis"/>
+                                    <Button x:Name="BtnRetryStart" Content="{DynamicResource Loc_Retry}" Style="{StaticResource BtnSecondary}"
+                                            Click="OnRetryStartClick" HorizontalAlignment="Left" Margin="2,6,0,0" Visibility="Collapsed"/>
                                 </StackPanel>
 
                                 <!-- Larger than its slot (negative margins) so the halo and shadow fade out instead of being clipped. -->

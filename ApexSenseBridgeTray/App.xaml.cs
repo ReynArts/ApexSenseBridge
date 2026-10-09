@@ -201,7 +201,7 @@ namespace ApexSenseBridgeTray
                                 notifyIcon.ShowBalloonTip(
                                     4000,
                                     LocalizationManager.Get("Loc_NotificationWarning"),
-                                    err,
+                                    HidHideBusyMessage.TryLocalize(err) ?? err,
                                     ToolTipIcon.Warning);
                             }
                         }

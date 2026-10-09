@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <cwctype>
 #include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <memory>
 #include <sstream>
@@ -225,10 +226,27 @@ std::vector<std::wstring> runningExecutableNames() {
     return names;
 }
 
-bool openHidHide(ScopedHandle& device, std::string& error) {
-    constexpr int kAttempts = 5;
+// Sleeps in short slices; false when a stop was requested meanwhile.
+bool sleepUnlessStopped(std::chrono::milliseconds duration,
+                        const std::function<bool()>& stopRequested) {
+    const auto deadline = std::chrono::steady_clock::now() + duration;
+    for (auto now = std::chrono::steady_clock::now(); now < deadline;
+         now = std::chrono::steady_clock::now()) {
+        if (stopRequested && stopRequested()) return false;
+        std::this_thread::sleep_for(std::min(
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now),
+            std::chrono::milliseconds(25)));
+    }
+    return !(stopRequested && stopRequested());
+}
+
+bool openHidHide(ScopedHandle& device, std::string& error,
+                 std::chrono::milliseconds window =
+                     detail::kHidHideRecoveryOpenWindow,
+                 const std::function<bool()>& stopRequested = {}) {
+    const auto started = std::chrono::steady_clock::now();
     DWORD code = ERROR_SUCCESS;
-    for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+    for (int failures = 0;;) {
         const HANDLE handle = CreateFileW(
             kHidHideDevice, GENERIC_READ,
             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -243,14 +261,24 @@ bool openHidHide(ScopedHandle& device, std::string& error) {
         const bool transient = code == ERROR_ACCESS_DENIED ||
                                code == ERROR_SHARING_VIOLATION ||
                                code == ERROR_LOCK_VIOLATION;
-        if (!transient || attempt == kAttempts) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (!transient) break;
+        const auto delay = detail::nextHidHideOpenDelay(
+            ++failures,
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - started),
+            window);
+        if (delay.count() == 0) break;
+        if (!sleepUnlessStopped(delay, stopRequested)) {
+            error = "Stop requested while waiting for the HidHide control device.";
+            return false;
+        }
     }
 
     if (code == ERROR_FILE_NOT_FOUND || code == ERROR_PATH_NOT_FOUND) {
         error = "HidHide is not installed or Windows has not been restarted "
                 "since its installation.";
-    } else if (code == ERROR_ACCESS_DENIED) {
+    } else if (code == ERROR_ACCESS_DENIED || code == ERROR_SHARING_VIOLATION ||
+               code == ERROR_LOCK_VIOLATION) {
         error = detail::describeHidHideControlDenied(
             detail::findHidHideControlClients(runningExecutableNames()));
     } else {
@@ -1338,7 +1366,8 @@ bool TemporaryPhysicalControllerIsolation::activate(
     const HidDeviceInfo& apexInterface,
     std::string_view sessionToken,
     std::optional<std::uint8_t> originalApexProfile,
-    std::string& error) {
+    std::string& error,
+    const std::function<bool()>& stopRequested) {
     if (impl_->active) return true;
 
     RecoverySnapshot stale{};
@@ -1355,7 +1384,10 @@ bool TemporaryPhysicalControllerIsolation::activate(
     }
 
     ScopedHandle device;
-    if (!openHidHide(device, error)) return false;
+    if (!openHidHide(device, error, detail::kHidHideActivationOpenWindow,
+                     stopRequested)) {
+        return false;
+    }
     RecoverySnapshot snapshot{};
     snapshot.ownerProcessId = GetCurrentProcessId();
     if (apexInterface.path.empty()) {
@@ -1656,17 +1688,32 @@ bool matchesApexProfileRecoveryDevice(
            equalsCaseInsensitive(candidate.containerId, originalContainerId);
 }
 
+namespace {
+
+struct KnownHidHideClient {
+    std::string_view executable;
+    std::string_view display;
+};
+
+// Add applications that hold the HidHide control device here.
+constexpr KnownHidHideClient kKnownHidHideClients[] = {
+    {"DSX.exe", "DSX"},
+    {"DualSenseX.exe", "DualSenseX"},
+    {"HidHideClient.exe", "HidHide Configuration Client"},
+    {"HidHideCLI.exe", "HidHide CLI"},
+    {"DS4Windows.exe", "DS4Windows"},
+    {"BetterJoy.exe", "BetterJoy"},
+};
+
+} // namespace
+
 std::vector<std::string> findHidHideControlClients(
     const std::vector<std::wstring>& runningExecutables) {
-    static constexpr std::string_view kKnownClients[] = {
-        "DSX.exe",          "DualSenseX.exe", "HidHideClient.exe",
-        "HidHideCLI.exe",   "DS4Windows.exe", "BetterJoy.exe",
-    };
     std::vector<std::string> found;
-    for (const auto client : kKnownClients) {
-        const std::wstring wide(client.begin(), client.end());
+    for (const auto& client : kKnownHidHideClients) {
+        const std::wstring wide(client.executable.begin(), client.executable.end());
         if (containsCaseInsensitive(runningExecutables, wide)) {
-            found.emplace_back(client);
+            found.emplace_back(client.executable);
         }
     }
     return found;
@@ -1675,23 +1722,39 @@ std::vector<std::string> findHidHideControlClients(
 std::string describeHidHideControlDenied(
     const std::vector<std::string>& runningClients) {
     if (runningClients.empty()) {
-        return "Opening the HidHide control device was denied after 5 attempts "
-               "(Windows error 5). HidHide accepts only one application at a "
-               "time: close any application that uses HidHide (DSX, DS4Windows, "
-               "the HidHide Configuration Client...) and retry. If none is "
-               "running, restart Windows; if this persists, repair HidHide "
-               "1.5.230.";
+        return std::string(kHidHideBusyMarker) +
+               "another application is holding the HidHide control device and "
+               "none of the known ones (DSX, DS4Windows, HidHide Configuration "
+               "Client...) was detected. Close any application that uses "
+               "HidHide, then retry. If none is running, restart Windows; if "
+               "this persists, repair HidHide 1.5.230.";
     }
     std::string names;
-    for (const auto& client : runningClients) {
+    for (const auto& executable : runningClients) {
+        std::string display = executable;
+        for (const auto& client : kKnownHidHideClients) {
+            if (client.executable == executable) display = std::string(client.display);
+        }
         if (!names.empty()) names += ", ";
-        names += client;
+        names += display + " (" + executable + ")";
     }
-    return "HidHide is in use by another application (" + names +
-           "). HidHide accepts only one application at a time: close " +
-           names +
-           " completely, including its notification-area icon, then start "
-           "the bridge again.";
+    const bool several = runningClients.size() > 1;
+    return std::string(kHidHideBusyMarker) + names +
+           (several ? " are holding" : " is holding") +
+           " the HidHide control device. Close " +
+           (several ? "them" : "it") + " or disable " +
+           (several ? "their" : "its") + " HidHide integration, then retry.";
+}
+
+std::chrono::milliseconds nextHidHideOpenDelay(
+    int failedAttempts,
+    std::chrono::milliseconds elapsed,
+    std::chrono::milliseconds window) noexcept {
+    if (elapsed >= window) return std::chrono::milliseconds(0);
+    const int shift = std::clamp(failedAttempts - 1, 0, 3);
+    const auto backoff = std::min(std::chrono::milliseconds(100 << shift),
+                                  std::chrono::milliseconds(500));
+    return std::min(backoff, window - elapsed);
 }
 
 } // namespace detail

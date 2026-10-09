@@ -60,6 +60,7 @@ internal static class TrayLearningTests
             TestGameExecutableSettings();
             TestSessionStatusDiscovery();
             TestRecoveryPolicy();
+            TestHidHideBusyDetection();
             TestInterruptedSessionRecovery();
             TestExternalRecoveryOwnership();
             TestRecoveryCancelledDuringStartup();
@@ -988,6 +989,19 @@ internal static class TrayLearningTests
         }
         Assert(forcedCleanupLogged,
             "A hung startup was not forcibly reaped after its cooperative stop timeout.");
+    }
+
+    private static void TestHidHideBusyDetection()
+    {
+        string[] executables;
+        Assert(EngineSessionManager.TryParseHidHideBusy(
+            "Temporary APEX isolation failed: HidHide is busy: DSX (DSX.exe), HidHide Configuration Client (HidHideClient.exe) are holding the HidHide control device. Close them or disable their HidHide integration, then retry.",
+            out executables) && executables.Length == 2 && executables[0] == "DSX.exe" && executables[1] == "HidHideClient.exe",
+            "The engine's HidHide busy error was not recognized.");
+        Assert(EngineSessionManager.TryParseHidHideBusy("Temporary APEX isolation failed: HidHide is busy: another application is holding the HidHide control device (DSX, DS4Windows...).", out executables) && executables.Length == 0,
+            "An unnamed HidHide busy error reported executables.");
+        Assert(!EngineSessionManager.TryParseHidHideBusy("Temporary APEX isolation failed: HidHide is not installed.", out executables) && !EngineSessionManager.TryParseHidHideBusy(null, out executables),
+            "An unrelated isolation failure was classified as HidHide busy.");
     }
 
     private static void TestRecoveryPolicy()

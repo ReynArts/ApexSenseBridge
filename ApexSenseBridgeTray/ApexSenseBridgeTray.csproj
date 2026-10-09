@@ -144,6 +144,7 @@
     <Compile Include="Common\FocusRingAdorner.cs" />
     <Compile Include="Common\LanguageCatalog.cs" />
     <Compile Include="Common\LocalizationManager.cs" />
+    <Compile Include="Common\HidHideBusyMessage.cs" />
     <Compile Include="Common\VirtualKeyboardService.cs" />
     <Compile Include="Common\CoverCacheService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">

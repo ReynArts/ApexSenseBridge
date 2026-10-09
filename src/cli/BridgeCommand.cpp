@@ -467,7 +467,7 @@ int commandBridgeTriggers(int argc, char** argv) {
             profileSwitchRequired
                 ? std::optional<std::uint8_t>(originalProfile->slot)
                 : std::nullopt,
-            error)) {
+            error, stopRequested)) {
         virtualDualSense->close();
         std::cerr << "Temporary APEX isolation failed: " << error << '\n';
         return failSession(11, "Temporary APEX isolation failed: " + error);
