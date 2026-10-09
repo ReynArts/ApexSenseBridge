@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cli/BridgeRuntimeSupport.h"
+#include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/VirtualDualSense.h"
 #include "platform/PhysicalInputSource.h"
@@ -51,6 +52,8 @@ struct BridgeTelemetry {
 };
 
 void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry);
+void writeAdaptiveTriggerDiagnostics(std::ostream& output,
+                                     const asb::dualsense::AdaptiveTriggerBridgeStats& stats);
 void writeApex6TriggerTrace(std::ostream& output,
                            const asb::dualsense::Apex6HapticBridgeStats& stats);
 [[nodiscard]] bool writeBridgeTelemetryFile(

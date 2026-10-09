@@ -918,13 +918,17 @@ void Apex5Device::writerLoop() {
         {
             std::lock_guard lock(queueMutex_);
             if (writerStopping_) return;
+            // Triggers go ahead of rumble unless rumble has waited too long.
+            constexpr auto kRumbleMaximumWait = std::chrono::milliseconds(100);
+            const bool rumbleFirst = !(pendingLeftTrigger_ || pendingRightTrigger_) ||
+                std::chrono::steady_clock::now() - pendingAt_[2] > kRumbleMaximumWait;
             for (unsigned attempt = 0; attempt < 3; ++attempt) {
                 const unsigned slot = (nextSlot_ + attempt) % 3;
                 if (slot == 0 && pendingLeftTrigger_) {
                     trigger = std::exchange(pendingLeftTrigger_, std::nullopt);
                 } else if (slot == 1 && pendingRightTrigger_) {
                     trigger = std::exchange(pendingRightTrigger_, std::nullopt);
-                } else if (slot == 2 && pendingRumble_) {
+                } else if (slot == 2 && pendingRumble_ && rumbleFirst) {
                     rumble = std::exchange(pendingRumble_, std::nullopt);
                 } else {
                     continue;

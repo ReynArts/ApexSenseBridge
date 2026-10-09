@@ -64,17 +64,34 @@ int main() {
         }
     }
     expectCommand({0x25}, TriggerMode::Normal, {});
-    expectUnsupported({0x25, 0x04});
-    expectUnsupported({0x25, 0x94});
+    expectCommand({0x25, 0x04, 0, 3}, TriggerMode::SniperBreak, {38, 20, 32, 0, 0});
+    expectCommand({0x25, 0, 0x02, 3}, TriggerMode::SniperBreak, {154, 19, 32, 0, 0});
+    expectCommand({0x25, 0x94}, TriggerMode::SniperBreak, {38, 96, 8, 0, 0});
+
+    expectCommand({0x22, 0x84, 0, 0x2B}, TriggerMode::SniperBreak, {38, 96, 32, 0, 0});
+    expectCommand({0x22, 0x04, 0, 0x07}, TriggerMode::SniperBreak, {38, 20, 64, 0, 0});
+    expectCommand({0x22}, TriggerMode::Normal, {});
+    expectCommand({0x23, 0x04, 0x02, 0x21, 20}, TriggerMode::RecoilRattle, {38, 1, 60, 20, 0});
+    expectCommand({0x23, 0x04, 0x02, 0x21, 0}, TriggerMode::Normal, {});
+    expectCommand({0x27, 0x03, 0, 0x3B, 30, 5}, TriggerMode::RecoilRattle, {0, 1, 60, 30, 0});
+    expectCommand({0x27, 0x03, 0, 0x3B, 0, 5}, TriggerMode::Normal, {});
+    expectCommand({0x11, 25, 40}, TriggerMode::Race, {25, 40, 0, 0, 0});
+    expectCommand({0x12, 25, 90, 40}, TriggerMode::SniperBreak, {25, 90, 40, 0, 0});
 
     expectCommand({0x26, 0xF0, 0x03, 0, 0, 0, 0, 0, 0, 35},
-                  TriggerMode::RecoilRattle, {77, 1, 15, 35, 0});
+                  TriggerMode::RecoilRattle, {77, 1, 10, 35, 0});
     expectCommand({0x26, 0xFF, 0x03, 0xFF, 0xFF, 0xFF, 0x3F, 0, 0, 35},
-                  TriggerMode::RecoilRattle, {0, 1, 120, 35, 0});
+                  TriggerMode::RecoilRattle, {0, 1, 80, 35, 0});
     expectCommand({0x26, 0xFC, 0x03, 0, 0, 0, 0, 0, 0, 120},
-                  TriggerMode::RecoilRattle, {38, 1, 15, 120, 0});
+                  TriggerMode::RecoilRattle, {38, 1, 10, 120, 0});
     expectCommand({0x26, 0, 0x02, 0, 0, 0, 0x38, 0, 0, 255},
-                  TriggerMode::RecoilRattle, {173, 1, 120, 255, 0});
+                  TriggerMode::RecoilRattle, {173, 1, 80, 255, 0});
+    // Horizon held bow: low uniform amplitude at 4 Hz must stay a gentle pulse.
+    expectCommand({0x26, 0xFF, 0x03, 0x49, 0x92, 0x24, 0x09, 0, 0, 4},
+                  TriggerMode::RecoilRattle, {0, 1, 10, 4, 0});
+    // Graded ramp starts where it reaches half of peak and averages from there.
+    expectCommand({0x26, 0xFF, 0x03, 0x40, 0x22, 0x6D, 0x24, 0, 0, 35},
+                  TriggerMode::RecoilRattle, {77, 1, 40, 35, 0});
     expectCommand({0x26, 0xFF, 0x03, 0xFF, 0xFF, 0xFF, 0x3F, 0, 0, 0, 35},
                   TriggerMode::Normal, {});
     expectCommand({0x26, 0, 0, 0, 0, 0, 0, 0, 0, 35}, TriggerMode::Normal, {});
@@ -83,5 +100,7 @@ int main() {
     expectUnsupported({0x25, 0x84, 0x80});
     expectUnsupported({0x26, 0xFF, 0x83});
     expectUnsupported({99});
+    expectUnsupported({0xFC});
+    expectUnsupported({0x22, 0xFF, 0x83});
     expectUnsupported({0});
 }

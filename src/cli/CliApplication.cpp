@@ -45,7 +45,7 @@ namespace asb::cli {
 
 void printUsage() {
     std::cout
-        << "ApexSenseBridge 1.0.0\n\n"
+        << "ApexSenseBridge 1.0.1\n\n"
 #ifdef ASB_RELEASE_LABEL
         << "Release: " ASB_RELEASE_LABEL "\n\n"
 #endif

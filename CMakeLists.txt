@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 1.0.0 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 1.0.1 LANGUAGES CXX)
 set(ASB_RELEASE_LABEL "${PROJECT_VERSION}")
 add_compile_definitions(ASB_RELEASE_LABEL="${ASB_RELEASE_LABEL}")
 

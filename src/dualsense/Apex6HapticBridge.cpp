@@ -15,6 +15,8 @@ namespace asb::dualsense {
 namespace {
 
 constexpr auto kFramePeriod = std::chrono::milliseconds(8);
+constexpr auto kIdleKeepalive = std::chrono::milliseconds(50);
+constexpr unsigned kIdleEnterFrames = 8;
 constexpr auto kEnableDelay = std::chrono::milliseconds(94);
 constexpr auto kAudioEnvelopeTimeout = std::chrono::milliseconds(100);
 constexpr auto kMaximumWaveformAge = std::chrono::milliseconds(24);
@@ -131,12 +133,15 @@ bool Apex6HapticBridge::stop(std::string& error) noexcept {
         std::lock_guard lock(stateMutex_);
         if (!started_ && !worker_.joinable()) return true;
         stopping_ = true;
+        wakeRequested_ = true;
     }
     stopSignal_.notify_all();
     if (worker_.joinable()) worker_.join();
     {
         std::lock_guard lock(stateMutex_);
         started_ = false;
+        wakeRequested_ = false;
+        idle_ = false;
         waveformQueue_.clear();
         lastWaveformSequence_.reset();
         lastWaveformAt_ = {};
@@ -235,6 +240,10 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         }
         lastWaveformSequence_ = block.sequence;
         lastWaveformAt_ = Clock::now();
+        if (idle_ && leftPeak == 0 && rightPeak == 0) {
+            silentWaveformSkipped_.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
         if (waveformQueue_.size() == kWaveformQueueCapacity) {
             const auto& dropped = waveformQueue_.front();
             if (anyNonZero(dropped.left) || anyNonZero(dropped.right)) {
@@ -246,6 +255,7 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         }
         waveformQueue_.push_back(std::move(block));
         updateMaximum(waveformQueueMaxDepth_, waveformQueue_.size());
+        wakeLocked();
         return;
     }
     if (feedback.kind == FeedbackKind::AudioHaptics) {
@@ -256,6 +266,7 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
             audioEnvelopeActive_.fetch_add(1, std::memory_order_relaxed);
         }
         lastAudioEnvelopeAt_ = Clock::now();
+        if (audioEnvelope_.lowFrequency != 0 || audioEnvelope_.highFrequency != 0) wakeLocked();
         return;
     }
 
@@ -273,6 +284,7 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         rumbleLow_ = routeGrips_ ? feedback.rumbleLeft : 0;
         rumbleHigh_ = routeGrips_ ? feedback.rumbleRight : 0;
         diagnosticGripCarrier_ = false;
+        if (rumbleLow_ != 0 || rumbleHigh_ != 0) wakeLocked();
     }
     if ((feedback.enableBits1 & kLeftTrigger) != 0) {
         handleTrigger(TriggerSide::Left, feedback);
@@ -324,6 +336,7 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
         return;
     }
     target = next;
+    if (next.type != Apex6TriggerType::Off) wakeLocked();
     (left ? leftTriggerState_ : rightTriggerState_).reset();
     if (!decoded) triggerRejectedStops_.fetch_add(1, std::memory_order_relaxed);
     else (next.type == Apex6TriggerType::Off ? triggerStops_ : triggerActiveUpdates_)
@@ -351,6 +364,7 @@ void Apex6HapticBridge::setDiagnosticTrigger(
     if (target != effect) {
         target = effect;
         state.reset();
+        wakeLocked();
     }
 }
 
@@ -360,6 +374,31 @@ void Apex6HapticBridge::setDiagnosticGrips(
     rumbleLow_ = left;
     rumbleHigh_ = right;
     diagnosticGripCarrier_ = true;
+    wakeLocked();
+}
+
+void Apex6HapticBridge::wakeLocked() noexcept {
+    idle_ = false;
+    wakeRequested_ = true;
+    stopSignal_.notify_one();
+}
+
+bool Apex6HapticBridge::tryEnterIdle(Clock::time_point now) noexcept {
+    std::lock_guard lock(stateMutex_);
+    const bool envelopeLive = lastAudioEnvelopeAt_.time_since_epoch().count() != 0 &&
+                              now - lastAudioEnvelopeAt_ < kAudioEnvelopeTimeout;
+    const bool quiet = leftTrigger_.type == Apex6TriggerType::Off &&
+                       rightTrigger_.type == Apex6TriggerType::Off &&
+                       rumbleLow_ == 0 && rumbleHigh_ == 0 && !envelopeLive &&
+                       std::all_of(waveformQueue_.begin(), waveformQueue_.end(),
+                                   [](const WaveformBlock& block) {
+                                       return !anyNonZero(block.left) && !anyNonZero(block.right);
+                                   });
+    if (!quiet) return false;
+    silentWaveformSkipped_.fetch_add(waveformQueue_.size(), std::memory_order_relaxed);
+    waveformQueue_.clear();
+    idle_ = true;
+    return true;
 }
 
 flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
@@ -377,6 +416,7 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
     bool waveformRecentlyReceived = false;
     {
         std::lock_guard lock(stateMutex_);
+        wakeRequested_ = false;
         while (!waveformQueue_.empty() &&
                now - waveformQueue_.front().receivedAt > kMaximumWaveformAge) {
             const auto& dropped = waveformQueue_.front();
@@ -527,11 +567,38 @@ void Apex6HapticBridge::run() noexcept {
 #ifdef _WIN32
     HighResolutionDeadlineTimer deadlineTimer;
 #endif
+    unsigned silentStreak = 0;
     for (;;) {
         deadline += kFramePeriod;
         flydigi::apex6::TriggerRoute route{};
         bool triggerEnabled = false;
-        const auto block = renderBlock(route, triggerEnabled, Clock::now());
+        const auto renderedAt = Clock::now();
+        const auto block = renderBlock(route, triggerEnabled, renderedAt);
+        const bool silent = !triggerEnabled &&
+            std::all_of(block.begin(), block.end(), [](const auto& sample) {
+                return sample.leftGrip == 0 && sample.rightGrip == 0 && sample.trigger == 0;
+            });
+        silentStreak = silent ? silentStreak + 1 : 0;
+        bool keepalive = false;
+        if (silentStreak >= kIdleEnterFrames && tryEnterIdle(renderedAt)) {
+            std::unique_lock lock(stateMutex_);
+            const bool woken = stopSignal_.wait_for(
+                lock, kIdleKeepalive, [this] { return wakeRequested_; });
+            if (stopping_) return;
+            idle_ = false;
+            lock.unlock();
+            const auto now = Clock::now();
+            idleFramesSkipped_.fetch_add(
+                static_cast<std::uint64_t>((now - renderedAt) / kFramePeriod),
+                std::memory_order_relaxed);
+            deadline = now;
+            if (woken) {
+                silentStreak = 0;
+                continue;
+            }
+            keepalive = true;
+            idleKeepalives_.fetch_add(1, std::memory_order_relaxed);
+        }
         std::string writeError;
         const auto writeStartedAt = Clock::now();
         if (!device_.writeApex6Haptics(
@@ -546,6 +613,7 @@ void Apex6HapticBridge::run() noexcept {
         totalWriteDurationUs_.fetch_add(writeDurationUs, std::memory_order_relaxed);
         updateMaximum(maximumWriteDurationUs_, writeDurationUs);
         framesWritten_.fetch_add(1, std::memory_order_relaxed);
+        if (keepalive) continue;
 
         bool usedHighResolutionTimer = false;
 #ifdef _WIN32
@@ -661,6 +729,9 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
     result.gripEnvelopeFrames = gripEnvelopeFrames_.load(std::memory_order_relaxed);
     result.gripRumbleFrames = gripRumbleFrames_.load(std::memory_order_relaxed);
     result.deadlineOverruns = deadlineOverruns_.load(std::memory_order_relaxed);
+    result.idleFramesSkipped = idleFramesSkipped_.load(std::memory_order_relaxed);
+    result.idleKeepalives = idleKeepalives_.load(std::memory_order_relaxed);
+    result.silentWaveformSkipped = silentWaveformSkipped_.load(std::memory_order_relaxed);
     result.writeFailures = writeFailures_.load(std::memory_order_relaxed);
     result.totalWriteDurationUs =
         totalWriteDurationUs_.load(std::memory_order_relaxed);

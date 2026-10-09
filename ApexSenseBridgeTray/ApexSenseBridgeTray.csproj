@@ -139,6 +139,7 @@
     <Compile Include="Common\AppLog.cs" />
     <Compile Include="Common\ThemeManager.cs" />
     <Compile Include="Common\GamepadNavigationService.cs" />
+    <Compile Include="Common\WindowCorners.cs" />
     <Compile Include="Common\FocusRingAdorner.cs" />
     <Compile Include="Common\LanguageCatalog.cs" />
     <Compile Include="Common\LocalizationManager.cs" />

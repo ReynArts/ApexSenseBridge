@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.0.1
+
+### Adaptive trigger release on unsupported effects and expanded effect translation
+
+- Unsupported DualSense trigger effect packets (e.g., `0xFC` or unhandled command
+  variants) now explicitly release active trigger effects back to Normal mode instead
+  of leaving prior resistance or vibration stuck on the physical APEX triggers.
+- Added translation support for DualSense trigger effect modes `0x11` (Race),
+  `0x12` (SniperBreak), `0x22` (Slope resistance variant), `0x23`, `0x25` (Semi-automatic
+  with force threshold), and `0x27`.
+- Calibrated `RecoilRattle` amplitude mapping for low-frequency vibrations (such as
+  the Horizon bow held at 4 Hz) and smoothed graded ramp transitions.
+
+### APEX 6 Pro haptic idle suppression
+
+- Added idle frame suppression with periodic keepalives in `Apex6HapticBridge`:
+  skips redundant zero/silent frames when idle, saving USB bandwidth and CPU cycles,
+  while waking up immediately with zero latency upon active audio waveforms or grip rumble.
+- Added telemetry tracking for skipped idle frames, keepalives, and silent waveforms.
+
+### Tray UI, gamepad navigation and Windows 11 polish
+
+- Enabled native Windows 11 rounded window corners across Tray windows via DWM API.
+- Polished gamepad navigation with calibrated analog stick deadzones, repeated navigation
+  support, improved scroll responsiveness, and reliable back button handling.
+- Refined Console theme styling, focus adorners, and controller test window gauges.
+
 ## 1.0.0
 
 ### HidHide in use by DSX or another application ([#28](https://github.com/ReynArts/ApexSenseBridge/issues/28))

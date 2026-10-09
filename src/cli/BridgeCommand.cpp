@@ -1002,10 +1002,10 @@ int commandBridgeTriggers(int argc, char** argv) {
             if (options.touchpadProfile != asb::dualsense::TouchpadGestureProfile::None) {
                 touchpadGestureMapper.transform(input, inputObservedAt);
             }
-            // Event-driven HID reports are forwarded immediately. The XInput
-            // fallback polls at 1 ms but coalesces unchanged states.
-            forwardInput = inputSource->eventDriven() ||
-                           !lastForwardedInput || *lastForwardedInput != input;
+            // Changed states go out immediately; unchanged ones only as a keepalive.
+            forwardInput = !lastForwardedInput || *lastForwardedInput != input ||
+                           (inputSource->eventDriven() &&
+                            inputObservedAt - lastInputForwardedAt >= kInputKeepalive);
             if (!forwardInput) ++coalescedInputReports;
         } else if (inputStatus == asb::platform::PhysicalInputStatus::Timeout) {
             if (inputSource->eventDriven() && inputFreshness.expired(inputObservedAt)) {
@@ -1043,7 +1043,8 @@ int commandBridgeTriggers(int argc, char** argv) {
                 break;
             }
             forwardingLatency.observe(std::chrono::steady_clock::now() - inputObservedAt);
-            if (inputStatus == asb::platform::PhysicalInputStatus::State) {
+            if (inputStatus == asb::platform::PhysicalInputStatus::State &&
+                (!lastForwardedInput || *lastForwardedInput != input)) {
                 ++forwardedPhysicalReports;
             } else {
                 ++keepaliveInputReports;
@@ -1533,6 +1534,9 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_waveform_maximum_age_us="
               << apex6Stats.waveformMaximumAgeUs << '\n'
               << "apex6_deadline_overruns=" << apex6Stats.deadlineOverruns << '\n'
+              << "apex6_idle_frames_skipped=" << apex6Stats.idleFramesSkipped << '\n'
+              << "apex6_idle_keepalives=" << apex6Stats.idleKeepalives << '\n'
+              << "apex6_silent_waveform_skipped=" << apex6Stats.silentWaveformSkipped << '\n'
               << "apex6_write_failures=" << apex6Stats.writeFailures << '\n'
               << "apex6_average_write_us="
               << (apex6Stats.framesWritten == 0
@@ -1616,6 +1620,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                   bridgeStats.lastActiveLeftCommand);
         printLast("active_rt", bridgeStats.lastActiveRightDualSenseType,
                   bridgeStats.lastActiveRightCommand);
+        asb::cli::writeAdaptiveTriggerDiagnostics(std::cout, bridgeStats);
     }
     if (!resetOk) {
         const std::string prefix = apex6Pro

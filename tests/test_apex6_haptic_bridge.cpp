@@ -417,10 +417,52 @@ void testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm() {
     assert(stats.pcmOutputLeftPeak == 0 && stats.pcmOutputRightPeak == 0);
 }
 
+void testIdleSkipsFramesAndWakesImmediately() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    assert(bridge.start(error));
+    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+    const auto idle = bridge.stats();
+    assert(idle.framesWritten < 40); // 100 ticks without idle suppression
+    assert(idle.idleFramesSkipped > 30);
+    assert(idle.idleKeepalives > 0);
+
+    DualSenseFeedback silent{};
+    silent.kind = FeedbackKind::AudioHapticWaveform;
+    silent.audioSequence = 1;
+    bridge.handle(silent);
+    assert(bridge.stats().silentWaveformSkipped == 1);
+
+    const auto framesBefore = bridge.stats().framesWritten;
+    DualSenseFeedback active = silent;
+    active.audioSequence = 2;
+    active.leftHapticSamples.fill(12000);
+    bridge.handle(active);
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    assert(bridge.stats().framesWritten > framesBefore);
+    assert(bridge.stats().waveformActiveRendered > 0);
+
+    DualSenseFeedback rumble{};
+    rumble.enableBits1 = 0x01;
+    rumble.rumbleLeft = 200;
+    bridge.handle(rumble);
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    assert(bridge.stats().gripRumbleFrames > 0);
+    assert(bridge.stop(error));
+    assert(!bridge.failed());
+}
+
 int main() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
 
+    testIdleSkipsFramesAndWakesImmediately();
     testNativeTriggerEffects();
     testPcmGainCurve();
     testApex6EnvelopeThresholdPolicy();

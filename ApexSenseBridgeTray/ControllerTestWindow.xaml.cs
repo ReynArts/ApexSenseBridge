@@ -30,6 +30,11 @@ namespace ApexSenseBridgeTray
         private double lastRawRoll = 0.0;
         private CancellationTokenSource latencyTestCancellation;
 
+        private static readonly Brush ConnectedBadgeBg = Frozen(Color.FromArgb(50, 46, 187, 79));
+        private static readonly Brush ConnectedBadgeFg = Frozen(Color.FromRgb(46, 187, 79));
+        private bool? lastConnected;
+        private int lastL2 = -1;
+        private int lastR2 = -1;
         private readonly SolidColorBrush activeBtnBrush = new SolidColorBrush(Color.FromRgb(41, 121, 255));
         private readonly SolidColorBrush defaultBtnBrush = new SolidColorBrush(Color.FromRgb(37, 41, 52));
         private readonly SolidColorBrush defaultBdrBrush = new SolidColorBrush(Color.FromRgb(58, 64, 80));
@@ -38,12 +43,13 @@ namespace ApexSenseBridgeTray
         {
             this.settings = settings ?? TraySettings.Load();
             InitializeComponent();
+            WindowCorners.ApplyRounded(this);
 
             testService = new ControllerTestService();
 
             pollTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS
+                Interval = TimeSpan.FromMilliseconds(33)
             };
             pollTimer.Tick += OnPollTick;
 
@@ -116,33 +122,45 @@ namespace ApexSenseBridgeTray
 
         private void OnPollTick(object sender, EventArgs e)
         {
-            if (!IsVisible) return;
+            if (!IsVisible || WindowState == WindowState.Minimized) return;
 
             var state = testService.PollInputState();
 
             // Status badge
-            if (state.Connected)
+            if (lastConnected != state.Connected)
             {
-                BadgeControllerStatus.Background = new SolidColorBrush(Color.FromArgb(50, 46, 187, 79));
-                TxtControllerStatus.Foreground = new SolidColorBrush(Color.FromRgb(46, 187, 79));
-                TxtControllerStatus.Text = "● " + LocalizationManager.Get("Loc_ControllerConnectedBadge");
-            }
-            else
-            {
-                BadgeControllerStatus.Background = (Brush)FindResource("BadgeStandbyBg");
-                TxtControllerStatus.Foreground = (Brush)FindResource("BadgeStandbyFg");
-                TxtControllerStatus.Text = "○ " + LocalizationManager.Get("Loc_ControllerDisconnectedBadge");
+                lastConnected = state.Connected;
+                if (state.Connected)
+                {
+                    BadgeControllerStatus.Background = ConnectedBadgeBg;
+                    TxtControllerStatus.Foreground = ConnectedBadgeFg;
+                    TxtControllerStatus.Text = "● " + LocalizationManager.Get("Loc_ControllerConnectedBadge");
+                }
+                else
+                {
+                    BadgeControllerStatus.Background = (Brush)FindResource("BadgeStandbyBg");
+                    TxtControllerStatus.Foreground = (Brush)FindResource("BadgeStandbyFg");
+                    TxtControllerStatus.Text = "○ " + LocalizationManager.Get("Loc_ControllerDisconnectedBadge");
+                }
             }
 
             // Triggers L2 / R2: travel gauges under the controller + overlay glow on the drawing
-            FillL2.Height = TriggerGaugeHeight * state.LeftTrigger / 255.0;
-            TxtL2Val.Text = string.Format("L2 {0}%", (int)Math.Round(state.LeftTrigger / 2.55));
-            OverlayL2.Opacity = state.LeftTrigger / 255.0;
+            if (lastL2 != state.LeftTrigger)
+            {
+                lastL2 = state.LeftTrigger;
+                FillL2.Height = TriggerGaugeHeight * state.LeftTrigger / 255.0;
+                TxtL2Val.Text = string.Format("L2 {0}%", (int)Math.Round(state.LeftTrigger / 2.55));
+                OverlayL2.Opacity = state.LeftTrigger / 255.0;
+            }
             OverlayL1.Visibility = state.L1 ? Visibility.Visible : Visibility.Collapsed;
 
-            FillR2.Height = TriggerGaugeHeight * state.RightTrigger / 255.0;
-            TxtR2Val.Text = string.Format("R2 {0}%", (int)Math.Round(state.RightTrigger / 2.55));
-            OverlayR2.Opacity = state.RightTrigger / 255.0;
+            if (lastR2 != state.RightTrigger)
+            {
+                lastR2 = state.RightTrigger;
+                FillR2.Height = TriggerGaugeHeight * state.RightTrigger / 255.0;
+                TxtR2Val.Text = string.Format("R2 {0}%", (int)Math.Round(state.RightTrigger / 2.55));
+                OverlayR2.Opacity = state.RightTrigger / 255.0;
+            }
             OverlayR1.Visibility = state.R1 ? Visibility.Visible : Visibility.Collapsed;
             // D-Pad
             OverlayUp.Visibility = state.DpadUp ? Visibility.Visible : Visibility.Collapsed;

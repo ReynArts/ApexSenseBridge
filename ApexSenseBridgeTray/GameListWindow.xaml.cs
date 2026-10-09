@@ -70,6 +70,7 @@ namespace ApexSenseBridgeTray
             this.updateChecker = updateChecker;
 
             InitializeComponent();
+            WindowCorners.ApplyRounded(this);
             viewInitialized = true;
 
             LstGames.ItemsSource = filteredGames;
@@ -122,7 +123,9 @@ namespace ApexSenseBridgeTray
             UpdateControllerStatus("disconnected");
             statusTimer.Tick += (s, e) => { UpdateDashboardStatus(); UpdateClock(); };
             UpdateClock();
-            statusTimer.Start();
+            IsVisibleChanged += (s, e) => UpdateStatusTimer();
+            StateChanged += (s, e) => UpdateStatusTimer();
+            UpdateStatusTimer();
 
             if (string.Equals(initialTab, "games", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(initialTab, "certified", StringComparison.OrdinalIgnoreCase))
@@ -2513,6 +2516,21 @@ namespace ApexSenseBridgeTray
             if (e.LeftButton == MouseButtonState.Pressed)
             {
                 DragMove();
+            }
+        }
+
+        private void UpdateStatusTimer()
+        {
+            if (IsVisible && WindowState != WindowState.Minimized)
+            {
+                if (statusTimer.IsEnabled) return;
+                UpdateDashboardStatus();
+                UpdateClock();
+                statusTimer.Start();
+            }
+            else
+            {
+                statusTimer.Stop();
             }
         }
 

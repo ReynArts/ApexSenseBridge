@@ -32,6 +32,27 @@ void writeOptionalTriggerEntry(std::ostream& output,
 
 } // namespace
 
+void writeAdaptiveTriggerDiagnostics(std::ostream& output,
+                                     const asb::dualsense::AdaptiveTriggerBridgeStats& stats) {
+    output << "last_unsupported_lt_ds_type="
+           << static_cast<unsigned>(stats.lastUnsupportedLeftDualSenseType) << '\n'
+           << "last_unsupported_rt_ds_type="
+           << static_cast<unsigned>(stats.lastUnsupportedRightDualSenseType) << '\n'
+           << "unsupported_by_type=";
+    for (std::size_t index = 0; index < stats.unsupportedByType.size(); ++index) {
+        const auto& [type, count] = stats.unsupportedByType[index];
+        output << (index == 0 ? "" : ",") << "0x" << std::hex << static_cast<unsigned>(type)
+               << std::dec << ':' << count;
+    }
+    output << '\n';
+    for (std::size_t index = 0; index < stats.leftBlocks.size(); ++index) {
+        output << "trigger_block_lt_" << index << '=' << stats.leftBlocks[index] << '\n';
+    }
+    for (std::size_t index = 0; index < stats.rightBlocks.size(); ++index) {
+        output << "trigger_block_rt_" << index << '=' << stats.rightBlocks[index] << '\n';
+    }
+}
+
 void writeApex6TriggerTrace(std::ostream& output,
                            const asb::dualsense::Apex6HapticBridgeStats& stats) {
     const auto print = [&output](std::string_view key,

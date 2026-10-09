@@ -47,6 +47,7 @@ namespace ApexSenseBridgeTray
             this.settings = settings;
 
             InitializeComponent();
+            WindowCorners.ApplyRounded(this);
 
             gamepadNav = new GamepadNavigationService(this);
             gamepadNav.UpPressed += OnGamepadUp;
