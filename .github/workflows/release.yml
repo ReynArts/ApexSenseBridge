@@ -120,4 +120,6 @@ jobs:
             dist/*.pext
           generate_release_notes: false
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          # Rebuild the corrected 1.0.1 package as a pre-release; subsequent
+          # release tags keep the usual semantic-version prerelease behavior.
+          prerelease: ${{ github.ref_name == 'v1.0.1' || contains(github.ref_name, '-') }}
