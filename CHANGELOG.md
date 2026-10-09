@@ -14,6 +14,10 @@
 - `0x26` Vibration uses the averaged zone amplitude from where the effect
   reaches half its peak, so a held bow (Horizon, 4 Hz) pulses gently instead of
   rattling at full strength from the top of travel.
+- APEX 5: holding LT while starting to press RT (aiming and drawing a bow in
+  Horizon) no longer makes LT jump. The mapped HID axis cancels LT against RT,
+  so the independent LT/RT values are now used as soon as both triggers leave
+  the noise floor instead of only above 30/255.
 - Trigger writes are sent before pending grip rumble (rumble waits 100 ms at
   most), reducing trigger latency over the 2.4 GHz receiver.
 - Bridge summary adds `last_unsupported_lt/rt_ds_type`, `unsupported_by_type`

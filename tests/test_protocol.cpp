@@ -358,6 +358,20 @@ int main() {
     assert((aimingAndFiring.buttons & dualsense::button::kL2) != 0);
     assert((aimingAndFiring.buttons & dualsense::button::kR2) != 0);
     assert((aimingAndFiring.buttons & dualsense::button::kCircle) != 0);
+    // RT starting to move (bow draw in Horizon) already cancels the mapped LT;
+    // the held LT must not drop before RT crosses the button threshold.
+    auto partialMapped = aimMapped;
+    partialMapped.l2 = 200;
+    auto partialVendor = aimVendor;
+    partialVendor.r2 = 20;
+    const auto rtStarting = composeApex5InputState(partialMapped, partialVendor, 74, 2);
+    assert(rtStarting.l2 == 220 && rtStarting.r2 == 20);
+    assert((rtStarting.buttons & dualsense::button::kL2) != 0);
+    assert((rtStarting.buttons & dualsense::button::kR2) == 0);
+    auto noiseVendor = aimVendor;
+    noiseVendor.r2 = 8;
+    const auto rtNoise = composeApex5InputState(aimMapped, noiseVendor, 74, 2);
+    assert(rtNoise.l2 == 220 && rtNoise.r2 == 0);
     const auto firingReleased = composeApex5InputState(aimMapped, aimVendor, 74, 2);
     assert(firingReleased.l2 == 220 && firingReleased.r2 == 0);
     assert((firingReleased.buttons & dualsense::button::kR2) == 0);
