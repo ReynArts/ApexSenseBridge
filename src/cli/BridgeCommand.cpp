@@ -108,12 +108,15 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::optional<asb::flydigi::Apex5Device> device;
     const auto deviceOpenDeadline = std::chrono::steady_clock::now() +
                                     std::chrono::seconds(4);
+    const auto stopRequested = [&]() {
+        return g_stopRequested.load(std::memory_order_relaxed) ||
+               globalSessionStop->stopRequested() ||
+               (sessionControl && sessionControl->stopRequested());
+    };
     do {
         error.clear();
-        device = openSelectedIndex(options.deviceIndex, error);
-        if (device || g_stopRequested.load(std::memory_order_relaxed) ||
-            globalSessionStop->stopRequested() ||
-            (sessionControl && sessionControl->stopRequested())) {
+        device = openSelectedIndex(options.deviceIndex, stopRequested, error);
+        if (device || stopRequested()) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

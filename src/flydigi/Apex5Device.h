@@ -15,6 +15,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -54,7 +55,8 @@ public:
     [[nodiscard]] const HidDeviceInfo& info() const;
     [[nodiscard]] const std::optional<Apex5Identity>& identity() const noexcept;
 
-    bool verifyIdentity(std::string& error);
+    bool verifyIdentity(std::string& error,
+                        const std::function<bool()>& shouldStop = {});
 
     bool setTrigger(const TriggerEffect& effect, std::string& error);
     bool setTriggerRaw(const ForceTriggerCommand& command, std::string& error);

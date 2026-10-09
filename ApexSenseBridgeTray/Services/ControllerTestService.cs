@@ -139,6 +139,14 @@ namespace ApexSenseBridgeTray.Services
         }
 
         private Process activeTestProcess;
+        private volatile string lastCliError;
+
+        public string LastCliError
+        {
+            get { return lastCliError; }
+            private set { lastCliError = value; }
+        }
+
         private readonly object processLock = new object();
         private BridgeSession activeLatencySession;
         private readonly object latencySessionLock = new object();
@@ -193,20 +201,20 @@ namespace ApexSenseBridgeTray.Services
         {
             string args = string.Format("test-trigger --side {0} --mode {1} --level {2} --seconds {3}",
                 side.ToLowerInvariant(), mode.ToLowerInvariant(), level, seconds);
-            return RunCliCommandAsync(args);
+            return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 
         public Task<bool> TestRumbleAsync(int left, int right, int seconds)
         {
             string args = string.Format("test-rumble --left {0} --right {1} --seconds {2}", left, right, seconds);
-            return RunCliCommandAsync(args);
+            return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 
         public Task<bool> TestRgbAsync(byte r, byte g, byte b, int seconds)
         {
             string hex = string.Format("#{0:X2}{1:X2}{2:X2}", r, g, b);
             string args = string.Format("test-rgb {0}", hex);
-            return RunCliCommandAsync(args);
+            return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 
         public Task<bool> ResetAllEffectsAsync()
@@ -492,15 +500,17 @@ namespace ApexSenseBridgeTray.Services
             return result;
         }
 
-        private Task<bool> RunCliCommandAsync(string arguments)
+        private Task<bool> RunCliCommandAsync(string arguments, int timeoutMilliseconds = 10000)
         {
             return Task.Run(() =>
             {
+                LastCliError = null;
                 var engine = InstallLocator.ResolveEngine();
                 if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine)) return false;
 
                 KillActiveTestProcess();
 
+                Process process = null;
                 try
                 {
                     var start = new ProcessStartInfo(engine, arguments)
@@ -512,26 +522,62 @@ namespace ApexSenseBridgeTray.Services
                         WorkingDirectory = Path.GetDirectoryName(engine)
                     };
 
+                    string lastStdout = null;
+                    string lastStderr = null;
+                    var outputLock = new object();
+                    process = new Process { StartInfo = start };
+                    process.OutputDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrWhiteSpace(e.Data)) lock (outputLock) { lastStdout = e.Data.Trim(); }
+                    };
+                    process.ErrorDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrWhiteSpace(e.Data)) lock (outputLock) { lastStderr = e.Data.Trim(); }
+                    };
+
                     lock (processLock)
                     {
-                        activeTestProcess = Process.Start(start);
+                        process.Start();
+                        activeTestProcess = process;
                     }
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
 
-                    if (activeTestProcess == null) return false;
-
-                    activeTestProcess.WaitForExit(10000);
-                    int exitCode = activeTestProcess.ExitCode;
+                    bool exited = process.WaitForExit(timeoutMilliseconds);
+                    if (exited)
+                    {
+                        process.WaitForExit();
+                    }
+                    else
+                    {
+                        try { process.Kill(); } catch { }
+                        try { process.WaitForExit(2000); } catch { }
+                    }
 
                     lock (processLock)
                     {
-                        activeTestProcess = null;
+                        if (ReferenceEquals(activeTestProcess, process)) activeTestProcess = null;
                     }
 
-                    return exitCode == 0;
+                    bool succeeded = exited && process.ExitCode == 0;
+                    if (!succeeded)
+                    {
+                        lock (outputLock)
+                        {
+                            LastCliError = lastStderr ?? lastStdout ??
+                                (exited ? null : "ApexSenseBridge did not respond in time and was stopped.");
+                        }
+                    }
+                    return succeeded;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    LastCliError = ex.Message;
                     return false;
+                }
+                finally
+                {
+                    if (process != null) process.Dispose();
                 }
             });
         }

@@ -357,6 +357,13 @@ namespace ApexSenseBridgeTray
 
         #region Adaptive Triggers Test
 
+        private string FailureText(string key)
+        {
+            string text = LocalizationManager.Get(key);
+            string detail = testService.LastCliError;
+            return string.IsNullOrWhiteSpace(detail) ? text : text + " " + detail;
+        }
+
         private async void OnApplyTriggerClick(object sender, RoutedEventArgs e)
         {
             string side = "both";
@@ -379,7 +386,7 @@ namespace ApexSenseBridgeTray
             try
             {
                 bool ok = await testService.TestTriggerAsync(side, mode, level, 3);
-                TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_TriggerTestSuccess") : LocalizationManager.Get("Loc_TriggerTestFailed");
+                TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_TriggerTestSuccess") : FailureText("Loc_TriggerTestFailed");
             }
             catch (Exception ex)
             {
@@ -438,7 +445,7 @@ namespace ApexSenseBridgeTray
             try
             {
                 bool ok = await testService.TestRumbleAsync(left, right, 1);
-                TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_RumbleTestSuccess") : LocalizationManager.Get("Loc_RumbleTestFailed");
+                TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_RumbleTestSuccess") : FailureText("Loc_RumbleTestFailed");
             }
             catch (Exception ex)
             {
@@ -508,7 +515,7 @@ namespace ApexSenseBridgeTray
             try
             {
                 bool ok = await testService.TestRgbAsync(currentR, currentG, currentB, 2);
-                TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_RgbTestSuccess") : LocalizationManager.Get("Loc_RgbTestFailed");
+                TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_RgbTestSuccess") : FailureText("Loc_RgbTestFailed");
             }
             catch (Exception ex)
             {

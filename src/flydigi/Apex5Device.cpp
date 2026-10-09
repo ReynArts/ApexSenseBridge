@@ -14,11 +14,17 @@
 #include <sstream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
 namespace asb::flydigi {
 namespace {
+
+constexpr std::string_view kApex5UnresponsiveHint =
+    "The APEX 5 vendor interface did not answer. Wake the controller and close "
+    "Flydigi Space Station, then retry; if it persists in XInput mode, switch "
+    "the controller to DInput/Switch mode";
 
 bool isApex4Candidate(const HidDeviceInfo& info) noexcept {
     return isApex4Product(info.vendorId, info.productId) &&
@@ -227,7 +233,8 @@ bool Apex5Device::usesApex4Protocol() const noexcept {
         transport_->info().vendorId, transport_->info().productId);
 }
 
-bool Apex5Device::verifyIdentity(std::string& error) {
+bool Apex5Device::verifyIdentity(std::string& error,
+                                const std::function<bool()>& shouldStop) {
     if (!isOpen()) {
         error = "APEX device is not open";
         return false;
@@ -280,6 +287,10 @@ bool Apex5Device::verifyIdentity(std::string& error) {
     const std::size_t maximumAttempts = apex4 ? 30 : (apex6Pro ? 1 : 3);
     Apex4IdentityObservation apex4Observation;
     for (std::size_t attempt = 0; attempt < maximumAttempts; ++attempt) {
+        if (shouldStop && shouldStop()) {
+            error = "Identity check cancelled by a stop request";
+            return false;
+        }
         const bool requestWritten = apex4
             ? transport_->writeOutputReport(buildApex4IdentityRequest(), error)
             : (apex6Pro
@@ -287,6 +298,7 @@ bool Apex5Device::verifyIdentity(std::string& error) {
                    : transport_->writeOutputReport(Apex5Identity::buildRequest(), error));
         if (!requestWritten) {
             error = "Could not send the read-only Flydigi identity request: " + error;
+            if (!apex4 && !apex6Pro) error += "; " + std::string(kApex5UnresponsiveHint);
             return false;
         }
 
@@ -303,6 +315,10 @@ bool Apex5Device::verifyIdentity(std::string& error) {
             const auto status = transport_->readInputReport(
                 input, remaining, bytesRead, readError);
             if (status == platform::HidReadStatus::Timeout) break;
+            if (shouldStop && shouldStop()) {
+                error = "Identity check cancelled by a stop request";
+                return false;
+            }
             if (status == platform::HidReadStatus::Error) {
                 error = "Could not read the Flydigi identity reply: " + readError;
                 return false;
@@ -354,8 +370,8 @@ bool Apex5Device::verifyIdentity(std::string& error) {
         error = "No valid command 0x01 Apex 6 identity reply arrived within 600 ms; "
                 "wake the controller and close Flydigi Space Station before retrying";
     } else {
-        error = "No valid command 0x01 Apex 5 identity reply arrived after three attempts; "
-                "wake the controller and close Flydigi Space Station before retrying";
+        error = "No valid command 0x01 Apex 5 identity reply arrived after three attempts; " +
+                std::string(kApex5UnresponsiveHint);
     }
     return false;
 }

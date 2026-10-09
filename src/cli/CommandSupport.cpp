@@ -296,6 +296,12 @@ std::optional<asb::flydigi::Apex5Device> openSelected(int argc, char** argv, std
 
 std::optional<asb::flydigi::Apex5Device> openSelectedIndex(
     std::optional<std::size_t> requested, std::string& error) {
+    return openSelectedIndex(requested, std::function<bool()>{}, error);
+}
+
+std::optional<asb::flydigi::Apex5Device> openSelectedIndex(
+    std::optional<std::size_t> requested, const std::function<bool()>& shouldStop,
+    std::string& error) {
     auto candidates = asb::flydigi::Apex5Device::findCandidates(error);
     if (!error.empty() && candidates.empty()) return std::nullopt;
     if (candidates.empty()) {
@@ -313,7 +319,7 @@ std::optional<asb::flydigi::Apex5Device> openSelectedIndex(
         return std::nullopt;
     }
     auto device = asb::flydigi::Apex5Device::open(candidates[index], error);
-    if (!device || !device->verifyIdentity(error)) return std::nullopt;
+    if (!device || !device->verifyIdentity(error, shouldStop)) return std::nullopt;
     return device;
 }
 
