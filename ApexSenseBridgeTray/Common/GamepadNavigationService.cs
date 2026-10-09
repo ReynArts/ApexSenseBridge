@@ -103,7 +103,10 @@ namespace ApexSenseBridgeTray.Common
         private bool isControllerConnected;
         private ushort lastButtons;
         private int connectedUserIndex = -1;
-        private int scanCounter = 0;
+        private const int ActivePollMs = 20;
+        private const int IdlePollMs = 100;
+        private const int ScanIntervalMs = 900;
+        private int lastScanTick;
         private DateTime lastGamepadActivityUtc = DateTime.MinValue;
         private Point lastMousePosition;
         private bool hasMousePosition;
@@ -164,10 +167,14 @@ namespace ApexSenseBridgeTray.Common
             targetWindow.PreviewMouseDown += OnWindowMouseDown;
             targetWindow.PreviewMouseWheel += OnWindowMouseWheel;
             targetWindow.Closed += OnWindowClosed;
+            targetWindow.IsVisibleChanged += OnWindowVisibleChanged;
+            targetWindow.StateChanged += OnWindowPollingConditionChanged;
+            targetWindow.Activated += OnWindowPollingConditionChanged;
+            targetWindow.Deactivated += OnWindowPollingConditionChanged;
 
             pollTimer = new DispatcherTimer(DispatcherPriority.Input)
             {
-                Interval = TimeSpan.FromMilliseconds(20)
+                Interval = TimeSpan.FromMilliseconds(IdlePollMs)
             };
             pollTimer.Tick += OnPollTick;
 
@@ -175,7 +182,7 @@ namespace ApexSenseBridgeTray.Common
             {
                 var helper = new WindowInteropHelper(targetWindow);
                 windowHandle = helper.Handle;
-                pollTimer.Start();
+                UpdatePollingState();
             }
         }
 
@@ -183,6 +190,34 @@ namespace ApexSenseBridgeTray.Common
         {
             var helper = new WindowInteropHelper(targetWindow);
             windowHandle = helper.Handle;
+            UpdatePollingState();
+        }
+
+        private void OnWindowPollingConditionChanged(object sender, EventArgs e)
+        {
+            UpdatePollingState();
+        }
+
+        private void OnWindowVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            UpdatePollingState();
+        }
+
+        private void SetPollInterval(int milliseconds)
+        {
+            var interval = TimeSpan.FromMilliseconds(milliseconds);
+            if (pollTimer.Interval != interval) pollTimer.Interval = interval;
+        }
+
+        private void UpdatePollingState()
+        {
+            if (windowHandle == IntPtr.Zero) return;
+            if (!targetWindow.IsVisible || targetWindow.WindowState == WindowState.Minimized)
+            {
+                if (pollTimer.IsEnabled) pollTimer.Stop();
+                return;
+            }
+            SetPollInterval(isControllerConnected && targetWindow.IsActive ? ActivePollMs : IdlePollMs);
             if (!pollTimer.IsEnabled) pollTimer.Start();
         }
 
@@ -231,7 +266,7 @@ namespace ApexSenseBridgeTray.Common
 
         public void Start()
         {
-            if (!pollTimer.IsEnabled) pollTimer.Start();
+            UpdatePollingState();
         }
 
         public void Stop()
@@ -274,8 +309,10 @@ namespace ApexSenseBridgeTray.Common
             {
                 lastButtons = 0;
                 activeDirection = null;
+                SetPollInterval(IdlePollMs);
                 return;
             }
+            SetPollInterval(isControllerConnected ? ActivePollMs : IdlePollMs);
 
             XINPUT_STATE state = new XINPUT_STATE();
             bool foundController = false;
@@ -293,16 +330,17 @@ namespace ApexSenseBridgeTray.Common
                 else
                 {
                     connectedUserIndex = -1;
-                    scanCounter = 44;
+                    lastScanTick = 0;
                 }
             }
 
             // Slow path: scan for connected controller only periodically or on loss
             if (!foundController)
             {
-                scanCounter++;
-                if (scanCounter % 45 == 0 || connectedUserIndex == -1 && scanCounter < 5)
+                int now = Environment.TickCount;
+                if (lastScanTick == 0 || unchecked(now - lastScanTick) >= ScanIntervalMs)
                 {
+                    lastScanTick = now == 0 ? 1 : now;
                     scannedControllers = true;
                     for (int i = 0; i < 4; i++)
                     {
@@ -523,6 +561,10 @@ namespace ApexSenseBridgeTray.Common
             targetWindow.PreviewMouseDown -= OnWindowMouseDown;
             targetWindow.PreviewMouseWheel -= OnWindowMouseWheel;
             targetWindow.Closed -= OnWindowClosed;
+            targetWindow.IsVisibleChanged -= OnWindowVisibleChanged;
+            targetWindow.StateChanged -= OnWindowPollingConditionChanged;
+            targetWindow.Activated -= OnWindowPollingConditionChanged;
+            targetWindow.Deactivated -= OnWindowPollingConditionChanged;
         }
     }
 }

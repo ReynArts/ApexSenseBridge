@@ -188,6 +188,54 @@ class DiscordExecutableTests(unittest.TestCase):
 
         self.assertEqual(("no_match", 0, ""), (status, app_id, icon))
 
+    def test_fetch_steam_icon_url_extracts_library_capsule_2x(self):
+        response = _FakeResponse(
+            {
+                "response": {
+                    "store_items": [
+                        {
+                            "id": 123,
+                            "assets": {
+                                "asset_url_format": "steam/apps/123/${FILENAME}?t=12345",
+                                "library_capsule_2x": "hash123/library_capsule_2x.jpg",
+                                "library_capsule": "hash456/library_capsule.jpg",
+                                "header": "hash789/header.jpg",
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+        with mock.patch.object(UPDATER.urllib.request, "urlopen", return_value=response):
+            icon = UPDATER.fetch_steam_icon_url(123)
+
+        self.assertIn("/123/", icon)
+        self.assertIn("library_capsule_2x", icon)
+        self.assertIn("https://shared.akamai.steamstatic.com", icon)
+
+    def test_fetch_steam_icon_url_falls_back_to_header(self):
+        response = _FakeResponse(
+            {
+                "response": {
+                    "store_items": [
+                        {
+                            "id": 456,
+                            "assets": {
+                                "asset_url_format": "steam/apps/456/${FILENAME}",
+                                "library_capsule": "hash/library_capsule.jpg",
+                                "header": "hash/header.jpg",
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+        with mock.patch.object(UPDATER.urllib.request, "urlopen", return_value=response):
+            icon = UPDATER.fetch_steam_icon_url(456)
+
+        self.assertIn("library_capsule", icon)
+        self.assertNotIn("header", icon)
+
 
 class AddedDateTests(unittest.TestCase):
     TODAY = "2026-10-07"

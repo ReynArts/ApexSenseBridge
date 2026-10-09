@@ -3,12 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Loc_ControllerTestTitle}"
         Icon="Resources/app.ico"
-        Height="780" Width="1120"
+        Height="700" Width="1040"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        Background="#060A16"
         FontFamily="Segoe UI Variable Display, Segoe UI, sans-serif">
 
     <Window.Resources>
@@ -70,19 +69,14 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource ConsoleWindowFrame}" MouseLeftButtonDown="OnWindowDrag">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="0" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Border Style="{StaticResource ConsoleWindowFrameFlat}" MouseLeftButtonDown="OnWindowDrag">
         <Grid>
             <!-- Ambient halos clipped to the rounded frame -->
             <Grid x:Name="Backdrop" IsHitTestVisible="False" ClipToBounds="True">
-                <Grid.OpacityMask>
-                    <VisualBrush>
-                        <VisualBrush.Visual>
-                            <Border Background="Black" CornerRadius="21"
-                                    Width="{Binding ActualWidth, ElementName=Backdrop}"
-                                    Height="{Binding ActualHeight, ElementName=Backdrop}"/>
-                        </VisualBrush.Visual>
-                    </VisualBrush>
-                </Grid.OpacityMask>
                 <Rectangle>
                     <Rectangle.Fill>
                         <RadialGradientBrush Center="0.1,0" GradientOrigin="0.1,0" RadiusX="0.45" RadiusY="0.65">

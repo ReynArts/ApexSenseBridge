@@ -50,7 +50,7 @@ BUILTIN_GAMES = [
         "profile": "standard",
         "steamAppId": 1938090,
         "steamAppIdVerified": True,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
+        "iconUrl": "",
         # Current releases enter through the shared Call of Duty HQ process.
         "executables": ["cod.exe"],
     },
@@ -72,7 +72,7 @@ BUILTIN_GAMES = [
         "profile": "miles-morales",
         "steamAppId": 1817190,
         "steamAppIdVerified": True,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1817190/library_600x900.jpg",
+        "iconUrl": "",
     },
     {
         "title": "Ghost of Tsushima DIRECTOR'S CUT",
@@ -82,7 +82,7 @@ BUILTIN_GAMES = [
         "profile": "ghost-of-tsushima",
         "steamAppId": 2215430,
         "steamAppIdVerified": True,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2215430/library_600x900.jpg",
+        "iconUrl": "",
     },
     {
         "title": "Warframe",
@@ -92,7 +92,7 @@ BUILTIN_GAMES = [
         "profile": "warframe",
         "steamAppId": 230410,
         "steamAppIdVerified": True,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/230410/library_600x900.jpg",
+        "iconUrl": "",
     },
     {
         "title": "Call of Duty: Modern Warfare 4 Beta",
@@ -102,7 +102,7 @@ BUILTIN_GAMES = [
         "profile": "standard",
         "steamAppId": 1938090,
         "steamAppIdVerified": False,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/library_600x900.jpg",
+        "iconUrl": "",
     },
     {
         "title": "Grand Theft Auto V",
@@ -112,7 +112,7 @@ BUILTIN_GAMES = [
         "profile": "standard",
         "steamAppId": 271590,
         "steamAppIdVerified": True,
-        "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900.jpg",
+        "iconUrl": "",
     },
 ]
 
@@ -439,6 +439,38 @@ def fetch_pcgw_titles(page_titles: list) -> list:
     return list(fetch_pcgw_support(page_titles))
 
 
+def fetch_steam_icon_url(app_id: int) -> str:
+    """Fetches the correct Steam library_capsule_2x icon URL via IStoreBrowseService API."""
+    try:
+        input_json = json.dumps({
+            "ids": [{"appid": app_id}],
+            "context": {"language": "english", "country_code": "US"},
+            "data_request": {"include_assets": True}
+        })
+        api_url = f"https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json={urllib.parse.quote(input_json)}"
+        req = urllib.request.Request(api_url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        store_items = data.get("response", {}).get("store_items", [])
+        if not store_items:
+            return None
+        item = store_items[0]
+        assets = item.get("assets", {})
+        asset_url_format = assets.get("asset_url_format", "")
+        asset_name = None
+        if assets.get("library_capsule_2x"):
+            asset_name = assets["library_capsule_2x"]
+        elif assets.get("library_capsule"):
+            asset_name = assets["library_capsule"]
+        elif assets.get("header"):
+            asset_name = assets["header"]
+        if asset_name and asset_url_format:
+            return "https://shared.akamai.steamstatic.com/store_item_assets/" + asset_url_format.replace("${FILENAME}", asset_name)
+        return None
+    except Exception:
+        return None
+
+
 def resolve_steam_identity(title: str) -> tuple:
     """Resolves a unique exact normalized Steam title; never accepts the first result blindly."""
     try:
@@ -466,6 +498,9 @@ def resolve_steam_identity(title: str) -> tuple:
 
         if len(exact_matches) == 1:
             app_id = next(iter(exact_matches))
+            icon = fetch_steam_icon_url(app_id)
+            if icon:
+                return "verified", app_id, icon
             icon = (
                 "https://shared.akamai.steamstatic.com/store_item_assets/steam/"
                 f"apps/{app_id}/library_600x900.jpg"
@@ -632,6 +667,24 @@ def main():
             f"[+] Steam identity audit: {verified_count} verified, "
             f"{unresolved_count} unresolved, {error_count} request errors."
         )
+
+    # Resolve missing icons and repair broken URLs (issue #37)
+    need_icon_resolve = [
+        g for g in games_dict.values()
+        if g.get("steamAppIdVerified", False) and g.get("steamAppId", 0) > 0
+        and (not g.get("iconUrl") or "library_600x900.jpg" in g.get("iconUrl", ""))
+    ]
+    if need_icon_resolve:
+        print(f"[*] Resolving/repairing {len(need_icon_resolve)} icon URLs...")
+        fixed_count = 0
+        for g in need_icon_resolve:
+            icon_url = fetch_steam_icon_url(g["steamAppId"])
+            if icon_url:
+                g["iconUrl"] = icon_url
+                fixed_count += 1
+            # Slight delay to respect Steam rate limits
+            time.sleep(0.05)
+        print(f"[+] Icon resolution: {fixed_count} URLs resolved/repaired.")
 
     output_list = sorted(games_dict.values(), key=lambda g: g["title"].lower())
 

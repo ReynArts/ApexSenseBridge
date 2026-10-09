@@ -22,6 +22,9 @@
   "Loc_RefusedManualFix": "所选功能需要手动修复。",
   "Loc_RefusedExcluded": "此游戏已排除自动激活。",
   "Loc_RefusedCriteria": "游戏功能不符合激活条件。",
+  "Loc_Retry": "重试",
+  "Loc_HidHideBusy": "HidHide 正被其他应用程序占用（{0}）。请关闭该程序或禁用其 HidHide 集成，然后点击“重试”。",
+  "Loc_HidHideBusyUnknown": "HidHide 正被其他应用程序占用。请关闭所有使用 HidHide 的程序（DSX、DS4Windows…），然后点击“重试”。如果没有运行，请重启 Windows。",
   "Loc_RefusedIsolation": "无法验证 HidHide 隔离。",
   "Loc_GameExecutable": "游戏可执行文件（可选）",
   "Loc_GameExecutableHint": "关联游戏的实际 .exe 文件以提高检测可靠性。已学习的文件也显示在此列表中。",
@@ -365,5 +368,7 @@
   "Loc_GyroTestingStatus": "正在采集和分析陀螺仪数据...",
   "Loc_GyroTestResult": "六轴测试完成：收到 {0} 个采样，传感器{1}。",
   "Loc_GyroSensorOk": "正常",
-  "Loc_GyroSensorStill": "静止"
+  "Loc_GyroSensorStill": "静止",
+  "Loc_SteamAlreadyRunningTitle": "Steam已在运行",
+  "Loc_SteamAlreadyRunningBody": "Steam在控制器被隐藏时已在运行。如果看到重复输入，请完全退出Steam，然后在Bridge活跃时重新打开它。对游戏禁用Steam Input。"
 }

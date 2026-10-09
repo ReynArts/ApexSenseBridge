@@ -2,7 +2,9 @@
 
 #include "core/DeviceInfo.h"
 
+#include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -25,7 +27,8 @@ public:
     bool activate(const HidDeviceInfo& apexInterface,
                   std::string_view sessionToken,
                   std::optional<std::uint8_t> originalApexProfile,
-                  std::string& error);
+                  std::string& error,
+                  const std::function<bool()>& stopRequested = {});
     bool armApexInputTransportRestore(bool originalControllerData,
                                       bool originalRawData,
                                       std::string& error) noexcept;
@@ -84,9 +87,24 @@ namespace detail {
 [[nodiscard]] std::vector<std::string> findHidHideControlClients(
     const std::vector<std::wstring>& runningExecutables);
 
-// Actionable message for an access-denied open of the HidHide control device.
+// Actionable message for a busy (access-denied or sharing-violation) open of
+// the HidHide control device. Always starts with kHidHideBusyMarker.
 [[nodiscard]] std::string describeHidHideControlDenied(
     const std::vector<std::string>& runningClients);
+
+inline constexpr std::string_view kHidHideBusyMarker = "HidHide is busy: ";
+
+// Another application (DSX at Windows startup, ...) often releases the control
+// device within seconds, so activation waits this long before giving up.
+inline constexpr std::chrono::milliseconds kHidHideActivationOpenWindow{10000};
+inline constexpr std::chrono::milliseconds kHidHideRecoveryOpenWindow{400};
+
+// Backoff before the next open attempt (100 ms doubling to 500 ms, clamped to
+// the remaining window); zero once the window is spent.
+[[nodiscard]] std::chrono::milliseconds nextHidHideOpenDelay(
+    int failedAttempts,
+    std::chrono::milliseconds elapsed,
+    std::chrono::milliseconds window) noexcept;
 
 } // namespace detail
 

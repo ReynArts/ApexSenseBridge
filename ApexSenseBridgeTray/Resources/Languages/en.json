@@ -22,6 +22,9 @@
   "Loc_RefusedManualFix": "The selected features require a manual fix.",
   "Loc_RefusedExcluded": "This game is excluded from automatic activation.",
   "Loc_RefusedCriteria": "No game feature matches the activation criteria.",
+  "Loc_Retry": "Retry",
+  "Loc_HidHideBusy": "HidHide is in use by another application ({0}). Close it or disable its HidHide integration, then click Retry.",
+  "Loc_HidHideBusyUnknown": "HidHide is in use by another application. Close any application that uses HidHide (DSX, DS4Windows...), then click Retry. If none is running, restart Windows.",
   "Loc_RefusedIsolation": "HidHide isolation could not be verified.",
   "Loc_GameExecutable": "Game executable (optional)",
   "Loc_GameExecutableHint": "Associate the actual game .exe for more reliable detection. Learned executables also appear in this list.",
@@ -365,5 +368,7 @@
   "Loc_GyroTestingStatus": "Acquiring and analyzing gyroscope data...",
   "Loc_GyroTestResult": "6-axis test completed: {0} samples received, sensor {1}.",
   "Loc_GyroSensorOk": "healthy",
-  "Loc_GyroSensorStill": "stationary"
+  "Loc_GyroSensorStill": "stationary",
+  "Loc_SteamAlreadyRunningTitle": "Steam was already running",
+  "Loc_SteamAlreadyRunningBody": "Steam was running when the controller was hidden. If you see duplicate inputs, fully exit Steam and reopen it while the bridge is active. Keep Steam Input disabled for the game."
 }

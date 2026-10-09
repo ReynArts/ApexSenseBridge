@@ -102,6 +102,9 @@ struct Apex6HapticBridgeStats {
     std::uint64_t gripEnvelopeFrames = 0;
     std::uint64_t gripRumbleFrames = 0;
     std::uint64_t deadlineOverruns = 0;
+    std::uint64_t idleFramesSkipped = 0;
+    std::uint64_t idleKeepalives = 0;
+    std::uint64_t silentWaveformSkipped = 0;
     std::uint64_t writeFailures = 0;
     std::uint64_t totalWriteDurationUs = 0;
     std::uint64_t maximumWriteDurationUs = 0;
@@ -160,6 +163,8 @@ private:
         bool& triggerEnabled,
         Clock::time_point now) noexcept;
     void recordError(std::string error) noexcept;
+    void wakeLocked() noexcept;
+    bool tryEnterIdle(Clock::time_point now) noexcept;
     void handleTrigger(TriggerSide side, const DualSenseFeedback& feedback);
 
     flydigi::Apex5Device& device_;
@@ -173,6 +178,8 @@ private:
     std::condition_variable stopSignal_;
     std::thread worker_;
     bool stopping_ = false;
+    bool wakeRequested_ = false;
+    bool idle_ = false;
     bool started_ = false;
 
     std::deque<WaveformBlock> waveformQueue_;
@@ -258,6 +265,9 @@ private:
     std::atomic_uint64_t gripEnvelopeFrames_{0};
     std::atomic_uint64_t gripRumbleFrames_{0};
     std::atomic_uint64_t deadlineOverruns_{0};
+    std::atomic_uint64_t idleFramesSkipped_{0};
+    std::atomic_uint64_t idleKeepalives_{0};
+    std::atomic_uint64_t silentWaveformSkipped_{0};
     std::atomic_uint64_t writeFailures_{0};
     std::atomic_uint64_t totalWriteDurationUs_{0};
     std::atomic_uint64_t maximumWriteDurationUs_{0};

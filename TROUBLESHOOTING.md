@@ -10,6 +10,7 @@ This document covers common questions, diagnostic interpretations, game-specific
 3. [Step-by-Step Hardware & Virtual Controller Validation (`joy.cpl`)](#3-step-by-step-hardware--virtual-controller-validation-joycpl)
 4. [HidHide Behavior and Controller Hiding](#4-hidhide-behavior-and-controller-hiding)
 5. [Driver Installation Issues, USBip Stability & Portable Version](#5-driver-installation-issues-usbip-stability--portable-version)
+5.1. [APEX 4 Gyro Setup for DualSense Aiming](#51-apex-4-gyro-setup-for-dualsense-aiming)
 6. [Hardware Feedback: Trigger Clicking / Motor Noise at Startup](#6-hardware-feedback-trigger-clicking--motor-noise-at-startup)
 7. [Interface & System Tray Quick Reference (FR / EN)](#7-interface--system-tray-quick-reference-fr--en)
 
@@ -264,6 +265,28 @@ Upstream USBip installers can hang if an older incompatible driver version is al
 - **Restart Windows** after driver installation.
 - If USBip 0.9.7.x is already installed, uninstall it from Windows Settings and restart before running the helper. Automatic in-place upgrades remain disabled because the upstream nested uninstaller can hang.
 - Launch `Start-ApexSenseBridge.cmd` or `ApexSenseBridgeTray.exe`.
+
+---
+
+## 5.1. APEX 4 Gyro Setup for DualSense Aiming
+
+### APEX 4 gyro aiming does nothing in games
+
+**Symptom:** gyro aiming is enabled in the game, but the camera does not follow
+APEX 4 motion. The bridge log may show `APEX 4 motion sensors report zero`.
+
+**Cause:** the APEX 4 only includes motion data in its reports when the active
+Flydigi profile maps the gyro to **Mouse, always on**. With any other gyro
+setting every motion byte is zero, so the virtual DualSense has no gyro data to
+forward.
+
+**Fix:** in Flydigi Space Station, set the active profile's gyro to
+**Mouse, always on**, save it, then start a new bridge session. `test-gyro`
+can confirm that motion data is now received.
+
+**Note:** mapping the gyro to the right stick in Space Station is different:
+the firmware moves the stick itself, so it works without DualSense gyro support
+but ignores the game's gyro settings.
 
 ---
 

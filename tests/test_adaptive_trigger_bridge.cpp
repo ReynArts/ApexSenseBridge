@@ -149,7 +149,7 @@ void testBridge(bool apex4) {
     bridge.handle(feedback);
     assert(transport->writes.size() == 2);
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::RecoilRattle,
-                 {77, 1, 15, 35, 0});
+                 {77, 1, 10, 35, 0});
     const auto initialStats = bridge.stats();
     assert(initialStats.lastRightCommand->mode == TriggerMode::SniperBreak);
     assert((initialStats.lastRightCommand->params == std::array<std::uint8_t, 5>{38, 96, 32, 0, 0}));
@@ -179,7 +179,7 @@ void testBridge(bool apex4) {
     bridge.handle(feedback);
     assert(transport->writes.size() == 4);
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::RecoilRattle,
-                 {77, 1, 15, 120, 0});
+                 {77, 1, 10, 120, 0});
 
     feedback.leftTriggerEffect[9] = 0;
     feedback.leftTriggerEffect[10] = 255;
@@ -193,7 +193,7 @@ void testBridge(bool apex4) {
     bridge.handle(feedback);
     assert(transport->writes.size() == 6);
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::RecoilRattle,
-                 {0, 1, 120, 35, 0});
+                 {0, 1, 80, 35, 0});
     feedback.leftTriggerEffect = {5};
     bridge.handle(feedback);
     assert(transport->writes.size() == 7);
@@ -202,7 +202,7 @@ void testBridge(bool apex4) {
     bridge.handle(feedback);
     assert(transport->writes.size() == 8);
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::RecoilRattle,
-                 {0, 1, 120, 35, 0});
+                 {0, 1, 80, 35, 0});
     feedback.leftTriggerEffect = {0x21};
     bridge.handle(feedback);
     assert(transport->writes.size() == 9);
@@ -215,18 +215,36 @@ void testBridge(bool apex4) {
     feedback.leftTriggerEffect = {};
     bridge.handle(feedback);
     assert(bridge.stats().neutral == 1);
+    assert(transport->writes.size() == 11);
+    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
+    feedback.leftTriggerEffect = {1, 25, 40};
+    bridge.handle(feedback);
+    assert(transport->writes.size() == 12);
+
     feedback.leftTriggerEffect = {0x26, 0xFF, 0x83};
     bridge.handle(feedback);
+    assert(transport->writes.size() == 13);
+    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
+    assert(bridge.stats().lastUnsupportedLeftDualSenseType == 0x26);
+    assert(bridge.stats().lastLeftDualSenseType == 1);
     feedback.leftTriggerEffect = {99};
     bridge.handle(feedback);
-    assert(bridge.stats().unsupported == 2);
+    assert(transport->writes.size() == 13);
+    auto stats = bridge.stats();
+    assert(stats.unsupported == 2);
+    assert(stats.lastUnsupportedLeftDualSenseType == 99);
+    assert(stats.unsupportedByType.size() == 2);
+    assert(!stats.leftBlocks.empty());
+    assert(stats.leftBlocks[0] == "en=0D fx=26 F0 03 00 00 00 00 00 00 23 00" ||
+           stats.leftBlocks[0] == "en=0C fx=26 F0 03 00 00 00 00 00 00 23 00");
+
     feedback.kind = dualsense::FeedbackKind::AudioHaptics;
     bridge.handle(feedback);
-    assert(transport->writes.size() == 10);
-    assert(bridge.stats().lastLeftCommand->mode == TriggerMode::Race);
+    assert(transport->writes.size() == 13);
+    assert(bridge.stats().lastLeftCommand->mode == TriggerMode::Normal);
 
     feedback.kind = dualsense::FeedbackKind::HidOutput;
-    feedback.leftTriggerEffect = {5};
+    feedback.leftTriggerEffect = {1, 25, 40};
     transport->failWrites = true;
     bridge.handle(feedback);
     assert(bridge.failed());
@@ -234,7 +252,36 @@ void testBridge(bool apex4) {
     assert(bridge.stats().writeFailures == 1);
     transport->failWrites = false;
     bridge.handle(feedback);
-    assert(transport->writes.size() == 10);
+    assert(transport->writes.size() == 13);
+}
+
+void testUnsupportedReleasesActiveEffect(bool apex4) {
+    using namespace asb;
+    auto* transport = new FakeTransport(apex4);
+    flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    dualsense::AdaptiveTriggerBridge bridge(device);
+    dualsense::DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x04;
+    feedback.rightTriggerEffect = {0x25, 0x84, 0, 3};
+    bridge.handle(feedback);
+    assert(transport->writes.size() == 1);
+    feedback.rightTriggerEffect = {0xFC, 1, 2, 3};
+    bridge.handle(feedback);
+    assert(transport->writes.size() == 2);
+    expectReport(*transport, apex4, TriggerSide::Right, TriggerMode::Normal, {});
+    const auto stats = bridge.stats();
+    assert(stats.unsupported == 1);
+    assert(stats.lastUnsupportedRightDualSenseType == 0xFC);
+    assert(stats.lastRightDualSenseType == 0x25);
+    assert(stats.unsupportedByType.size() == 1 && stats.unsupportedByType[0].first == 0xFC);
+    assert(stats.rightBlocks.size() == 2);
+    assert(stats.rightBlocks[1] == "en=04 fx=FC 01 02 03 00 00 00 00 00 00 00");
+    feedback.rightTriggerEffect = {0x22, 0x84, 0, 0x2B};
+    bridge.handle(feedback);
+    expectReport(*transport, apex4, TriggerSide::Right, TriggerMode::SniperBreak,
+                 {38, 96, 32, 0, 0});
 }
 
 }
@@ -259,7 +306,7 @@ void testStrength(bool apex4) {
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::SniperBreak, {38, 96, 16, 0, 0});
     feedback.leftTriggerEffect = {0x26, 0xFF, 0x03, 0xFF, 0xFF, 0xFF, 0x3F, 0, 0, 35};
     bridge.handle(feedback);
-    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::RecoilRattle, {0, 1, 60, 35, 0});
+    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::RecoilRattle, {0, 1, 40, 35, 0});
     dualsense::AdaptiveTriggerBridge disabled(device, 0);
     disabled.handle(feedback);
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
@@ -329,6 +376,8 @@ void testAsyncCoalescing() {
 int main() {
     testBridge(false);
     testBridge(true);
+    testUnsupportedReleasesActiveEffect(false);
+    testUnsupportedReleasesActiveEffect(true);
     testStrength(false);
     testStrength(true);
     testAsyncCoalescing();

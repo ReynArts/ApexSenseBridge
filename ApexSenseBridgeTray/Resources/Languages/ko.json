@@ -22,6 +22,9 @@
   "Loc_RefusedManualFix": "선택한 기능은 수동 패치가 필요합니다.",
   "Loc_RefusedExcluded": "이 게임은 자동 활성화에서 제외되었습니다.",
   "Loc_RefusedCriteria": "게임 기능이 활성화 기준과 일치하지 않습니다.",
+  "Loc_Retry": "다시 시도",
+  "Loc_HidHideBusy": "HidHide를 다른 애플리케이션({0})이 사용 중입니다. 해당 앱을 닫거나 HidHide 연동을 끄고 ‘다시 시도’를 클릭하세요.",
+  "Loc_HidHideBusyUnknown": "HidHide를 다른 애플리케이션이 사용 중입니다. HidHide를 사용하는 앱(DSX, DS4Windows 등)을 닫고 ‘다시 시도’를 클릭하세요. 실행 중인 앱이 없다면 Windows를 다시 시작하세요.",
   "Loc_RefusedIsolation": "HidHide 격리를 확인할 수 없습니다.",
   "Loc_GameExecutable": "게임 실행 파일 (선택 사항)",
   "Loc_GameExecutableHint": "더 안정적인 감지를 위해 실제 게임 .exe를 연결하세요. 학습된 실행 파일도 이 목록에 표시됩니다.",
@@ -365,5 +368,7 @@
   "Loc_GyroTestingStatus": "자이로 데이터 수집 및 분석 중...",
   "Loc_GyroTestResult": "6축 테스트 완료: {0}개 샘플 수신됨, 센서 {1}.",
   "Loc_GyroSensorOk": "정상 작동",
-  "Loc_GyroSensorStill": "정지됨"
+  "Loc_GyroSensorStill": "정지됨",
+  "Loc_SteamAlreadyRunningTitle": "Steam이 이미 실행 중입니다",
+  "Loc_SteamAlreadyRunningBody": "컨트롤러가 숨겨졌을 때 Steam이 이미 실행 중이었습니다. 중복 입력이 보이면 Steam을 완전히 종료하고 Bridge가 활성화된 상태에서 다시 열어주세요. 게임에 대해 Steam Input을 비활성화하세요."
 }

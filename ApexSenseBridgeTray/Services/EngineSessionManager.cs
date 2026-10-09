@@ -2,12 +2,59 @@ using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace ApexSenseBridgeTray.Services
 {
     public class EngineSessionManager
     {
+        private const string HidHideBusyMarker = "HidHide is busy: ";
+        // Engine waits up to 10 s for the HidHide control device on top of its normal startup.
+        private const int MinimumInitializationSeconds = 30;
+        private static readonly Regex ExecutableInParentheses =
+            new Regex(@"\(([^()\s]+\.exe)\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // Recognizes the engine's "HidHide control device is held by another application" failure.
+        internal static bool TryParseHidHideBusy(string reason, out string[] executables)
+        {
+            executables = new string[0];
+            if (string.IsNullOrEmpty(reason)) return false;
+            int marker = reason.IndexOf(HidHideBusyMarker, StringComparison.Ordinal);
+            if (marker < 0) return false;
+            var found = new List<string>();
+            foreach (Match match in ExecutableInParentheses.Matches(reason.Substring(marker + HidHideBusyMarker.Length)))
+                if (!found.Contains(match.Groups[1].Value)) found.Add(match.Groups[1].Value);
+            executables = found.ToArray();
+            return true;
+        }
+
+        public bool CanRetryHidHideBusy
+        {
+            get
+            {
+                string[] ignored;
+                lock (syncLock)
+                    return failed && !isStarting && !isStopping && activeSession == null &&
+                           activeGameTitle != null && activeProfileName != null &&
+                           TryParseHidHideBusy(lastReason, out ignored);
+            }
+        }
+
+        public bool RetryLastStart(TraySettings settings, out string error)
+        {
+            string game, profile;
+            int slot;
+            lock (syncLock)
+            {
+                game = activeGameTitle; profile = activeProfileName; slot = activeApexSlot;
+            }
+            if (game == null || profile == null) { error = "Loc_RecoveryBusy"; return false; }
+            return StartSession(game, profile, settings, slot, out error);
+        }
+
         private const string EngineSessionMutexName =
             @"Local\ApexSenseBridge.ActiveSession.Owner.v1";
         private readonly object syncLock = new object();
@@ -182,6 +229,7 @@ namespace ApexSenseBridgeTray.Services
         public event Action<string> SessionStopped;
         public event Action<string> SessionError;
         public event Action<string> LogMessage;
+        public event Action SteamAlreadyRunning;
 
         public bool StartSession(string gameTitle, string profileName, TraySettings settings, out string error)
         {
@@ -242,7 +290,8 @@ namespace ApexSenseBridgeTray.Services
                 var args = BuildArguments(profileName, settings, apexProfileSlot);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
 
-                int timeoutSec = settings != null ? settings.InitializationTimeoutSeconds : 20;
+                int timeoutSec = Math.Max(MinimumInitializationSeconds,
+                    settings != null ? settings.InitializationTimeoutSeconds : 20);
                 var session = BridgeSession.TryStart(
                     enginePath,
                     args,
@@ -280,6 +329,21 @@ namespace ApexSenseBridgeTray.Services
                     error = "Initialisation annulée.";
                     return false;
                 }
+
+                try
+                {
+                    if (session.ProcessId != 0)
+                    {
+                        var engineProcess = Process.GetProcessById(session.ProcessId);
+                        var sessionStartUtc = engineProcess.StartTime.ToUniversalTime();
+                        if (SteamProcessChecker.ShouldWarn(sessionStartUtc))
+                        {
+                            var handler = SteamAlreadyRunning;
+                            if (handler != null) handler();
+                        }
+                    }
+                }
+                catch { }
 
                 var startHandler = SessionStarted;
                 if (startHandler != null)

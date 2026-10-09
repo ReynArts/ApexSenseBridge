@@ -4,6 +4,7 @@
 #include "cli/BridgeTelemetry.h"
 #include "cli/CommandSupport.h"
 #include "core/ApexProfileRestoreGuard.h"
+#include "core/Apex4GyroValidation.h"
 #include "core/TriggerResetGuard.h"
 #include "core/RumbleResetGuard.h"
 #include "diagnostics/HidDiagnostics.h"
@@ -108,12 +109,15 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::optional<asb::flydigi::Apex5Device> device;
     const auto deviceOpenDeadline = std::chrono::steady_clock::now() +
                                     std::chrono::seconds(4);
+    const auto stopRequested = [&]() {
+        return g_stopRequested.load(std::memory_order_relaxed) ||
+               globalSessionStop->stopRequested() ||
+               (sessionControl && sessionControl->stopRequested());
+    };
     do {
         error.clear();
-        device = openSelectedIndex(options.deviceIndex, error);
-        if (device || g_stopRequested.load(std::memory_order_relaxed) ||
-            globalSessionStop->stopRequested() ||
-            (sessionControl && sessionControl->stopRequested())) {
+        device = openSelectedIndex(options.deviceIndex, stopRequested, error);
+        if (device || stopRequested()) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -463,7 +467,7 @@ int commandBridgeTriggers(int argc, char** argv) {
             profileSwitchRequired
                 ? std::optional<std::uint8_t>(originalProfile->slot)
                 : std::nullopt,
-            error)) {
+            error, stopRequested)) {
         virtualDualSense->close();
         std::cerr << "Temporary APEX isolation failed: " << error << '\n';
         return failSession(11, "Temporary APEX isolation failed: " + error);
@@ -904,6 +908,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     constexpr auto kBatteryRefreshInterval = std::chrono::seconds(15);
     asb::platform::PhysicalInputFreshnessWatchdog inputFreshness(
         std::chrono::seconds(1), started);
+    asb::Apex4GyroValidation apex4GyroValidation;
     std::string asyncWriteError;
     while (!g_stopRequested.load(std::memory_order_relaxed) &&
            !globalSessionStop->stopRequested() &&
@@ -974,6 +979,11 @@ int commandBridgeTriggers(int argc, char** argv) {
         const auto inputObservedAt = std::chrono::steady_clock::now();
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
             tunePhysicalInput(input);
+            if (apex4 && apex4GyroValidation.observe(input, inputObservedAt)) {
+                std::cerr << "WARNING: [bridge] APEX 4 motion sensors report zero. "
+                          << "In Flydigi Space Station, set the active profile's gyro to "
+                          << "'Mouse, always on' to enable DualSense gyro aiming.\n";
+            }
             inputFreshness.observeFreshState(inputObservedAt);
             if (apex6Bridge) {
                 apex6Bridge->updateTriggerPositions(input.l2, input.r2);
@@ -1002,10 +1012,10 @@ int commandBridgeTriggers(int argc, char** argv) {
             if (options.touchpadProfile != asb::dualsense::TouchpadGestureProfile::None) {
                 touchpadGestureMapper.transform(input, inputObservedAt);
             }
-            // Event-driven HID reports are forwarded immediately. The XInput
-            // fallback polls at 1 ms but coalesces unchanged states.
-            forwardInput = inputSource->eventDriven() ||
-                           !lastForwardedInput || *lastForwardedInput != input;
+            // Changed states go out immediately; unchanged ones only as a keepalive.
+            forwardInput = !lastForwardedInput || *lastForwardedInput != input ||
+                           (inputSource->eventDriven() &&
+                            inputObservedAt - lastInputForwardedAt >= kInputKeepalive);
             if (!forwardInput) ++coalescedInputReports;
         } else if (inputStatus == asb::platform::PhysicalInputStatus::Timeout) {
             if (inputSource->eventDriven() && inputFreshness.expired(inputObservedAt)) {
@@ -1043,7 +1053,8 @@ int commandBridgeTriggers(int argc, char** argv) {
                 break;
             }
             forwardingLatency.observe(std::chrono::steady_clock::now() - inputObservedAt);
-            if (inputStatus == asb::platform::PhysicalInputStatus::State) {
+            if (inputStatus == asb::platform::PhysicalInputStatus::State &&
+                (!lastForwardedInput || *lastForwardedInput != input)) {
                 ++forwardedPhysicalReports;
             } else {
                 ++keepaliveInputReports;
@@ -1533,6 +1544,9 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_waveform_maximum_age_us="
               << apex6Stats.waveformMaximumAgeUs << '\n'
               << "apex6_deadline_overruns=" << apex6Stats.deadlineOverruns << '\n'
+              << "apex6_idle_frames_skipped=" << apex6Stats.idleFramesSkipped << '\n'
+              << "apex6_idle_keepalives=" << apex6Stats.idleKeepalives << '\n'
+              << "apex6_silent_waveform_skipped=" << apex6Stats.silentWaveformSkipped << '\n'
               << "apex6_write_failures=" << apex6Stats.writeFailures << '\n'
               << "apex6_average_write_us="
               << (apex6Stats.framesWritten == 0
@@ -1616,6 +1630,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                   bridgeStats.lastActiveLeftCommand);
         printLast("active_rt", bridgeStats.lastActiveRightDualSenseType,
                   bridgeStats.lastActiveRightCommand);
+        asb::cli::writeAdaptiveTriggerDiagnostics(std::cout, bridgeStats);
     }
     if (!resetOk) {
         const std::string prefix = apex6Pro

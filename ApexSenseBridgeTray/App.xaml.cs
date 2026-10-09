@@ -201,7 +201,26 @@ namespace ApexSenseBridgeTray
                                 notifyIcon.ShowBalloonTip(
                                     4000,
                                     LocalizationManager.Get("Loc_NotificationWarning"),
-                                    err,
+                                    HidHideBusyMessage.TryLocalize(err) ?? err,
+                                    ToolTipIcon.Warning);
+                            }
+                        }
+                        catch { }
+                    }));
+                };
+
+                sessionManager.SteamAlreadyRunning += () =>
+                {
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try
+                        {
+                            if (settings.EnableNotifications && notifyIcon != null)
+                            {
+                                notifyIcon.ShowBalloonTip(
+                                    5000,
+                                    LocalizationManager.Get("Loc_SteamAlreadyRunningTitle"),
+                                    LocalizationManager.Get("Loc_SteamAlreadyRunningBody"),
                                     ToolTipIcon.Warning);
                             }
                         }

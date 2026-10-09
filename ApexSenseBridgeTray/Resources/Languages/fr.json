@@ -22,6 +22,9 @@
   "Loc_RefusedManualFix": "Une correction manuelle est requise pour les fonctions choisies.",
   "Loc_RefusedExcluded": "Ce jeu est exclu de l’activation automatique.",
   "Loc_RefusedCriteria": "Aucune fonction du jeu ne correspond aux critères d’activation.",
+  "Loc_Retry": "Réessayer",
+  "Loc_HidHideBusy": "HidHide est utilisé par une autre application ({0}). Fermez-la ou désactivez son intégration HidHide, puis cliquez sur Réessayer.",
+  "Loc_HidHideBusyUnknown": "HidHide est utilisé par une autre application. Fermez toute application qui utilise HidHide (DSX, DS4Windows…), puis cliquez sur Réessayer. Si aucune n’est ouverte, redémarrez Windows.",
   "Loc_RefusedIsolation": "L’isolation HidHide n’a pas pu être vérifiée.",
   "Loc_GameExecutable": "Exécutable du jeu (facultatif)",
   "Loc_GameExecutableHint": "Associez le véritable .exe du jeu pour une détection plus fiable. Les exécutables appris figurent aussi dans cette liste.",
@@ -365,5 +368,7 @@
   "Loc_GyroTestingStatus": "Acquisition et analyse du gyroscope en cours...",
   "Loc_GyroTestResult": "Test 6-axes terminé : {0} échantillons reçus, capteur {1}.",
   "Loc_GyroSensorOk": "opérationnel",
-  "Loc_GyroSensorStill": "immobile"
+  "Loc_GyroSensorStill": "immobile",
+  "Loc_SteamAlreadyRunningTitle": "Steam était déjà ouvert",
+  "Loc_SteamAlreadyRunningBody": "Steam était ouvert quand la manette a été masquée. Si les commandes sont doublées, quittez complètement Steam puis rouvrez-le pendant que le bridge est actif. Laissez Steam Input désactivé pour ce jeu."
 }

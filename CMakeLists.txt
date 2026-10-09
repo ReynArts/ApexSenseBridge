@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 1.0.0 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 1.0.1 LANGUAGES CXX)
 set(ASB_RELEASE_LABEL "${PROJECT_VERSION}")
 add_compile_definitions(ASB_RELEASE_LABEL="${ASB_RELEASE_LABEL}")
 
@@ -203,6 +203,16 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeApex4GyroCaptureTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME apex4_gyro_capture COMMAND ApexSenseBridgeApex4GyroCaptureTests)
+
+    add_executable(ApexSenseBridgeApex4GyroWarningTests tests/test_apex4_gyro_warning.cpp)
+    target_include_directories(ApexSenseBridgeApex4GyroWarningTests PRIVATE src)
+    target_link_libraries(ApexSenseBridgeApex4GyroWarningTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex4GyroWarningTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex4GyroWarningTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex4_gyro_warning COMMAND ApexSenseBridgeApex4GyroWarningTests)
 
     add_executable(ApexSenseBridgeIdentityTests tests/test_identity.cpp)
     target_link_libraries(ApexSenseBridgeIdentityTests PRIVATE asb_core)

@@ -3,13 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ApexSenseBridge"
         Icon="Resources/app.ico"
-        Height="804" Width="1224"
-        MinHeight="704" MinWidth="1044"
+        Height="724" Width="1144"
+        MinHeight="624" MinWidth="964"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="CanResizeWithGrip"
+        ResizeMode="CanResize"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        Background="#060A16"
         FontFamily="Segoe UI Variable Display, Segoe UI, sans-serif">
 
     <Window.Resources>
@@ -20,21 +19,16 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Style="{StaticResource ConsoleWindowFrame}">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Border Style="{StaticResource ConsoleWindowFrameFlat}">
 
 
         <Grid>
-            <!-- Ambient light: soft blue halos, clipped to the rounded frame. -->
+            <!-- Ambient light: soft blue halos. -->
             <Grid x:Name="Backdrop" IsHitTestVisible="False" ClipToBounds="True">
-                <Grid.OpacityMask>
-                    <VisualBrush>
-                        <VisualBrush.Visual>
-                            <Border Background="Black" CornerRadius="21"
-                                    Width="{Binding ActualWidth, ElementName=Backdrop}"
-                                    Height="{Binding ActualHeight, ElementName=Backdrop}"/>
-                        </VisualBrush.Visual>
-                    </VisualBrush>
-                </Grid.OpacityMask>
                 <Rectangle>
                     <Rectangle.Fill>
                         <RadialGradientBrush Center="0.88,0" GradientOrigin="0.88,0" RadiusX="0.45" RadiusY="0.7">
@@ -227,6 +221,8 @@
                                     <!-- Only refusal / error reasons are spelled out. -->
                                     <TextBlock x:Name="TxtDashboardHint" TextWrapping="Wrap" FontSize="12" Margin="2,2,0,0"
                                                Foreground="#FCA5A5" MaxHeight="36" TextTrimming="CharacterEllipsis"/>
+                                    <Button x:Name="BtnRetryStart" Content="{DynamicResource Loc_Retry}" Style="{StaticResource BtnSecondary}"
+                                            Click="OnRetryStartClick" HorizontalAlignment="Left" Margin="2,6,0,0" Visibility="Collapsed"/>
                                 </StackPanel>
 
                                 <!-- Larger than its slot (negative margins) so the halo and shadow fade out instead of being clipped. -->

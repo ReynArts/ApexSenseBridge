@@ -165,13 +165,31 @@ void testRumbleGain() {
         unsigned previous = 0;
         for (unsigned value = 0; value <= 255; ++value) {
             const auto actual = scaleRumbleStrength(static_cast<std::uint8_t>(value), percent);
-            const auto expected = (std::min)(255U, value * (std::min)(percent, 200U) / 100U);
-            assert(actual == expected);
             assert(actual >= previous);
-            if (percent <= 100) assert(actual == scaleEffectStrength(static_cast<std::uint8_t>(value), percent));
+            if (percent <= 100) {
+                assert(actual == value * percent / 100U);
+                assert(actual == scaleEffectStrength(static_cast<std::uint8_t>(value), percent));
+            } else {
+                assert(actual >= value);
+                assert(actual <= (value == 0 ? 0U : 255U));
+                assert(scaleRumbleStrength(static_cast<std::uint8_t>(value), 100) == value);
+            }
             previous = actual;
         }
+        assert(scaleRumbleStrength(0, percent) == 0);
+        if (percent >= 100) assert(scaleRumbleStrength(255, percent) == 255);
     }
+    for (unsigned value = 1; value < 255; ++value) {
+        unsigned previous = value;
+        for (unsigned percent = 100; percent <= 200; ++percent) {
+            const auto actual = scaleRumbleStrength(static_cast<std::uint8_t>(value), percent);
+            assert(actual >= previous);
+            previous = actual;
+        }
+        if (value < 250) assert(scaleRumbleStrength(static_cast<std::uint8_t>(value), 200) > value);
+    }
+    assert(scaleRumbleStrength(100, 125) > 125);
+    assert(scaleRumbleStrength(217, 150) > 217 && scaleRumbleStrength(217, 200) > 250);
     auto* transport = new FakeTransport();
     asb::flydigi::Apex5Device device{asb::flydigi::TransportPtr(transport)};
     std::string error;
@@ -182,15 +200,17 @@ void testRumbleGain() {
     feedback.rumbleLeft = 100;
     feedback.rumbleRight = 200;
     rumble.handle(feedback);
-    assert(transport->writes.back()[5] == 150);
-    assert(transport->writes.back()[6] == 255);
+    assert(transport->writes.back()[5] == scaleRumbleStrength(100, 150));
+    assert(transport->writes.back()[5] > 150);
+    assert(transport->writes.back()[6] == scaleRumbleStrength(200, 150));
     feedback.rumbleLeft = feedback.rumbleRight = 0;
     rumble.handle(feedback);
     assert(transport->writes.back()[5] == 0 && transport->writes.back()[6] == 0);
     feedback.kind = FeedbackKind::AudioHaptics;
     feedback.leftEnergy = feedback.leftPeak = feedback.leftTransient = 65535;
     rumble.handle(feedback);
-    assert(transport->writes.back()[5] == 255 && transport->writes.back()[6] == 0);
+    assert(transport->writes.back()[5] == scaleRumbleStrength(217, 150) && transport->writes.back()[6] == 0);
+    assert(transport->writes.back()[5] > 217);
     feedback.leftEnergy = feedback.leftPeak = feedback.leftTransient = 0;
     rumble.handle(feedback);
     assert(transport->writes.back()[5] == 0 && transport->writes.back()[6] == 0);
@@ -245,7 +265,8 @@ void testThresholdAndTriggerIndependence() {
         hid.rumbleLeft = 100;
         hid.rumbleRight = 200;
         rumble.handle(hid);
-        assert(transport->writes.back()[5] == 150 && transport->writes.back()[6] == 255);
+        assert(transport->writes.back()[5] == scaleRumbleStrength(100, 150) &&
+               transport->writes.back()[6] == scaleRumbleStrength(200, 150));
         assert(triggers.stats().lastLeftCommand->mode == asb::TriggerMode::Normal);
         assert(triggers.stats().lastRightCommand->mode == asb::TriggerMode::Normal);
     }

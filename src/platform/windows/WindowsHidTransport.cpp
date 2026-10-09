@@ -225,6 +225,20 @@ DWORD waitMilliseconds(std::chrono::milliseconds timeout) noexcept {
     return static_cast<DWORD>(std::min(timeout.count(), maximum));
 }
 
+bool writeFailureMayFallBack(DWORD errorCode) noexcept {
+    switch (errorCode) {
+    case ERROR_TIMEOUT:
+    case ERROR_OPERATION_ABORTED:
+    case ERROR_DEVICE_NOT_CONNECTED:
+    case ERROR_NO_SUCH_DEVICE:
+    case ERROR_FILE_NOT_FOUND:
+    case ERROR_INVALID_HANDLE:
+        return false;
+    default:
+        return true;
+    }
+}
+
 class WindowsHidTransport final : public HidTransport {
 public:
     WindowsHidTransport(HidDeviceInfo info, HANDLE handle)
@@ -268,6 +282,15 @@ public:
         DWORD writeError = ERROR_SUCCESS;
         if (writeFileOverlapped(wire, written, writeError) && written == wire.size()) {
             return true;
+        }
+
+        // HidD_SetOutputReport has no timeout; never retry after a stalled or lost interface.
+        if (!writeFailureMayFallBack(writeError)) {
+            std::ostringstream oss;
+            oss << "WriteFile failed (" << writeError << ": " << win32Error(writeError)
+                << "); the HID interface did not accept the write";
+            error = oss.str();
+            return false;
         }
 
         if (HidD_SetOutputReport(handle_, wire.data(), static_cast<ULONG>(wire.size()))) {

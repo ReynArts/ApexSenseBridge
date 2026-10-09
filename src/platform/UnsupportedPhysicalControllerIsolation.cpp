@@ -10,7 +10,7 @@ TemporaryPhysicalControllerIsolation::~TemporaryPhysicalControllerIsolation() = 
 
 bool TemporaryPhysicalControllerIsolation::activate(
     const HidDeviceInfo&, std::string_view, std::optional<std::uint8_t>,
-    std::string& error) {
+    std::string& error, const std::function<bool()>&) {
     error = "Physical controller isolation is only available on Windows.";
     return false;
 }

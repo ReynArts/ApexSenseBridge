@@ -457,6 +457,22 @@ int main() {
     assert(!silent.verifyIdentity(error));
     assert(error.find("No valid command 0x01") != std::string::npos);
     assert(silentTransport->writes.size() == 3);
+    assert(error.find("vendor interface did not answer") != std::string::npos);
+
+    FakeTransport* cancelledTransport = nullptr;
+    auto cancelled = makeDevice(cancelledTransport, 128, true);
+    error.clear();
+    assert(!cancelled.verifyIdentity(error, [] { return true; }));
+    assert(error.find("stop request") != std::string::npos);
+    assert(cancelledTransport->writes.empty());
+
+    FakeTransport* cancelledMidTransport = nullptr;
+    auto cancelledMid = makeDevice(cancelledMidTransport, 128, true);
+    error.clear();
+    assert(!cancelledMid.verifyIdentity(
+        error, [&] { return !cancelledMidTransport->writes.empty(); }));
+    assert(error.find("stop request") != std::string::npos);
+    assert(cancelledMidTransport->writes.size() == 1);
 
     std::cout << "Identity guard tests passed\n";
     return 0;

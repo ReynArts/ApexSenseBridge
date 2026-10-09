@@ -22,6 +22,9 @@
   "Loc_RefusedManualFix": "Os recursos selecionados exigem uma correção manual.",
   "Loc_RefusedExcluded": "Este jogo está excluído da ativação automática.",
   "Loc_RefusedCriteria": "Nenhum recurso do jogo corresponde aos critérios de ativação.",
+  "Loc_Retry": "Tentar novamente",
+  "Loc_HidHideBusy": "O HidHide está em uso por outro aplicativo ({0}). Feche-o ou desative a integração dele com o HidHide e clique em Tentar novamente.",
+  "Loc_HidHideBusyUnknown": "O HidHide está em uso por outro aplicativo. Feche qualquer aplicativo que use o HidHide (DSX, DS4Windows…) e clique em Tentar novamente. Se nenhum estiver aberto, reinicie o Windows.",
   "Loc_RefusedIsolation": "Não foi possível verificar o isolamento do HidHide.",
   "Loc_GameExecutable": "Executável do jogo (opcional)",
   "Loc_GameExecutableHint": "Associe o .exe real do jogo para uma detecção mais precisa. Executáveis aprendidos também aparecem nesta lista.",
@@ -365,5 +368,7 @@
   "Loc_GyroTestingStatus": "Adquirindo e analisando dados do giroscópio...",
   "Loc_GyroTestResult": "Teste de 6 eixos concluído: {0} amostras recebidas, sensor {1}.",
   "Loc_GyroSensorOk": "saudável",
-  "Loc_GyroSensorStill": "estacionário"
+  "Loc_GyroSensorStill": "estacionário",
+  "Loc_SteamAlreadyRunningTitle": "Steam já estava em execução",
+  "Loc_SteamAlreadyRunningBody": "Steam estava em execução quando o controlador foi ocultado. Se você vir entradas duplicadas, saia completamente do Steam e reabra-o enquanto o Bridge está ativo. Mantenha o Steam Input desabilitado para o jogo."
 }

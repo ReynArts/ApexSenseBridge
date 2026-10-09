@@ -60,6 +60,7 @@ internal static class TrayLearningTests
             TestGameExecutableSettings();
             TestSessionStatusDiscovery();
             TestRecoveryPolicy();
+            TestHidHideBusyDetection();
             TestInterruptedSessionRecovery();
             TestExternalRecoveryOwnership();
             TestRecoveryCancelledDuringStartup();
@@ -69,6 +70,7 @@ internal static class TrayLearningTests
             TestPlatformClientsNeverCountAsGameProcesses();
             TestPidTrackingFastPathPerformance();
             TestMissPerformance(testRoot);
+            TestSteamAlreadyRunningDetection();
             Console.WriteLine("Tray executable learning tests passed ({0} assertions).", assertions);
             return 0;
         }
@@ -754,6 +756,20 @@ internal static class TrayLearningTests
         var first = candidate;
         ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\n[0] Apex 5\nPath B", out candidate);
         Assert(candidate != first, "Hot swap of the vendor path left a stale identity fingerprint.");
+        const string apex4Block = "    VID:PID      04B4:2412\r\n    Usage page   FFA0  usage 0001\r\n" +
+            "    Reports      input=33 output=33 bytes\r\n    Path         \\\\?\\hid#vid_04b4&pid_2412&mi_02#7&1a2b&0&0000\r\n";
+        Assert(ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\r\n\r\n[0] Flydigi APEX 4\r\n" + apex4Block, out first) == null &&
+            ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\r\n\r\n[0] Flydigi controller\r\n" + apex4Block.Replace("      ", " "), out candidate) == null &&
+            candidate == first && first.Contains("pid_2412&mi_02"),
+            "A transient HID product string or spacing change altered the controller fingerprint.");
+        ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\r\n\r\n[0] Flydigi APEX 4\r\n" + apex4Block.Replace("output=33", "output=64"), out candidate);
+        Assert(candidate != first, "A changed vendor report layout kept the old fingerprint.");
+        Assert(ControllerDetectionService.ParseCandidate("Found 2 candidate(s):\r\n\r\n[0] Flydigi APEX 4\r\n" + apex4Block +
+            "[1] Flydigi APEX 4\r\n" + apex4Block.Replace("&0&0000", "&0&0001"), out candidate) == ControllerDetectionService.Ambiguous &&
+            candidate.StartsWith(first + "\n\n", StringComparison.Ordinal),
+            "Two vendor interfaces were not reported as ambiguous with their fingerprints.");
+        Assert(ControllerDetectionService.ParseCandidate("Found 2 candidate(s):\r\n\r\n[0] Flydigi APEX 4\r\n" + apex4Block, out candidate) == "unavailable" &&
+            candidate == "", "A truncated candidate list was accepted.");
         Assert(ControllerDetectionService.ParseActiveModel(new BridgeSession.SessionInfo
             { Phase = SessionPhase.Ready, Controller = "Apex 6 Pro (k6)" }) == "apex6",
             "The active engine's verified model was not reused without a competing HID reader.");
@@ -765,27 +781,84 @@ internal static class TrayLearningTests
 
     private static void TestControllerCalibrationDetection()
     {
-        string candidate = "path-a", candidateState = null, model = "apex5", lastPublished = null;
+        string candidate = "path-a", candidateState = null, model = "apex5", lastPublished = null, publishedAtIdentify = null;
         int identityReads = 0;
+        long now = 0;
         bool owner = false, changeDuringIdentification = false;
         BridgeSession.SessionInfo active = null;
+        var published = new List<string>();
         var detector = new ControllerDetectionService(
             delegate(out string fingerprint) { fingerprint = candidate; return candidateState; },
-            () => { identityReads++; if (changeDuringIdentification) candidate = "path-c"; return model; },
-            () => active, () => owner, false);
-        detector.StatusChanged += status => lastPublished = status;
+            () =>
+            {
+                identityReads++;
+                publishedAtIdentify = lastPublished;
+                if (changeDuringIdentification) candidate = "path-c";
+                return model;
+            },
+            () => active, () => owner, () => now, false);
+        detector.StatusChanged += status => { lastPublished = status; published.Add(status); };
+        Action<int> scan = count => { for (int i = 0; i < count; i++) detector.Scan(null); };
         try
         {
             detector.Scan(null);
             Assert(lastPublished == "apex5" && identityReads == 1, "First connection was not verified.");
-            model = "unavailable"; // Sleeping controller; receiver stays enumerated.
+            now += 2000; scan(10);
+            Assert(identityReads == 1 && lastPublished == "apex5", "An unchanged verified controller was re-identified every scan.");
+            published.Clear();
+            now += ControllerDetectionService.ReverifyMilliseconds; model = "unavailable";
             detector.Scan(null);
-            Assert(lastPublished == "unavailable" && identityReads == 2, "Unchanged dongle kept a stale connected controller.");
+            model = "apex5";
+            detector.Scan(null);
+            Assert(identityReads == 3 && published.Count == 0, "One missed identity reply made the controller flap.");
+            scan(3);
+            Assert(identityReads == 3, "A recovered controller was not cached again.");
+            now += ControllerDetectionService.ReverifyMilliseconds;
+            model = "unavailable"; // Sleeping controller; receiver stays enumerated.
+            scan(ControllerDetectionService.FailureScans - 1);
+            Assert(lastPublished == "apex5", "A verified controller was downgraded before the failure threshold.");
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable" && identityReads == 3 + ControllerDetectionService.FailureScans,
+                "Unchanged dongle kept a stale connected controller.");
+            model = "apex5";
+            detector.Scan(null);
+            Assert(lastPublished == "apex5", "A woken controller was not verified again.");
+            published.Clear();
+            var reads = identityReads;
+            foreach (var glitch in new[] { "unavailable", "disconnected" })
+            {
+                candidateState = glitch;
+                detector.Scan(null);
+                candidateState = null;
+                detector.Scan(null);
+            }
+            Assert(published.Count == 0 && identityReads == reads + 2, "A transient enumeration glitch flapped the controller.");
+            candidateState = "disconnected";
+            scan(ControllerDetectionService.DisconnectScans);
+            Assert(lastPublished == "disconnected" && identityReads == reads + 2, "A real unplug was not reported.");
+            candidateState = null;
+            detector.Scan(null);
+            Assert(lastPublished == "apex5" && identityReads == reads + 3, "Reconnecting did not verify the controller.");
             candidate = "path-b"; model = "apex6";
             detector.Scan(null);
-            Assert(lastPublished == "apex6", "Replacing the controller retained another model.");
+            Assert(publishedAtIdentify == "unavailable" && lastPublished == "apex6",
+                "A changed HID interface was not locked before identification.");
+            published.Clear();
+            candidateState = ControllerDetectionService.Ambiguous; candidate = "path-x\n\npath-b";
+            scan(ControllerDetectionService.FailureScans - 1);
+            Assert(published.Count == 0, "A transient second interface locked the verified controller.");
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable", "Persistent ambiguous enumeration kept calibration unlocked.");
+            candidateState = null; candidate = "path-b";
+            detector.Scan(null);
+            Assert(lastPublished == "apex6", "The remaining controller was not verified again.");
+            candidateState = ControllerDetectionService.Ambiguous; candidate = "path-x\n\npath-y";
+            detector.Scan(null);
+            Assert(lastPublished == "unavailable", "Ambiguous enumeration without the verified controller kept it unlocked.");
+            candidateState = null; candidate = "path-b";
+            detector.Scan(null);
             active = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Controller = "Apex 6 Pro (k6)" };
-            var reads = identityReads;
+            reads = identityReads;
             detector.Scan(null);
             Assert(identityReads == reads && lastPublished == "apex6", "An active session gained a competing HID identity reader.");
             active.Phase = SessionPhase.Failed;
@@ -797,10 +870,8 @@ internal static class TrayLearningTests
             owner = false;
             detector.Scan(null);
             Assert(lastPublished == "apex6" && identityReads == reads + 1, "Stopping a session did not reverify the hardware.");
-            candidateState = "unavailable";
-            detector.Scan(null);
-            Assert(lastPublished == "unavailable", "Ambiguous controller enumeration unlocked calibration.");
             candidateState = null; changeDuringIdentification = true;
+            now += ControllerDetectionService.ReverifyMilliseconds;
             detector.Scan(null);
             Assert(lastPublished == "unavailable", "A mid-identification hot swap published the wrong model.");
             candidateState = "disconnected";
@@ -918,6 +989,19 @@ internal static class TrayLearningTests
         }
         Assert(forcedCleanupLogged,
             "A hung startup was not forcibly reaped after its cooperative stop timeout.");
+    }
+
+    private static void TestHidHideBusyDetection()
+    {
+        string[] executables;
+        Assert(EngineSessionManager.TryParseHidHideBusy(
+            "Temporary APEX isolation failed: HidHide is busy: DSX (DSX.exe), HidHide Configuration Client (HidHideClient.exe) are holding the HidHide control device. Close them or disable their HidHide integration, then retry.",
+            out executables) && executables.Length == 2 && executables[0] == "DSX.exe" && executables[1] == "HidHideClient.exe",
+            "The engine's HidHide busy error was not recognized.");
+        Assert(EngineSessionManager.TryParseHidHideBusy("Temporary APEX isolation failed: HidHide is busy: another application is holding the HidHide control device (DSX, DS4Windows...).", out executables) && executables.Length == 0,
+            "An unnamed HidHide busy error reported executables.");
+        Assert(!EngineSessionManager.TryParseHidHideBusy("Temporary APEX isolation failed: HidHide is not installed.", out executables) && !EngineSessionManager.TryParseHidHideBusy(null, out executables),
+            "An unrelated isolation failure was classified as HidHide busy.");
     }
 
     private static void TestRecoveryPolicy()
@@ -1382,6 +1466,29 @@ internal static class TrayLearningTests
         {
             return false;
         }
+    }
+
+    private static void TestSteamAlreadyRunningDetection()
+    {
+        var session = new DateTime(2026, 10, 9, 12, 0, 0, DateTimeKind.Utc);
+        var before = session.AddMinutes(-30);
+        var restarted = session.AddMinutes(-5);
+        DateTime? steamStart;
+
+        Assert(!SteamProcessChecker.Decide(new DateTime?[0], session, null, out steamStart),
+            "No Steam process must not warn");
+        Assert(!SteamProcessChecker.Decide(new DateTime?[] { session.AddSeconds(5) }, session, null, out steamStart),
+            "Steam started after isolation must not warn");
+        Assert(SteamProcessChecker.Decide(new DateTime?[] { before }, session, null, out steamStart) && steamStart == before,
+            "Steam already running when isolation started must warn");
+        Assert(!SteamProcessChecker.Decide(new DateTime?[] { before }, session, before, out steamStart),
+            "The same Steam instance must be warned only once");
+        Assert(SteamProcessChecker.Decide(new DateTime?[] { restarted }, session, before, out steamStart) && steamStart == restarted,
+            "A restarted Steam instance that predates the session must warn again");
+        Assert(SteamProcessChecker.Decide(new DateTime?[] { null }, session, null, out steamStart),
+            "An unreadable Steam start time is treated as already running");
+        Assert(!SteamProcessChecker.Decide(new DateTime?[] { null }, session, DateTime.MinValue, out steamStart),
+            "An unreadable Steam start time is warned only once");
     }
 
     private static void Assert(bool condition, string message)

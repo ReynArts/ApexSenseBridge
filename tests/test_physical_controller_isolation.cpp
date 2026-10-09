@@ -125,11 +125,35 @@ int main() {
     // Lookalike executables must not be blamed.
     assert(findHidHideControlClients({L"DSXHelper.exe", L"MyDSX.exe"}).empty());
 
+    using asb::platform::detail::kHidHideBusyMarker;
+    using asb::platform::detail::nextHidHideOpenDelay;
+    using std::chrono::milliseconds;
+
     const auto named = describeHidHideControlDenied({"DSX.exe"});
-    assert(named.find("DSX.exe") != std::string::npos);
+    assert(named.rfind(kHidHideBusyMarker, 0) == 0);
+    assert(named.find("DSX (DSX.exe) is holding the HidHide control device") !=
+           std::string::npos);
+    assert(named.find("Close it or disable its HidHide integration") !=
+           std::string::npos);
     assert(named.find("restart Windows") == std::string::npos);
+    const auto several = describeHidHideControlDenied(
+        {"DSX.exe", "HidHideClient.exe"});
+    assert(several.find("DSX (DSX.exe), HidHide Configuration Client "
+                        "(HidHideClient.exe) are holding") != std::string::npos);
     const auto generic = describeHidHideControlDenied({});
-    assert(generic.find("Windows error 5") != std::string::npos);
+    assert(generic.rfind(kHidHideBusyMarker, 0) == 0);
+    assert(generic.find("restart Windows") != std::string::npos);
     assert(generic.find("DSX") != std::string::npos);
+
+    // Open retry backoff: 100, 200, 400, then 500 ms, bounded by the window.
+    const milliseconds window{10000};
+    assert(nextHidHideOpenDelay(1, milliseconds(0), window) == milliseconds(100));
+    assert(nextHidHideOpenDelay(2, milliseconds(100), window) == milliseconds(200));
+    assert(nextHidHideOpenDelay(3, milliseconds(300), window) == milliseconds(400));
+    assert(nextHidHideOpenDelay(4, milliseconds(700), window) == milliseconds(500));
+    assert(nextHidHideOpenDelay(40, milliseconds(5000), window) == milliseconds(500));
+    assert(nextHidHideOpenDelay(40, milliseconds(9800), window) == milliseconds(200));
+    assert(nextHidHideOpenDelay(40, window, window) == milliseconds(0));
+    assert(nextHidHideOpenDelay(1, milliseconds(0), milliseconds(0)) == milliseconds(0));
     return 0;
 }

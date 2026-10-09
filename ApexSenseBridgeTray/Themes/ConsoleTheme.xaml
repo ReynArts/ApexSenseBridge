@@ -79,6 +79,13 @@
         </Setter>
     </Style>
 
+    <!-- Opaque frame for non-layered windows: no outer margin or shadow, DWM rounds the corners. -->
+    <Style x:Key="ConsoleWindowFrameFlat" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource ConsoleBackdrop}"/>
+        <Setter Property="BorderBrush" Value="#29FFFFFF"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
     <!-- ═══ Icons ═══ -->
     <Style x:Key="IconPath" TargetType="Path">
         <Setter Property="Width" Value="20"/>
@@ -652,7 +659,7 @@
                         <Trigger Property="IsVisible" Value="True">
                             <Trigger.EnterActions>
                                 <BeginStoryboard x:Name="HaloPulse">
-                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                    <Storyboard RepeatBehavior="3x" AutoReverse="True" FillBehavior="Stop">
                                         <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="Opacity"
                                                          From="0.15" To="0.85" Duration="0:0:1.6">
                                             <DoubleAnimation.EasingFunction><SineEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction>
