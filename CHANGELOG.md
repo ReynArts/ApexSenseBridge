@@ -72,8 +72,9 @@
 ### APEX 4 gyro setup warning ([#33](https://github.com/ReynArts/ApexSenseBridge/issues/33))
 
 - The bridge warns once when APEX 4 motion sensors stay at zero for 5 s: the
-  active Flydigi profile must map the gyro to "Mouse, always on". Documented in
-  README and TROUBLESHOOTING.
+  gyro must be enabled in the active Flydigi Space Station profile (Gyro tab),
+  and motion data is only sent while that gyro is active. Documented in README
+  and TROUBLESHOOTING.
 
 ### Game covers ([#37](https://github.com/ReynArts/ApexSenseBridge/issues/37))
 

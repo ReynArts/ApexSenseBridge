@@ -273,20 +273,22 @@ Upstream USBip installers can hang if an older incompatible driver version is al
 ### APEX 4 gyro aiming does nothing in games
 
 **Symptom:** gyro aiming is enabled in the game, but the camera does not follow
-APEX 4 motion. The bridge log may show `APEX 4 motion sensors report zero`.
+APEX 4 motion. The bridge log may show `APEX 4 motion sensors have reported no
+data yet`.
 
-**Cause:** the APEX 4 only includes motion data in its reports when the active
-Flydigi profile maps the gyro to **Mouse, always on**. With any other gyro
-setting every motion byte is zero, so the virtual DualSense has no gyro data to
-forward.
+**Cause:** the APEX 4 only includes motion data in its reports while the gyro
+of the active Flydigi profile is enabled and active. With the gyro off, every
+motion byte is zero, so the virtual DualSense has no gyro data to forward.
 
-**Fix:** in Flydigi Space Station, set the active profile's gyro to
-**Mouse, always on**, save it, then start a new bridge session. `test-gyro`
-can confirm that motion data is now received.
+**Fix:** in Flydigi Space Station, open the active profile's **Gyro** tab and
+enable the gyro (for example *Map to: Right Joystick*), save it, then start a
+new bridge session. The game's own gyro settings (sensitivity, gyro aiming
+on/off) then apply as on a DualSense.
 
-**Note:** mapping the gyro to the right stick in Space Station is different:
-the firmware moves the stick itself, so it works without DualSense gyro support
-but ignores the game's gyro settings.
+**Note:** *Way to turn on* decides when motion data is sent. With *Press and
+hold to power on* (for example on LT), gyro aiming only works while that button
+is held, which suits aim-down-sights gyro. If no gyro button is held when a
+session starts, the warning above is expected and can be ignored.
 
 ---
 

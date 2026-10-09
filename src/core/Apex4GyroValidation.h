@@ -6,7 +6,7 @@
 
 namespace asb {
 
-// APEX 4 reports an all-zero IMU unless the Space Station profile maps gyro to "Mouse, always on".
+// APEX 4 reports an all-zero IMU while the active Space Station profile's gyro is off or inactive.
 class Apex4GyroValidation {
 public:
     using Clock = std::chrono::steady_clock;

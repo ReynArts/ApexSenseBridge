@@ -980,9 +980,10 @@ int commandBridgeTriggers(int argc, char** argv) {
         if (inputStatus == asb::platform::PhysicalInputStatus::State) {
             tunePhysicalInput(input);
             if (apex4 && apex4GyroValidation.observe(input, inputObservedAt)) {
-                std::cerr << "WARNING: [bridge] APEX 4 motion sensors report zero. "
-                          << "In Flydigi Space Station, set the active profile's gyro to "
-                          << "'Mouse, always on' to enable DualSense gyro aiming.\n";
+                std::cerr << "WARNING: [bridge] APEX 4 motion sensors have reported no data yet. "
+                          << "DualSense gyro aiming needs the gyro enabled in the active "
+                          << "Flydigi Space Station profile (Gyro tab); motion data is only "
+                          << "sent while that gyro is active.\n";
             }
             inputFreshness.observeFreshState(inputObservedAt);
             if (apex6Bridge) {
