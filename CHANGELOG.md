@@ -2,23 +2,80 @@
 
 ## 1.0.1
 
-### Adaptive trigger release on unsupported effects and expanded effect translation
+### Adaptive triggers on APEX 4/5 ([#35](https://github.com/ReynArts/ApexSenseBridge/issues/35), [#38](https://github.com/ReynArts/ApexSenseBridge/issues/38), [#22](https://github.com/ReynArts/ApexSenseBridge/issues/22), [#23](https://github.com/ReynArts/ApexSenseBridge/issues/23))
 
-- Unsupported DualSense trigger effect packets (e.g., `0xFC` or unhandled command
-  variants) now explicitly release active trigger effects back to Normal mode instead
-  of leaving prior resistance or vibration stuck on the physical APEX triggers.
-- Added translation support for DualSense trigger effect modes `0x11` (Race),
-  `0x12` (SniperBreak), `0x22` (Slope resistance variant), `0x23`, `0x25` (Semi-automatic
-  with force threshold), and `0x27`.
-- Calibrated `RecoilRattle` amplitude mapping for low-frequency vibrations (such as
-  the Horizon bow held at 4 Hz) and smoothed graded ramp transitions.
+- New DualSense effect translations: `0x22` Bow and `0x25` Weapon with one or
+  three+ zones (SniperBreak), `0x23` Galloping and `0x27` Machine
+  (RecoilRattle), `0x11`/`0x12` limited variants (Race/SniperBreak).
+- Unsupported effects (`0xFC`, unknown modes, invalid zones) and all-zero
+  blocks now release the trigger to Normal instead of leaving the previous
+  resistance or recoil stuck.
+- `0x26` Vibration uses the averaged zone amplitude from where the effect
+  reaches half its peak, so a held bow (Horizon, 4 Hz) pulses gently instead of
+  rattling at full strength from the top of travel.
+- Trigger writes are sent before pending grip rumble (rumble waits 100 ms at
+  most), reducing trigger latency over the 2.4 GHz receiver.
+- Bridge summary adds `last_unsupported_lt/rt_ds_type`, `unsupported_by_type`
+  and the first distinct raw trigger blocks (`trigger_block_lt/rt_N`).
 
-### APEX 6 Pro haptic idle suppression
+### Lower CPU and GPU load ([#39](https://github.com/ReynArts/ApexSenseBridge/issues/39), [#33](https://github.com/ReynArts/ApexSenseBridge/issues/33))
 
-- Added idle frame suppression with periodic keepalives in `Apex6HapticBridge`:
-  skips redundant zero/silent frames when idle, saving USB bandwidth and CPU cycles,
-  while waking up immediately with zero latency upon active audio waveforms or grip rumble.
-- Added telemetry tracking for skipped idle frames, keepalives, and silent waveforms.
+- The Tray no longer re-renders continuously: the Support halo stops after three
+  pulses and the main, games and controller-test windows are no longer layered
+  (`AllowsTransparency`), which kept the GPU busy while a window was open.
+  Background timers pause while a window is hidden or minimized.
+- APEX 6 Pro haptics idle after silent frames (one neutral frame every 50 ms)
+  and wake instantly on audio, rumble or trigger effects.
+- Physical input is forwarded to the virtual DualSense only when it changes,
+  plus a 100 ms keepalive.
+
+### APEX 5 startup no longer hangs ([#15](https://github.com/ReynArts/ApexSenseBridge/issues/15))
+
+- A timed-out HID write no longer falls back to the unbounded
+  `HidD_SetOutputReport`, which could block startup indefinitely (seen in
+  XInput mode). The identity check honors the Tray's stop request and reports
+  an actionable error when the vendor interface does not answer.
+- The controller test window shows the engine's actual error instead of a
+  generic failure.
+
+### Stable controller status in the Tray ([#33](https://github.com/ReynArts/ApexSenseBridge/issues/33))
+
+- A verified APEX no longer appears and disappears every few seconds: the
+  verified model is cached per interface and re-checked every 30 s, the HID
+  product string no longer affects the fingerprint, and a status is downgraded
+  only after three consecutive failures (two for an unplug).
+
+### HidHide held by DSX ([#28](https://github.com/ReynArts/ApexSenseBridge/issues/28))
+
+- The bridge waits up to 10 s for another application to release HidHide,
+  then names it (DSX, DS4Windows...). The Tray shows a localized message with a
+  Retry button. Initialization timeout is at least 30 s to cover the wait.
+
+### Steam duplicate input notice ([#32](https://github.com/ReynArts/ApexSenseBridge/issues/32), [#21](https://github.com/ReynArts/ApexSenseBridge/issues/21))
+
+- When Steam was already running before the controller was hidden, the Tray
+  shows one notification per Steam instance explaining how to fix duplicate
+  input. Steam is never restarted automatically.
+
+### Grip vibration strength and haptic threshold ([#25](https://github.com/ReynArts/ApexSenseBridge/issues/25))
+
+- Above 100%, vibration strength lifts medium and strong rumble instead of
+  clipping at the maximum; 100% and below are unchanged.
+- The haptic activation threshold fades weak vibration with a soft knee
+  instead of cutting it off.
+
+### APEX 4 gyro setup warning ([#33](https://github.com/ReynArts/ApexSenseBridge/issues/33))
+
+- The bridge warns once when APEX 4 motion sensors stay at zero for 5 s: the
+  active Flydigi profile must map the gyro to "Mouse, always on". Documented in
+  README and TROUBLESHOOTING.
+
+### Game covers ([#37](https://github.com/ReynArts/ApexSenseBridge/issues/37))
+
+- 178 game covers that returned 404 now use Steam's hashed asset paths. The
+  daily importer resolves covers through the Steam store API and repairs empty
+  or outdated URLs.
+- Restored the `addedAt` dates removed by the daily stable-to-dev sync.
 
 ### Tray UI, gamepad navigation and Windows 11 polish
 
