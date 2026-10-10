@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-09T11:09:29.375259+00:00",
-  "totalGames": 217,
-  "discordExecutableGames": 131,
+  "updatedAt": "2026-10-10T10:26:56.878340+00:00",
+  "totalGames": 218,
+  "discordExecutableGames": 132,
   "games": [
     {
       "title": "007 First Light",
@@ -318,7 +318,7 @@
       "profile": "standard",
       "steamAppId": 1938090,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/91cbd2965d6353ab4ce37148b5206ee86f1be08a/library_capsule_2x.jpg?t=1790698535",
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/91cbd2965d6353ab4ce37148b5206ee86f1be08a/library_capsule_2x.jpg?t=1791569961",
       "executables": [
         "cod.exe"
       ],
@@ -588,6 +588,20 @@
         "daysgone.exe"
       ],
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "Deadzone: Rogue",
+      "normalized": "deadzonerogue",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 3228590,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3228590/059e0f080bd9cf082c3fb7f115a44af2ba96c750/library_capsule_2x.jpg?t=1784756793",
+      "executables": [
+        "deadzonesteam.exe"
+      ],
+      "addedAt": "2026-10-10"
     },
     {
       "title": "Death Stranding",
