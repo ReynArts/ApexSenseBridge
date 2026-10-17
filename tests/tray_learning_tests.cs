@@ -63,6 +63,7 @@ internal static class TrayLearningTests
             TestRecoveryPolicy();
             TestHidHideBusyDetection();
             TestInterruptedSessionRecovery();
+            TestContinuousManualRecovery();
             TestExternalRecoveryOwnership();
             TestRecoveryCancelledDuringStartup();
             TestRecoveryGameLifetimeTracking();
@@ -669,6 +670,12 @@ internal static class TrayLearningTests
 
     private static void TestSharedBridgeArguments()
     {
+        for (int slot = 0; slot <= 4; ++slot)
+        {
+            var arguments = BridgeArguments.Build("standard", true, 12, false, slot);
+            Assert(slot == 0 ? !arguments.Contains("--apex-profile") : arguments.EndsWith("--apex-profile " + slot),
+                "Keep current or an explicit onboard profile was not respected by the launcher.");
+        }
         var cachedGames = CreateGameList("{\"games\":[{\"title\":\"Death Stranding 2: On the Beach\",\"profile\":\"standard\"}]}");
         Assert(FindGame(cachedGames, "Death Stranding 2: On the Beach").Profile == "death-stranding-2",
             "An older cached catalogue lost the embedded Death Stranding 2 remapping.");
@@ -1118,6 +1125,44 @@ internal static class TrayLearningTests
             finally { manager.Dispose(); }
         }
         Assert(BridgeSession.ReadSessionStatus("invalid") == null, "Invalid status token was accepted.");
+    }
+
+    private static void TestContinuousManualRecovery()
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ManualRecoveryTest." + Guid.NewGuid().ToString("N");
+        var settings = new TraySettings { AutoDetectGames = false, ForcedProfile = "standard" };
+        var manager = new EngineSessionManager(() => executable, discovery, () => false);
+        try
+        {
+            using (var monitor = new ProcessMonitorService(null, manager, null, settings, false))
+            {
+                var recovery = (SessionRecoveryState)typeof(EngineSessionManager).GetField("recovery", flags).GetValue(manager);
+                var poll = typeof(ProcessMonitorService).GetMethod("OnPollTick", flags);
+                recovery.Offer("Alpha", "standard", 3, 1, 15);
+                monitor.ReportControllerStatus("disconnected");
+                poll.Invoke(monitor, new object[] { null });
+                Assert(!manager.IsSessionActive && recovery.Pending, "Manual recovery started while the controller was asleep.");
+
+                monitor.ReportControllerStatus("apex5");
+                poll.Invoke(monitor, new object[] { null });
+                Assert(manager.IsSessionHealthy && recovery.Recovered, "Continuous manual activation did not recover with game detection disabled.");
+                Assert(manager.ActiveProfile == "standard / APEX 3", "Automatic manual recovery lost the requested hardware profile.");
+                manager.StopSession("Manual toggle disabled");
+                settings.ForcedProfile = "none";
+                recovery.Offer("Alpha", "standard", 3, 1, 15);
+                poll.Invoke(monitor, new object[] { null });
+                Assert(!manager.IsSessionActive, "Disabling manual activation still resumed the bridge.");
+
+                settings.ForcedProfile = "standard";
+                recovery.Offer("Alpha", "standard", 3, 1, 15, "Playnite");
+                poll.Invoke(monitor, new object[] { null });
+                Assert(!manager.IsSessionActive && recovery.Pending, "Continuous activation took over an external session.");
+                manager.StopSession("Test finished");
+            }
+        }
+        finally { manager.StopSession("Test cleanup"); manager.Dispose(); }
     }
 
     private static void TestExternalRecoveryOwnership()

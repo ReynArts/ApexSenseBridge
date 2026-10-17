@@ -1898,9 +1898,10 @@ bool TemporaryPhysicalControllerIsolation::recoveredStaleIsolation() const noexc
 }
 
 bool TemporaryPhysicalControllerIsolation::recoverPending(
-    ControllerRecoveryReport& report, std::string& error) noexcept {
+    ControllerRecoveryReport& report, std::string& error, bool startingSession) noexcept {
     try {
-        return recoverPendingImpl(detail::ApexRecoveryMode::StaleSession, report, error);
+        return recoverPendingImpl(startingSession ? detail::ApexRecoveryMode::SessionActivation
+                                                  : detail::ApexRecoveryMode::StaleSession, report, error);
     } catch (...) {
         report.recovered = false;
         report.visibilityRestored = false;
@@ -1910,7 +1911,8 @@ bool TemporaryPhysicalControllerIsolation::recoverPending(
 }
 
 bool TemporaryPhysicalControllerIsolation::applyDeferredApexRestore(
-    flydigi::Apex5Device& device, std::string& notice, std::string& error) noexcept {
+    flydigi::Apex5Device& device, std::string& notice, std::string& error,
+    bool keepCurrentProfile) noexcept {
     try {
         const auto deferred = loadDeferredApexRestore(notice);
         if (!deferred ||
@@ -1923,7 +1925,10 @@ bool TemporaryPhysicalControllerIsolation::applyDeferredApexRestore(
             return false;
         }
         std::string restoreError;
-        bool profileRestored = !deferred->profilePending;
+        // A new bridge session owns profile selection. A saved slot from an
+        // interrupted session must not override the user's current selection.
+        // Explicit recovery commands still restore the saved profile.
+        bool profileRestored = !deferred->profilePending || keepCurrentProfile;
         for (int attempt = 1; !profileRestored && attempt <= kRestoreAttempts; ++attempt) {
             profileRestored =
                 applyApexProfile(device, deferred->profileSlot, attempt, restoreError);

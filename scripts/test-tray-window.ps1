@@ -55,7 +55,35 @@ try {
             }
         }
     }
-    Write-Output "PASS: $count WPF window initialization/phase/tab scenarios."
+    $service = New-Object ApexSenseBridgeTray.Services.CloudGameListService
+    [void]$service.GetType().GetMethod("LoadEmbeddedDatabase", $flags).Invoke($service, $null)
+    $settings = New-Object ApexSenseBridgeTray.Models.TraySettings
+    $settings.SupportHintShown = $true
+    $window = New-Object ApexSenseBridgeTray.GameListWindow -ArgumentList @($service, $settings)
+    try {
+        $games = $windowType.GetField("allGameViewModels", $flags).GetValue($window)
+        $game = $games[0]
+        $binding = New-Object ApexSenseBridgeTray.Models.LearnedExecutableBinding
+        $binding.GameNormalized = $game.Normalized
+        $binding.GameTitle = $game.Title
+        $item = New-Object ApexSenseBridgeTray.LearnedItemViewModel -ArgumentList $binding
+        $learned = $windowType.GetField("filteredLearned", $flags).GetValue($window)
+        $learned.Add($item)
+        [void]$windowType.GetMethod("SetCurrentTab", $flags).Invoke($window, @([int]2))
+        [void]$windowType.GetMethod("SetLearnedNav", $flags).Invoke($window, @([int]0))
+        $pane = $windowType.GetField("GameDetailPane", $flags).GetValue($window)
+        $learnedPanel = $windowType.GetField("PanelLearnedExecutables", $flags).GetValue($window)
+        if ($pane.Parent -ne $learnedPanel -or $window.SelectedGame -ne $game) { throw "Learned game did not expose its shared detail pane." }
+        if ($item.IsSelected) { throw "Opening learned details changed the export/delete selection." }
+        # A certified-list search must not hide details of the learned game.
+        $windowType.GetField("filteredGames", $flags).GetValue($window).Clear()
+        [void]$windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, $null)
+        if ($window.SelectedGame -ne $game) { throw "Certified filtering changed the learned game's settings target." }
+        [void]$windowType.GetMethod("SetCurrentTab", $flags).Invoke($window, @([int]1))
+        if ($pane.Parent -eq $learnedPanel) { throw "Detail pane was lost when returning to certified games." }
+        $count++
+    } finally { $window.Close() }
+    Write-Output "PASS: $count WPF window initialization/phase/tab and learned-detail scenarios."
 } finally {
     $app.Shutdown()
 }

@@ -561,7 +561,7 @@
                         </Grid>
 
                         <!-- Detail of the selected game -->
-                        <Border Grid.Column="2" CornerRadius="20" Background="{DynamicResource CardBackground}"
+                        <Border x:Name="GameDetailPane" Grid.Column="2" CornerRadius="20" Background="{DynamicResource CardBackground}"
                                 BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" Padding="20,20,20,14">
                             <Grid>
                                 <TextBlock x:Name="TxtDetailEmpty" Text="{DynamicResource Loc_DetailNoGame}"
@@ -688,6 +688,11 @@
 
                     <!-- ────────── TAB 2 : LEARNED EXECUTABLES ────────── -->
                     <Grid x:Name="PanelLearnedExecutables" Visibility="Collapsed" Margin="26,0,26,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="380"/>
+                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
