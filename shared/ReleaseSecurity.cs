@@ -82,8 +82,11 @@ namespace ApexSenseBridge.Security
                 return false;
             }
 
+            // Inno Setup pads version resource strings with trailing spaces.
             var versionInfo = FileVersionInfo.GetVersionInfo(installerPath);
-            if (!string.Equals(versionInfo.ProductName, "ApexSenseBridge",
+            string productName = (versionInfo.ProductName ?? string.Empty).Trim();
+            string productVersion = (versionInfo.ProductVersion ?? string.Empty).Trim();
+            if (!string.Equals(productName, "ApexSenseBridge",
                 StringComparison.OrdinalIgnoreCase))
             {
                 error = "The downloaded executable is not an ApexSenseBridge setup.";
@@ -95,7 +98,7 @@ namespace ApexSenseBridge.Security
                 Version expected;
                 Version actual;
                 if (!Version.TryParse(expectedVersion.TrimStart('v', 'V'), out expected) ||
-                    !Version.TryParse(versionInfo.ProductVersion, out actual) ||
+                    !Version.TryParse(productVersion, out actual) ||
                     expected.Major != actual.Major ||
                     expected.Minor != actual.Minor ||
                     expected.Build != actual.Build)
