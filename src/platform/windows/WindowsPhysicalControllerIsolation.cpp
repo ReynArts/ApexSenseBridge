@@ -1993,12 +1993,27 @@ int TemporaryPhysicalControllerIsolation::watchAndRecover(
     // An unexpected engine exit must remain fail-closed while its Playnite
     // game session is active. Normal shutdown has already signalled this event,
     // so it passes through without adding latency.
-    if (playniteStopEvent.valid() &&
-        WaitForSingleObject(playniteStopEvent.get(), INFINITE) != WAIT_OBJECT_0) {
-        error = windowsError("Waiting for the Playnite game to stop", GetLastError());
-        return 1;
+    while (playniteStopEvent.valid()) {
+        // Normal engine cleanup can retire its recovery marker without a
+        // launcher stop request (for example on controller sleep). There is
+        // nothing left for this watchdog to protect in that case. A newer
+        // session's marker must never be recovered by an older watchdog.
+        RecoverySnapshot pending{};
+        bool exists = false;
+        if (!readRecoverySnapshot(pending, exists, error)) return 1;
+        if (!exists || pending.ownerProcessId != ownerProcessId) return 0;
+        const auto wait = WaitForSingleObject(playniteStopEvent.get(), 250);
+        if (wait == WAIT_OBJECT_0) break;
+        if (wait != WAIT_TIMEOUT) {
+            error = windowsError("Waiting for the Playnite game to stop", GetLastError());
+            return 1;
+        }
     }
 
+    RecoverySnapshot pending{};
+    bool exists = false;
+    if (!readRecoverySnapshot(pending, exists, error)) return 1;
+    if (!exists || pending.ownerProcessId != ownerProcessId) return 0;
     ControllerRecoveryReport report;
     return recoverPending(report, error) ? 0 : 2;
 }
