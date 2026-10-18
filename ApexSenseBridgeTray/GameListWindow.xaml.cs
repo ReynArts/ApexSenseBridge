@@ -2047,7 +2047,11 @@ namespace ApexSenseBridgeTray
 
             foreach (var b in bindings)
             {
-                allLearnedViewModels.Add(new LearnedItemViewModel(b));
+                allLearnedViewModels.Add(new LearnedItemViewModel(b)
+                {
+                    GameDetails = allGameViewModels.FirstOrDefault(g => string.Equals(
+                        g.Normalized, b.GameNormalized, StringComparison.OrdinalIgnoreCase))
+                });
             }
 
             ApplyLearnedFilter();
@@ -2653,6 +2657,7 @@ namespace ApexSenseBridgeTray
     public sealed class LearnedItemViewModel : INotifyPropertyChanged
     {
         public LearnedExecutableBinding Binding { get; private set; }
+        public GameItemViewModel GameDetails { get; set; }
         public string GameTitle => !string.IsNullOrWhiteSpace(Binding.GameTitle) ? Binding.GameTitle : Binding.GameNormalized;
         public string Executable => Binding.Executable;
         public string Path => Binding.Path;

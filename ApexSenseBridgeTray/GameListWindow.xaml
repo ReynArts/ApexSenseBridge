@@ -768,8 +768,38 @@
                                                     </Style>
                                                 </Border.Style>
                                                 <DockPanel LastChildFill="True">
-                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Style="{StaticResource ModernCheckBox}"
-                                                              VerticalAlignment="Center" Margin="0,0,14,0" DockPanel.Dock="Left"/>
+                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              AutomationProperties.Name="{Binding GameTitle}"
+                                                              Width="38" Height="52" Cursor="Hand"
+                                                              VerticalAlignment="Center" Margin="0,0,14,0" DockPanel.Dock="Left">
+                                                        <CheckBox.Template>
+                                                            <ControlTemplate TargetType="CheckBox">
+                                                                <Grid>
+                                                                    <Border CornerRadius="8" Background="#1B2747">
+                                                                        <TextBlock Text="{Binding GameDetails.Initials, TargetNullValue=?}" FontSize="12" FontWeight="SemiBold"
+                                                                                   Foreground="#E2E8F0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                    <Border CornerRadius="8">
+                                                                        <Border.Background>
+                                                                            <ImageBrush ImageSource="{Binding GameDetails.CoverImage}" Stretch="UniformToFill"/>
+                                                                        </Border.Background>
+                                                                    </Border>
+                                                                    <Border x:Name="SelectionOutline" CornerRadius="8" BorderThickness="2"
+                                                                            BorderBrush="{DynamicResource PlayStationBlue}" Visibility="Collapsed"/>
+                                                                    <Border x:Name="SelectionMark" CornerRadius="4" Background="{DynamicResource PlayStationBlue}"
+                                                                            HorizontalAlignment="Right" VerticalAlignment="Top" Padding="3,0" Visibility="Collapsed">
+                                                                        <TextBlock Text="&#x2713;" Foreground="White" FontSize="11" FontWeight="Bold"/>
+                                                                    </Border>
+                                                                </Grid>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsChecked" Value="True">
+                                                                        <Setter TargetName="SelectionOutline" Property="Visibility" Value="Visible"/>
+                                                                        <Setter TargetName="SelectionMark" Property="Visibility" Value="Visible"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </CheckBox.Template>
+                                                    </CheckBox>
                                                     <Button Style="{StaticResource BtnDanger}" Width="36" Height="36" Padding="0" DockPanel.Dock="Right"
                                                             VerticalAlignment="Center" Margin="10,0,0,0"
                                                             ToolTip="{DynamicResource Loc_BtnDeleteSingle}" Click="OnDeleteSingleLearnedItemClick">
