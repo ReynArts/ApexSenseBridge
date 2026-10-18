@@ -1420,7 +1420,7 @@ namespace ApexSenseBridgeTray
         private void UpdateRecoveryPanel(SessionRecoveryState recovery)
         {
             if (PnlSessionRecovery == null || PnlDashboardCounts == null) return;
-            bool visible = recovery != null && (recovery.Pending || recovery.Recovered);
+            bool visible = recovery != null && recovery.Pending;
             PnlSessionRecovery.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
             PnlDashboardCounts.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
             if (!visible) return;
