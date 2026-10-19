@@ -129,8 +129,8 @@ function Test-SameReleaseVersion([string]$v1, [string]$v2) {
     }
 }
 $setupInfo = (Get-Item -LiteralPath $tempInstaller).VersionInfo
-$setupVersion = $setupInfo.ProductVersion
-if ($setupInfo.ProductName -ne "ApexSenseBridge") {
+$setupVersion = "$($setupInfo.ProductVersion)".Trim()
+if ("$($setupInfo.ProductName)".Trim() -ne "ApexSenseBridge") {
     Remove-Item -LiteralPath $tempInstaller -Force -ErrorAction SilentlyContinue
     throw "Downloaded executable is not an ApexSenseBridge setup."
 }
