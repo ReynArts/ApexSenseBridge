@@ -278,19 +278,35 @@ bool Apex5Device::verifyIdentity(std::string& error,
     }
 
     // V1 controllers can occasionally miss a successful command write while
-    // streaming input, especially over the 2.4 GHz receiver. SDL retries this
-    // read-only request up to 30 times; keep the same roughly three-second
-    // retry window so a second process opening the dongle is reliable too.
+    // streaming input, especially over the 2.4 GHz receiver. 
+    // Wait 1.5 seconds between Apex 4 identity requests to let the receiver
+    // recover, keeping the same roughly three-second retry window.
     constexpr auto kApex4AttemptTimeout = std::chrono::milliseconds(100);
+    constexpr auto kApex4RequestSpacing = std::chrono::milliseconds(1500);
     constexpr auto kApex5AttemptTimeout = std::chrono::milliseconds(600);
     constexpr std::size_t kMaximumReplies = 4096;
     // During controller wake, another short-lived detector can consume the
     // first shared vendor-interface reply. Retry Apex 5 identity exchanges so
     // that this benign race does not abort a bridge session. Apex 6 uses a
     // different dedicated interface and retains its single exchange.
-    const std::size_t maximumAttempts = apex4 ? 30 : (apex6Pro ? 1 : 3);
+    const std::size_t maximumAttempts = apex6Pro ? 1 : 3;
     Apex4IdentityObservation apex4Observation;
+    std::chrono::steady_clock::time_point lastIdentityRequest{};
     for (std::size_t attempt = 0; attempt < maximumAttempts; ++attempt) {
+        if (apex4 && attempt != 0) {
+            const auto nextRequest = lastIdentityRequest + kApex4RequestSpacing;
+            for (;;) {
+                const auto now = std::chrono::steady_clock::now();
+                if (now >= nextRequest) break;
+                if (shouldStop && shouldStop()) {
+                    error = "Identity check cancelled by a stop request";
+                    return false;
+                }
+                std::this_thread::sleep_for(std::min(
+                    nextRequest - now,
+                    std::chrono::steady_clock::duration(std::chrono::milliseconds(25))));
+            }
+        }
         if (shouldStop && shouldStop()) {
             error = "Identity check cancelled by a stop request";
             return false;
@@ -305,6 +321,7 @@ bool Apex5Device::verifyIdentity(std::string& error,
             if (!apex4 && !apex6Pro) error += "; " + std::string(kApex5UnresponsiveHint);
             return false;
         }
+        lastIdentityRequest = std::chrono::steady_clock::now();
 
         const auto deadline = std::chrono::steady_clock::now() +
             (apex4 ? kApex4AttemptTimeout : kApex5AttemptTimeout);
@@ -368,7 +385,7 @@ bool Apex5Device::verifyIdentity(std::string& error,
 
     identityUnanswered_ = true;
     if (apex4) {
-        error = "No valid command 0xEC Apex 4 identity reply arrived after 30 attempts;" +
+        error = "No valid command 0xEC Apex 4 identity reply arrived after 3 spaced attempts;" +
                 apex4Observation.describe() +
                 "; use USB/dongle DInput mode and close Flydigi Space Station before retrying";
     } else if (apex6Pro) {
