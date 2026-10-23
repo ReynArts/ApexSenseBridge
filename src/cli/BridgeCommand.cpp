@@ -2,6 +2,7 @@
 #include "cli/BridgeOptions.h"
 #include "cli/BridgeRuntimeSupport.h"
 #include "cli/BridgeTelemetry.h"
+#include "cli/UdpTriggerServer.h"
 #include "cli/CommandSupport.h"
 #include "core/ApexProfileRestoreGuard.h"
 #include "core/Apex4GyroValidation.h"
@@ -361,6 +362,15 @@ int commandBridgeTriggers(int argc, char** argv) {
     auto adaptiveBridge = !apex6Pro
         ? std::make_unique<asb::dualsense::AdaptiveTriggerBridge>(*device, options.triggerStrengthPercent)
         : std::unique_ptr<asb::dualsense::AdaptiveTriggerBridge>{};
+    std::unique_ptr<asb::cli::UdpTriggerServer> udpTriggerServer;
+    if (adaptiveBridge && options.udpPort != 0) {
+        udpTriggerServer = std::make_unique<asb::cli::UdpTriggerServer>(
+            options.udpBindAddress,
+            options.udpPort,
+            [adaptive = adaptiveBridge.get()](const auto& feedback) {
+                adaptive->handle(feedback);
+            });
+    }
     auto apex6Bridge = apex6Pro
         ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
               *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent,
@@ -839,6 +849,17 @@ int commandBridgeTriggers(int argc, char** argv) {
     startup.markReady();
     startupWatchdog.stop();
 
+    if (udpTriggerServer) {
+        std::string udpError;
+        if (!udpTriggerServer->start(udpError)) {
+            const std::string message = "UDP trigger listener failed: " + udpError;
+            std::cerr << message << '\n';
+            return failSession(17, message);
+        }
+        std::cout << "UDP trigger listener: " << options.udpBindAddress << ':'
+                  << options.udpPort << " (localhost only).\n";
+    }
+
     const auto initializedAt = std::chrono::steady_clock::now();
     const auto initializationMilliseconds =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -899,6 +920,9 @@ int commandBridgeTriggers(int argc, char** argv) {
                       : "")
               << (physicalIsolation.active()
                       ? "The original APEX game interface is hidden for this bridge session only.\n"
+                      : "")
+              << (udpTriggerServer
+                      ? "REFramework UDP trigger input is enabled.\n"
                       : "")
               << (sessionControl ? "Bridge session IPC is ready.\n" : "")
               << (rumbleBridge
@@ -1238,6 +1262,13 @@ int commandBridgeTriggers(int argc, char** argv) {
     } else {
         std::cerr << "Warning: virtual input neutralization during cleanup failed: "
                   << neutralizationError << '\n';
+    }
+    if (udpTriggerServer) {
+        const auto udpStats = udpTriggerServer->stats();
+        std::cout << "UDP trigger packets: " << udpStats.packets
+                  << ", accepted: " << udpStats.accepted
+                  << ", rejected: " << udpStats.rejected << '\n';
+        udpTriggerServer->stop();
     }
     virtualDualSense->close(); // joins the feedback callback before touching the HID device
     device->stopAsyncWrites(); // no queued effect may overtake the reset below

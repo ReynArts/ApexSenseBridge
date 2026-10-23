@@ -120,6 +120,8 @@
   "Loc_SyncLightbarHint": "Synchronize controller LEDs with in-game DualSense lightbar color events",
   "Loc_ManualBridge": "Force continuous activation",
   "Loc_ManualBridgeHint": "Keeps the bridge active continuously without waiting for a game",
+  "Loc_UdpTriggers": "REFramework UDP triggers",
+  "Loc_UdpTriggersHint": "Listen on localhost for Lua trigger effects (REFramework) to control in-game adaptive triggers",
   "Loc_PreparedLaunch": "Launch a game (.exe)",
   "Loc_PreparedLaunchHint": "Starts the bridge before the selected game. Turn off manual activation when you finish playing.",
   "Loc_PreparedLaunchBusy": "Another bridge session is active. Stop it before launching a game.",

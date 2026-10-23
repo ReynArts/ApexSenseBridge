@@ -95,6 +95,27 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 return false;
             }
             options.telemetryJson = argv[i];
+        } else if (value == "--udp-bind") {
+            if (++i >= argc || std::string_view(argv[i]) != "127.0.0.1") {
+                error = "--udp-bind currently accepts only 127.0.0.1.";
+                return false;
+            }
+            options.udpBindAddress = argv[i];
+        } else if (value == "--udp-port") {
+            if (++i >= argc) {
+                error = "--udp-port requires an integer from 1 to 65535.";
+                return false;
+            }
+            try {
+                std::size_t consumed = 0;
+                const auto parsed = std::stoul(argv[i], &consumed);
+                if (consumed != std::string_view(argv[i]).size() || parsed == 0 || parsed > 65535)
+                    throw std::out_of_range("udp-port");
+                options.udpPort = static_cast<std::uint16_t>(parsed);
+            } catch (...) {
+                error = "--udp-port requires an integer from 1 to 65535.";
+                return false;
+            }
         } else if (value == "--proxy-xinput" || value == "--isolate-apex") {
             // Compatibility aliases retained for older launchers. Full input
             // proxying and physical isolation are mandatory since 1.0.
@@ -283,6 +304,13 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
         error = "--session-owner-pid requires --session-token.";
         return false;
     }
+    if (!options.udpBindAddress.empty() && options.udpPort == 0) {
+        error = "--udp-bind requires --udp-port.";
+        return false;
+    }
+    if (options.udpBindAddress.empty() && options.udpPort != 0) {
+        options.udpBindAddress = "127.0.0.1";
+    }
     if (options.apex6HapticGainExplicit && !options.routeRumble) {
         error = "--apex6-haptic-gain requires --rumble.";
         return false;
@@ -295,6 +323,7 @@ std::string_view bridgeCommandUsage() noexcept {
     return "Usage: ApexSenseBridge bridge-triggers [index] [--seconds N] "
            "[--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
+           "[--udp-bind 127.0.0.1 --udp-port 1..65535] "
            "[--sync-lightbar] [--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..200] "
            "[--apex6-haptic-gain 100..200] "

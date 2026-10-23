@@ -57,23 +57,52 @@ bool decodeViiperFeedbackFrame(std::uint8_t frameType,
             return false;
         }
 
+        // The ASB VIIPER extension normally emits a compact 27-byte payload.
+        // WebHID can also write the complete DualSense USB output body: the
+        // trigger blocks then begin at offsets 10 and 21 (or at 12 and 23 for
+        // the Bluetooth body). Accept both forms so browser test tools and
+        // native games use the same feedback path.
+        std::size_t controlOffset = 0;
+        std::size_t triggerOffset = 5;
+        std::size_t lightbarOffset = 27;
+        if (payload.size() >= 77 && payload[1] == 16) {
+            controlOffset = 2;
+            triggerOffset = 12;
+            lightbarOffset = 46;
+        } else if (payload.size() >= 78 && payload[2] == 16) {
+            controlOffset = 3;
+            triggerOffset = 13;
+            lightbarOffset = 47;
+        } else if (payload.size() >= 63 && payload[0] == 0x02) {
+            controlOffset = 1;
+            triggerOffset = 11;
+            lightbarOffset = 45;
+        } else if (payload.size() >= 62) {
+            controlOffset = 0;
+            triggerOffset = 10;
+            lightbarOffset = 44;
+        }
+        if (triggerOffset + 22 > payload.size()) {
+            return false;
+        }
+
         DualSenseFeedback decoded{};
         decoded.kind = FeedbackKind::HidOutput;
-        decoded.enableBits1 = payload[0];
-        decoded.enableBits2 = payload[1];
-        decoded.rumbleRight = payload[2];
-        decoded.rumbleLeft = payload[3];
-        decoded.enableBits3 = payload[4];
-        std::copy_n(payload.begin() + 5, decoded.rightTriggerEffect.size(),
+        decoded.enableBits1 = payload[controlOffset];
+        decoded.enableBits2 = payload[controlOffset + 1];
+        decoded.rumbleRight = payload[controlOffset + 2];
+        decoded.rumbleLeft = payload[controlOffset + 3];
+        decoded.enableBits3 = payload[controlOffset + 4];
+        std::copy_n(payload.begin() + triggerOffset, decoded.rightTriggerEffect.size(),
                     decoded.rightTriggerEffect.begin());
-        std::copy_n(payload.begin() + 16, decoded.leftTriggerEffect.size(),
+        std::copy_n(payload.begin() + triggerOffset + 11, decoded.leftTriggerEffect.size(),
                     decoded.leftTriggerEffect.begin());
         constexpr std::uint8_t kLightbarControlEnable = 0x04;
-        if (payload.size() >= 30 &&
+        if (payload.size() >= lightbarOffset + 3 &&
             (decoded.enableBits2 & kLightbarControlEnable) != 0) {
-            decoded.lightbarRed = payload[27];
-            decoded.lightbarGreen = payload[28];
-            decoded.lightbarBlue = payload[29];
+            decoded.lightbarRed = payload[lightbarOffset];
+            decoded.lightbarGreen = payload[lightbarOffset + 1];
+            decoded.lightbarBlue = payload[lightbarOffset + 2];
             decoded.hasLightbar = true;
         }
         feedback = decoded;

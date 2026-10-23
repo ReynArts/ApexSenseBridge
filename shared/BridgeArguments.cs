@@ -15,7 +15,9 @@ namespace ApexSenseBridge.Common
             int triggerStrengthPercent = 100,
             int vibrationStrengthPercent = 100,
             int apex4GyroStrengthPercent = 100,
-            int apex4GyroYawStrengthPercent = 100)
+            int apex4GyroYawStrengthPercent = 100,
+            bool enableUdpTriggers = false,
+            int udpPort = 10026)
         {
             var arguments = new List<string>
             {
@@ -50,6 +52,15 @@ namespace ApexSenseBridge.Common
             {
                 arguments.Add("--apex-profile");
                 arguments.Add(apexProfileSlot.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (enableUdpTriggers)
+            {
+                arguments.Add("--udp-bind");
+                arguments.Add("127.0.0.1");
+                arguments.Add("--udp-port");
+                arguments.Add(Math.Max(1, Math.Min(65535, udpPort))
+                    .ToString(CultureInfo.InvariantCulture));
             }
 
             return string.Join(" ", arguments.ToArray());

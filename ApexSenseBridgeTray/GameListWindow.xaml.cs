@@ -464,7 +464,7 @@ namespace ApexSenseBridgeTray
             var items = new FrameworkElement[]
             {
                 TileSettingAutoDetect, TileSettingAdaptive, TileSettingHaptic,
-                TileSettingNotifications, TileSettingLanguage,
+                TileSettingNotifications, TileSettingUdp, TileSettingLanguage,
                 BtnOpenControllerTest, BtnPreparedLaunch, BtnReportBug, BtnCheckUpdates
             }.Where(item => item != null);
             return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
@@ -1042,6 +1042,7 @@ namespace ApexSenseBridgeTray
                 else if (item == TileSettingAdaptive) OnSettingAdaptiveToggled(null, null);
                 else if (item == TileSettingHaptic) OnSettingHapticToggled(null, null);
                 else if (item == TileSettingNotifications) OnSettingNotificationsToggled(null, null);
+                else if (item == TileSettingUdp) OnSettingUdpToggled(null, null);
                 else if (item == TileSettingSyncLightbar) OnSettingSyncLightbarToggled(null, null);
                 else if (item == TileSettingLanguage) OpenLanguagePicker();
                 else if (item == RowGripVibrations) ToggleGripVibrations();
@@ -2213,6 +2214,9 @@ namespace ApexSenseBridgeTray
             UpdateSettingToggle(BadgeSettingAdaptive, DotSettingAdaptive, settings.TriggerOnAdaptiveTriggers);
             UpdateSettingToggle(BadgeSettingHaptic, DotSettingHaptic, settings.TriggerOnHapticFeedback);
             UpdateSettingToggle(BadgeSettingNotifications, DotSettingNotifications, settings.EnableNotifications);
+            UpdateSettingToggle(BadgeSettingUdp, DotSettingUdp, settings.EnableUdpTriggers);
+            TxtSettingUdpPort.Text = settings.UdpPort.ToString();
+            TxtSettingUdpPort.IsEnabled = settings.EnableUdpTriggers;
             UpdateSettingToggle(BadgeSettingSyncLightbar, DotSettingSyncLightbar, displayed.SyncLightbar);
 
             if (PnlSettingCriteria != null)
@@ -2374,6 +2378,35 @@ namespace ApexSenseBridgeTray
             settings.EnableNotifications = !settings.EnableNotifications;
             settings.Save();
             UpdateSettingsView();
+        }
+
+        private void OnSettingUdpToggled(object sender, MouseButtonEventArgs e)
+        {
+            if (settings == null) return;
+            settings.EnableUdpTriggers = !settings.EnableUdpTriggers;
+            settings.UdpPort = NormalizeUdpPort(settings.UdpPort);
+            settings.Save();
+            UpdateSettingsView();
+        }
+
+        private void OnSettingUdpPortChanged(object sender, TextChangedEventArgs e)
+        {
+            if (settings == null || TxtSettingUdpPort == null || !IsLoaded) return;
+            int port;
+            if (!int.TryParse(TxtSettingUdpPort.Text, out port) || port < 1 || port > 65535)
+            {
+                TxtSettingUdpPort.BorderBrush = Brushes.OrangeRed;
+                return;
+            }
+
+            TxtSettingUdpPort.ClearValue(BorderBrushProperty);
+            settings.UdpPort = port;
+            settings.Save();
+        }
+
+        private static int NormalizeUdpPort(int port)
+        {
+            return port >= 1 && port <= 65535 ? port : 10026;
         }
 
         private void OnSettingSyncLightbarToggled(object sender, MouseButtonEventArgs e)

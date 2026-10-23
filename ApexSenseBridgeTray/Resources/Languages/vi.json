@@ -120,6 +120,8 @@
   "Loc_SyncLightbarHint": "Đồng bộ đèn LED tay cầm với màu sắc thanh sáng DualSense trong trò chơi",
   "Loc_ManualBridge": "Bắt buộc kích hoạt liên tục",
   "Loc_ManualBridgeHint": "Duy trì cầu nối hoạt động liên tục mà không cần chờ trò chơi",
+  "Loc_UdpTriggers": "Adaptive Trigger qua UDP REFramework",
+  "Loc_UdpTriggersHint": "Nhận hiệu ứng Lua qua localhost UDP (REFramework) để điều khiển cò thích ứng trong trò chơi",
   "Loc_PreparedLaunch": "Khởi chạy trò chơi (.exe)",
   "Loc_PreparedLaunchHint": "Bắt đầu cầu nối trước trò chơi đã chọn. Tắt kích hoạt thủ công khi bạn chơi xong.",
   "Loc_PreparedLaunchBusy": "Một phiên cầu nối khác đang hoạt động. Dừng phiên đó trước khi khởi chạy trò chơi.",

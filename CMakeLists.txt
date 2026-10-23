@@ -82,6 +82,7 @@ add_executable(ApexSenseBridge
     src/cli/BridgeOptions.cpp
     src/cli/BridgeRuntimeSupport.cpp
     src/cli/BridgeTelemetry.cpp
+    src/cli/UdpTriggerServer.cpp
     src/cli/CliApplication.cpp
     src/cli/CommandSupport.cpp
     src/cli/JsonSupport.cpp

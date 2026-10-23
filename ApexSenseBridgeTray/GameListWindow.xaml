@@ -893,6 +893,34 @@
                                             </DockPanel>
                                         </Border>
 
+                                        <Border x:Name="TileSettingUdp" Style="{StaticResource SettingRow}" ToolTip="{DynamicResource Loc_UdpTriggersHint}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                                                            Cursor="Hand" MouseLeftButtonDown="OnSettingUdpToggled">
+                                                    <Path Data="M 4,7 L 20,7 M 4,12 L 20,12 M 4,17 L 20,17 M 9,5 L 9,9 M 15,10 L 15,14 M 7,15 L 7,19"
+                                                          Style="{StaticResource IconPath}" Width="17" Height="17" Margin="0,0,12,0"/>
+                                                    <TextBlock Text="{DynamicResource Loc_UdpTriggers}" Style="{StaticResource RowLabel}"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBox x:Name="TxtSettingUdpPort" Width="68" Height="28" Margin="0,0,12,0"
+                                                             Style="{StaticResource PortInputBox}"
+                                                             TextChanged="OnSettingUdpPortChanged"/>
+                                                    <Border x:Name="BadgeSettingUdp" CornerRadius="12" Width="44" Height="24"
+                                                            Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                            BorderThickness="1.5" VerticalAlignment="Center"
+                                                            Cursor="Hand" MouseLeftButtonDown="OnSettingUdpToggled">
+                                                        <Ellipse x:Name="DotSettingUdp" Width="16" Height="16"
+                                                                 HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                                 Fill="{DynamicResource TextMuted}"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
                                         <Border x:Name="TileSettingLanguage" Style="{StaticResource SettingRow}" Cursor="Hand"
                                                 MouseLeftButtonDown="OnLanguagePickerClick" ToolTip="{DynamicResource Loc_LanguageHint}">
                                             <DockPanel>

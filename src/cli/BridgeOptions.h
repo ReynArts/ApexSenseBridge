@@ -48,6 +48,8 @@ struct BridgeCommandOptions {
     std::optional<std::uint32_t> sessionOwnerProcessId;
     std::optional<std::uint8_t> apexProfileSlot;
     std::filesystem::path telemetryJson;
+    std::string udpBindAddress;
+    std::uint16_t udpPort = 0;
     // APEX4, APEX5, APEX6. Applied only after the device identity is verified.
     std::array<std::optional<ControllerCalibration>, 3> controllerCalibrations;
 };
