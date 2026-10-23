@@ -28,13 +28,13 @@ bool TemporaryPhysicalControllerIsolation::active() const noexcept { return fals
 bool TemporaryPhysicalControllerIsolation::recoveredStaleIsolation() const noexcept { return false; }
 
 bool TemporaryPhysicalControllerIsolation::recoverPending(
-    ControllerRecoveryReport& report, std::string&) noexcept {
+    ControllerRecoveryReport& report, std::string&, bool) noexcept {
     report = ControllerRecoveryReport{};
     return true;
 }
 
 bool TemporaryPhysicalControllerIsolation::applyDeferredApexRestore(
-    flydigi::Apex5Device&, std::string&, std::string&) noexcept {
+    flydigi::Apex5Device&, std::string&, std::string&, bool) noexcept {
     return true;
 }
 
