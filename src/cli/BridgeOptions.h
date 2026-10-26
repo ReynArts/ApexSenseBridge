@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dualsense/Apex6PcmNormalization.h"
 #include "dualsense/TouchpadGestureProfile.h"
 #include "dualsense/VirtualDualSense.h"
 
@@ -40,6 +41,8 @@ struct BridgeCommandOptions {
     unsigned int vibrationStrengthPercent = 100;
     unsigned int apex6HapticGainPercent = 100;
     bool apex6HapticGainExplicit = false;
+    asb::dualsense::Apex6PcmConfig apex6PcmConfig{};
+    bool apex6PcmOptionsExplicit = false;
     unsigned int apex4GyroStrengthPercent = 100;
     unsigned int apex4GyroYawStrengthPercent = 100;
     bool hapticThresholdExplicit = false;

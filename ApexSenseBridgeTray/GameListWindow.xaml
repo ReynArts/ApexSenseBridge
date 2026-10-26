@@ -670,6 +670,102 @@
                                                        FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
                                         </Button>
 
+                                        <!-- ═══ APEX 6 PRO NATIVE PCM NORMALIZATION ═══ -->
+                                        <Border x:Name="PnlGameDetailApex6Pcm" Style="{StaticResource SettingRow}" Margin="0,0,0,14" Background="#16203A" CornerRadius="8" Padding="12">
+                                            <StackPanel>
+                                                <DockPanel Margin="0,0,0,8">
+                                                    <TextBlock Text="{DynamicResource Loc_Apex6PcmTitle}" FontWeight="SemiBold" FontSize="13" Foreground="White"/>
+                                                </DockPanel>
+
+                                                <!-- Use Global Toggle -->
+                                                <Border Cursor="Hand" MouseLeftButtonDown="OnApex6PcmUseGlobalRowClick" Margin="0,0,0,6">
+                                                    <DockPanel>
+                                                        <CheckBox x:Name="ChkApex6PcmUseGlobal" DockPanel.Dock="Right" Style="{StaticResource SwitchCheckBox}"
+                                                                  VerticalAlignment="Center" Click="OnApex6PcmUseGlobalChanged"/>
+                                                        <TextBlock Text="{DynamicResource Loc_Apex6PcmUseGlobal}" Style="{StaticResource RowLabel}"/>
+                                                    </DockPanel>
+                                                </Border>
+
+                                                <StackPanel x:Name="PnlApex6PcmCustomControls" Visibility="Collapsed">
+                                                    <DockPanel Margin="0,4,0,6">
+                                                        <TextBlock Text="{DynamicResource Loc_Apex6PcmMode}" Style="{StaticResource RowLabel}" VerticalAlignment="Center"/>
+                                                        <ComboBox x:Name="CmbApex6PcmMode" Style="{StaticResource ExecutableCombo}" Width="140" HorizontalAlignment="Right"
+                                                                  SelectionChanged="OnApex6PcmModeChanged"/>
+                                                    </DockPanel>
+
+                                                    <!-- Reference Peak display -->
+                                                    <Border x:Name="RowApex6PcmReference" Style="{StaticResource SettingRow}" Margin="0,2,0,4">
+                                                        <StackPanel>
+                                                            <DockPanel>
+                                                                <TextBlock x:Name="TxtApex6PcmReference" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                                <TextBlock Text="{DynamicResource Loc_Apex6PcmReference}" Style="{StaticResource RowLabel}"/>
+                                                            </DockPanel>
+                                                            <TextBlock x:Name="TxtApex6PcmMeasuredDetail" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <!-- Target Peak Slider & Numeric -->
+                                                    <Border x:Name="RowApex6PcmTarget" Style="{StaticResource SettingRow}" Margin="0,2,0,4">
+                                                        <StackPanel>
+                                                            <DockPanel>
+                                                                <TextBlock x:Name="TxtApex6PcmTarget" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                                <TextBlock Text="{DynamicResource Loc_Apex6PcmTarget}" Style="{StaticResource RowLabel}"/>
+                                                            </DockPanel>
+                                                            <Slider x:Name="SliderApex6PcmTarget" Style="{StaticResource EffectSlider}" Minimum="10" Maximum="100"
+                                                                    TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnApex6PcmTargetChanged" Margin="0,4,0,0"/>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <!-- Linear Gain Slider (when linear mode) -->
+                                                    <Border x:Name="RowApex6PcmLinear" Style="{StaticResource SettingRow}" Margin="0,2,0,4" Visibility="Collapsed">
+                                                        <StackPanel>
+                                                            <DockPanel>
+                                                                <TextBlock x:Name="TxtApex6PcmLinear" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                                <TextBlock Text="{DynamicResource Loc_Apex6PcmLinearGain}" Style="{StaticResource RowLabel}"/>
+                                                            </DockPanel>
+                                                            <Slider x:Name="SliderApex6PcmLinear" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="400"
+                                                                    TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnApex6PcmLinearChanged" Margin="0,4,0,0"/>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <!-- Calculated multiplier display -->
+                                                    <DockPanel Margin="4,4,4,8">
+                                                        <TextBlock Text="{DynamicResource Loc_Apex6PcmEffectiveGain}" Style="{StaticResource RowLabel}"/>
+                                                        <TextBlock x:Name="TxtApex6PcmEffectiveGain" Style="{StaticResource ValueLabel}" DockPanel.Dock="Right" Foreground="#10B981" FontWeight="Bold"/>
+                                                    </DockPanel>
+
+                                                    <!-- Measurement Wizard Buttons -->
+                                                    <UniformGrid Columns="2" Margin="0,2,0,6">
+                                                        <Button x:Name="BtnApex6PcmStartMeasure" Style="{StaticResource BtnSecondary}" Margin="0,0,4,0" Height="32"
+                                                                Click="OnApex6PcmStartMeasureClick">
+                                                            <TextBlock x:Name="TxtApex6PcmMeasureAction" Text="{DynamicResource Loc_Apex6PcmMeasureStart}" FontSize="11.5"/>
+                                                        </Button>
+                                                        <Button x:Name="BtnApex6PcmSaveMeasure" Style="{StaticResource BtnSecondary}" Margin="4,0,0,0" Height="32"
+                                                                Click="OnApex6PcmSaveMeasureClick">
+                                                            <TextBlock Text="{DynamicResource Loc_Apex6PcmMeasureSave}" FontSize="11.5"/>
+                                                        </Button>
+                                                    </UniformGrid>
+
+                                                    <!-- Live Peak Bar during measurement -->
+                                                    <Border x:Name="PnlApex6PcmLiveMeter" Background="#0F172A" CornerRadius="6" Padding="8" Margin="0,0,0,6" Visibility="Collapsed">
+                                                        <StackPanel>
+                                                            <TextBlock x:Name="TxtApex6PcmLiveStatus" Text="{DynamicResource Loc_Apex6PcmMeasuring}" FontSize="11" Foreground="#38BDF8" FontWeight="SemiBold"/>
+                                                            <DockPanel Margin="0,4,0,2">
+                                                                <TextBlock Text="L:" FontSize="10.5" Width="16" Foreground="{DynamicResource TextMuted}"/>
+                                                                <ProgressBar x:Name="PrgApex6PcmLiveL" Height="6" Maximum="100" Minimum="0" Background="#1E293B" Foreground="#38BDF8"/>
+                                                            </DockPanel>
+                                                            <DockPanel Margin="0,2,0,0">
+                                                                <TextBlock Text="R:" FontSize="10.5" Width="16" Foreground="{DynamicResource TextMuted}"/>
+                                                                <ProgressBar x:Name="PrgApex6PcmLiveR" Height="6" Maximum="100" Minimum="0" Background="#1E293B" Foreground="#38BDF8"/>
+                                                            </DockPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <TextBlock Text="{DynamicResource Loc_Apex6PcmNextSessionHint}" FontSize="10" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="4,0,4,0"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- Advanced: optional executable association -->
                                         <TextBlock Text="{DynamicResource Loc_GameExecutable}" ToolTip="{DynamicResource Loc_GameExecutableHint}"
                                                    FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" Margin="4,0,0,6"/>
@@ -1021,6 +1117,25 @@
                                                             <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Style="{StaticResource RowLabel}"/>
                                                         </DockPanel>
                                                         <Slider x:Name="SliderVibrationThreshold" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="95" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                            <StackPanel x:Name="PnlApex6PcmGlobalSettings" Visibility="Collapsed">
+                                                <Border Style="{StaticResource SettingRow}">
+                                                    <StackPanel>
+                                                        <DockPanel Margin="0,0,0,4">
+                                                            <TextBlock Text="{DynamicResource Loc_Apex6PcmMode}" Style="{StaticResource RowLabel}"/>
+                                                            <ComboBox x:Name="CmbGlobalApex6PcmMode" Style="{StaticResource ExecutableCombo}" Width="140" HorizontalAlignment="Right"
+                                                                      SelectionChanged="OnGlobalApex6PcmModeChanged"/>
+                                                        </DockPanel>
+                                                        <StackPanel x:Name="PnlGlobalApex6PcmLinear" Visibility="Collapsed" Margin="0,4,0,0">
+                                                            <DockPanel>
+                                                                <TextBlock x:Name="TxtGlobalApex6PcmLinear" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                                <TextBlock Text="{DynamicResource Loc_Apex6PcmLinearGain}" Style="{StaticResource RowLabel}"/>
+                                                            </DockPanel>
+                                                            <Slider x:Name="SliderGlobalApex6PcmLinear" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="400"
+                                                                    TickFrequency="25" IsSnapToTickEnabled="True" ValueChanged="OnGlobalApex6PcmSettingChanged" Margin="0,4,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
                                                 </Border>
                                             </StackPanel>

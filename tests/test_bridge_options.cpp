@@ -197,5 +197,49 @@ int main() {
     assert(!parse({"--controller-calibration", "apex4:100:100:12:1:0:100:100",
                    "--controller-calibration", "apex4:100:100:12:1:0:100:100"}).succeeded);
 
+    // APEX 6 PCM normalization options
+    const auto pcmNorm = parse({
+        "--rumble",
+        "--apex6-pcm-mode", "normalize",
+        "--apex6-pcm-reference-percent", "30",
+        "--apex6-pcm-target-percent", "90",
+        "--apex6-pcm-max-gain-percent", "400"});
+    assert(pcmNorm.succeeded);
+    assert(pcmNorm.options.apex6PcmConfig.mode == asb::dualsense::Apex6PcmMode::Normalize);
+    assert(pcmNorm.options.apex6PcmConfig.referencePercent == 30);
+    assert(pcmNorm.options.apex6PcmConfig.targetPercent == 90);
+    assert(pcmNorm.options.apex6PcmConfig.maxGainPercent == 400);
+    assert(pcmNorm.options.apex6PcmOptionsExplicit);
+
+    const auto pcmLinear = parse({
+        "--rumble",
+        "--apex6-pcm-mode", "linear",
+        "--apex6-pcm-linear-gain-percent", "250"});
+    assert(pcmLinear.succeeded);
+    assert(pcmLinear.options.apex6PcmConfig.mode == asb::dualsense::Apex6PcmMode::Linear);
+    assert(pcmLinear.options.apex6PcmConfig.linearGainPercent == 250);
+
+    // Mutual exclusion: cannot mix legacy --apex6-haptic-gain with new options
+    const auto pcmConflict = parse({
+        "--rumble",
+        "--apex6-haptic-gain", "150",
+        "--apex6-pcm-mode", "normalize"});
+    assert(!pcmConflict.succeeded);
+    assert(pcmConflict.error.find("Cannot combine legacy --apex6-haptic-gain") != std::string::npos);
+
+    // Requires --rumble
+    assert(!parse({"--apex6-pcm-mode", "normalize"}).succeeded);
+    assert(!parse({"--apex6-pcm-linear-gain-percent", "200"}).succeeded);
+
+    // Invalid parameters
+    assert(!parse({"--rumble", "--apex6-pcm-mode", "invalid"}).succeeded);
+    assert(!parse({"--rumble", "--apex6-pcm-reference-percent", "0"}).succeeded);
+    assert(!parse({"--rumble", "--apex6-pcm-reference-percent", "101"}).succeeded);
+    assert(!parse({"--rumble", "--apex6-pcm-target-percent", "0"}).succeeded);
+    assert(!parse({"--rumble", "--apex6-pcm-target-percent", "101"}).succeeded);
+    assert(!parse({"--rumble", "--apex6-pcm-max-gain-percent", "99"}).succeeded);
+    assert(!parse({"--rumble", "--apex6-pcm-max-gain-percent", "401"}).succeeded);
+    assert(!parse({"--rumble", "--apex6-pcm-linear-gain-percent", "401"}).succeeded);
+
     return 0;
 }

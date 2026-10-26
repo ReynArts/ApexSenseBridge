@@ -6,6 +6,7 @@ namespace ApexSenseBridgeTray.Services
         public string Game { get; private set; }
         public string Profile { get; private set; }
         public int ApexSlot { get; private set; }
+        public string GameKey { get; private set; }
         public string Owner { get; private set; }
         public bool Pending { get; private set; }
         public bool BlocksAutomaticActivation { get; private set; }
@@ -14,13 +15,13 @@ namespace ApexSenseBridgeTray.Services
         public uint Stages { get; private set; }
         public bool ControllerAvailable { get; private set; }
 
-        public bool Offer(string game, string profile, int slot, uint interruption, uint stages, string owner = "Tray")
+        public bool Offer(string game, string profile, int slot, uint interruption, uint stages, string owner = "Tray", string gameKey = null)
         {
             // Only a confirmed runtime interruption offers recovery, not a startup
             // refusal, deliberate stop or generic crash. Begin() separately prevents
             // taking over an external owner's session.
             if ((interruption < 1 || interruption > 3) || (stages & 8) == 0) return false;
-            Game = game; Profile = profile; ApexSlot = slot;
+            Game = game; Profile = profile; ApexSlot = slot; GameKey = gameKey;
             Owner = owner;
             Pending = true; BlocksAutomaticActivation = true;
             Resuming = false; Recovered = false; Stages = 0;
@@ -53,7 +54,7 @@ namespace ApexSenseBridgeTray.Services
         }
         public void Clear()
         {
-            Game = null; Profile = null; ApexSlot = 0;
+            Game = null; Profile = null; ApexSlot = 0; GameKey = null;
             Owner = null;
             Pending = false; BlocksAutomaticActivation = false;
             Resuming = false; Recovered = false; Stages = 0;

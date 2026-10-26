@@ -683,7 +683,7 @@ namespace ApexSenseBridgeTray.Services
                         int exitCode;
                         if (!sessionManager.StartSession(
                                 game.Title, game.Profile, settings,
-                                apexProfileSlot, out error, out exitCode))
+                                apexProfileSlot, game.Normalized, out error, out exitCode))
                         {
                             ScheduleStartRetry(game, pid, exitCode, error);
                             return;

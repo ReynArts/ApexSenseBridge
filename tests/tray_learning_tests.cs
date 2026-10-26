@@ -53,6 +53,7 @@ internal static class TrayLearningTests
             TestActivationPolicyStillAppliesAfterLearning();
             TestManualFixGamesPreservePhysicalInput();
             TestPerGameApexProfileSettings();
+            TestApex6PcmSettings();
             TestOnboardProfileSelectorLock();
             TestManualBridgeModeIsNotPersisted();
             TestSharedBridgeArguments();
@@ -697,6 +698,60 @@ internal static class TrayLearningTests
                "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100 " +
                "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100",
             "The shared bridge argument contract did not preserve minimal defaults.");
+        Assert(BridgeArguments.Build("none", true, 12, false, 0, 100, 100, 100, 100, "--apex6-pcm-mode normalize").Contains(
+            "--apex6-pcm-mode normalize"),
+            "The shared bridge arguments dropped APEX 6 PCM arguments.");
+    }
+
+    private static void TestApex6PcmSettings()
+    {
+        var settings = new TraySettings();
+        Assert(settings.GetApex6PcmGlobal().Mode == "original", "Default global mode was not original.");
+        Assert(settings.BuildApex6PcmArguments("zenless-zone-zero") == " --apex6-pcm-mode original",
+            "Unconfigured game did not default to original mode.");
+
+        // Global linear gain
+        settings.GetApex6PcmGlobal().Mode = "linear";
+        settings.GetApex6PcmGlobal().LinearGainPercent = 150;
+        Assert(settings.BuildApex6PcmArguments("zenless-zone-zero") == " --apex6-pcm-mode linear --apex6-pcm-linear-gain-percent 150",
+            "Global linear gain was not generated correctly.");
+
+        // Per-game override for ZZZ
+        var zzz = new Apex6PcmGameSettings();
+        zzz.UseGlobal = false;
+        zzz.Mode = "normalize";
+        zzz.MeasuredReferencePercent = 30;
+        zzz.TargetPeakPercent = 90;
+        zzz.MaxGainPercent = 400;
+        settings.SetApex6PcmGameSettings("zenless-zone-zero", zzz);
+
+        Assert(settings.BuildApex6PcmArguments("zenless-zone-zero") ==
+               " --apex6-pcm-mode normalize --apex6-pcm-reference-percent 30 --apex6-pcm-target-percent 90 --apex6-pcm-max-gain-percent 400",
+               "Per-game normalize override failed.");
+
+        // Case insensitivity
+        Assert(settings.BuildApex6PcmArguments("Zenless-Zone-Zero") ==
+               settings.BuildApex6PcmArguments("zenless-zone-zero"),
+               "Game key matching was case-sensitive.");
+
+        // Isolation: Pragmata must use global linear 150%, not ZZZ's settings!
+        Assert(settings.BuildApex6PcmArguments("pragmata") == " --apex6-pcm-mode linear --apex6-pcm-linear-gain-percent 150",
+               "Per-game settings leaked to another game.");
+
+        // Roundtrip serialization
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var json = serializer.Serialize(settings);
+        var restored = serializer.Deserialize<TraySettings>(json);
+        Assert(restored != null && restored.GetApex6PcmGlobal().Mode == "linear",
+            "Global PCM settings did not survive serialization.");
+        var restoredZzz = restored.GetApex6PcmGameSettings("zenless-zone-zero");
+        Assert(restoredZzz != null && !restoredZzz.UseGlobal && restoredZzz.MeasuredReferencePercent == 30,
+            "Per-game PCM settings did not survive serialization.");
+
+        // Legacy JSON migration without PCM fields
+        var legacy = serializer.Deserialize<TraySettings>("{\"AutoDetectGames\":true}");
+        Assert(legacy != null && legacy.GetApex6PcmGlobal().Mode == "original",
+            "Legacy settings without PCM fields failed to migrate.");
     }
 
     private static void TestGameExecutableSettings()

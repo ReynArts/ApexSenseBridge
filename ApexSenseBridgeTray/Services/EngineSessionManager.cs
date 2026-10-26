@@ -45,14 +45,14 @@ namespace ApexSenseBridgeTray.Services
 
         public bool RetryLastStart(TraySettings settings, out string error)
         {
-            string game, profile;
+            string game, profile, gameKey;
             int slot;
             lock (syncLock)
             {
-                game = activeGameTitle; profile = activeProfileName; slot = activeApexSlot;
+                game = activeGameTitle; profile = activeProfileName; slot = activeApexSlot; gameKey = activeGameKey;
             }
             if (game == null || profile == null) { error = "Loc_RecoveryBusy"; return false; }
-            return StartSession(game, profile, settings, slot, out error);
+            return StartSession(game, profile, settings, slot, gameKey, out error);
         }
 
         private const string EngineSessionMutexName =
@@ -71,6 +71,7 @@ namespace ApexSenseBridgeTray.Services
         private int checkingHealth;
         private string activeProfileName;
         private int activeApexSlot;
+        private string activeGameKey;
         private readonly SessionRecoveryState recovery = new SessionRecoveryState();
         private BridgeSession.SessionInfo observedExternalSession;
         private readonly Func<string> engineLocator;
@@ -83,18 +84,18 @@ namespace ApexSenseBridgeTray.Services
 
         public bool ResumeSession(TraySettings settings, out string error)
         {
-            string game, profile;
+            string game, profile, gameKey;
             int slot;
             lock (syncLock)
             {
                 if (activeSession != null || isStarting || isStopping || !recovery.Begin())
                 { error = "Loc_RecoveryBusy"; return false; }
-                game = recovery.Game; profile = recovery.Profile; slot = recovery.ApexSlot;
+                game = recovery.Game; profile = recovery.Profile; slot = recovery.ApexSlot; gameKey = recovery.GameKey;
             }
             StateChanged?.Invoke();
             bool success = false;
             int exitCode;
-            try { success = StartSessionCore(game, profile, settings, slot, true, out error, out exitCode); return success; }
+            try { success = StartSessionCore(game, profile, settings, slot, gameKey, true, out error, out exitCode); return success; }
             finally { lock (syncLock) { if (recovery.Resuming) recovery.Complete(success); } StateChanged?.Invoke(); }
         }
 
@@ -155,7 +156,7 @@ namespace ApexSenseBridgeTray.Services
                         if (string.IsNullOrWhiteSpace(lastReason) || status.Phase == SessionPhase.Ready || status.Phase == SessionPhase.Stopping)
                             lastReason = "Le moteur s'est arrêté de façon inattendue.";
                         exitReason = lastReason;
-                        if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages)) recovery.Clear();
+                        if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages, "Tray", activeGameKey)) recovery.Clear();
                         activeSession.Dispose();
                         activeSession = null;
                     }
@@ -245,24 +246,37 @@ namespace ApexSenseBridgeTray.Services
 
         public bool StartSession(string gameTitle, string profileName, TraySettings settings, out string error)
         {
-            return StartSession(gameTitle, profileName, settings, 0, out error);
+            return StartSession(gameTitle, profileName, settings, 0, null, out error);
         }
 
         public bool StartSession(string gameTitle, string profileName, TraySettings settings,
                                  int apexProfileSlot, out string error)
         {
             int exitCode;
-            return StartSession(gameTitle, profileName, settings, apexProfileSlot, out error, out exitCode);
+            return StartSession(gameTitle, profileName, settings, apexProfileSlot, null, out error, out exitCode);
         }
 
         public bool StartSession(string gameTitle, string profileName, TraySettings settings,
                                  int apexProfileSlot, out string error, out int exitCode)
         {
-            return StartSessionCore(gameTitle, profileName, settings, apexProfileSlot, false, out error, out exitCode);
+            return StartSessionCore(gameTitle, profileName, settings, apexProfileSlot, null, false, out error, out exitCode);
+        }
+
+        public bool StartSession(string gameTitle, string profileName, TraySettings settings,
+                                 int apexProfileSlot, string gameKey, out string error)
+        {
+            int exitCode;
+            return StartSession(gameTitle, profileName, settings, apexProfileSlot, gameKey, out error, out exitCode);
+        }
+
+        public bool StartSession(string gameTitle, string profileName, TraySettings settings,
+                                 int apexProfileSlot, string gameKey, out string error, out int exitCode)
+        {
+            return StartSessionCore(gameTitle, profileName, settings, apexProfileSlot, gameKey, false, out error, out exitCode);
         }
 
         private bool StartSessionCore(string gameTitle, string profileName, TraySettings settings,
-                                 int apexProfileSlot, bool resuming, out string error, out int exitCode)
+                                 int apexProfileSlot, string gameKey, bool resuming, out string error, out int exitCode)
         {
             error = null;
             exitCode = 0;
@@ -287,6 +301,7 @@ namespace ApexSenseBridgeTray.Services
                 controller = null;
                 activeProfileName = profileName;
                 activeApexSlot = apexProfileSlot;
+                activeGameKey = gameKey;
             }
             StateChanged?.Invoke();
 
@@ -308,7 +323,7 @@ namespace ApexSenseBridgeTray.Services
                     return false;
                 }
 
-                var args = BuildArguments(profileName, settings, apexProfileSlot);
+                var args = BuildArguments(profileName, settings, apexProfileSlot, gameKey);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
 
                 int timeoutSec = Math.Max(MinimumInitializationSeconds,
@@ -485,9 +500,11 @@ namespace ApexSenseBridgeTray.Services
         }
 
         private static string BuildArguments(string profileName, TraySettings settings,
-                                             int apexProfileSlot)
+                                             int apexProfileSlot, string gameKey)
         {
-            var arguments = BridgeArguments.Build(profileName, false, 12, false, apexProfileSlot);
+            string pcmArgs = settings != null ? settings.BuildApex6PcmArguments(gameKey) : null;
+            var arguments = BridgeArguments.Build(profileName, false, 12, false, apexProfileSlot,
+                100, 100, 100, 100, pcmArgs);
             // Send all model profiles; only the engine's verified device selects
             // one. A stale UI label / hot swap can never select another model's data.
             return arguments + (settings != null ? settings.BuildControllerCalibrationArguments() : string.Empty);

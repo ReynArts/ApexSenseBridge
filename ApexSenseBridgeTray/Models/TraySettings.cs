@@ -26,6 +26,75 @@ namespace ApexSenseBridgeTray.Models
         }
     }
 
+    public sealed class Apex6PcmGlobalSettings
+    {
+        public string Mode { get; set; }
+        public int LinearGainPercent { get; set; }
+        public int TargetPeakPercent { get; set; }
+        public int MaxGainPercent { get; set; }
+
+        public Apex6PcmGlobalSettings()
+        {
+            Mode = "original";
+            LinearGainPercent = 100;
+            TargetPeakPercent = 90;
+            MaxGainPercent = 400;
+        }
+
+        public void Normalize()
+        {
+            if (string.IsNullOrWhiteSpace(Mode)) Mode = "original";
+            Mode = Mode.Trim().ToLowerInvariant();
+            if (Mode != "original" && Mode != "companding" && Mode != "linear" && Mode != "normalize")
+                Mode = "original";
+            LinearGainPercent = Math.Max(0, Math.Min(400, LinearGainPercent));
+            TargetPeakPercent = Math.Max(1, Math.Min(100, TargetPeakPercent));
+            MaxGainPercent = Math.Max(100, Math.Min(400, MaxGainPercent));
+        }
+    }
+
+    public sealed class Apex6PcmGameSettings
+    {
+        public bool UseGlobal { get; set; }
+        public string Mode { get; set; }
+        public int MeasuredReferencePeakAbs16 { get; set; }
+        public int MeasuredReferencePercent { get; set; }
+        public int TargetPeakPercent { get; set; }
+        public int MaxGainPercent { get; set; }
+        public int LinearGainPercent { get; set; }
+        public string MeasuredUtc { get; set; }
+        public int MeasurementVersion { get; set; }
+        public int ObservedLeftPeakAbs16 { get; set; }
+        public int ObservedRightPeakAbs16 { get; set; }
+        public int ObservedActiveBlocks { get; set; }
+        public string ObservedStatus { get; set; }
+
+        public Apex6PcmGameSettings()
+        {
+            UseGlobal = true;
+            Mode = "normalize";
+            TargetPeakPercent = 90;
+            MaxGainPercent = 400;
+            LinearGainPercent = 100;
+            MeasurementVersion = 1;
+            ObservedStatus = "none";
+        }
+
+        public void Normalize()
+        {
+            if (string.IsNullOrWhiteSpace(Mode)) Mode = "normalize";
+            Mode = Mode.Trim().ToLowerInvariant();
+            if (Mode != "original" && Mode != "companding" && Mode != "linear" && Mode != "normalize")
+                Mode = "normalize";
+            MeasuredReferencePeakAbs16 = Math.Max(0, Math.Min(32768, MeasuredReferencePeakAbs16));
+            MeasuredReferencePercent = Math.Max(0, Math.Min(100, MeasuredReferencePercent));
+            TargetPeakPercent = Math.Max(1, Math.Min(100, TargetPeakPercent));
+            MaxGainPercent = Math.Max(100, Math.Min(400, MaxGainPercent));
+            LinearGainPercent = Math.Max(0, Math.Min(400, LinearGainPercent));
+            if (string.IsNullOrWhiteSpace(ObservedStatus)) ObservedStatus = "none";
+        }
+    }
+
     public class TraySettings
     {
         public bool AutoDetectGames { get; set; }
@@ -55,6 +124,8 @@ namespace ApexSenseBridgeTray.Models
         // Legacy scalar preferences remain for migration, not as an active
         // cross-model calibration. Never persist the last connected model.
         public Dictionary<string, ControllerCalibration> ControllerCalibrations { get; set; }
+        public Apex6PcmGlobalSettings Apex6PcmGlobal { get; set; }
+        public Dictionary<string, Apex6PcmGameSettings> Apex6PcmGames { get; set; }
 
         public static bool IsCalibrationModel(string model)
         {
@@ -108,6 +179,107 @@ namespace ApexSenseBridgeTray.Models
             }
         }
 
+        public Apex6PcmGlobalSettings GetApex6PcmGlobal()
+        {
+            lock (this)
+            {
+                if (Apex6PcmGlobal == null) Apex6PcmGlobal = new Apex6PcmGlobalSettings();
+                Apex6PcmGlobal.Normalize();
+                return Apex6PcmGlobal;
+            }
+        }
+
+        public Apex6PcmGameSettings GetApex6PcmGameSettings(string normalizedKey)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedKey)) return null;
+            lock (this)
+            {
+                if (Apex6PcmGames == null)
+                    Apex6PcmGames = new Dictionary<string, Apex6PcmGameSettings>(StringComparer.OrdinalIgnoreCase);
+
+                Apex6PcmGameSettings settings;
+                if (Apex6PcmGames.TryGetValue(normalizedKey.Trim(), out settings) && settings != null)
+                {
+                    settings.Normalize();
+                    return settings;
+                }
+                return null;
+            }
+        }
+
+        public void SetApex6PcmGameSettings(string normalizedKey, Apex6PcmGameSettings settings)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedKey)) return;
+            lock (this)
+            {
+                if (Apex6PcmGames == null)
+                    Apex6PcmGames = new Dictionary<string, Apex6PcmGameSettings>(StringComparer.OrdinalIgnoreCase);
+
+                string key = normalizedKey.Trim();
+                if (settings == null)
+                {
+                    Apex6PcmGames.Remove(key);
+                }
+                else
+                {
+                    settings.Normalize();
+                    Apex6PcmGames[key] = settings;
+                }
+            }
+        }
+
+        public string BuildApex6PcmArguments(string normalizedKey)
+        {
+            lock (this)
+            {
+                var global = GetApex6PcmGlobal();
+                var game = GetApex6PcmGameSettings(normalizedKey);
+
+                string mode = global.Mode;
+                int linear = global.LinearGainPercent;
+                int target = global.TargetPeakPercent;
+                int maxGain = global.MaxGainPercent;
+                int refPct = 0;
+
+                if (game != null && !game.UseGlobal)
+                {
+                    mode = game.Mode;
+                    linear = game.LinearGainPercent;
+                    target = game.TargetPeakPercent;
+                    maxGain = game.MaxGainPercent;
+                    if (game.MeasuredReferencePercent > 0)
+                        refPct = game.MeasuredReferencePercent;
+                    else if (game.MeasuredReferencePeakAbs16 > 0)
+                        refPct = (int)Math.Round(game.MeasuredReferencePeakAbs16 / 327.67);
+                }
+
+                if (string.Equals(mode, "original", StringComparison.OrdinalIgnoreCase))
+                {
+                    return " --apex6-pcm-mode original";
+                }
+                if (string.Equals(mode, "companding", StringComparison.OrdinalIgnoreCase))
+                {
+                    return " --apex6-pcm-mode companding";
+                }
+                if (string.Equals(mode, "linear", StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        " --apex6-pcm-mode linear --apex6-pcm-linear-gain-percent {0}", linear);
+                }
+                if (string.Equals(mode, "normalize", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (refPct <= 0)
+                    {
+                        return " --apex6-pcm-mode original";
+                    }
+                    return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        " --apex6-pcm-mode normalize --apex6-pcm-reference-percent {0} --apex6-pcm-target-percent {1} --apex6-pcm-max-gain-percent {2}",
+                        refPct, target, maxGain);
+                }
+                return " --apex6-pcm-mode original";
+            }
+        }
+
         public TraySettings()
         {
             AutoDetectGames = true;
@@ -128,6 +300,8 @@ namespace ApexSenseBridgeTray.Models
             ExcludedGames = new List<string>();
             ManualFixAllowedGames = new List<string>();
             ApexProfileSlots = new Dictionary<string, int>();
+            Apex6PcmGlobal = new Apex6PcmGlobalSettings();
+            Apex6PcmGames = new Dictionary<string, Apex6PcmGameSettings>(StringComparer.OrdinalIgnoreCase);
         }
 
         public bool IsGameExcluded(string normalizedOrTitle)

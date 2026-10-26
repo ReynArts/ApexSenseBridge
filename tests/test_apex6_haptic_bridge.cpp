@@ -4,6 +4,7 @@
 
 #include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/Apex6PcmGain.h"
+#include "dualsense/Apex6PcmNormalization.h"
 #include "dualsense/Apex6TriggerEffect.h"
 #include "flydigi/Apex6Protocol.h"
 
@@ -315,6 +316,118 @@ void testPcmGainCurve() {
     assert(scaleApex6Pcm(1000, 0) == scaleApex6Pcm(1000));
 }
 
+void testApex6PcmNormalization() {
+    using namespace asb::dualsense;
+
+    // 1. Original mode bit-identical to legacy quantizer
+    {
+        Apex6PcmScaler scaler(Apex6PcmConfig{Apex6PcmMode::Original});
+        assert(scaler.state().valid && !scaler.state().gainLimited);
+        for (int sample = -32768; sample <= 32767; ++sample) {
+            bool clipped = false;
+            const auto val = scaler.scaleSample(static_cast<std::int16_t>(sample), clipped);
+            assert(!clipped);
+            assert(val == scaleApex6Pcm(static_cast<std::int16_t>(sample), 100));
+        }
+    }
+
+    // 2. Companding mode bit-identical to scaleApex6Pcm
+    {
+        Apex6PcmConfig config{};
+        config.mode = Apex6PcmMode::Companding;
+        config.legacyGainPercent = 150;
+        Apex6PcmScaler scaler(config);
+        assert(scaler.state().valid);
+        for (const auto s : {-32768, -10028, 0, 10028, 32767}) {
+            bool clipped = false;
+            const auto val = scaler.scaleSample(static_cast<std::int16_t>(s), clipped);
+            assert(!clipped);
+            assert(val == scaleApex6Pcm(static_cast<std::int16_t>(s), 150));
+        }
+    }
+
+    // 3. Normalize mode: ref 30% -> target 90% (3.0x scaling)
+    {
+        Apex6PcmConfig config{};
+        config.mode = Apex6PcmMode::Normalize;
+        config.referencePercent = 30;
+        config.targetPercent = 90;
+        Apex6PcmScaler scaler(config);
+        assert(scaler.state().valid);
+        assert(std::abs(scaler.state().effectiveGainRatio - 3.0) < 1e-6);
+        assert(!scaler.state().gainLimited);
+
+        // 10% input (3277) -> ~38 (out of 127, ~30%)
+        bool clipped = false;
+        auto val = scaler.scaleSample(3277, clipped);
+        assert(!clipped && val >= 37 && val <= 39);
+
+        // 20% input (6553) -> ~76 (out of 127, ~60%)
+        val = scaler.scaleSample(6553, clipped);
+        assert(!clipped && val >= 75 && val <= 77);
+
+        // 30% input (9830) -> ~114 (out of 127, ~90%)
+        val = scaler.scaleSample(9830, clipped);
+        assert(!clipped && val >= 113 && val <= 115);
+
+        // Negative 30% input
+        val = scaler.scaleSample(-9830, clipped);
+        assert(!clipped && val <= -113 && val >= -115);
+
+        // Over-peak 40% input (13107) -> clipped to 127
+        val = scaler.scaleSample(13107, clipped);
+        assert(clipped && val == 127);
+
+        // INT16_MIN (-32768) -> clipped to -127
+        val = scaler.scaleSample(-32768, clipped);
+        assert(clipped && val == -127);
+    }
+
+    // 4. Missing / zero reference fallback
+    {
+        Apex6PcmConfig config{};
+        config.mode = Apex6PcmMode::Normalize;
+        config.referencePercent = 0;
+        config.targetPercent = 90;
+        Apex6PcmScaler scaler(config);
+        assert(!scaler.state().valid);
+        assert(scaler.state().status == "invalid");
+        assert(scaler.state().effectiveGainRatio == 1.0);
+        bool clipped = false;
+        assert(scaler.scaleSample(10000, clipped) == scaleApex6Pcm(10000, 100));
+        assert(!clipped);
+    }
+
+    // 5. Max gain limit clamp
+    {
+        Apex6PcmConfig config{};
+        config.mode = Apex6PcmMode::Normalize;
+        config.referencePercent = 10;
+        config.targetPercent = 90;
+        config.maxGainPercent = 400; // clamp to 4.0x
+        Apex6PcmScaler scaler(config);
+        assert(scaler.state().valid);
+        assert(scaler.state().gainLimited);
+        assert(std::abs(scaler.state().effectiveGainRatio - 4.0) < 1e-6);
+        assert(std::abs(scaler.state().requestedGainRatio - 9.0) < 1e-6);
+    }
+
+    // 6. Attenuation (ref 100%, target 90% -> 0.9x)
+    {
+        Apex6PcmConfig config{};
+        config.mode = Apex6PcmMode::Normalize;
+        config.referencePercent = 100;
+        config.targetPercent = 90;
+        Apex6PcmScaler scaler(config);
+        assert(scaler.state().valid);
+        assert(!scaler.state().gainLimited);
+        assert(std::abs(scaler.state().effectiveGainRatio - 0.9) < 1e-6);
+        bool clipped = false;
+        const auto val = scaler.scaleSample(32767, clipped);
+        assert(!clipped && val == 114);
+    }
+}
+
 void testApex6EnvelopeThresholdPolicy() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
@@ -465,6 +578,7 @@ int main() {
     testIdleSkipsFramesAndWakesImmediately();
     testNativeTriggerEffects();
     testPcmGainCurve();
+    testApex6PcmNormalization();
     testApex6EnvelopeThresholdPolicy();
     testBowEffect();
     testContinuousCarrierClock();
