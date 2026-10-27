@@ -74,11 +74,59 @@ int main() {
     assert(json.find("\"physical_vendor_max_gap_ms\": 64,") != std::string::npos);
     assert(json.find("\"physical_r2_oscillations\": 24,") != std::string::npos);
     assert(json.find("\"physical_bounced_buttons\": 1056,") != std::string::npos);
+    assert(json.find("\"virtual_startup_probes\": [],\n") != std::string::npos);
+
+    asb::dualsense::VirtualDualSenseProbeReport failedProbe{};
+    failedProbe.attempt = 1;
+    failedProbe.outcome = asb::dualsense::VirtualDualSenseProbeOutcome::NotFound;
+    failedProbe.elapsedMilliseconds = 4001;
+    failedProbe.deadlineMilliseconds = 4000;
+    failedProbe.enumerations = 81;
+    failedProbe.baselineInterfaces = 1;
+    failedProbe.baselineVanished = 1;
+    failedProbe.lastError = "The newly-created \"virtual\" DualSense firmware interface was not found.";
+    asb::dualsense::VirtualDualSenseProbeInterface staleInterface{};
+    staleInterface.state = "baseline-vanished";
+    staleInterface.interfaceNumber = "MI_03";
+    staleInterface.usagePage = 1;
+    staleInterface.usage = 5;
+    staleInterface.inputReportLength = 64;
+    staleInterface.featureReportLength = 64;
+    staleInterface.firstSeenMilliseconds = 0;
+    staleInterface.path = "\\\\?\\hid#vid_054c&pid_0ce6&mi_03#stale";
+    failedProbe.interfaces.push_back(staleInterface);
+    asb::dualsense::VirtualDualSenseProbeReport readyProbe{};
+    readyProbe.attempt = 2;
+    readyProbe.outcome = asb::dualsense::VirtualDualSenseProbeOutcome::Ready;
+    readyProbe.extended = true;
+    readyProbe.firstNewInterfaceMilliseconds = 812;
+    readyProbe.newGamepadInterfaces = 1;
+    telemetry.virtualStartupProbes = {failedProbe, readyProbe};
+    std::ostringstream probeOutput;
+    asb::cli::writeBridgeTelemetry(probeOutput, telemetry);
+    const auto probeJson = probeOutput.str();
+    assert(probeJson.find("\"virtual_startup_probes\": [\n    {\"attempt\": 1, \"outcome\": \"not-found\", "
+                          "\"elapsed_ms\": 4001, \"deadline_ms\": 4000, \"extended\": false") !=
+           std::string::npos);
+    assert(probeJson.find("\"enumerations\": 81") != std::string::npos);
+    assert(probeJson.find("\"baseline\": 1, \"baseline_vanished\": 1") != std::string::npos);
+    assert(probeJson.find("\"last_error\": \"The newly-created \\\"virtual\\\" DualSense") !=
+           std::string::npos);
+    assert(probeJson.find("{\"state\": \"baseline-vanished\", \"interface\": \"MI_03\", "
+                          "\"usage_page\": 1, \"usage\": 5") != std::string::npos);
+    assert(probeJson.find("\"path\": \"\\\\\\\\?\\\\hid#vid_054c&pid_0ce6&mi_03#stale\"") !=
+           std::string::npos);
+    assert(probeJson.find("{\"attempt\": 2, \"outcome\": \"ready\"") != std::string::npos);
+    assert(probeJson.find("\"extended\": true, \"first_new_ms\": 812") != std::string::npos);
+    assert(probeJson.find("\"interfaces\": []}\n  ],\n  \"initialization_ms\"") !=
+           std::string::npos);
+    assert(probeJson.find(",\n}\n") == std::string::npos);
+    telemetry.virtualStartupProbes.clear();
 
     constexpr std::array requiredKeys{
         "schema", "virtual_backend", "input_mode", "input_backend",
         "virtual_input_monitor",
-        "virtual_startup_attempts", "initialization_ms",
+        "virtual_startup_attempts", "virtual_startup_probes", "initialization_ms",
         "initialization_physical_input_ms", "initialization_virtual_input_ms",
         "initialization_firmware_ms", "initialization_isolation_ms",
         "backend_initialization_bootstrap_us", "backend_initialization_server_us",

@@ -55,6 +55,123 @@
   small on the current 8 to 64 force scale. Single-user, subjective, not
   calibrated.
 
+### Automatic activation loops and stuck sessions ([#53](https://github.com/ReynArts/ApexSenseBridge/issues/53), [#54](https://github.com/ReynArts/ApexSenseBridge/issues/54), [#55](https://github.com/ReynArts/ApexSenseBridge/issues/55), [#59](https://github.com/ReynArts/ApexSenseBridge/issues/59))
+
+- The Tray now counts start failures per game instead of per process: two
+  identical failures of the same game within 3 minutes pause automatic starts
+  even when a launcher or anti-cheat respawns the game with a new process ID.
+  An engine that stops unexpectedly after becoming ready is retried after 10 s
+  and paused the same way. The notification shows the engine error and opens the
+  dashboard, where Retry is available.
+- During the first 3 minutes of a session the bridge waits 10 s (instead of 2 s)
+  for a replacement game process, and a process from the active game's install
+  folder (such as `*-Win64-Shipping.exe`) is attached to the session instead of
+  ending it.
+- "Launch a game (.exe)" now ends its session about 15 s after the game closes
+  and returns the dashboard to idle (cover art and title included). If a session
+  is already active, the Tray offers to stop it first.
+- A runtime APEX feedback-writer or virtual-input failure now offers manual
+  recovery instead of restarting the bridge immediately, which looped the
+  virtual DualSense connecting and disconnecting.
+
+### Elevated and anti-cheat protected games no longer look closed ([#67](https://github.com/ReynArts/ApexSenseBridge/issues/67))
+
+- The Tray no longer treats a running game as exited when Windows denies full
+  process access (elevated games, anti-cheat protected games). It used to detach
+  the game about a second after the bridge was ready, restart the session, and
+  repeat every few seconds, which made the virtual DualSense reconnect
+  continuously and the game flip between Xbox and PlayStation glyphs. Liveness
+  now needs only limited query rights, falls back to a system process snapshot
+  when the process cannot be opened, compares the process creation time to guard
+  against reused process IDs, and never detaches on an unclassified error. The
+  same defect is fixed in executable learning (such games were never learned),
+  the Steam check, the engine start time and the active-session reader.
+### Two or more APEX controllers connected ([#70](https://github.com/ReynArts/ApexSenseBridge/issues/70))
+
+- With two or more APEX controllers or receivers connected, bridge sessions no
+  longer fail with "More than one Flydigi controller vendor interface was found.
+  Run 'list' and pass the wanted index", an error that the Tray retried every
+  10 s without ever starting a session. The interfaces are put in a stable order
+  (by HID path, the order `list` prints) and the first one that answers the
+  identity check is bridged; the choice is logged. Diagnostic commands
+  (`identify`, `test-*`, `clear`) stay strict and explain that several
+  controllers are present.
+- The Tray shows a localized "several controllers" state, locks the settings
+  while it cannot tell which controller they apply to, publishes the model the
+  engine verified during a session, and explains that one controller is bridged
+  at a time. Bridging two controllers at once (couch co-op) is not supported.
+### Virtual DualSense readiness
+
+- A HID path that existed before the session and later disappeared is treated
+  as new again. A virtual DualSense that reuses the path of the previous
+  session's device no longer fails both readiness attempts with "firmware was
+  not found".
+- The readiness probe waits adaptively (4 s, extended up to 6.5 s while the
+  interface is still being published), honours stop requests at every wait
+  (exit code 10) and logs one diagnostic line per attempt. Telemetry reports
+  `virtual_startup_probes`. The worst-case startup of this step is about 15 s.
+  `--verify-virtual-input` watches the interface that was verified, not the
+  first DualSense found.
+
+### APEX 4 identity, rumble stop and controller test ([#56](https://github.com/ReynArts/ApexSenseBridge/pull/56), [#62](https://github.com/ReynArts/ApexSenseBridge/issues/62), [#41](https://github.com/ReynArts/ApexSenseBridge/issues/41))
+
+- APEX 4 identity requests are sent at most three times, 1.5 s apart, also
+  across reopen retries, instead of up to 30 at 100 ms (contributed by
+  @MuhannadYT).
+- On an APEX 4 a rumble stop is written before pending trigger effects, and
+  audio-haptic rumble stops within about 100 ms when the haptic audio stream
+  ends, even if the game sends nothing else.
+- The controller test explains that its input preview reads XInput only (an
+  APEX 4 in DInput mode does not appear there) and refuses trigger, vibration
+  and RGB tests, and the reset on close, while a bridge session is active.
+
+### APEX 4 rumble cadence ([#68](https://github.com/ReynArts/ApexSenseBridge/issues/68))
+
+- On an APEX 4, rumble updates are now spaced 10 ms apart instead of 25 ms, so
+  short DualSense haptic bursts are no longer replaced by the following stop
+  before they are written. Any write next to a trigger effect keeps the 25 ms
+  spacing. `ASB_APEX4_RUMBLE_MS` (10 to 50) overrides the rumble spacing, and
+  `25` restores the previous cadence without rebuilding. Telemetry reports
+  `apex4_rumble_spacing_ms`, `apex4_rumble_spacing_source` and
+  `apex4_trigger_spacing_ms`. APEX 5 and APEX 6 are unchanged. Measured and
+  proposed by @CGl123; needs confirmation on an APEX 4.
+### APEX 5 Bow effect ([#51](https://github.com/ReynArts/ApexSenseBridge/issues/51), [#40](https://github.com/ReynArts/ApexSenseBridge/issues/40))
+
+- A DualSense Bow (`0x22`) now releases at its end zone. The break no longer
+  extends 40 strokes past it, or past the end of the travel when the bow ends
+  at zone 8, which kept resisting like a pedal. Bows spanning fewer than 4
+  zones (gun triggers such as Gears of War: E-Day and Battlefield 6) use the
+  native break: a short draw, a click at the end zone, then free. The draw
+  strength of the break is still not rendered. Needs confirmation on hardware.
+- `Apex45TriggerCapture --replay-check` replays the effects logged in #35, #40,
+  #51 and #58.
+
+### Portable driver helper and automatic updates ([#61](https://github.com/ReynArts/ApexSenseBridge/issues/61), [#49](https://github.com/ReynArts/ApexSenseBridge/pull/49))
+
+- `Install-Drivers.cmd` stages the helper and its two pinned installers in a
+  local temporary folder, checks both SHA-256 hashes before running anything,
+  and launches the installers directly instead of through the Windows shell.
+  A rerun skips what is already installed (for example HidHide alone after
+  USBip), a driver installer is never terminated mid-run, and Windows error 1223
+  ("operation cancelled") now explains what to check (Protection history,
+  antivirus quarantine, manual installation). The log is copied back to the
+  package folder.
+- Automatic updates no longer reject the genuine Inno Setup installer: its
+  version-resource strings are padded with spaces, which made the exact
+  comparison fail. The Tray, the Playnite extension and `update-app.ps1`
+  trim blanks and trailing NULs on both sides and still reject a wrong
+  product, version or publisher (reported and first fixed by @tenmo2003).
+### Documentation and Tray hints
+
+- The game detail pane shows a note under "Allow automatic activation" in nine
+  languages: a manual fix is a third-party mod or setting the user applies,
+  ApexSenseBridge neither installs nor checks it, and the switch only lets the
+  bridge start and hide the physical controller ([#52](https://github.com/ReynArts/ApexSenseBridge/issues/52)).
+- README and TROUBLESHOOTING gain "What does Manual fix mean?", a decision tree
+  for rear buttons in emulators and PC ports, a FACEIT and USBip entry, the
+  "start the bridge first, then restart Steam" recipe, a USB or driver trouble
+  note, a bug report checklist, and the executable-selection workaround for a
+  bridge that turns on and off at game launch ([#63](https://github.com/ReynArts/ApexSenseBridge/issues/63), [#53](https://github.com/ReynArts/ApexSenseBridge/issues/53), [#55](https://github.com/ReynArts/ApexSenseBridge/issues/55), [#32](https://github.com/ReynArts/ApexSenseBridge/issues/32), [#21](https://github.com/ReynArts/ApexSenseBridge/issues/21), [#61](https://github.com/ReynArts/ApexSenseBridge/issues/61)).
 ## 1.0.2
 
 ### Automatic activation for manual fixes ([#36](https://github.com/ReynArts/ApexSenseBridge/issues/36), [#46](https://github.com/ReynArts/ApexSenseBridge/pull/46))

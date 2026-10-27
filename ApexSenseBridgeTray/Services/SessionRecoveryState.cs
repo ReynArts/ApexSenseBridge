@@ -19,7 +19,7 @@ namespace ApexSenseBridgeTray.Services
             // Only a confirmed runtime interruption offers recovery, not a startup
             // refusal, deliberate stop or generic crash. Begin() separately prevents
             // taking over an external owner's session.
-            if ((interruption < 1 || interruption > 3) || (stages & 8) == 0) return false;
+            if ((interruption < 1 || interruption > 4) || (stages & 8) == 0) return false;
             Game = game; Profile = profile; ApexSlot = slot;
             Owner = owner;
             Pending = true; BlocksAutomaticActivation = true;

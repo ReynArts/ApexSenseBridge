@@ -441,11 +441,13 @@ void testWriterSelection() {
         const auto policy = device.asyncWritePolicy();
         assert(policy.has_value() == entry.async);
         if (entry.apex4) {
-            assert(policy->spacing == std::chrono::milliseconds(25));
+            assert(policy->spacing == std::chrono::milliseconds(10));
             assert(policy->rumbleHoldoffAfterTrigger == std::chrono::milliseconds(0));
+            assert(policy->rumbleStopFirst);
         } else if (entry.async) {
             assert(policy->spacing == std::chrono::milliseconds(10));
             assert(policy->rumbleHoldoffAfterTrigger == std::chrono::milliseconds(30));
+            assert(!policy->rumbleStopFirst);
         }
         assert(device.startAsyncWrites(error));
         assert(device.asyncWritesRunning() == entry.async);
@@ -574,7 +576,7 @@ void testBowEmulation() {
     assert(transport->writes.size() == 1);
     bridge.updateTriggerPositions(129, 255);
     assert(transport->writes.size() == 2);
-    expectReport(*transport, false, TriggerSide::Left, TriggerMode::SniperBreak, {115, 40, 32, 0, 0});
+    expectReport(*transport, false, TriggerSide::Left, TriggerMode::SniperBreak, {98, 17, 32, 0, 0});
     bridge.updateTriggerPositions(255, 0);
     bridge.handle(feedback);
     assert(transport->writes.size() == 2);
@@ -585,7 +587,7 @@ void testBowEmulation() {
     expectReport(*transport, false, TriggerSide::Left, TriggerMode::Race, {38, 32, 0, 0, 0});
     bridge.updateTriggerPositions(200, 0);
     assert(transport->writes.size() == 4);
-    expectReport(*transport, false, TriggerSide::Left, TriggerMode::SniperBreak, {115, 40, 32, 0, 0});
+    expectReport(*transport, false, TriggerSide::Left, TriggerMode::SniperBreak, {98, 17, 32, 0, 0});
     assert(bridge.stats().lastLeftCommand->mode == TriggerMode::SniperBreak);
 
     feedback.leftTriggerEffect = {0x21, 0xFC, 0x03};
@@ -785,7 +787,7 @@ void testZoneEmulationSwitchesWithBow() {
     expectReport(*transport, false, TriggerSide::Right, TriggerMode::Race, {38, 32, 0, 0, 0});
     bridge.updateTriggerPositions(0, 255);
     assert(transport->writes.size() == 5);
-    expectReport(*transport, false, TriggerSide::Right, TriggerMode::SniperBreak, {115, 40, 32, 0, 0});
+    expectReport(*transport, false, TriggerSide::Right, TriggerMode::SniperBreak, {98, 17, 32, 0, 0});
 }
 
 void testZoneEmulationSendOrdering() {
@@ -1198,7 +1200,133 @@ void testZoneEmulationOptInAndApex4() {
     }
 }
 
+void testLoggedGunBowIsNativeBreak() {
+    using namespace asb;
+    constexpr std::array<std::uint8_t, 11> kGearsBow{0x22, 0x09, 0x00, 0x39};
+    for (const unsigned strength : {100U, 50U}) {
+        auto* transport = new FakeTransport(false);
+        flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        dualsense::AdaptiveTriggerBridge bridge(device, strength, true);
+        bridge.setZoneUnits(dualsense::productionZoneUnits());
+        dualsense::DualSenseFeedback feedback{};
+        feedback.enableBits1 = 0x06;
+        feedback.rightTriggerEffect = kGearsBow;
+        bridge.handle(feedback);
+        assert(transport->writes.size() == 1);
+        const std::uint8_t force = strength == 100U ? 16 : 8;
+        expectReport(*transport, false, TriggerSide::Right, TriggerMode::SniperBreak, {0, 58, force, 0, 0});
+        constexpr std::array<std::uint8_t, 13> kPull{0, 20, 40, 65, 66, 77, 100, 130, 200, 255, 120, 10, 0};
+        for (unsigned shot = 0; shot < 3; ++shot) {
+            for (const auto position : kPull) bridge.updateTriggerPositions(0, position);
+        }
+        feedback.enableBits1 = 0x0E;
+        bridge.handle(feedback);
+        assert(transport->writes.size() == 1);
+        assert(bridge.stats().deduplicated == 1);
+        assert(bridge.stats().zoneProfiles == 0 && bridge.stats().zoneTransitions == 0);
+    }
+}
+
+void testLongBowReleasesAtEndZone() {
+    using namespace asb;
+    constexpr std::array<std::uint8_t, 11> kControlBow{0x22, 0x01, 0x01, 0x38};
+    auto* transport = new FakeTransport(false);
+    flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    dualsense::AdaptiveTriggerBridge bridge(device, 100, true);
+    bridge.setZoneUnits(dualsense::productionZoneUnits());
+    dualsense::DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x04;
+    feedback.rightTriggerEffect = kControlBow;
+    bridge.handle(feedback);
+    assert(transport->writes.size() == 1);
+    expectReport(*transport, false, TriggerSide::Right, TriggerMode::Race, {0, 8, 0, 0, 0});
+    bridge.updateTriggerPositions(0, 172);
+    assert(transport->writes.size() == 1);
+    bridge.updateTriggerPositions(0, 173);
+    assert(transport->writes.size() == 2);
+    expectReport(*transport, false, TriggerSide::Right, TriggerMode::SniperBreak, {131, 23, 8, 0, 0});
+    const auto& rupture = transport->writes.back();
+    assert(rupture[8] + rupture[9] == 154);
+    bridge.updateTriggerPositions(0, 255);
+    bridge.updateTriggerPositions(0, 11);
+    assert(transport->writes.size() == 2);
+    bridge.updateTriggerPositions(0, 10);
+    assert(transport->writes.size() == 3);
+    expectReport(*transport, false, TriggerSide::Right, TriggerMode::Race, {0, 8, 0, 0, 0});
+}
+
+void testLoggedLightEffectsAreUnchanged() {
+    using namespace asb;
+    constexpr std::array<std::uint8_t, 11> kZone9{0x21, 0x00, 0x02};
+    constexpr std::array<std::uint8_t, 11> kVibration{0x26, 0xFF, 0x03, 0x49, 0x92, 0x24, 0x09, 0x00, 0x00, 0xB4, 0x00};
+    constexpr std::array<std::uint8_t, 11> kZones6To9{0x21, 0xC0, 0x03};
+    constexpr std::array<std::uint8_t, 11> kRacing{0x21, 0x80, 0x03};
+    struct Expected {
+        std::array<std::uint8_t, 11> effect;
+        TriggerMode mode;
+        std::array<std::uint8_t, 5> full;
+        std::array<std::uint8_t, 5> half;
+    };
+    const std::array<Expected, 4> expectations{{
+        {kZone9, TriggerMode::Race, {173, 8, 0, 0, 0}, {173, 4, 0, 0, 0}},
+        {kVibration, TriggerMode::RecoilRattle, {0, 1, 20, 180, 0}, {0, 1, 10, 180, 0}},
+        {kZones6To9, TriggerMode::Race, {115, 8, 0, 0, 0}, {115, 4, 0, 0, 0}},
+        {kRacing, TriggerMode::Race, {134, 8, 0, 0, 0}, {134, 4, 0, 0, 0}}}};
+    for (const bool apex4 : {false, true}) {
+        for (const unsigned strength : {100U, 50U, 0U}) {
+            auto* transport = new FakeTransport(apex4);
+            flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
+            std::string error;
+            assert(device.verifyIdentity(error));
+            dualsense::AdaptiveTriggerBridge bridge(device, strength, true);
+            bridge.setZoneUnits(dualsense::productionZoneUnits());
+            dualsense::DualSenseFeedback feedback{};
+            feedback.enableBits1 = 0x0C;
+            std::size_t expectedWrites = 0;
+            for (const auto& expected : expectations) {
+                feedback.leftTriggerEffect = expected.effect;
+                feedback.rightTriggerEffect = expected.effect;
+                bridge.handle(feedback);
+                if (strength == 0U) {
+                    if (expectedWrites == 0) expectedWrites = 2;
+                    assert(transport->writes.size() == expectedWrites);
+                    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
+                    continue;
+                }
+                expectedWrites += 2;
+                assert(transport->writes.size() == expectedWrites);
+                expectReport(*transport, apex4, TriggerSide::Left, expected.mode,
+                             strength == 100U ? expected.full : expected.half);
+                for (const auto position : {0, 120, 230, 255, 0}) {
+                    bridge.updateTriggerPositions(static_cast<std::uint8_t>(position),
+                                                  static_cast<std::uint8_t>(position));
+                }
+                assert(transport->writes.size() == expectedWrites);
+            }
+            feedback.leftTriggerEffect = {};
+            feedback.rightTriggerEffect = {};
+            bridge.handle(feedback);
+            assert(transport->writes.size() == expectedWrites);
+            feedback.leftTriggerEffect = {5};
+            feedback.rightTriggerEffect = {5};
+            bridge.handle(feedback);
+            if (strength != 0U) {
+                assert(transport->writes.size() == expectedWrites + 2);
+                expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
+            }
+            assert(bridge.stats().zoneProfiles == 0 && bridge.stats().periodicProfiles == 0);
+        }
+    }
+}
+
 int main() {
+    testLoggedGunBowIsNativeBreak();
+    testLongBowReleasesAtEndZone();
+    testLoggedLightEffectsAreUnchanged();
     testEmulationLeavesUnaffectedEffectsUnchanged();
     testZoneEmulation();
     testZoneEmulationLeftAndScaling();

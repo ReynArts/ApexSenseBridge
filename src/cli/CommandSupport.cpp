@@ -80,79 +80,108 @@ std::string hex16(std::uint16_t value) {
 }
 
 bool isDualSenseGamepadInterface(const asb::HidDeviceInfo& info) {
-    return info.vendorId == 0x054C && info.productId == 0x0CE6 &&
-           (info.interfaceNumber.empty() || info.interfaceNumber == L"MI_03") &&
-           info.featureReportLength >= 46;
+    return asb::dualsense::isDualSenseGamepadCollection(info);
 }
-
-namespace {
-
-bool sameDevicePath(std::wstring_view left, std::wstring_view right) {
-    return left.size() == right.size() &&
-           std::equal(left.begin(), left.end(), right.begin(),
-                      [](wchar_t lhs, wchar_t rhs) {
-                          return std::towupper(lhs) == std::towupper(rhs);
-                      });
-}
-
-bool wasPresentBefore(const std::vector<std::wstring>& paths,
-                      std::wstring_view candidate) {
-    return std::any_of(paths.begin(), paths.end(),
-                       [candidate](const auto& path) {
-                           return sameDevicePath(path, candidate);
-                       });
-}
-
-} // namespace
 
 std::vector<std::wstring> snapshotDualSensePaths() {
     std::string ignored;
     const auto devices = asb::platform::enumerateHidDevices(ignored);
     std::vector<std::wstring> paths;
     for (const auto& info : devices) {
-        if (isDualSenseGamepadInterface(info)) paths.push_back(info.path);
+        if (asb::dualsense::isDualSenseHidInterface(info)) paths.push_back(info.path);
     }
     return paths;
+}
+
+asb::dualsense::VirtualDualSenseProbeEnvironment makeVirtualDualSenseProbeEnvironment(
+    std::function<bool()> stopRequested,
+    const asb::dualsense::DualSenseInputState* expectedInitialInput) {
+    using TransportPtr = std::unique_ptr<asb::platform::HidTransport,
+                                         void (*)(asb::platform::HidTransport*)>;
+    asb::dualsense::VirtualDualSenseProbeEnvironment environment{};
+    environment.enumerate = [](std::string& enumerationError) {
+        return asb::platform::enumerateHidDevices(enumerationError);
+    };
+    environment.verify = [expectedInitialInput](const asb::HidDeviceInfo& info,
+                                                std::string& lastError)
+        -> std::optional<VirtualDualSenseDiscovery> {
+        std::string openError;
+        TransportPtr transport(asb::platform::createHidTransport(info, openError),
+                               asb::platform::destroyHidTransport);
+        if (!transport) {
+            lastError = std::move(openError);
+            return std::nullopt;
+        }
+
+        std::vector<std::uint8_t> report(info.featureReportLength, 0);
+        report[0] = 0x20;
+        std::string featureError;
+        if (!transport->readFeatureReport(report, featureError)) {
+            lastError = std::move(featureError);
+            return std::nullopt;
+        }
+        auto firmware = asb::dualsense::decodeFirmwareFeatureReport(report);
+        if (!firmware) {
+            lastError = "The virtual DualSense returned a malformed firmware feature report.";
+            return std::nullopt;
+        }
+
+        std::size_t verifiedInitialReports = 0;
+        if (expectedInitialInput) {
+            std::vector<std::uint8_t> inputBuffer(64, 0);
+            const auto inputDeadline =
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(1200);
+            while (verifiedInitialReports < 3 &&
+                   std::chrono::steady_clock::now() < inputDeadline) {
+                std::size_t bytesRead = 0;
+                std::string inputError;
+                const auto status = transport->readInputReport(
+                    inputBuffer, std::chrono::milliseconds(40), bytesRead, inputError);
+                if (status == asb::platform::HidReadStatus::Data &&
+                    bytesRead >= 11 && inputBuffer[0] == 0x01) {
+                    const bool axesMatch =
+                        inputBuffer[1] == expectedInitialInput->lx &&
+                        inputBuffer[2] == expectedInitialInput->ly &&
+                        inputBuffer[3] == expectedInitialInput->rx &&
+                        inputBuffer[4] == expectedInitialInput->ry &&
+                        inputBuffer[5] == expectedInitialInput->l2 &&
+                        inputBuffer[6] == expectedInitialInput->r2;
+                    if (axesMatch) {
+                        ++verifiedInitialReports;
+                    }
+                } else if (status == asb::platform::HidReadStatus::Error) {
+                    lastError = "Initial HID input report read failed: " + inputError;
+                    return std::nullopt;
+                }
+            }
+            if (verifiedInitialReports < 3) {
+                lastError = "The virtual DualSense HID interface did not produce verified initial input reports.";
+                return std::nullopt;
+            }
+        }
+
+        return VirtualDualSenseDiscovery(*firmware, info, verifiedInitialReports);
+    };
+    environment.explainUnreadable = [](const asb::HidDeviceInfo& info) {
+        std::string openError;
+        TransportPtr transport(asb::platform::createHidTransport(info, openError),
+                               asb::platform::destroyHidTransport);
+        return transport
+            ? std::string("the interface opened, but its HID capabilities were not yet readable")
+            : openError;
+    };
+    environment.stopRequested = std::move(stopRequested);
+    return environment;
 }
 
 bool waitForNewVirtualDualSenseRemoval(
     const std::vector<std::wstring>& preexistingPaths,
     std::chrono::milliseconds timeout,
     std::string& error) {
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
-    std::optional<std::chrono::steady_clock::time_point> absentSince;
-    do {
-        std::string enumerationError;
-        const auto devices = asb::platform::enumerateHidDevices(enumerationError);
-        if (!enumerationError.empty()) {
-            error = std::move(enumerationError);
-        } else {
-            const bool newInterfaceStillPresent = std::any_of(
-                devices.begin(), devices.end(),
-                [&preexistingPaths](const auto& info) {
-                    return isDualSenseGamepadInterface(info) &&
-                           !wasPresentBefore(preexistingPaths, info.path);
-                });
-            if (!newInterfaceStillPresent) {
-                const auto now = std::chrono::steady_clock::now();
-                if (!absentSince) absentSince = now;
-                // Require stable absence rather than a single empty PnP scan;
-                // the usbip removal notification can race the next attach.
-                if (now - *absentSince >= std::chrono::milliseconds(150)) {
-                    error.clear();
-                    return true;
-                }
-            } else {
-                absentSince.reset();
-            }
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    } while (std::chrono::steady_clock::now() < deadline);
-
-    if (error.empty()) {
-        error = "The previous virtual DualSense HID interface remained present after cleanup.";
-    }
-    return false;
+    asb::dualsense::VirtualDualSenseBaseline baseline(preexistingPaths);
+    return asb::dualsense::waitForVirtualDualSenseRemoval(
+        baseline, makeVirtualDualSenseProbeEnvironment({}, nullptr), timeout,
+        std::chrono::milliseconds(150), error);
 }
 
 std::optional<VirtualDualSenseDiscovery> readNewVirtualDualSenseFirmware(
@@ -160,86 +189,14 @@ std::optional<VirtualDualSenseDiscovery> readNewVirtualDualSenseFirmware(
     std::chrono::milliseconds timeout,
     std::string& error,
     const asb::dualsense::DualSenseInputState* expectedInitialInput) {
-    using TransportPtr = std::unique_ptr<asb::platform::HidTransport,
-                                         void (*)(asb::platform::HidTransport*)>;
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
-    std::string lastError;
-    do {
-        std::string enumerationError;
-        const auto devices = asb::platform::enumerateHidDevices(enumerationError);
-        if (!enumerationError.empty()) lastError = enumerationError;
-        for (const auto& info : devices) {
-            if (!isDualSenseGamepadInterface(info) ||
-                wasPresentBefore(preexistingPaths, info.path)) {
-                continue;
-            }
-
-            std::string openError;
-            TransportPtr transport(asb::platform::createHidTransport(info, openError),
-                                   asb::platform::destroyHidTransport);
-            if (!transport) {
-                lastError = std::move(openError);
-                continue;
-            }
-
-            std::vector<std::uint8_t> report(info.featureReportLength, 0);
-            report[0] = 0x20;
-            std::string featureError;
-            if (!transport->readFeatureReport(report, featureError)) {
-                lastError = std::move(featureError);
-                continue;
-            }
-            auto firmware = asb::dualsense::decodeFirmwareFeatureReport(report);
-            if (!firmware) {
-                lastError = "The virtual DualSense returned a malformed firmware feature report.";
-                continue;
-            }
-
-            std::size_t verifiedInitialReports = 0;
-            if (expectedInitialInput) {
-                std::vector<std::uint8_t> inputBuffer(64, 0);
-                const auto inputDeadline =
-                    std::chrono::steady_clock::now() + std::chrono::milliseconds(1200);
-                while (verifiedInitialReports < 3 &&
-                       std::chrono::steady_clock::now() < inputDeadline) {
-                    std::size_t bytesRead = 0;
-                    std::string inputError;
-                    const auto status = transport->readInputReport(
-                        inputBuffer, std::chrono::milliseconds(40), bytesRead, inputError);
-                    if (status == asb::platform::HidReadStatus::Data &&
-                        bytesRead >= 11 && inputBuffer[0] == 0x01) {
-                        const bool axesMatch =
-                            inputBuffer[1] == expectedInitialInput->lx &&
-                            inputBuffer[2] == expectedInitialInput->ly &&
-                            inputBuffer[3] == expectedInitialInput->rx &&
-                            inputBuffer[4] == expectedInitialInput->ry &&
-                            inputBuffer[5] == expectedInitialInput->l2 &&
-                            inputBuffer[6] == expectedInitialInput->r2;
-                        if (axesMatch) {
-                            ++verifiedInitialReports;
-                        }
-                    } else if (status == asb::platform::HidReadStatus::Error) {
-                        lastError = "Initial HID input report read failed: " + inputError;
-                        break;
-                    }
-                }
-                if (verifiedInitialReports < 3) {
-                    lastError = "The virtual DualSense HID interface did not produce verified initial input reports.";
-                    continue;
-                }
-            }
-
-            VirtualDualSenseDiscovery discovery(*firmware, info, verifiedInitialReports);
-            error.clear();
-            return discovery;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    } while (std::chrono::steady_clock::now() < deadline);
-
-    error = lastError.empty()
-        ? "The newly-created virtual DualSense firmware interface was not found."
-        : std::move(lastError);
-    return std::nullopt;
+    asb::dualsense::VirtualDualSenseBaseline baseline(preexistingPaths);
+    asb::dualsense::VirtualDualSenseProbeTiming timing{};
+    timing.quietWindow = timeout;
+    timing.progressWindow = timeout;
+    asb::dualsense::VirtualDualSenseProbeReport report{};
+    return asb::dualsense::probeNewVirtualDualSense(
+        baseline, timing, makeVirtualDualSenseProbeEnvironment({}, expectedInitialInput),
+        report, error);
 }
 
 void printDevice(const asb::HidDeviceInfo& info, std::size_t index) {
@@ -263,8 +220,76 @@ std::optional<std::size_t> parseIndex(int argc, char** argv) {
     }
 }
 
+std::vector<asb::HidDeviceInfo> orderedCandidates(std::string& error) {
+    return asb::diagnostics::orderApexCandidates(
+        asb::flydigi::Apex5Device::findCandidates(error));
+}
+
+std::string severalControllersError(std::size_t count) {
+    return "Several APEX controllers are connected (" + std::to_string(count) +
+           " vendor interfaces). ApexSenseBridge drives one controller at a time: "
+           "switch off or unplug the other controllers, or pass the index printed by "
+           "the 'ApexSenseBridge.exe list' command.";
+}
+
+std::string describeCandidateSelection(const CandidateSelection& selection,
+                                       const asb::flydigi::Apex5Device& device) {
+    std::ostringstream output;
+    output << "Several APEX controllers are connected (" << selection.candidates
+           << " vendor interfaces); bridging candidate [" << selection.selected << "] ";
+    if (device.identity()) {
+        output << device.identity()->describe() << " over "
+               << (device.identity()->isWired() ? "USB cable" : "2.4 GHz dongle");
+    } else {
+        output << "APEX";
+    }
+    output << " at " << narrowAscii(device.info().path)
+           << ". ApexSenseBridge bridges one controller at a time: the first "
+              "interface in 'list' order that answers the identity check.";
+    return output.str();
+}
+
+std::optional<asb::flydigi::Apex5Device> openFirstVerifiedCandidate(
+    const std::function<bool()>& shouldStop, std::string& error,
+    DeviceOpenFailure& failure, CandidateSelection& selection) {
+    failure = DeviceOpenFailure::Other;
+    selection = {};
+    const auto candidates = orderedCandidates(error);
+    if (candidates.size() <= 1) {
+        error.clear();
+        return openSelectedIndex(std::nullopt, shouldStop, error, failure);
+    }
+    error.clear();
+    selection.candidates = candidates.size();
+    std::optional<asb::flydigi::Apex5Device> device;
+    std::size_t unanswered = 0;
+    std::string lastError;
+    const auto chosen = asb::diagnostics::firstVerifiedCandidate(
+        candidates.size(),
+        [&](std::size_t index) {
+            std::string attemptError;
+            auto opened = asb::flydigi::Apex5Device::open(candidates[index], attemptError);
+            if (opened && opened->verifyIdentity(attemptError, shouldStop)) {
+                device = std::move(opened);
+                return true;
+            }
+            if (opened && opened->identityUnanswered()) ++unanswered;
+            lastError = "[" + std::to_string(index) + "] " + attemptError;
+            return false;
+        },
+        shouldStop);
+    if (!chosen) {
+        if (unanswered == candidates.size()) failure = DeviceOpenFailure::IdentityUnanswered;
+        error = "None of the " + std::to_string(candidates.size()) +
+                " APEX vendor interfaces answered the identity check; last error: " + lastError;
+        return std::nullopt;
+    }
+    selection.selected = *chosen;
+    return device;
+}
+
 std::optional<asb::flydigi::Apex5Device> openSelected(int argc, char** argv, std::string& error) {
-    auto candidates = asb::flydigi::Apex5Device::findCandidates(error);
+    auto candidates = orderedCandidates(error);
     if (!error.empty() && candidates.empty()) {
         return std::nullopt;
     }
@@ -278,7 +303,7 @@ std::optional<asb::flydigi::Apex5Device> openSelected(int argc, char** argv, std
     if (const auto requested = parseIndex(argc, argv)) {
         index = *requested;
     } else if (candidates.size() > 1) {
-        error = "More than one Flydigi controller vendor interface was found. Run 'list' and pass the wanted index.";
+        error = severalControllersError(candidates.size());
         return std::nullopt;
     }
 
@@ -310,7 +335,7 @@ std::optional<asb::flydigi::Apex5Device> openSelectedIndex(
     std::optional<std::size_t> requested, const std::function<bool()>& shouldStop,
     std::string& error, DeviceOpenFailure& failure) {
     failure = DeviceOpenFailure::Other;
-    auto candidates = asb::flydigi::Apex5Device::findCandidates(error);
+    auto candidates = orderedCandidates(error);
     if (!error.empty() && candidates.empty()) return std::nullopt;
     if (candidates.empty()) {
         error = "No APEX 4/5/6 vendor HID interface found. For Apex 4, use USB or "
@@ -318,7 +343,7 @@ std::optional<asb::flydigi::Apex5Device> openSelectedIndex(
         return std::nullopt;
     }
     if (!requested && candidates.size() > 1) {
-        error = "More than one Flydigi controller vendor interface was found. Run 'list' and pass the wanted index.";
+        error = severalControllersError(candidates.size());
         return std::nullopt;
     }
     const auto index = requested.value_or(0);

@@ -46,6 +46,7 @@ public:
                           haptics::HapticConfig hapticConfig = {}, unsigned strengthPercent = 100);
 
     void handle(const DualSenseFeedback& feedback);
+    void poll();
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
     [[nodiscard]] RumbleBridgeStats stats() const noexcept;
@@ -54,6 +55,7 @@ private:
     using Clock = std::chrono::steady_clock;
 
     [[nodiscard]] RumbleLevels mixedLevelsLocked() const noexcept;
+    [[nodiscard]] bool expireAudioLocked(Clock::time_point now) noexcept;
     void writeDesiredLocked(RumbleLevels desired,
                             Clock::time_point now,
                             bool force,

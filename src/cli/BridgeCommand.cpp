@@ -123,6 +123,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     // collections independently after wake. Give the vendor interface a
     // bounded window to appear instead of failing on the first empty scan.
     std::optional<asb::flydigi::Apex5Device> device;
+    asb::cli::CandidateSelection candidateSelection{};
     const auto stopRequested = [&]() {
         return g_stopRequested.load(std::memory_order_relaxed) ||
                globalSessionStop->stopRequested() ||
@@ -132,7 +133,10 @@ int commandBridgeTriggers(int argc, char** argv) {
         asb::cli::DeviceOpenRetryPolicy{},
         [&](asb::cli::DeviceOpenFailure& failure) {
             error.clear();
-            device = openSelectedIndex(options.deviceIndex, stopRequested, error, failure);
+            device = options.deviceIndex
+                ? openSelectedIndex(options.deviceIndex, stopRequested, error, failure)
+                : asb::cli::openFirstVerifiedCandidate(stopRequested, error, failure,
+                                                       candidateSelection);
             return device.has_value();
         },
         stopRequested);
@@ -142,6 +146,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << message << '\n';
         return failSession(3, message);
     }
+    if (candidateSelection.candidates > 1)
+        std::cout << asb::cli::describeCandidateSelection(candidateSelection, *device) << std::endl;
     const bool apex6Pro = device->identity() && device->identity()->isApex6();
     if (options.apex6HapticGainExplicit && !apex6Pro) {
         constexpr std::string_view message =
@@ -347,7 +353,9 @@ int commandBridgeTriggers(int argc, char** argv) {
 
     if (stopRequested()) return cancelStartup();
     startup.enter("feedback-routing");
-    const auto preexistingDualSensePaths = snapshotDualSensePaths();
+    asb::dualsense::VirtualDualSenseBaseline dualSenseBaseline(snapshotDualSensePaths());
+    const auto dualSenseProbeEnvironment = makeVirtualDualSenseProbeEnvironment(stopRequested);
+    std::vector<asb::dualsense::VirtualDualSenseProbeReport> virtualProbeReports;
     asb::platform::VirtualDualSenseAudioEndpointProtection audioProtection;
     std::string audioProtectionError;
     if (!audioProtection.capture(audioProtectionError)) {
@@ -418,7 +426,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     std::future<bool> audioProtectionFuture;
     bool audioProtectionOk = true;
-    const auto probeFirmware = [&preexistingDualSensePaths, &audioProtection,
+    const auto probeFirmware = [&dualSenseBaseline, &dualSenseProbeEnvironment,
+                                &virtualProbeReports, &audioProtection,
                                 &audioProtectionError, &audioProtectionFuture, &startup,
                                 inspectHapticFormat = apex6Pro && options.routeRumble]
         (std::string& probeError) {
@@ -441,13 +450,32 @@ int commandBridgeTriggers(int argc, char** argv) {
                        audioProtection.protectAfterVirtualDualSenseStart(
                            std::chrono::milliseconds(2000), audioProtectionError, inspectHapticFormat);
             });
-        return readNewVirtualDualSenseFirmware(
-            preexistingDualSensePaths, std::chrono::milliseconds(3000), probeError);
+        asb::dualsense::VirtualDualSenseProbeReport report{};
+        report.attempt = virtualProbeReports.size() + 1;
+        auto readiness = asb::dualsense::probeNewVirtualDualSense(
+            dualSenseBaseline, asb::dualsense::VirtualDualSenseProbeTiming{},
+            dualSenseProbeEnvironment, report, probeError);
+        if (readiness) {
+            std::cout << "virtual_startup_probe="
+                      << asb::dualsense::describeVirtualDualSenseProbe(report) << '\n';
+        } else {
+            std::cerr << "Virtual DualSense readiness probe failed: "
+                      << asb::dualsense::describeVirtualDualSenseProbe(report) << '\n';
+        }
+        virtualProbeReports.push_back(std::move(report));
+        return readiness;
     };
-    const auto waitForRemoval = [&preexistingDualSensePaths, &startup](std::string& removalError) {
+    const auto waitForRemoval = [&dualSenseBaseline, &dualSenseProbeEnvironment,
+                                 &startup](std::string& removalError) {
         startup.enter("virtual-dualsense");
-        return waitForNewVirtualDualSenseRemoval(
-            preexistingDualSensePaths, std::chrono::milliseconds(2000), removalError);
+        return asb::dualsense::waitForVirtualDualSenseRemoval(
+            dualSenseBaseline, dualSenseProbeEnvironment, std::chrono::milliseconds(2000),
+            std::chrono::milliseconds(150), removalError);
+    };
+    asb::dualsense::VirtualDualSenseStartupHooks startupHooks{};
+    startupHooks.stopRequested = stopRequested;
+    startupHooks.beforeAttempt = [&dualSenseBaseline](std::size_t) {
+        dualSenseBaseline.reset(snapshotDualSensePaths());
     };
 
     if (stopRequested()) return cancelStartup();
@@ -455,9 +483,12 @@ int commandBridgeTriggers(int argc, char** argv) {
     asb::dualsense::VirtualDualSenseStartupResult startupResult{};
     if (!asb::dualsense::startVerifiedVirtualDualSense(
             *virtualDualSense, initialInput, feedbackHandler, probeFirmware,
-            waitForRemoval, 2, startupResult, error)) {
+            waitForRemoval, 2, startupResult, error, startupHooks)) {
         if (audioProtectionFuture.valid()) {
             (void)audioProtectionFuture.get();
+        }
+        if (startupResult.failure == asb::dualsense::VirtualDualSenseStartupFailure::Cancelled) {
+            return cancelStartup();
         }
         std::cerr << error << '\n';
         const int exitCode =
@@ -480,7 +511,14 @@ int commandBridgeTriggers(int argc, char** argv) {
     using MonitorPtr = std::unique_ptr<asb::platform::HidTransport,
                                        void (*)(asb::platform::HidTransport*)>;
     MonitorPtr virtualInputMonitor(nullptr, asb::platform::destroyHidTransport);
-    if (options.verifyVirtualInput) {
+    if (options.verifyVirtualInput && startupResult.deviceInfo &&
+        startupResult.deviceInfo->inputReportLength >= 64) {
+        std::string openError;
+        virtualInputMonitor.reset(
+            asb::platform::createHidTransport(*startupResult.deviceInfo, openError));
+        if (!virtualInputMonitor) error = std::move(openError);
+    }
+    if (options.verifyVirtualInput && !virtualInputMonitor) {
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
         while (std::chrono::steady_clock::now() < deadline && !virtualInputMonitor) {
             std::string enumerateError;
@@ -488,7 +526,7 @@ int commandBridgeTriggers(int argc, char** argv) {
             for (const auto& info : devices) {
                 if (info.vendorId == 0x054C && info.productId == 0x0CE6 &&
                     info.usagePage == 0x0001 && info.usage == 0x0005 &&
-                    info.inputReportLength >= 64) {
+                    info.inputReportLength >= 64 && !dualSenseBaseline.contains(info.path)) {
                     std::string openError;
                     virtualInputMonitor.reset(asb::platform::createHidTransport(info, openError));
                     if (!virtualInputMonitor) error = std::move(openError);
@@ -980,6 +1018,7 @@ int commandBridgeTriggers(int argc, char** argv) {
             std::string refreshError;
             (void)device->requestBatteryRefresh(refreshError);
         }
+        if (rumbleBridge) rumbleBridge->poll();
         asb::dualsense::DualSenseInputState input{};
         const auto inputWait = inputSource->eventDriven()
             ? std::chrono::milliseconds(8)
@@ -1110,6 +1149,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         if (forwardInput) {
             if (!virtualDualSense->updateInput(input, inputProxyError)) {
                 inputProxyFailed = true;
+                if (sessionControl) sessionControl->markInterrupted(
+                    asb::platform::SessionInterruption::VirtualDisconnected);
                 break;
             }
             forwardingLatency.observe(std::chrono::steady_clock::now() - inputObservedAt);
@@ -1215,6 +1256,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         if (enumerationError.empty() && std::none_of(devices.begin(), devices.end(),
             [&device](const auto& candidate) { return candidate.path == device->info().path; }))
             sessionControl->markInterrupted(asb::platform::SessionInterruption::PhysicalDisconnected);
+        else if (!inputProxyFailed)
+            sessionControl->markInterrupted(asb::platform::SessionInterruption::FeedbackLost);
     }
     mappedTouchpadHold.finish(trackingFinishedAt);
     virtualTouchpadHold.finish(trackingFinishedAt);
@@ -1328,6 +1371,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         telemetry.independentTriggerRuntimeRecoveries = independentTriggerRuntimeRecoveries;
         telemetry.virtualInputMonitorEnabled = virtualInputMonitor != nullptr;
         telemetry.startupAttempts = startupResult.attempts;
+        telemetry.virtualStartupProbes = virtualProbeReports;
         telemetry.initializationMilliseconds = initializationMilliseconds;
         telemetry.physicalInputInitializationMilliseconds =
             physicalInputInitializationMilliseconds;
@@ -1700,6 +1744,14 @@ int commandBridgeTriggers(int argc, char** argv) {
     if (!apex6Pro) {
         std::cout << "apex_feedback_writer="
                   << (device->asyncWritePolicy() ? "async" : "sync") << '\n';
+    }
+    if (apex4) {
+        const auto rumbleSpacing = asb::flydigi::configuredApex4RumbleSpacing();
+        std::cout << "apex4_rumble_spacing_ms=" << rumbleSpacing.spacing.count() << '\n'
+                  << "apex4_rumble_spacing_source="
+                  << (rumbleSpacing.overridden ? "ASB_APEX4_RUMBLE_MS" : "default") << '\n'
+                  << "apex4_trigger_spacing_ms="
+                  << asb::flydigi::kApex4TriggerWriteSpacing.count() << '\n';
     }
     if (apex5) {
         const auto triggerWrites = device->triggerWriteStats();

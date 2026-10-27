@@ -663,12 +663,16 @@
                                         </Button>
 
                                         <Button x:Name="BtnDetailToggleManualFix" Style="{StaticResource BtnSecondary}"
-                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,18"
+                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                 ToolTip="{DynamicResource Loc_ManualFixAllowHint}" Visibility="Collapsed"
                                                 Click="OnDetailToggleManualFixClick">
                                             <TextBlock x:Name="TxtDetailManualFixAction" Text="{DynamicResource Loc_BtnManualFixAllow}"
                                                        FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
                                         </Button>
+                                        <TextBlock x:Name="TxtDetailManualFixNote" Text="{DynamicResource Loc_ManualFixNote}"
+                                                   Visibility="{Binding Visibility, ElementName=BtnDetailToggleManualFix}"
+                                                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                                   Margin="6,0,6,18"/>
 
                                         <!-- Advanced: optional executable association -->
                                         <TextBlock Text="{DynamicResource Loc_GameExecutable}" ToolTip="{DynamicResource Loc_GameExecutableHint}"

@@ -11,7 +11,9 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <chrono>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -205,6 +207,450 @@ void testVerifiedStartupDoesNotRetryHardFailures() {
     assert(inputFailure.openCalls == 1);
     assert(inputFailure.updateCalls == 1);
     assert(inputFailure.closeCalls == 1);
+}
+
+using Milliseconds = std::chrono::milliseconds;
+
+asb::HidDeviceInfo dualSenseInterface(std::wstring path) {
+    asb::HidDeviceInfo info{};
+    info.path = std::move(path);
+    info.vendorId = 0x054C;
+    info.productId = 0x0CE6;
+    info.interfaceNumber = L"MI_03";
+    return info;
+}
+
+asb::HidDeviceInfo gamepadInterface(std::wstring path) {
+    auto info = dualSenseInterface(std::move(path));
+    info.usagePage = 0x0001;
+    info.usage = 0x0005;
+    info.inputReportLength = 64;
+    info.outputReportLength = 48;
+    info.featureReportLength = 64;
+    return info;
+}
+
+asb::HidDeviceInfo otherInterface(std::wstring path) {
+    auto info = dualSenseInterface(std::move(path));
+    info.interfaceNumber = L"MI_00";
+    info.usagePage = 0x000C;
+    info.usage = 0x0001;
+    info.inputReportLength = 8;
+    return info;
+}
+
+asb::HidDeviceInfo unrelatedInterface() {
+    asb::HidDeviceInfo info{};
+    info.path = L"\\\\?\\hid#vid_04b4&pid_2412&mi_02#unrelated";
+    info.vendorId = 0x04B4;
+    info.productId = 0x2412;
+    info.featureReportLength = 64;
+    return info;
+}
+
+const std::wstring kRealPad = L"\\\\?\\hid#vid_054c&pid_0ce6&mi_03#7&real&0&0000#{4d1e55b2}";
+const std::wstring kVirtualPad = L"\\\\?\\HID#VID_054C&PID_0CE6&MI_03#8&usbip&0&0000#{4d1e55b2}";
+
+struct FakeHidWorld {
+    std::chrono::steady_clock::time_point origin =
+        std::chrono::steady_clock::time_point{} + std::chrono::hours(1);
+    std::chrono::steady_clock::time_point current = origin;
+    std::function<std::vector<asb::HidDeviceInfo>(Milliseconds)> script;
+    std::function<bool(const asb::HidDeviceInfo&, Milliseconds)> accepts;
+    std::optional<Milliseconds> stopAt;
+    std::size_t enumerations = 0;
+    std::vector<std::wstring> verified;
+
+    [[nodiscard]] Milliseconds elapsed() const {
+        return std::chrono::duration_cast<Milliseconds>(current - origin);
+    }
+
+    asb::dualsense::VirtualDualSenseProbeEnvironment environment() {
+        using namespace asb::dualsense;
+        VirtualDualSenseProbeEnvironment env{};
+        env.enumerate = [this](std::string&) {
+            ++enumerations;
+            auto devices = script ? script(elapsed()) : std::vector<asb::HidDeviceInfo>{};
+            devices.push_back(unrelatedInterface());
+            return devices;
+        };
+        env.verify = [this](const asb::HidDeviceInfo& info, std::string& error)
+            -> std::optional<VirtualDualSenseReadiness> {
+            verified.push_back(info.path);
+            if (accepts && accepts(info, elapsed())) {
+                DualSenseFirmwareInfo firmware{};
+                firmware.updateVersion = 0x0630;
+                return VirtualDualSenseReadiness(firmware, info, 3);
+            }
+            error = "Reading the HID feature report timed out after 1000 ms";
+            return std::nullopt;
+        };
+        env.explainUnreadable = [](const asb::HidDeviceInfo&) {
+            return std::string("Could not open HID interface (5: Access is denied.)");
+        };
+        env.stopRequested = [this] { return stopAt && elapsed() >= *stopAt; };
+        env.now = [this] { return current; };
+        env.sleep = [this](Milliseconds duration) { current += duration; };
+        return env;
+    }
+};
+
+void testProbeDefaultsKeepStartupBounded() {
+    using namespace asb::dualsense;
+    const VirtualDualSenseProbeTiming timing{};
+    assert(timing.quietWindow == Milliseconds(4000));
+    assert(timing.progressWindow == Milliseconds(6500));
+    assert(timing.pollInterval == Milliseconds(50));
+    assert(2 * timing.progressWindow + Milliseconds(2000) <= Milliseconds(15000));
+}
+
+void testProbeFindsInterfaceBeyondPreviousFixedWindow() {
+    using namespace asb::dualsense;
+    FakeHidWorld world;
+    world.script = [](Milliseconds at) {
+        std::vector<asb::HidDeviceInfo> devices{gamepadInterface(kRealPad)};
+        if (at >= Milliseconds(3500)) devices.push_back(gamepadInterface(kVirtualPad));
+        return devices;
+    };
+    world.accepts = [](const asb::HidDeviceInfo& info, Milliseconds) {
+        return info.path == kVirtualPad;
+    };
+    VirtualDualSenseBaseline baseline({kRealPad});
+    VirtualDualSenseProbeReport report{};
+    report.attempt = 1;
+    std::string error;
+    const auto readiness = probeNewVirtualDualSense(
+        baseline, VirtualDualSenseProbeTiming{}, world.environment(), report, error);
+
+    assert(readiness);
+    assert(error.empty());
+    assert(readiness->deviceInfo && readiness->deviceInfo->path == kVirtualPad);
+    assert(readiness->initialReportsValidated == 3);
+    assert(report.outcome == VirtualDualSenseProbeOutcome::Ready);
+    assert(report.attempt == 1);
+    assert(report.firstNewInterfaceMilliseconds >= 3500);
+    assert(report.firstNewInterfaceMilliseconds < 3600);
+    assert(report.elapsedMilliseconds > 3000);
+    assert(report.baselineInterfaces == 1);
+    assert(report.newGamepadInterfaces == 1);
+    assert(std::none_of(world.verified.begin(), world.verified.end(),
+                        [](const auto& path) { return path == kRealPad; }));
+    const auto text = describeVirtualDualSenseProbe(report);
+    assert(text.find("outcome=ready") != std::string::npos);
+    assert(text.find("baseline=1") != std::string::npos);
+    assert(text.find("state=") == std::string::npos);
+    assert(text.find("ready mi=MI_03 usage=0001:0005 in=64 feature=64") != std::string::npos);
+}
+
+void testProbeExtendsWhileInterfaceIsStillPublishing() {
+    using namespace asb::dualsense;
+    FakeHidWorld world;
+    world.script = [](Milliseconds at) {
+        std::vector<asb::HidDeviceInfo> devices;
+        if (at >= Milliseconds(5800)) {
+            devices.push_back(gamepadInterface(kVirtualPad));
+        } else if (at >= Milliseconds(3800)) {
+            devices.push_back(dualSenseInterface(kVirtualPad));
+        }
+        return devices;
+    };
+    world.accepts = [](const asb::HidDeviceInfo&, Milliseconds) { return true; };
+    VirtualDualSenseBaseline baseline;
+    VirtualDualSenseProbeReport report{};
+    std::string error;
+    const auto readiness = probeNewVirtualDualSense(
+        baseline, VirtualDualSenseProbeTiming{}, world.environment(), report, error);
+
+    assert(readiness);
+    assert(report.extended);
+    assert(report.deadlineMilliseconds == 6500);
+    assert(report.firstNewInterfaceMilliseconds >= 3800);
+    assert(report.newUnreadableInterfaces == 1);
+    assert(report.newGamepadInterfaces == 1);
+    assert(report.elapsedMilliseconds >= 5800 && report.elapsedMilliseconds < 5900);
+}
+
+void testProbeQuietFailureIsBoundedAndStable() {
+    using namespace asb::dualsense;
+    std::string firstError;
+    std::string firstDescription;
+    for (int run = 0; run < 2; ++run) {
+        FakeHidWorld world;
+        world.script = [](Milliseconds) {
+            return std::vector<asb::HidDeviceInfo>{gamepadInterface(kRealPad)};
+        };
+        VirtualDualSenseBaseline baseline({kRealPad});
+        VirtualDualSenseProbeReport report{};
+        report.attempt = 2;
+        std::string error;
+        assert(!probeNewVirtualDualSense(
+            baseline, VirtualDualSenseProbeTiming{}, world.environment(), report, error));
+        assert(report.outcome == VirtualDualSenseProbeOutcome::NotFound);
+        assert(report.attempt == 2);
+        assert(!report.extended);
+        assert(report.elapsedMilliseconds >= 4000 && report.elapsedMilliseconds <= 4051);
+        assert(world.elapsed() <= Milliseconds(4051));
+        assert(world.verified.empty());
+        assert(error.find("The newly-created virtual DualSense firmware interface was not found") == 0);
+        assert(error.find("no new 054C:0CE6 HID interface appeared") != std::string::npos);
+        assert(error.find("1 DualSense HID interface was already present before creation") !=
+               std::string::npos);
+        assert(error.find("ms") == std::string::npos);
+        assert(report.lastError == error);
+        const auto text = describeVirtualDualSenseProbe(report);
+        assert(text.find("attempt=2 outcome=not-found") == 0);
+        assert(text.find("baseline=1 baseline_vanished=0 baseline_reappeared=0") != std::string::npos);
+        assert(text.find("baseline mi=MI_03") != std::string::npos);
+        if (run == 0) {
+            firstError = error;
+            firstDescription = text;
+        } else {
+            assert(error == firstError);
+            assert(text == firstDescription);
+        }
+    }
+}
+
+void testProbeAcceptsReusedPathAfterStaleRemoval() {
+    using namespace asb::dualsense;
+    FakeHidWorld world;
+    world.script = [](Milliseconds at) {
+        std::vector<asb::HidDeviceInfo> devices{gamepadInterface(kRealPad)};
+        if (at < Milliseconds(600) || at >= Milliseconds(1200)) {
+            devices.push_back(gamepadInterface(kVirtualPad));
+        }
+        return devices;
+    };
+    world.accepts = [](const asb::HidDeviceInfo& info, Milliseconds) {
+        return info.path == kVirtualPad;
+    };
+    VirtualDualSenseBaseline baseline({kRealPad, kVirtualPad});
+    VirtualDualSenseProbeReport report{};
+    std::string error;
+    const auto readiness = probeNewVirtualDualSense(
+        baseline, VirtualDualSenseProbeTiming{}, world.environment(), report, error);
+
+    assert(readiness);
+    assert(readiness->deviceInfo->path == kVirtualPad);
+    assert(report.baselineInterfaces == 2);
+    assert(report.baselineVanished == 1);
+    assert(report.baselineReappeared == 1);
+    assert(report.extended);
+    assert(report.firstNewInterfaceMilliseconds >= 1200);
+    assert(baseline.contains(kRealPad));
+    assert(!baseline.contains(kVirtualPad));
+    assert(world.verified.size() == 1 && world.verified.front() == kVirtualPad);
+}
+
+void testProbeReportsUnreadableInterface() {
+    using namespace asb::dualsense;
+    FakeHidWorld world;
+    world.script = [](Milliseconds at) {
+        std::vector<asb::HidDeviceInfo> devices;
+        if (at >= Milliseconds(200)) devices.push_back(dualSenseInterface(kVirtualPad));
+        return devices;
+    };
+    VirtualDualSenseBaseline baseline;
+    VirtualDualSenseProbeReport report{};
+    std::string error;
+    assert(!probeNewVirtualDualSense(
+        baseline, VirtualDualSenseProbeTiming{}, world.environment(), report, error));
+    assert(report.outcome == VirtualDualSenseProbeOutcome::CapabilitiesUnavailable);
+    assert(report.extended);
+    assert(report.elapsedMilliseconds >= 6500 && report.elapsedMilliseconds <= 6551);
+    assert(report.newUnreadableInterfaces == 1);
+    assert(error.find("did not expose its HID capabilities") != std::string::npos);
+    assert(error.find("Access is denied") != std::string::npos);
+    assert(describeVirtualDualSenseProbe(report).find("new-unreadable") != std::string::npos);
+}
+
+void testProbeReportsRejectedAndUnexpectedInterfaces() {
+    using namespace asb::dualsense;
+    FakeHidWorld rejected;
+    rejected.script = [](Milliseconds) {
+        return std::vector<asb::HidDeviceInfo>{gamepadInterface(kVirtualPad)};
+    };
+    VirtualDualSenseBaseline emptyBaseline;
+    VirtualDualSenseProbeReport report{};
+    std::string error;
+    assert(!probeNewVirtualDualSense(
+        emptyBaseline, VirtualDualSenseProbeTiming{}, rejected.environment(), report, error));
+    assert(report.outcome == VirtualDualSenseProbeOutcome::CandidateRejected);
+    assert(error == "Reading the HID feature report timed out after 1000 ms");
+    assert(report.candidateFailures > 1);
+
+    FakeHidWorld unexpected;
+    unexpected.script = [](Milliseconds) {
+        return std::vector<asb::HidDeviceInfo>{otherInterface(kVirtualPad)};
+    };
+    VirtualDualSenseBaseline otherBaseline;
+    assert(!probeNewVirtualDualSense(
+        otherBaseline, VirtualDualSenseProbeTiming{}, unexpected.environment(), report, error));
+    assert(report.outcome == VirtualDualSenseProbeOutcome::UnexpectedInterface);
+    assert(error.find("none was the DualSense gamepad collection") != std::string::npos);
+    assert(unexpected.verified.empty());
+}
+
+void testProbeHonoursStopRequest() {
+    using namespace asb::dualsense;
+    FakeHidWorld world;
+    world.stopAt = Milliseconds(1000);
+    VirtualDualSenseBaseline baseline;
+    VirtualDualSenseProbeReport report{};
+    std::string error;
+    assert(!probeNewVirtualDualSense(
+        baseline, VirtualDualSenseProbeTiming{}, world.environment(), report, error));
+    assert(report.outcome == VirtualDualSenseProbeOutcome::Cancelled);
+    assert(world.elapsed() >= Milliseconds(1000) && world.elapsed() < Milliseconds(1100));
+    assert(error.find("cancelled by a stop request") != std::string::npos);
+}
+
+void testRemovalWaitRequiresStableAbsenceAndHonoursStop() {
+    using namespace asb::dualsense;
+    FakeHidWorld world;
+    world.script = [](Milliseconds at) {
+        std::vector<asb::HidDeviceInfo> devices{gamepadInterface(kRealPad)};
+        if (at < Milliseconds(400) || (at >= Milliseconds(500) && at < Milliseconds(600))) {
+            devices.push_back(gamepadInterface(kVirtualPad));
+        }
+        return devices;
+    };
+    VirtualDualSenseBaseline baseline({kRealPad});
+    std::string error;
+    assert(waitForVirtualDualSenseRemoval(
+        baseline, world.environment(), Milliseconds(2000), Milliseconds(150), error));
+    assert(error.empty());
+    assert(world.elapsed() >= Milliseconds(750) && world.elapsed() < Milliseconds(900));
+
+    FakeHidWorld stuck;
+    stuck.script = [](Milliseconds) {
+        return std::vector<asb::HidDeviceInfo>{gamepadInterface(kVirtualPad)};
+    };
+    VirtualDualSenseBaseline stuckBaseline;
+    assert(!waitForVirtualDualSenseRemoval(
+        stuckBaseline, stuck.environment(), Milliseconds(2000), Milliseconds(150), error));
+    assert(error.find("remained present") != std::string::npos);
+    assert(stuck.elapsed() >= Milliseconds(2000) && stuck.elapsed() < Milliseconds(2100));
+
+    FakeHidWorld stopped;
+    stopped.script = stuck.script;
+    stopped.stopAt = Milliseconds(300);
+    VirtualDualSenseBaseline stoppedBaseline;
+    assert(!waitForVirtualDualSenseRemoval(
+        stoppedBaseline, stopped.environment(), Milliseconds(2000), Milliseconds(150), error));
+    assert(error.find("cancelled by a stop request") != std::string::npos);
+    assert(stopped.elapsed() < Milliseconds(400));
+}
+
+void testStartupHooksRefreshBaselineAndCancel() {
+    using namespace asb::dualsense;
+
+    FakeVirtualDualSense backend;
+    std::vector<std::size_t> preparedAttempts;
+    std::size_t removalWaits = 0;
+    VirtualDualSenseStartupHooks hooks{};
+    hooks.beforeAttempt = [&preparedAttempts, &backend](std::size_t attempt) {
+        assert(!backend.connected());
+        preparedAttempts.push_back(attempt);
+    };
+    VirtualDualSenseStartupResult result{};
+    std::string error;
+    assert(!startVerifiedVirtualDualSense(
+        backend, {}, {},
+        [](std::string& probeError) -> std::optional<VirtualDualSenseReadiness> {
+            probeError = "The newly-created virtual DualSense firmware interface was not found "
+                         "(no new 054C:0CE6 HID interface appeared).";
+            return std::nullopt;
+        },
+        [&removalWaits](std::string&) {
+            ++removalWaits;
+            return true;
+        },
+        2, result, error, hooks));
+    assert((preparedAttempts == std::vector<std::size_t>{1, 2}));
+    assert(removalWaits == 1);
+    assert(result.failure == VirtualDualSenseStartupFailure::ReadinessVerification);
+    assert(error == "Virtual DualSense HID readiness verification failed after 2 attempts: "
+                    "The newly-created virtual DualSense firmware interface was not found "
+                    "(no new 054C:0CE6 HID interface appeared).");
+
+    FakeVirtualDualSense stopping;
+    bool stop = false;
+    std::size_t probes = 0;
+    removalWaits = 0;
+    VirtualDualSenseStartupHooks stopHooks{};
+    stopHooks.stopRequested = [&stop] { return stop; };
+    assert(!startVerifiedVirtualDualSense(
+        stopping, {}, {},
+        [&stop, &probes](std::string& probeError) -> std::optional<VirtualDualSenseReadiness> {
+            ++probes;
+            stop = true;
+            probeError = "Virtual DualSense readiness verification was cancelled by a stop request.";
+            return std::nullopt;
+        },
+        [&removalWaits](std::string&) {
+            ++removalWaits;
+            return true;
+        },
+        2, result, error, stopHooks));
+    assert(result.failure == VirtualDualSenseStartupFailure::Cancelled);
+    assert(result.attempts == 1);
+    assert(probes == 1);
+    assert(removalWaits == 0);
+    assert(stopping.openCalls == 1);
+    assert(!stopping.connected());
+    assert(stopping.closeCalls >= 1);
+    assert(!result.firmware && !result.deviceInfo);
+    assert(error.find("cancelled by a stop request") != std::string::npos);
+
+    FakeVirtualDualSense removalStop;
+    stop = false;
+    VirtualDualSenseStartupHooks removalHooks{};
+    removalHooks.stopRequested = [&stop] { return stop; };
+    assert(!startVerifiedVirtualDualSense(
+        removalStop, {}, {},
+        [](std::string& probeError) -> std::optional<VirtualDualSenseReadiness> {
+            probeError = "synthetic readiness failure";
+            return std::nullopt;
+        },
+        [&stop](std::string& removalError) {
+            stop = true;
+            removalError = "cancelled";
+            return false;
+        },
+        2, result, error, removalHooks));
+    assert(result.failure == VirtualDualSenseStartupFailure::Cancelled);
+    assert(removalStop.openCalls == 1);
+
+    FakeVirtualDualSense neverStarted;
+    stop = true;
+    assert(!startVerifiedVirtualDualSense(
+        neverStarted, {}, {},
+        [](std::string&) -> std::optional<VirtualDualSenseReadiness> { return std::nullopt; },
+        [](std::string&) { return true; }, 2, result, error, stopHooks));
+    assert(result.failure == VirtualDualSenseStartupFailure::Cancelled);
+    assert(neverStarted.openCalls == 0);
+}
+
+void testBaselineTracksVanishedAndReappearedPaths() {
+    using namespace asb::dualsense;
+    VirtualDualSenseBaseline baseline({kRealPad, kVirtualPad, kRealPad});
+    assert(baseline.initialCount() == 2);
+    assert(baseline.contains(L"\\\\?\\HID#VID_054C&PID_0CE6&MI_03#7&REAL&0&0000#{4D1E55B2}"));
+    baseline.observe({gamepadInterface(kRealPad)});
+    assert(baseline.activeCount() == 1 && baseline.vanishedCount() == 1);
+    assert(!baseline.contains(kVirtualPad));
+    assert(baseline.wasPresentInitially(kVirtualPad));
+    baseline.observe({gamepadInterface(kRealPad), gamepadInterface(kVirtualPad)});
+    assert(baseline.reappearedCount() == 1);
+    assert(!baseline.contains(kVirtualPad));
+    baseline.reset({kVirtualPad});
+    assert(baseline.contains(kVirtualPad) && baseline.vanishedCount() == 0);
+    assert(isDualSenseGamepadCollection(gamepadInterface(kVirtualPad)));
+    assert(!isDualSenseGamepadCollection(dualSenseInterface(kVirtualPad)));
+    assert(!isDualSenseGamepadCollection(otherInterface(kVirtualPad)));
+    assert(isDualSenseHidInterface(otherInterface(kVirtualPad)));
+    assert(!isDualSenseHidInterface(unrelatedInterface()));
 }
 
 } // namespace
@@ -469,6 +915,17 @@ int main() {
     testVerifiedStartupFailsClosed();
     testVerifiedStartupStopsWhenRemovalFails();
     testVerifiedStartupDoesNotRetryHardFailures();
+    testProbeDefaultsKeepStartupBounded();
+    testProbeFindsInterfaceBeyondPreviousFixedWindow();
+    testProbeExtendsWhileInterfaceIsStillPublishing();
+    testProbeQuietFailureIsBoundedAndStable();
+    testProbeAcceptsReusedPathAfterStaleRemoval();
+    testProbeReportsUnreadableInterface();
+    testProbeReportsRejectedAndUnexpectedInterfaces();
+    testProbeHonoursStopRequest();
+    testRemovalWaitRequiresStableAbsenceAndHonoursStop();
+    testStartupHooksRefreshBaselineAndCancel();
+    testBaselineTracksVanishedAndReappearedPaths();
 
     std::uint32_t busId = 0;
     std::string deviceId;

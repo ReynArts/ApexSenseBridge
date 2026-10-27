@@ -36,6 +36,7 @@ interface in nine languages.
 - [Touchpad shortcuts](#touchpad-shortcuts)
 - [Security and recovery](#security-signing--crash-recovery)
 - [Diagnostics](#diagnostics--cli)
+- [Reporting a problem](#reporting-a-problem)
 - [Building from source](#building-from-source)
 - [License and notices](#license--third-party-notices)
 
@@ -86,6 +87,12 @@ Hardware-tested titles include the following. Features depend on the game and co
 ### 📚 215+ Automatically Detected DualSense Games
 
 The catalogue tracks native PlayStation 5 DualSense support using PCGamingWiki. Catalogue detection does not certify every effect on every APEX model. The Standalone Tray App and Playnite extension automatically recognize and engage the bridge when any supported title launches.
+
+### What Does "Manual fix" Mean?
+
+A **Manual fix** badge in the game list means the game does not provide the listed DualSense feature by itself: PCGamingWiki classes it as "hackable", so it needs a third-party modification or setting that **you** apply. ApexSenseBridge does not install, run or check these fixes. By default the bridge therefore stays off for such games and leaves your physical controller available.
+
+**Allow automatic activation** only records that you applied the fix: the bridge then starts for that game like for any other and hides the physical controller. It does not make the game accept the virtual DualSense and does not replace a community utility such as the Forza Horizon DualSense scripts, which have their own requirements. Leave it off unless you applied the fix and it is documented to work with a DualSense; if the game shows no controller after enabling it, turn it off again. Details and an example are in [Troubleshooting](TROUBLESHOOTING.md#8-what-does-manual-fix-mean).
 
 ---
 
@@ -160,6 +167,9 @@ automatic Playnite registration, Start-menu shortcuts and Windows uninstallation
 2. Connect one supported controller and wait for its verified model to appear.
 3. Launch a supported game. Tray starts the bridge automatically and displays its status; closing the game ends the session.
 4. If the game only detects controllers at startup, close it, enable **Force continuous activation**, wait for **Bridge active**, then launch it again. Turn continuous activation off when finished.
+
+> [!TIP]
+> **Steam shows two controllers or double inputs?** Steam may have opened the physical controller before the bridge hid it. Exit Steam completely, start the bridge (for example with **Force continuous activation**) and wait for **Bridge ready**, then reopen Steam and keep Steam Input disabled for the game. See [Troubleshooting](TROUBLESHOOTING.md#issue-e-steam-shows-both-the-physical-controller-and-the-virtual-dualsense).
 
 `ApexSenseBridge.exe` is the engine and CLI diagnostic tool. Opening it without
 a command also opens the Tray app.
@@ -275,9 +285,14 @@ the Xbox `LB + Menu` shortcut is corroborated by
 [players on Steam](https://steamcommunity.com/app/3280350/discussions/1/809097865497552734/).
 
 Rear buttons M1–M4 are not independent controls in a standard DualSense input
-report. Assign them to standard controller buttons or keyboard/mouse inputs in
-Flydigi Space Station; ApexSenseBridge keeps the verified mapping service
-authorized through HidHide during an active session.
+report. Assign them in Flydigi Space Station to a standard controller button
+(forwarded to the game like any other button) or to a keyboard/mouse input
+(produced by Space Station itself, which must then be running).
+ApexSenseBridge keeps the verified mapping service authorized through HidHide
+during an active session. A game, emulator or PC port that reads only the
+DualSense ignores keyboard/mouse mappings, so use a gamepad-button mapping
+there. A step-by-step check is in
+[Troubleshooting](TROUBLESHOOTING.md#rear-buttons-m1m4-do-nothing-in-an-emulator-or-pc-port).
 
 ---
 
@@ -304,6 +319,19 @@ ApexSenseBridge.exe test-trigger [index] [--side lt|rt|both] [--seconds N]
 ApexSenseBridge.exe test-rumble [index] [--left 0..255] [--right 0..255] [--seconds N]
 ApexSenseBridge.exe restore-controller-visibility
 ```
+
+---
+
+## Reporting a Problem
+
+In the Tray, open **Settings** > **Controller Diagnostics & Test** > **Report a bug**. It prepares an anonymized installation report that you can preview before anything is published. Please also attach:
+
+- `tray_bridge.log` and `tray_detection.log` from `%LocalAppData%\ApexSenseBridge\logs\` (the report only holds the latest lines).
+- Whether the controller is on the USB cable or the 2.4 GHz receiver.
+- Whether Flydigi Space Station is running or fully closed.
+- The game, its executable, and whether Steam Input is disabled for it.
+
+The full checklist is in [Troubleshooting](TROUBLESHOOTING.md#9-what-to-attach-to-a-bug-report).
 
 ---
 

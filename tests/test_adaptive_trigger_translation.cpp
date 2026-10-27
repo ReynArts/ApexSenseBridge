@@ -167,15 +167,65 @@ int main() {
         assert(bow->draw.mode == TriggerMode::Race);
         assert((bow->draw.params == std::array<std::uint8_t, 5>{38, 32, 0, 0, 0}));
         assert(bow->rupture.mode == TriggerMode::SniperBreak);
-        assert((bow->rupture.params == std::array<std::uint8_t, 5>{115, 40, 32, 0, 0}));
+        assert((bow->rupture.params == std::array<std::uint8_t, 5>{98, 17, 32, 0, 0}));
+        assert(bow->rupture.params[0] + bow->rupture.params[1] == 115);
         assert(bow->ruptureAxis == 129 && bow->rearmAxis == 40);
         assert(bow->rearmAxis < bow->ruptureAxis);
     }
     {
-        const auto low = asb::dualsense::describeBowEmulation(
-            asb::TriggerSide::Left, {0x22, 0x03, 0x00, 0x3F});
-        assert(low && low->rearmAxis < low->ruptureAxis);
-        assert((low->draw.params == std::array<std::uint8_t, 5>{0, 64, 0, 0, 0}));
+        const auto control = asb::dualsense::describeBowEmulation(
+            asb::TriggerSide::Right, {0x22, 0x01, 0x01, 0x38});
+        assert(control);
+        assert((control->draw.params == std::array<std::uint8_t, 5>{0, 8, 0, 0, 0}));
+        assert(control->rupture.mode == TriggerMode::SniperBreak);
+        assert((control->rupture.params == std::array<std::uint8_t, 5>{131, 23, 8, 0, 0}));
+        assert(control->rupture.params[0] + control->rupture.params[1] == 154);
+        assert(control->ruptureAxis == 173 && control->rearmAxis == 10);
+    }
+    for (unsigned startZone = 0; startZone < 9; ++startZone) {
+        for (unsigned endZone = startZone + 1; endZone < 9; ++endZone) {
+            const auto mask = (1U << startZone) | (1U << endZone);
+            const auto startStroke = (startZone * 192U + 5U) / 10U;
+            const auto endStroke = (endZone * 192U + 5U) / 10U;
+            for (unsigned draw = 1; draw <= 8; ++draw) {
+                const std::array<std::uint8_t, 11> effect{
+                    0x22, static_cast<std::uint8_t>(mask & 0xFFU), static_cast<std::uint8_t>(mask >> 8U),
+                    static_cast<std::uint8_t>(0x38U | (draw - 1U))};
+                const auto bow = asb::dualsense::describeBowEmulation(asb::TriggerSide::Left, effect);
+                if (endZone - startZone < 4) {
+                    assert(!bow);
+                    continue;
+                }
+                assert(bow && bow->rearmAxis < bow->ruptureAxis);
+                const unsigned ruptureStart = bow->rupture.params[0];
+                const unsigned ruptureLength = bow->rupture.params[1];
+                assert(ruptureStart >= startStroke && ruptureLength >= 1U);
+                assert(ruptureStart + ruptureLength == endStroke);
+                assert(bow->rupture.params[2] == draw * 8U && bow->draw.params[1] == draw * 8U);
+                assert(ruptureStart * 255U / 192U >= bow->ruptureAxis);
+                assert(bow->ruptureAxis * 192U / 255U + 2U >= ruptureStart);
+            }
+        }
+    }
+    expectCommand({0x22, 0x09, 0x00, 0x39}, TriggerMode::SniperBreak, {0, 58, 16, 0, 0});
+    assert(!asb::dualsense::describeBowEmulation(asb::TriggerSide::Right, {0x22, 0x09, 0x00, 0x39}));
+    assert(!asb::dualsense::describeBowEmulation(asb::TriggerSide::Left, {0x22, 0x03, 0x00, 0x3F}));
+
+    {
+        constexpr std::array<std::uint8_t, 11> kSpiderManZone9{0x21, 0x00, 0x02};
+        constexpr std::array<std::uint8_t, 11> kSpiderManVibration{
+            0x26, 0xFF, 0x03, 0x49, 0x92, 0x24, 0x09, 0x00, 0x00, 0xB4, 0x00};
+        constexpr std::array<std::uint8_t, 11> kSpiderManZones6To9{0x21, 0xC0, 0x03};
+        constexpr std::array<std::uint8_t, 11> kFirstLightRacing{0x21, 0x80, 0x03};
+        expectCommand(kSpiderManZone9, TriggerMode::Race, {173, 8, 0, 0, 0});
+        expectCommand(kSpiderManVibration, TriggerMode::RecoilRattle, {0, 1, 20, 180, 0});
+        expectCommand(kSpiderManZones6To9, TriggerMode::Race, {115, 8, 0, 0, 0});
+        expectCommand(kFirstLightRacing, TriggerMode::Race, {134, 8, 0, 0, 0});
+        for (const auto& effect : {kSpiderManZone9, kSpiderManVibration, kSpiderManZones6To9, kFirstLightRacing}) {
+            assert(!asb::dualsense::describeZoneEmulation(effect));
+            assert(!asb::dualsense::describeBowEmulation(asb::TriggerSide::Right, effect));
+            assert(!asb::dualsense::describePeriodicEmulation(effect));
+        }
     }
     assert(!asb::dualsense::describeBowEmulation(asb::TriggerSide::Left, {0x22, 0x44, 0x00, 0x0B}));
     assert(!asb::dualsense::describeBowEmulation(asb::TriggerSide::Left, {0x22, 0x04, 0x00, 0x3B}));

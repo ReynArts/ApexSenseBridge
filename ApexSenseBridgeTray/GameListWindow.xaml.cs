@@ -1234,6 +1234,11 @@ namespace ApexSenseBridgeTray
                 fullLabel = LocalizationManager.Get("Loc_ControllerUnavailable");
                 shortLabel = LocalizationManager.Get("Loc_StatusUnavailable");
             }
+            else if (string.Equals(status, ControllerDetectionService.Multiple, StringComparison.Ordinal))
+            {
+                fullLabel = MultipleControllersText();
+                shortLabel = LocalizationManager.Format("Loc_ControllerMultipleShort", Math.Max(2, controllerDetection != null ? controllerDetection.CandidateCount : 2));
+            }
             else
             {
                 fullLabel = LocalizationManager.Get("Loc_ControllerDisconnected");
@@ -1269,6 +1274,12 @@ namespace ApexSenseBridgeTray
             {
                 TxtHeaderController.Text = shortLabel;
                 TxtHeaderController.Foreground = isConnected ? activeText : mutedStroke;
+                int connectedControllers = controllerDetection != null ? controllerDetection.CandidateCount : 0;
+                TxtHeaderController.ToolTip = string.Equals(status, ControllerDetectionService.Multiple, StringComparison.Ordinal)
+                    ? fullLabel
+                    : isConnected && connectedControllers > 1
+                        ? LocalizationManager.Format("Loc_ControllerBridgedOneOfMany", shortLabel, connectedControllers)
+                        : null;
             }
             if (IconHeaderController != null)
             {
@@ -1490,12 +1501,17 @@ namespace ApexSenseBridgeTray
         private async void OnPreparedLaunchClick(object sender, RoutedEventArgs e)
         {
             if (settings == null || sessionManager == null) return;
-            if (preparedLaunchPending || sessionManager.IsSessionActive)
+            if (preparedLaunchPending || sessionManager.IsBusy)
             {
                 MessageBox.Show(this, LocalizationManager.Get("Loc_PreparedLaunchBusy"),
                     "ApexSenseBridge", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+            bool replaceCurrent = sessionManager.IsSessionActive;
+            if (replaceCurrent && MessageBox.Show(this,
+                    LocalizationManager.Format("Loc_PreparedLaunchStopCurrent", sessionManager.ActiveGameTitle),
+                    "ApexSenseBridge", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
 
             var picker = new OpenFileDialog
             {
@@ -1504,6 +1520,20 @@ namespace ApexSenseBridgeTray
                 Multiselect = false
             };
             if (picker.ShowDialog(this) != true) return;
+
+            monitorService?.CancelPreparedLaunch();
+            if (replaceCurrent && sessionManager.IsSessionActive)
+            {
+                settings.ForcedProfile = "standard";
+                preparedLaunchPending = true;
+                try { await Task.Run(() => sessionManager.StopSession("Replaced by a prepared game launch")); }
+                finally { preparedLaunchPending = false; }
+                if (sessionManager.IsSessionActive || sessionManager.IsBusy)
+                {
+                    UpdateDashboardStatus();
+                    return;
+                }
+            }
 
             SupportedGame launchGame = null;
             string gameKey;
@@ -1534,15 +1564,21 @@ namespace ApexSenseBridgeTray
 
             try
             {
-                Process.Start(new ProcessStartInfo
+                uint launchedProcessId = 0;
+                using (var launched = Process.Start(new ProcessStartInfo
                 {
                     FileName = picker.FileName,
                     WorkingDirectory = System.IO.Path.GetDirectoryName(picker.FileName),
                     UseShellExecute = true
-                });
+                }))
+                {
+                    if (launched != null) launchedProcessId = (uint)launched.Id;
+                }
+                monitorService?.TrackPreparedLaunch(picker.FileName, title, launchedProcessId);
             }
             catch (Exception ex)
             {
+                monitorService?.CancelPreparedLaunch();
                 sessionManager.StopSession("Prepared game launch failed");
                 settings.ForcedProfile = "none";
                 MessageBox.Show(this,
@@ -1557,6 +1593,7 @@ namespace ApexSenseBridgeTray
         {
             if (settings == null) return;
             bool enable = settings.ForcedProfile != "standard";
+            monitorService?.CancelPreparedLaunch();
 
             if (enable)
             {
@@ -2177,6 +2214,12 @@ namespace ApexSenseBridgeTray
 
         #region Settings View
 
+        private string MultipleControllersText()
+        {
+            return LocalizationManager.Format("Loc_ControllerMultiple",
+                Math.Max(2, controllerDetection != null ? controllerDetection.CandidateCount : 2));
+        }
+
         private void UpdateSettingsView()
         {
             if (settings == null) return;
@@ -2208,7 +2251,9 @@ namespace ApexSenseBridgeTray
             TxtControllerCalibrationStatus.Text = canEdit
                 ? string.Format(LocalizationManager.Get("Loc_ControllerCalibrationReady"),
                     lastControllerStatus == "apex4" ? "Apex 4" : lastControllerStatus == "apex5" ? "Apex 5" : "Apex 6 Pro")
-                : LocalizationManager.Get("Loc_ControllerCalibrationLocked");
+                : string.Equals(lastControllerStatus, ControllerDetectionService.Multiple, StringComparison.Ordinal)
+                    ? MultipleControllersText()
+                    : LocalizationManager.Get("Loc_ControllerCalibrationLocked");
             UpdateEffectLabels();
             updatingEffectSettings = false;
 

@@ -136,13 +136,17 @@ unsigned axisForStroke(unsigned stroke) noexcept {
     return (std::min)(255U, stroke * 255U / 192U);
 }
 
+unsigned strokeAtOrAfterAxis(unsigned axis) noexcept {
+    return (axis * 192U + 254U) / 255U;
+}
+
 } // namespace
 
 std::optional<BowEmulation> describeBowEmulation(
     TriggerSide side, const std::array<std::uint8_t, 11>& effect) {
     constexpr unsigned kLastZone = 9;
     constexpr unsigned kStrongSnap = 7;
-    constexpr std::uint8_t kRuptureLength = 40;
+    constexpr unsigned kMinimumDrawZones = 4;
     constexpr unsigned kRuptureAxisPercent = 85;
     constexpr unsigned kRearmMargin = 10;
     if (effect[0] != 0x22) return std::nullopt;
@@ -152,7 +156,8 @@ std::optional<BowEmulation> describeBowEmulation(
     const auto zones = scanZones(mask);
     const unsigned drawStrength = (effect[3] & 0x07U) + 1U;
     const unsigned snapForce = ((effect[3] >> 3U) & 0x07U) + 1U;
-    if (zones.first >= zones.last || zones.last >= kLastZone || snapForce < kStrongSnap) {
+    if (zones.first >= zones.last || zones.last >= kLastZone || snapForce < kStrongSnap ||
+        zones.last - zones.first < kMinimumDrawZones) {
         return std::nullopt;
     }
     const auto start = strokeForZone(zones.first);
@@ -160,8 +165,11 @@ std::optional<BowEmulation> describeBowEmulation(
     const auto resistance = static_cast<std::uint8_t>(drawStrength * 8U);
     BowEmulation bow;
     bow.draw = make(side, TriggerMode::Race, {start, resistance, 0, 0, 0});
-    bow.rupture = make(side, TriggerMode::SniperBreak, {end, kRuptureLength, resistance, 0, 0});
     bow.ruptureAxis = static_cast<std::uint8_t>(axisForStroke(end) * kRuptureAxisPercent / 100U);
+    const auto ruptureStart = static_cast<std::uint8_t>((std::clamp)(
+        strokeAtOrAfterAxis(bow.ruptureAxis), static_cast<unsigned>(start), end - 1U));
+    bow.rupture = make(side, TriggerMode::SniperBreak,
+                       {ruptureStart, static_cast<std::uint8_t>(end - ruptureStart), resistance, 0, 0});
     const auto startAxis = axisForStroke(start);
     bow.rearmAxis = static_cast<std::uint8_t>(
         startAxis > 2U * kRearmMargin ? startAxis - kRearmMargin : kRearmMargin);

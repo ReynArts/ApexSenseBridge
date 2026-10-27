@@ -251,6 +251,33 @@ constexpr std::array<Phase, 18> zonePhases{{
     {"vibramp_dynamic", {0x26, 0xFE, 0x03, 0x40, 0xB4, 0xB1, 0x3E, 0, 0, 45}, true}
 }};
 
+constexpr std::array<Phase, 12> replayPhases{{
+    {"normal", {5}},
+    {"issue58_feedback_zone9_strength1", {0x21, 0x00, 0x02}, true},
+    {"issue58_vibration_all_zones_amplitude2_f180", {0x26, 0xFF, 0x03, 0x49, 0x92, 0x24, 0x09, 0, 0, 0xB4}, true},
+    {"issue58_feedback_zones6to9_strength1", {0x21, 0xC0, 0x03}, true},
+    {"issue58_vibration_all_zones_amplitude2_f45", {0x26, 0xFF, 0x03, 0x49, 0x92, 0x24, 0x09, 0, 0, 45}, true},
+    {"issue58_vibration_all_zones_amplitude6_f180", {0x26, 0xFF, 0x03, 0x6D, 0xDB, 0xB6, 0x2D, 0, 0, 0xB4}, true},
+    {"issue35_feedback_zones7to9_strength1", {0x21, 0x80, 0x03}, true},
+    {"issue51_bow_zones0to3_draw2_snap8", {0x22, 0x09, 0x00, 0x39}, true},
+    {"issue51_bow_v102_emulation", {0x22, 0x09, 0x00, 0x09}},
+    {"issue51_break_zones0to3_force64", {0x02, 0, 58, 64}},
+    {"issue40_bow_zones0to8_draw1_snap8", {0x22, 0x01, 0x01, 0x38}, true},
+    {"issue40_bow_v102_emulation", {0x22, 0x01, 0x01, 0x00}}
+}};
+
+struct ManualBow {
+    std::string_view phase;
+    asb::ForceTriggerCommand rupture;
+    unsigned switchAxis;
+    unsigned rearmAxis;
+};
+
+constexpr std::array<ManualBow, 2> replayManualBows{{
+    {"issue51_bow_v102_emulation", {asb::TriggerSide::Right, asb::TriggerMode::SniperBreak, {58, 40, 16, 0, 0}}, 65, 10},
+    {"issue40_bow_v102_emulation", {asb::TriggerSide::Right, asb::TriggerMode::SniperBreak, {154, 40, 8, 0, 0}}, 173, 10}
+}};
+
 constexpr std::array<Phase, 18> ladderPhases{{
     {"normal", {5}},
     {"race_force_4", {0x01, 0, 4}},
@@ -422,6 +449,7 @@ int run(int argc, char** argv) {
     bool bowCheck = false;
     bool zoneCheck = false;
     bool ladderCheck = false;
+    bool replayCheck = false;
     bool markPositions = false;
     bool waitReady = false;
     bool markerTrial = false;
@@ -449,6 +477,7 @@ int run(int argc, char** argv) {
         else if (option == "--bow-check") bowCheck = true;
         else if (option == "--zone-check") zoneCheck = true;
         else if (option == "--ladder-check") ladderCheck = true;
+        else if (option == "--replay-check") replayCheck = true;
         else if (option == "--ladder-forces" && index + 1 < argc) ladderForces = parseLadderForces(argv[++index]);
         else if (option == "--bow-switch-axis" && index + 1 < argc) {
             const auto parsed = std::stoul(argv[++index]);
@@ -537,7 +566,7 @@ int run(int argc, char** argv) {
             seconds = static_cast<unsigned>(parsed);
         } else {
             std::cerr << "Usage: Apex45TriggerCapture --output FILE [--activate] "
-                         "[--vibration-check | --position-check | --legacy-check | --bow-check | --zone-check | --ladder-check] [--bow-switch-axis 40..250] [--single-effect PHASE_NAME] "
+                         "[--vibration-check | --position-check | --legacy-check | --bow-check | --zone-check | --ladder-check | --replay-check (effects logged in issues #35, #40, #51 and #58, sent through the production bridge)] [--bow-switch-axis 40..250] [--single-effect PHASE_NAME] "
                          "[--ladder-forces 1..192,... (1 to 12 comma-separated integers, only with --ladder-check)] "
                          "[--zone-force-unit 8..24] [--zone-vibration-unit 10..20] [--zone-force-law linear|perceptual, "
                          "perceptual excludes --zone-force-unit; all three only with --zone-check] "
@@ -545,12 +574,13 @@ int run(int argc, char** argv) {
                          "[--zone-vibration-table a1,...,a8 (8 non-decreasing integers 1..160, only with --zone-check, excludes --zone-vibration-unit)] "
                          "[--zone-vibration-frequency 10..120 (only with --zone-check, overrides the frequency of the vibramp phases)] "
                          "[--gallop-frequency 10..120] [--gallop-amplitude 10..160] [--gallop-beat-slots 0.2..1.0] [--gallop-min-beat-ms 0..250] [--machine-floor 0..120] [--pulse-kick] (galloping beats and the pulse_ladder phase; --pulse-kick sends Race force kicks of --gallop-amplitude instead of vibration; only with --zone-check) "
-                         "[--mark-positions] [--wait-ready] [--marker-trial | --snap-trial] [--phase-seconds 1..10, or 1..45 with --legacy-check, --bow-check, --zone-check or --ladder-check] [--plan]\n";
+                         "[--mark-positions] [--wait-ready] [--marker-trial | --snap-trial] [--phase-seconds 1..10, or 1..45 with --legacy-check, --bow-check, --zone-check, --ladder-check or --replay-check] [--plan]\n";
             return 1;
         }
     }
     if (static_cast<int>(positionCheck) + static_cast<int>(vibrationCheck) + static_cast<int>(legacyCheck) +
-        static_cast<int>(bowCheck) + static_cast<int>(zoneCheck) + static_cast<int>(ladderCheck) > 1) {
+        static_cast<int>(bowCheck) + static_cast<int>(zoneCheck) + static_cast<int>(ladderCheck) +
+        static_cast<int>(replayCheck) > 1) {
         throw std::runtime_error("Choose only one check family");
     }
     if (ladderForces && !ladderCheck) {
@@ -589,9 +619,10 @@ int run(int argc, char** argv) {
             zoneUnits.vibrationTable = asb::dualsense::kPerceptualVibrationTable;
         }
     }
-    const bool longCheck = legacyCheck || bowCheck || zoneCheck || ladderCheck;
-    if (seconds > 10 && !longCheck) throw std::runtime_error("--phase-seconds above 10 requires --legacy-check, --bow-check, --zone-check or --ladder-check");
-    if (longCheck && (markPositions || markerTrial)) throw std::runtime_error("--legacy-check, --bow-check, --zone-check and --ladder-check do not use position markers");
+    if (replayCheck) zoneUnits = asb::dualsense::productionZoneUnits();
+    const bool longCheck = legacyCheck || bowCheck || zoneCheck || ladderCheck || replayCheck;
+    if (seconds > 10 && !longCheck) throw std::runtime_error("--phase-seconds above 10 requires --legacy-check, --bow-check, --zone-check, --ladder-check or --replay-check");
+    if (longCheck && (markPositions || markerTrial)) throw std::runtime_error("--legacy-check, --bow-check, --zone-check, --ladder-check and --replay-check do not use position markers");
     if (markerTrial && !positionCheck) throw std::runtime_error("--marker-trial requires --position-check at fixed force 8");
     if (!plan && (positionCheck || markPositions || waitReady) && (!activate || singleEffect.empty())) {
         throw std::runtime_error("Position checks, markers and readiness require --activate and --single-effect");
@@ -602,6 +633,7 @@ int run(int argc, char** argv) {
     if (legacyCheck) selectedPhases = legacyPhases;
     if (bowCheck) selectedPhases = bowPhases;
     if (zoneCheck) selectedPhases = zonePhases;
+    if (replayCheck) selectedPhases = replayPhases;
     std::vector<Phase> zoneFrequencyTable;
     if (zoneCheck && zoneVibrationFrequency) {
         zoneFrequencyTable.assign(zonePhases.begin(), zonePhases.end());
@@ -656,6 +688,22 @@ int run(int argc, char** argv) {
             writeBytes(std::cout, command->params);
             if (ladderCheck) std::cout << " duration=" << phaseSecondsFor(phase, *command) << 's';
             std::cout << '\n';
+            if (const auto bow = asb::dualsense::describeBowEmulation(asb::TriggerSide::Right, phase.native);
+                bow && phase.dynamic) {
+                std::cout << "  bridge bow: draw mode=" << static_cast<unsigned>(bow->draw.mode) << " params=";
+                writeBytes(std::cout, bow->draw.params);
+                std::cout << ", rt>=" << static_cast<unsigned>(bow->ruptureAxis) << ": mode="
+                          << static_cast<unsigned>(bow->rupture.mode) << " params=";
+                writeBytes(std::cout, bow->rupture.params);
+                std::cout << ", rt<=" << static_cast<unsigned>(bow->rearmAxis) << ": draw again\n";
+            }
+            for (const auto& manual : replayManualBows) {
+                if (!replayCheck || manual.phase != phase.name) continue;
+                std::cout << "  manual 1.0.2 bow: rt>=" << manual.switchAxis << ": mode="
+                          << static_cast<unsigned>(manual.rupture.mode) << " params=";
+                writeBytes(std::cout, manual.rupture.params);
+                std::cout << ", rt<=" << manual.rearmAxis << ": draw again\n";
+            }
             if (const auto emulation = asb::dualsense::describeZoneEmulation(phase.native)) {
                 for (unsigned zone = 0; zone < 10; ++zone) {
                     const auto zoneCommand = asb::dualsense::renderZoneCommand(
@@ -730,6 +778,7 @@ int run(int argc, char** argv) {
            << ",\"snap_trial\":" << (snapTrial ? "true" : "false")
            << ",\"wait_ready\":" << (waitReady ? "true" : "false")
            << ",\"zone_check\":" << (zoneCheck ? "true" : "false")
+           << ",\"replay_check\":" << (replayCheck ? "true" : "false")
            << ",\"zone_force_unit\":" << static_cast<unsigned>(zoneUnits.force)
            << ",\"zone_vibration_unit\":" << static_cast<unsigned>(zoneUnits.vibration)
            << ",\"zone_force_law\":\""
@@ -871,8 +920,15 @@ int run(int argc, char** argv) {
         } else if (activate && !device.setTriggerRaw(*command, error)) { success = false; break; }
         const bool activeTrial = markerTrial && command->mode != asb::TriggerMode::Normal;
         asb::tools::MarkerTrialProgress trialProgress(command->mode == asb::TriggerMode::SniperBreak);
-        const bool emulatedBow = bowCheck && activate && phase.name == "bow_emulated_draw4_race_then_break";
-        const asb::ForceTriggerCommand breakCommand{asb::TriggerSide::Right, asb::TriggerMode::SniperBreak, {115, 40, 32, 0, 0}};
+        const auto manualBow = std::find_if(replayManualBows.begin(), replayManualBows.end(),
+            [&](const ManualBow& bow) { return bow.phase == phase.name; });
+        const bool replayBow = replayCheck && activate && manualBow != replayManualBows.end();
+        const bool emulatedBow = (bowCheck && activate && phase.name == "bow_emulated_draw4_race_then_break") || replayBow;
+        const asb::ForceTriggerCommand breakCommand = replayBow
+            ? manualBow->rupture
+            : asb::ForceTriggerCommand{asb::TriggerSide::Right, asb::TriggerMode::SniperBreak, {115, 40, 32, 0, 0}};
+        const unsigned switchAxis = replayBow ? manualBow->switchAxis : bowSwitchAxis;
+        const unsigned rearmAxis = replayBow ? manualBow->rearmAxis : 40U;
         bool emulatedBroken = false;
         const unsigned phaseSeconds = phaseSecondsFor(phase, *command);
         const auto deadline = Clock::now() + std::chrono::seconds(activeTrial ? 30U : phaseSeconds);
@@ -895,11 +951,10 @@ int run(int argc, char** argv) {
                 }
             }
             if (emulatedBow) {
-                constexpr unsigned kRearmAxis = 40;
-                if (!emulatedBroken && state.r2 >= bowSwitchAxis) {
+                if (!emulatedBroken && state.r2 >= switchAxis) {
                     if (!device.setTriggerRaw(breakCommand, error)) { success = false; break; }
                     emulatedBroken = true;
-                } else if (emulatedBroken && state.r2 <= kRearmAxis) {
+                } else if (emulatedBroken && state.r2 <= rearmAxis) {
                     if (!device.setTriggerRaw(*command, error)) { success = false; break; }
                     emulatedBroken = false;
                 }

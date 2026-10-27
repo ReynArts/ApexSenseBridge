@@ -483,6 +483,31 @@ int main() {
         disabled.handle(rumble);
         assert(disabled.stats().lastLowFrequency == 0 && disabled.stats().lastHighFrequency == 0);
     }
+    {
+        auto* latchedTransport = new FakeTransport();
+        asb::flydigi::Apex5Device latchedDevice{asb::flydigi::TransportPtr(latchedTransport)};
+        assert(latchedDevice.verifyIdentity(error));
+        RumbleBridge latched(latchedDevice);
+        DualSenseFeedback burst{};
+        burst.kind = FeedbackKind::AudioHaptics;
+        burst.leftEnergy = burst.leftPeak = burst.leftTransient = 65535;
+        latched.handle(burst);
+        const auto writesAfterBurst = latchedTransport->writes.size();
+        assert(latchedTransport->writes.back()[5] == 217);
+        latched.poll();
+        assert(latchedTransport->writes.size() == writesAfterBurst);
+        std::this_thread::sleep_for(std::chrono::milliseconds(120));
+        latched.poll();
+        assert(latchedTransport->writes.size() == writesAfterBurst + 1);
+        assert(latchedTransport->writes.back()[3] == asb::flydigi::kCmdSetRumble);
+        assert(latchedTransport->writes.back()[5] == 0 && latchedTransport->writes.back()[6] == 0);
+        const auto latchedStats = latched.stats();
+        assert(latchedStats.audioTimeouts == 1);
+        assert(latchedStats.stops == 1);
+        assert(latchedStats.lastLowFrequency == 0 && latchedStats.lastHighFrequency == 0);
+        latched.poll();
+        assert(latchedTransport->writes.size() == writesAfterBurst + 1);
+    }
     transport->failWrites = true;
     feedback.rumbleLeft = 1;
     bridge.handle(feedback);

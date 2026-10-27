@@ -311,7 +311,7 @@ int commandInputStatus(int argc, char** argv) {
 
 int commandList() {
     std::string error;
-    const auto candidates = asb::flydigi::Apex5Device::findCandidates(error);
+    const auto candidates = orderedCandidates(error);
     if (!error.empty()) {
         std::cerr << "HID enumeration warning: " << error << "\n";
     }

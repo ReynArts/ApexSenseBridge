@@ -59,14 +59,10 @@ void RumbleBridge::handle(const DualSenseFeedback& feedback) {
         hasAudioTimestamp_ = true;
         audioOrigin = true;
     } else {
-        constexpr auto kAudioStreamTimeout = std::chrono::milliseconds(100);
-        if (hasAudioTimestamp_ && !isZero(audio_) &&
-            now - lastAudioAt_ >= kAudioStreamTimeout) {
-            audio_ = {};
+        if (expireAudioLocked(now)) {
             stateChanged = true;
             force = true;
             audioOrigin = true;
-            audioTimeouts_.fetch_add(1, std::memory_order_relaxed);
         }
 
         if (feedback.requestsRumbleUpdate()) {
@@ -87,6 +83,29 @@ void RumbleBridge::handle(const DualSenseFeedback& feedback) {
         return;
     }
     writeDesiredLocked(mixedLevelsLocked(), now, force, audioOrigin);
+}
+
+void RumbleBridge::poll() {
+    if (failed_.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const auto now = Clock::now();
+    std::lock_guard lock(stateMutex_);
+    if (expireAudioLocked(now)) {
+        writeDesiredLocked(mixedLevelsLocked(), now, true, true);
+    } else if (pendingOutput_) {
+        writeDesiredLocked(mixedLevelsLocked(), now, false, false);
+    }
+}
+
+bool RumbleBridge::expireAudioLocked(Clock::time_point now) noexcept {
+    constexpr auto kAudioStreamTimeout = std::chrono::milliseconds(100);
+    if (!hasAudioTimestamp_ || isZero(audio_) || now - lastAudioAt_ < kAudioStreamTimeout) {
+        return false;
+    }
+    audio_ = {};
+    audioTimeouts_.fetch_add(1, std::memory_order_relaxed);
+    return true;
 }
 
 RumbleLevels RumbleBridge::mixedLevelsLocked() const noexcept {

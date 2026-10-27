@@ -70,6 +70,9 @@
     <Compile Include="..\..\shared\BridgeArguments.cs">
       <Link>BridgeArguments.cs</Link>
     </Compile>
+    <Compile Include="..\..\shared\ProcessLiveness.cs">
+      <Link>ProcessLiveness.cs</Link>
+    </Compile>
     <Compile Include="ApexSenseBridgeSettingsView.xaml.cs">
       <DependentUpon>ApexSenseBridgeSettingsView.xaml</DependentUpon>
     </Compile>

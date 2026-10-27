@@ -30,6 +30,7 @@ enum class SessionProgress : std::uint32_t {
 };
 enum class SessionInterruption : std::uint32_t {
     None = 0, PhysicalDisconnected = 1, VirtualDisconnected = 2, InputStreamLost = 3,
+    FeedbackLost = 4,
 };
 struct SessionProgressBlock {
     std::uint32_t magic = 0x50534241; // "ABSP"

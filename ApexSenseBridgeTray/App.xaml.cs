@@ -167,7 +167,7 @@ namespace ApexSenseBridgeTray
                     }));
                 };
 
-                monitorService.AutomaticStartPaused += (gameTitle) =>
+                monitorService.AutomaticStartPaused += (gameTitle, reason) =>
                 {
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
@@ -177,9 +177,9 @@ namespace ApexSenseBridgeTray
                             if (settings.EnableNotifications && notifyIcon != null)
                             {
                                 notifyIcon.ShowBalloonTip(
-                                    6000,
+                                    8000,
                                     LocalizationManager.Get("Loc_NotificationStartPausedTitle"),
-                                    LocalizationManager.Format("Loc_NotificationStartPausedBody", gameTitle),
+                                    BuildStartPausedMessage(gameTitle, reason),
                                     ToolTipIcon.Warning);
                             }
                         }
@@ -356,6 +356,7 @@ namespace ApexSenseBridgeTray
                     ShowMainWindow();
                 }
             };
+            notifyIcon.BalloonTipClicked += (s, e) => ShowMainWindow();
             notifyIcon.DoubleClick += (s, e) =>
             {
                 var me = e as MouseEventArgs;
@@ -508,6 +509,19 @@ namespace ApexSenseBridgeTray
         private GameListWindow dashboardWindow;
         private readonly object windowLock = new object();
         private bool isOpeningDashboard;
+
+        internal static string BuildStartPausedMessage(string gameTitle, string reason)
+        {
+            var message = LocalizationManager.Format("Loc_NotificationStartPausedBody", gameTitle);
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                var readable = reason.StartsWith("Loc_", StringComparison.Ordinal)
+                    ? LocalizationManager.Get(reason)
+                    : HidHideBusyMessage.TryLocalize(reason) ?? reason;
+                message = readable.Trim() + Environment.NewLine + message;
+            }
+            return message.Length > 255 ? message.Substring(0, 252) + "..." : message;
+        }
 
         private void ShowMainWindow()
         {

@@ -137,6 +137,9 @@
     <Compile Include="..\shared\BridgeArguments.cs">
       <Link>Common\BridgeArguments.cs</Link>
     </Compile>
+    <Compile Include="..\shared\ProcessLiveness.cs">
+      <Link>Common\ProcessLiveness.cs</Link>
+    </Compile>
     <Compile Include="Common\NativeMethods.cs" />
     <Compile Include="Common\AppLog.cs" />
     <Compile Include="Common\ThemeManager.cs" />

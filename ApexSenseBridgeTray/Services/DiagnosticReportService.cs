@@ -323,6 +323,8 @@ namespace ApexSenseBridgeTray.Services
             if (string.Equals(status, "apex4", StringComparison.OrdinalIgnoreCase)) return "Flydigi Apex 4";
             if (string.Equals(status, "apex5", StringComparison.OrdinalIgnoreCase)) return "Flydigi Apex 5";
             if (string.Equals(status, "apex6", StringComparison.OrdinalIgnoreCase)) return "Flydigi Apex 6 Pro";
+            if (string.Equals(status, ControllerDetectionService.Multiple, StringComparison.Ordinal))
+                return "several APEX vendor interfaces (the bridge drives the first one that answers, one controller at a time)";
             return Safe(string.IsNullOrWhiteSpace(status) ? "unavailable" : status);
         }
 

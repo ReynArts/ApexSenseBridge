@@ -1,3 +1,4 @@
+using ApexSenseBridge.Common;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,8 +20,8 @@ namespace ApexSenseBridgeTray.Services
                 {
                     using (process)
                     {
-                        try { starts.Add(process.StartTime.ToUniversalTime()); }
-                        catch (Exception) { starts.Add(null); }
+                        var startTicks = ProcessLiveness.TryGetCreationTimeUtcTicks((uint)process.Id);
+                        starts.Add(startTicks > 0 ? new DateTime(startTicks, DateTimeKind.Utc) : (DateTime?)null);
                     }
                 }
             }

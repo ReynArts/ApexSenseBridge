@@ -66,6 +66,8 @@ namespace ApexSenseBridgeTray.Services
         private bool stopAfterStart;
         private string lastReason;
         private bool failed;
+        private bool unexpectedExit;
+        private int unexpectedExitCode;
         private string controller;
         private readonly Timer healthTimer;
         private int checkingHealth;
@@ -155,6 +157,8 @@ namespace ApexSenseBridgeTray.Services
                         if (string.IsNullOrWhiteSpace(lastReason) || status.Phase == SessionPhase.Ready || status.Phase == SessionPhase.Stopping)
                             lastReason = "Le moteur s'est arrêté de façon inattendue.";
                         exitReason = lastReason;
+                        unexpectedExit = true;
+                        unexpectedExitCode = status.ExitCode;
                         if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages)) recovery.Clear();
                         activeSession.Dispose();
                         activeSession = null;
@@ -168,6 +172,18 @@ namespace ApexSenseBridgeTray.Services
         }
 
         public void Dispose() { healthTimer.Dispose(); }
+
+        public bool TryTakeUnexpectedExit(out int exitCode, out string reason)
+        {
+            lock (syncLock)
+            {
+                exitCode = unexpectedExitCode;
+                reason = lastReason;
+                if (!unexpectedExit || activeSession != null || isStarting || isStopping) return false;
+                unexpectedExit = false;
+                return true;
+            }
+        }
 
         public void ReportActivationRefused(string gameTitle, string reason)
         {
@@ -284,6 +300,7 @@ namespace ApexSenseBridgeTray.Services
                 activeProfile = profileName + (apexProfileSlot > 0 ? " / APEX " + apexProfileSlot : "");
                 lastReason = null;
                 failed = false;
+                unexpectedExit = false;
                 controller = null;
                 activeProfileName = profileName;
                 activeApexSlot = apexProfileSlot;
@@ -357,9 +374,9 @@ namespace ApexSenseBridgeTray.Services
                 {
                     if (session.ProcessId != 0)
                     {
-                        var engineProcess = Process.GetProcessById(session.ProcessId);
-                        var sessionStartUtc = engineProcess.StartTime.ToUniversalTime();
-                        if (SteamProcessChecker.ShouldWarn(sessionStartUtc))
+                        var engineStartTicks = ProcessLiveness.TryGetCreationTimeUtcTicks((uint)session.ProcessId);
+                        if (engineStartTicks > 0 &&
+                            SteamProcessChecker.ShouldWarn(new DateTime(engineStartTicks, DateTimeKind.Utc)))
                         {
                             var handler = SteamAlreadyRunning;
                             if (handler != null) handler();
@@ -391,6 +408,7 @@ namespace ApexSenseBridgeTray.Services
             lock (syncLock)
             {
                 recovery.Clear();
+                unexpectedExit = false;
                 if (isStarting && activeSession == null) stopAfterStart = true;
                 if (activeSession == null) return;
                 sessionToStop = activeSession;

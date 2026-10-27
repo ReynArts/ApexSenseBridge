@@ -10,6 +10,7 @@ namespace ApexSenseBridge.Security
     public static class ReleaseSecurity
     {
         private const string ExpectedAssetName = "ApexSenseBridge-Setup.exe";
+        private const string ExpectedProductName = "ApexSenseBridge";
         private const string ExpectedDownloadPrefix =
             "/ReynArts/ApexSenseBridge/releases/download/";
 
@@ -82,30 +83,18 @@ namespace ApexSenseBridge.Security
                 return false;
             }
 
-            // Inno Setup pads version resource strings with trailing spaces.
             var versionInfo = FileVersionInfo.GetVersionInfo(installerPath);
-            string productName = (versionInfo.ProductName ?? string.Empty).Trim();
-            string productVersion = (versionInfo.ProductVersion ?? string.Empty).Trim();
-            if (!string.Equals(productName, "ApexSenseBridge",
-                StringComparison.OrdinalIgnoreCase))
+            if (!IsExpectedProductName(versionInfo.ProductName))
             {
                 error = "The downloaded executable is not an ApexSenseBridge setup.";
                 return false;
             }
 
-            if (!string.IsNullOrWhiteSpace(expectedVersion))
+            if (!string.IsNullOrWhiteSpace(expectedVersion) &&
+                !MatchesReleaseVersion(versionInfo.ProductVersion, expectedVersion))
             {
-                Version expected;
-                Version actual;
-                if (!Version.TryParse(expectedVersion.TrimStart('v', 'V'), out expected) ||
-                    !Version.TryParse(productVersion, out actual) ||
-                    expected.Major != actual.Major ||
-                    expected.Minor != actual.Minor ||
-                    expected.Build != actual.Build)
-                {
-                    error = "The setup version does not match the selected GitHub release.";
-                    return false;
-                }
+                error = "The setup version does not match the selected GitHub release.";
+                return false;
             }
 
             if (!HasTrustedAuthenticodeSignature(installerPath))
@@ -128,9 +117,8 @@ namespace ApexSenseBridge.Security
                 using (var currentCertificate = new X509Certificate2(
                     X509Certificate.CreateFromSignedFile(currentBinaryPath)))
                 {
-                    if (!string.Equals(installerCertificate.Subject,
-                        currentCertificate.Subject,
-                        StringComparison.OrdinalIgnoreCase))
+                    if (!IsSamePublisher(installerCertificate.Subject,
+                        currentCertificate.Subject))
                     {
                         error = "The setup signer differs from the installed ApexSenseBridge publisher.";
                         return false;
@@ -144,6 +132,61 @@ namespace ApexSenseBridge.Security
             }
 
             return true;
+        }
+
+        internal static string NormalizeVersionField(string value)
+        {
+            if (value == null)
+            {
+                return string.Empty;
+            }
+
+            int start = 0;
+            int end = value.Length;
+            while (start < end && IsFieldPadding(value[start]))
+            {
+                start++;
+            }
+
+            while (end > start && IsFieldPadding(value[end - 1]))
+            {
+                end--;
+            }
+
+            return value.Substring(start, end - start);
+        }
+
+        internal static bool IsExpectedProductName(string productName)
+        {
+            return string.Equals(NormalizeVersionField(productName),
+                ExpectedProductName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool MatchesReleaseVersion(
+            string productVersion, string expectedVersion)
+        {
+            Version expected;
+            Version actual;
+            return Version.TryParse(
+                       NormalizeVersionField(expectedVersion).TrimStart('v', 'V'),
+                       out expected) &&
+                   Version.TryParse(NormalizeVersionField(productVersion), out actual) &&
+                   expected.Major == actual.Major &&
+                   expected.Minor == actual.Minor &&
+                   expected.Build == actual.Build;
+        }
+
+        internal static bool IsSamePublisher(
+            string installerSubject, string installedSubject)
+        {
+            return !string.IsNullOrEmpty(installerSubject) &&
+                   string.Equals(installerSubject, installedSubject,
+                       StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsFieldPadding(char value)
+        {
+            return value == '\0' || char.IsWhiteSpace(value);
         }
 
         private static bool HasTrustedAuthenticodeSignature(string path)

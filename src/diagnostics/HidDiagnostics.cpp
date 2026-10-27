@@ -136,6 +136,30 @@ std::string hex16(std::uint16_t value) {
     return output.str();
 }
 
+std::vector<HidDeviceInfo> orderApexCandidates(std::vector<HidDeviceInfo> candidates) {
+    std::stable_sort(candidates.begin(), candidates.end(),
+                     [](const HidDeviceInfo& left, const HidDeviceInfo& right) {
+                         return lower(left.path) < lower(right.path);
+                     });
+    candidates.erase(std::unique(candidates.begin(), candidates.end(),
+                                 [](const HidDeviceInfo& left, const HidDeviceInfo& right) {
+                                     return lower(left.path) == lower(right.path);
+                                 }),
+                     candidates.end());
+    return candidates;
+}
+
+std::optional<std::size_t> firstVerifiedCandidate(
+    std::size_t count,
+    const std::function<bool(std::size_t)>& verify,
+    const std::function<bool()>& shouldStop) {
+    for (std::size_t index = 0; index < count; ++index) {
+        if (shouldStop && shouldStop()) return std::nullopt;
+        if (verify(index)) return index;
+    }
+    return std::nullopt;
+}
+
 bool isRelevantHidDevice(const HidDeviceInfo& info) {
     const bool vendorUsagePage = info.usagePage >= 0xFF00;
     return info.vendorId == flydigi::kVendorId ||

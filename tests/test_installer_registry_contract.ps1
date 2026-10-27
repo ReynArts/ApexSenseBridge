@@ -130,20 +130,28 @@ Assert-Contract ($portableDriver.Contains('$hidHideInstallerSha256 = "' + $hidHi
     "portable HidHide SHA-256 differs from driver-manifest.json"
 Assert-Contract ([Regex]::IsMatch(
     $portableDriver,
-    '(?s)\$hidHide\s*=\s*Get-ItemProperty.*?' +
-    '\$installedVersion\s+-ne\s+\$hidHideVersion\s+-or\s+-not\s+\$hidHideServiceReady'
+    '(?s)function\s+Resolve-PrerequisitePlan.*?' +
+    '\$Snapshot\.HidHideVersion\s+-ne\s+\$hidHideVersion\s+-or\s+-not\s+\$Snapshot\.HidHideService'
 )) "portable helper accepts a mismatched or incomplete HidHide registration"
 Assert-Contract ([Regex]::IsMatch(
     $portableDriver,
-    '(?s)Get-FileHash\s+-LiteralPath\s+\$hidHideInstaller\s+-Algorithm\s+SHA256.*?' +
-    '\$hidHideInstallerSha256'
-)) "portable helper does not verify the HidHide installer SHA-256"
+    '(?s)function\s+Get-PrerequisiteSnapshot.*?' +
+    'Get-ItemProperty\s+-LiteralPath\s+\$hidHideKey.*?' +
+    'Test-Path\s+-LiteralPath\s+\$hidHideService'
+)) "portable helper does not read the HidHide registration and driver service"
+Assert-Contract ([Regex]::IsMatch(
+    $portableDriver,
+    '(?s)function\s+Assert-InstallerHash.*?' +
+    'Get-FileHash\s+-LiteralPath\s+\$Path\s+-Algorithm\s+SHA256.*?-ne\s+\$ExpectedSha256'
+)) "portable helper does not compare installer hashes against the pinned value"
+Assert-Contract ($portableDriver.Contains('Assert-InstallerHash $hidHideInstaller $hidHideInstallerSha256')) `
+    "portable helper does not verify the HidHide installer SHA-256"
+Assert-Contract ($portableDriver.Contains('Assert-InstallerHash $usbipInstaller $usbipInstallerSha256')) `
+    "portable helper does not verify the USBip installer SHA-256"
 Assert-Contract ([Regex]::IsMatch(
     $portableDriver,
     '(?s)Invoke-BoundedInstaller\s+\$hidHideInstaller.*?' +
-    'Get-ItemProperty\s+-LiteralPath\s+\$hidHideKey.*?' +
-    '\$installedVersion\s+-ne\s+\$hidHideVersion.*?' +
-    'Test-Path\s+-LiteralPath\s+\$hidHideService'
+    'Resolve-PrerequisitePlan\s+\(Get-PrerequisiteSnapshot\).*?' +
+    '\$after\.HidHideAction\s+-ne\s+"Ready"'
 )) "portable helper does not verify HidHide registration and service after setup"
-
 Write-Output "Installer safety contract passed."

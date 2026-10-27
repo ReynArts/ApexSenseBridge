@@ -41,6 +41,7 @@ add_library(asb_core STATIC
     src/platform/XInputMapping.cpp
     src/flydigi/Apex4Input.cpp
     src/flydigi/Apex4Protocol.cpp
+    src/flydigi/Apex4WritePacing.cpp
     src/flydigi/Apex5Identity.cpp
     src/flydigi/Apex5Input.cpp
     src/flydigi/Apex5Protocol.cpp
@@ -270,6 +271,15 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME apex_feedback_writer COMMAND ApexSenseBridgeFeedbackWriterTests)
 
+    add_executable(ApexSenseBridgeApex4WritePacingTests tests/test_apex4_write_pacing.cpp)
+    target_link_libraries(ApexSenseBridgeApex4WritePacingTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex4WritePacingTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex4WritePacingTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex4_write_pacing COMMAND ApexSenseBridgeApex4WritePacingTests)
+
     add_executable(ApexSenseBridgeRumbleTests tests/test_rumble_bridge.cpp)
     target_link_libraries(ApexSenseBridgeRumbleTests PRIVATE asb_core)
     if(MSVC)
@@ -415,6 +425,7 @@ if(BUILD_TESTING)
         tests/test_bridge_telemetry.cpp
         src/cli/BridgeTelemetry.cpp
         src/cli/JsonSupport.cpp
+        src/dualsense/VirtualDualSenseStartup.cpp
         src/platform/AudioEndpointProtection.cpp
     )
     target_include_directories(ApexSenseBridgeBridgeTelemetryTests PRIVATE src)
@@ -494,6 +505,14 @@ if(BUILD_TESTING)
                  COMMAND powershell -NoProfile -NonInteractive
                          -ExecutionPolicy Bypass
                          -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_installer_registry_contract.ps1)
+        add_test(NAME portable_driver_helper_contract
+                 COMMAND powershell -NoProfile -NonInteractive
+                         -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_portable_driver_helper.ps1)
+        add_test(NAME updater_identity_contract
+                 COMMAND powershell -NoProfile -NonInteractive
+                         -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_updater_identity_contract.ps1)
         add_test(NAME release_version_contract
                  COMMAND powershell -NoProfile -NonInteractive
                          -ExecutionPolicy Bypass

@@ -30,6 +30,49 @@ void writeOptionalTriggerEntry(std::ostream& output,
     else output << "null";
 }
 
+void writeVirtualStartupProbes(
+    std::ostream& output,
+    const std::vector<asb::dualsense::VirtualDualSenseProbeReport>& probes) {
+    output << "  \"virtual_startup_probes\": [";
+    for (std::size_t index = 0; index < probes.size(); ++index) {
+        const auto& probe = probes[index];
+        output << (index == 0 ? "\n" : ",\n")
+               << "    {\"attempt\": " << probe.attempt
+               << ", \"outcome\": \""
+               << asb::dualsense::virtualDualSenseProbeOutcomeName(probe.outcome)
+               << "\", \"elapsed_ms\": " << probe.elapsedMilliseconds
+               << ", \"deadline_ms\": " << probe.deadlineMilliseconds
+               << ", \"extended\": " << (probe.extended ? "true" : "false")
+               << ", \"first_new_ms\": " << probe.firstNewInterfaceMilliseconds
+               << ", \"enumerations\": " << probe.enumerations
+               << ", \"enumeration_failures\": " << probe.enumerationFailures
+               << ", \"baseline\": " << probe.baselineInterfaces
+               << ", \"baseline_vanished\": " << probe.baselineVanished
+               << ", \"baseline_reappeared\": " << probe.baselineReappeared
+               << ", \"new_gamepad\": " << probe.newGamepadInterfaces
+               << ", \"new_unreadable\": " << probe.newUnreadableInterfaces
+               << ", \"new_other\": " << probe.newOtherInterfaces
+               << ", \"candidate_failures\": " << probe.candidateFailures
+               << ", \"last_error\": \"" << jsonEscape(probe.lastError)
+               << "\", \"interfaces\": [";
+        for (std::size_t entryIndex = 0; entryIndex < probe.interfaces.size(); ++entryIndex) {
+            const auto& entry = probe.interfaces[entryIndex];
+            output << (entryIndex == 0 ? "" : ", ")
+                   << "{\"state\": \"" << jsonEscape(entry.state)
+                   << "\", \"interface\": \"" << jsonEscape(entry.interfaceNumber)
+                   << "\", \"usage_page\": " << entry.usagePage
+                   << ", \"usage\": " << entry.usage
+                   << ", \"input_report_length\": " << entry.inputReportLength
+                   << ", \"feature_report_length\": " << entry.featureReportLength
+                   << ", \"first_seen_ms\": " << entry.firstSeenMilliseconds
+                   << ", \"detail\": \"" << jsonEscape(entry.detail)
+                   << "\", \"path\": \"" << jsonEscape(entry.path) << "\"}";
+        }
+        output << "]}";
+    }
+    output << (probes.empty() ? "],\n" : "\n  ],\n");
+}
+
 } // namespace
 
 void writeAdaptiveTriggerDiagnostics(std::ostream& output,
@@ -104,8 +147,9 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << "  \"virtual_input_monitor\": \""
            << (telemetry.virtualInputMonitorEnabled ? "enabled" : "disabled")
            << "\",\n"
-           << "  \"virtual_startup_attempts\": " << telemetry.startupAttempts << ",\n"
-           << "  \"initialization_ms\": " << telemetry.initializationMilliseconds << ",\n"
+           << "  \"virtual_startup_attempts\": " << telemetry.startupAttempts << ",\n";
+    writeVirtualStartupProbes(output, telemetry.virtualStartupProbes);
+    output << "  \"initialization_ms\": " << telemetry.initializationMilliseconds << ",\n"
            << "  \"initialization_physical_input_ms\": "
            << telemetry.physicalInputInitializationMilliseconds << ",\n"
            << "  \"initialization_virtual_input_ms\": "

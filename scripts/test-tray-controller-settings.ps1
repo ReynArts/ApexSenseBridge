@@ -77,6 +77,7 @@ try {
     $settings.SetApexProfileSlot($game.Normalized, 2)
     $game.SelectedApexProfileSlot = 2
     $windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, @())
+    if ((Get-Control "TxtDetailManualFixNote").Visibility -eq "Visible") { throw "Manual fix note is shown for a game without a manual fix" }
     $lockedText = [ApexSenseBridgeTray.Common.LocalizationManager]::Get("Loc_ApexProfileApex5Only")
     $hintText = [ApexSenseBridgeTray.Common.LocalizationManager]::Get("Loc_ApexProfileHint")
     if ($lockedText -eq "Loc_ApexProfileApex5Only" -or $lockedText -eq $hintText) { throw "APEX 5 only hint is not localized" }
@@ -122,6 +123,21 @@ try {
     $windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, @())
     if (-not (Get-Control "BtnDetailToggleManualFix").IsEnabled) { throw "Manual fix toggle is disabled on an included game" }
     $count++
+    $noteKey = "Loc_ManualFixNote"
+    $englishNote = $null
+    foreach ($language in [ApexSenseBridgeTray.Common.LocalizationManager]::SupportedLanguages) {
+        [ApexSenseBridgeTray.Common.LocalizationManager]::SetLanguage($language)
+        $windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, @())
+        $note = Get-Control "TxtDetailManualFixNote"
+        $noteText = [ApexSenseBridgeTray.Common.LocalizationManager]::Get($noteKey)
+        if ($noteText -eq $noteKey -or [string]::IsNullOrWhiteSpace($noteText)) { throw "Manual fix note is missing for $language" }
+        if ($language -eq "en") { $englishNote = $noteText } elseif ($noteText -eq $englishNote) { throw "Manual fix note is not translated for $language" }
+        if ($note.Visibility -ne "Visible" -or $note.Text -ne $noteText) { throw "Manual fix note is not shown for $language" }
+        $note.Measure((New-Object Windows.Size(320, [double]::PositiveInfinity)))
+        if ($note.DesiredSize.Width -gt 320 -or $note.DesiredSize.Height -le 0) { throw "Manual fix note overflows for $language" }
+        $count++
+    }
+    [ApexSenseBridgeTray.Common.LocalizationManager]::SetLanguage("en")
     Write-Output "PASS: $count controller calibration/hot-swap UI scenarios; no user settings written."
 } finally {
     if ($window) { $window.Close() }

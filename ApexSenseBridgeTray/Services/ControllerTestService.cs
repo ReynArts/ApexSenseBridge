@@ -147,6 +147,21 @@ namespace ApexSenseBridgeTray.Services
             private set { lastCliError = value; }
         }
 
+        private volatile bool lastFailureWasActiveSession;
+
+        public bool LastFailureWasActiveSession
+        {
+            get { return lastFailureWasActiveSession; }
+            private set { lastFailureWasActiveSession = value; }
+        }
+
+        internal static string UnavailableInputMessageKey(bool sessionActive)
+        {
+            return sessionActive
+                ? "Loc_ControllerTestInputSessionActive"
+                : "Loc_ControllerTestInputXInputOnly";
+        }
+
         private readonly object processLock = new object();
         private BridgeSession activeLatencySession;
         private readonly object latencySessionLock = new object();
@@ -416,7 +431,7 @@ namespace ApexSenseBridgeTray.Services
             return -1;
         }
 
-        private static bool IsBridgeSessionActive()
+        internal static bool IsBridgeSessionActive()
         {
             try
             {
@@ -505,6 +520,13 @@ namespace ApexSenseBridgeTray.Services
             return Task.Run(() =>
             {
                 LastCliError = null;
+                LastFailureWasActiveSession = false;
+                if (IsBridgeSessionActive())
+                {
+                    LastFailureWasActiveSession = true;
+                    LastCliError = "A bridge session is active. Stop it before testing the controller.";
+                    return false;
+                }
                 var engine = InstallLocator.ResolveEngine();
                 if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine)) return false;
 
@@ -852,6 +874,7 @@ namespace ApexSenseBridgeTray.Services
             StopGyroStream();
             KillActiveTestProcess();
             StopLatencyTest();
+            if (IsBridgeSessionActive()) return;
             try
             {
                 var engine = InstallLocator.ResolveEngine();
