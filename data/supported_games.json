@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-28T10:23:28.701627+00:00",
+  "updatedAt": "2026-10-29T10:43:59.846802+00:00",
   "totalGames": 222,
   "discordExecutableGames": 134,
   "games": [
@@ -329,7 +329,7 @@
       "profile": "standard",
       "steamAppId": 1938090,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1793043140",
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1793206213",
       "executables": [
         "cod.exe"
       ],
