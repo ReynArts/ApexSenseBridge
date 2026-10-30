@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-29T10:43:59.846802+00:00",
-  "totalGames": 222,
+  "updatedAt": "2026-10-30T10:43:56.021990+00:00",
+  "totalGames": 223,
   "discordExecutableGames": 134,
   "games": [
     {
@@ -1943,6 +1943,17 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "Phantom Blade Zero",
+      "normalized": "phantombladezero",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 4115450,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4115450/471e77854910665c03eb9a53ad06f2ac12903acd/library_capsule_2x.jpg?t=1793261976",
+      "addedAt": "2026-10-30"
     },
     {
       "title": "Pragmata",
