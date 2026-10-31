@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-30T10:43:56.021990+00:00",
+  "updatedAt": "2026-10-31T10:13:31.152242+00:00",
   "totalGames": 223,
-  "discordExecutableGames": 134,
+  "discordExecutableGames": 135,
   "games": [
     {
       "title": "007 First Light",
@@ -114,6 +114,9 @@
       "steamAppId": 4732690,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4732690/791911bc19f47ed3546d70fbce423026f7d846bc/library_capsule_2x.jpg?t=1791291076",
+      "executables": [
+        "endfield.exe"
+      ],
       "addedAt": "2026-09-01"
     },
     {
@@ -329,7 +332,7 @@
       "profile": "standard",
       "steamAppId": 1938090,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1793206213",
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1793386059",
       "executables": [
         "cod.exe"
       ],
