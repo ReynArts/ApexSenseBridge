@@ -63,6 +63,8 @@ internal static class TrayLearningTests
             TestRecoveryPolicy();
             TestHidHideBusyDetection();
             TestInterruptedSessionRecovery();
+            TestContinuousManualRecovery();
+            TestTrayShutdownStopsSession();
             TestExternalRecoveryOwnership();
             TestRecoveryCancelledDuringStartup();
             TestRecoveryGameLifetimeTracking();
@@ -669,6 +671,12 @@ internal static class TrayLearningTests
 
     private static void TestSharedBridgeArguments()
     {
+        for (int slot = 0; slot <= 4; ++slot)
+        {
+            var arguments = BridgeArguments.Build("standard", true, 12, false, slot);
+            Assert(slot == 0 ? !arguments.Contains("--apex-profile") : arguments.EndsWith("--apex-profile " + slot),
+                "Keep current or an explicit onboard profile was not respected by the launcher.");
+        }
         var cachedGames = CreateGameList("{\"games\":[{\"title\":\"Death Stranding 2: On the Beach\",\"profile\":\"standard\"}]}");
         Assert(FindGame(cachedGames, "Death Stranding 2: On the Beach").Profile == "death-stranding-2",
             "An older cached catalogue lost the embedded Death Stranding 2 remapping.");
@@ -1092,32 +1100,99 @@ internal static class TrayLearningTests
         using (var session = BridgeSession.TryStart(executable, "--fake-session --disconnect", TimeSpan.FromSeconds(3), null, null, out error, "Alpha", "standard", discovery))
         {
             Assert(session != null, "Fake interrupted session did not start: " + error);
-            var manager = new EngineSessionManager(() => executable, discovery, () => false);
-            try
+            using (var watchdogStop = EventWaitHandle.OpenExisting("Local\\ApexSenseBridge.Session." + BridgeSession.ReadActiveSession(discovery).Token + ".Stop"))
             {
-                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-                typeof(EngineSessionManager).GetField("activeSession", flags).SetValue(manager, session);
-                typeof(EngineSessionManager).GetField("activeGameTitle", flags).SetValue(manager, "Alpha");
-                typeof(EngineSessionManager).GetField("activeProfileName", flags).SetValue(manager, "standard");
-                typeof(EngineSessionManager).GetField("activeApexSlot", flags).SetValue(manager, 3);
-                WaitUntil(() => manager.Recovery.Pending, TimeSpan.FromSeconds(3), "Interrupted engine did not offer recovery.");
-                Assert(!manager.IsSessionActive && manager.AutomaticActivationBlocked, "A dead session was retained or automatically retried.");
-                Assert(manager.Recovery.ApexSlot == 3 && manager.LastReason.Contains("cleanup"), "Recovery lost the slot or masked a cleanup failure.");
-                Assert(!manager.StartSession("Alpha", "standard", new TraySettings(), out error), "Automatic startup bypassed recovery consent.");
-                Assert(manager.ResumeSession(new TraySettings(), out error), "Controlled recovery failed: " + error);
-                Assert(manager.IsSessionActive && manager.Recovery.Recovered && !manager.AutomaticActivationBlocked, "Recovered session was not ready or remained blocked.");
-                Assert(manager.Recovery.Stages == 15 && manager.ActiveProfile == "standard / APEX 3", "Resume lost verified stages or the original APEX slot.");
-                manager.StopSession("Recovery test stopped");
-                var state = (SessionRecoveryState)typeof(EngineSessionManager).GetField("recovery", flags).GetValue(manager);
-                state.Offer("Alpha", "standard", 3, 1, 15);
-                manager.DismissRecovery();
-                Assert(manager.AutomaticActivationBlocked, "Dismissing the recovery restarted automation.");
-                manager.StopSession("Game closed");
-                Assert(!manager.AutomaticActivationBlocked, "Game shutdown did not clear the recovery gate.");
+                var manager = new EngineSessionManager(() => executable, discovery, () => false);
+                try
+                {
+                    var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                    typeof(EngineSessionManager).GetField("activeSession", flags).SetValue(manager, session);
+                    typeof(EngineSessionManager).GetField("activeGameTitle", flags).SetValue(manager, "Alpha");
+                    typeof(EngineSessionManager).GetField("activeProfileName", flags).SetValue(manager, "standard");
+                    typeof(EngineSessionManager).GetField("activeApexSlot", flags).SetValue(manager, 3);
+                    WaitUntil(() => manager.Recovery.Pending, TimeSpan.FromSeconds(3), "Interrupted engine did not offer recovery.");
+                    Assert(!manager.IsSessionActive && manager.AutomaticActivationBlocked, "A dead session was retained or automatically retried.");
+                    Assert(watchdogStop.WaitOne(0), "The interrupted Tray session left its recovery watchdog waiting on an unsignalled stop event.");
+                    Assert(manager.Recovery.ApexSlot == 3 && manager.LastReason.Contains("cleanup"), "Recovery lost the slot or masked a cleanup failure.");
+                    Assert(!manager.StartSession("Alpha", "standard", new TraySettings(), out error), "Automatic startup bypassed recovery consent.");
+                    Assert(manager.ResumeSession(new TraySettings(), out error), "Controlled recovery failed: " + error);
+                    Assert(manager.IsSessionActive && manager.Recovery.Recovered && !manager.AutomaticActivationBlocked, "Recovered session was not ready or remained blocked.");
+                    Assert(manager.Recovery.Stages == 15 && manager.ActiveProfile == "standard / APEX 3", "Resume lost verified stages or the original APEX slot.");
+                    manager.StopSession("Recovery test stopped");
+                    var state = (SessionRecoveryState)typeof(EngineSessionManager).GetField("recovery", flags).GetValue(manager);
+                    state.Offer("Alpha", "standard", 3, 1, 15);
+                    manager.DismissRecovery();
+                    Assert(manager.AutomaticActivationBlocked, "Dismissing the recovery restarted automation.");
+                    manager.StopSession("Game closed");
+                    Assert(!manager.AutomaticActivationBlocked, "Game shutdown did not clear the recovery gate.");
+                }
+                finally { manager.Dispose(); }
             }
-            finally { manager.Dispose(); }
         }
         Assert(BridgeSession.ReadSessionStatus("invalid") == null, "Invalid status token was accepted.");
+    }
+
+    private static void TestTrayShutdownStopsSession()
+    {
+        string error;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ShutdownTest." + Guid.NewGuid().ToString("N");
+        using (var session = BridgeSession.TryStart(executable, "--fake-session", TimeSpan.FromSeconds(3), null, null, out error, "Alpha", "standard", discovery))
+        {
+            Assert(session != null, "Shutdown test session failed: " + error);
+            using (var engine = Process.GetProcessById(session.ProcessId))
+            using (var watchdogStop = EventWaitHandle.OpenExisting("Local\\ApexSenseBridge.Session." + BridgeSession.ReadActiveSession(discovery).Token + ".Stop"))
+            {
+                var manager = new EngineSessionManager(() => executable, discovery, () => false);
+                try
+                {
+                    typeof(EngineSessionManager).GetField("activeSession", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(manager, session);
+                    manager.StopSession("Tray exiting");
+                    Assert(engine.HasExited && !manager.IsSessionActive, "Quitting Tray left its engine running.");
+                    Assert(watchdogStop.WaitOne(0), "Quitting Tray left its recovery watchdog waiting.");
+                    Assert(!manager.Recovery.Pending && !manager.AutomaticActivationBlocked, "Quitting Tray retained pending recovery.");
+                }
+                finally { manager.StopSession("Test cleanup"); manager.Dispose(); }
+            }
+        }
+    }
+
+    private static void TestContinuousManualRecovery()
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ManualRecoveryTest." + Guid.NewGuid().ToString("N");
+        var settings = new TraySettings { AutoDetectGames = false, ForcedProfile = "standard" };
+        var manager = new EngineSessionManager(() => executable, discovery, () => false);
+        try
+        {
+            using (var monitor = new ProcessMonitorService(null, manager, null, settings, false))
+            {
+                var recovery = (SessionRecoveryState)typeof(EngineSessionManager).GetField("recovery", flags).GetValue(manager);
+                var poll = typeof(ProcessMonitorService).GetMethod("OnPollTick", flags);
+                recovery.Offer("Alpha", "standard", 3, 1, 15);
+                monitor.ReportControllerStatus("disconnected");
+                poll.Invoke(monitor, new object[] { null });
+                Assert(!manager.IsSessionActive && recovery.Pending, "Manual recovery started while the controller was asleep.");
+
+                monitor.ReportControllerStatus("apex5");
+                poll.Invoke(monitor, new object[] { null });
+                Assert(manager.IsSessionHealthy && recovery.Recovered, "Continuous manual activation did not recover with game detection disabled.");
+                Assert(manager.ActiveProfile == "standard / APEX 3", "Automatic manual recovery lost the requested hardware profile.");
+                manager.StopSession("Manual toggle disabled");
+                settings.ForcedProfile = "none";
+                recovery.Offer("Alpha", "standard", 3, 1, 15);
+                poll.Invoke(monitor, new object[] { null });
+                Assert(!manager.IsSessionActive, "Disabling manual activation still resumed the bridge.");
+
+                settings.ForcedProfile = "standard";
+                recovery.Offer("Alpha", "standard", 3, 1, 15, "Playnite");
+                poll.Invoke(monitor, new object[] { null });
+                Assert(!manager.IsSessionActive && recovery.Pending, "Continuous activation took over an external session.");
+                manager.StopSession("Test finished");
+            }
+        }
+        finally { manager.StopSession("Test cleanup"); manager.Dispose(); }
     }
 
     private static void TestExternalRecoveryOwnership()
