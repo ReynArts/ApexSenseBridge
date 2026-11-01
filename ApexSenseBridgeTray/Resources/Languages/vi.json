@@ -122,6 +122,7 @@
   "Loc_ManualBridgeHint": "Duy trì cầu nối hoạt động liên tục mà không cần chờ trò chơi",
   "Loc_UdpTriggers": "Adaptive Trigger qua UDP REFramework",
   "Loc_UdpTriggersHint": "Nhận hiệu ứng Lua qua localhost UDP (REFramework) để điều khiển cò thích ứng trong trò chơi",
+  "Loc_UdpTriggersUnavailable": "Cổng UDP trigger đang được sử dụng. Phiên vẫn tiếp tục không có UDP trigger và tùy chọn UDP đã bị tắt. Hãy đổi cổng rồi bật lại.",
   "Loc_PreparedLaunch": "Khởi chạy trò chơi (.exe)",
   "Loc_PreparedLaunchHint": "Bắt đầu cầu nối trước trò chơi đã chọn. Tắt kích hoạt thủ công khi bạn chơi xong.",
   "Loc_PreparedLaunchBusy": "Một phiên cầu nối khác đang hoạt động. Dừng phiên đó trước khi khởi chạy trò chơi.",

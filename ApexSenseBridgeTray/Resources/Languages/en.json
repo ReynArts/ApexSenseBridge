@@ -122,6 +122,7 @@
   "Loc_ManualBridgeHint": "Keeps the bridge active continuously without waiting for a game",
   "Loc_UdpTriggers": "REFramework UDP triggers",
   "Loc_UdpTriggersHint": "Listen on localhost for Lua trigger effects (REFramework) to control in-game adaptive triggers",
+  "Loc_UdpTriggersUnavailable": "UDP trigger port is in use. The session continues without UDP triggers, and the UDP option was turned off. Change the port and turn it on again.",
   "Loc_PreparedLaunch": "Launch a game (.exe)",
   "Loc_PreparedLaunchHint": "Starts the bridge before the selected game. Turn off manual activation when you finish playing.",
   "Loc_PreparedLaunchBusy": "Another bridge session is active. Stop it before launching a game.",

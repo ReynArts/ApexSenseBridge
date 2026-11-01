@@ -105,6 +105,7 @@ namespace ApexSenseBridgeTray
                 sessionManager.SessionStarted += (game, profile) => Dispatcher.BeginInvoke(new Action(UpdateDashboardStatus));
                 sessionManager.SessionStopped += reason => Dispatcher.BeginInvoke(new Action(UpdateDashboardStatus));
                 sessionManager.SessionError += err => Dispatcher.BeginInvoke(new Action(UpdateDashboardStatus));
+                sessionManager.SessionWarning += warning => Dispatcher.BeginInvoke(new Action(OnUdpListenerUnavailable));
             }
 
             if (gameListService != null)
@@ -2387,6 +2388,20 @@ namespace ApexSenseBridgeTray
             settings.UdpPort = NormalizeUdpPort(settings.UdpPort);
             settings.Save();
             UpdateSettingsView();
+        }
+
+        // The UDP port was busy: the bridge continues without the listener, so turn the
+        // option off. The dashboard shows the reason through EngineSessionManager.LastReason.
+        private void OnUdpListenerUnavailable()
+        {
+            if (settings == null) return;
+            if (settings.EnableUdpTriggers)
+            {
+                settings.EnableUdpTriggers = false;
+                settings.Save();
+            }
+            UpdateSettingsView();
+            UpdateDashboardStatus();
         }
 
         private void OnSettingUdpPortChanged(object sender, TextChangedEventArgs e)

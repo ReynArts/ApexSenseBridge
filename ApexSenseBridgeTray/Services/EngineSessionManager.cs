@@ -240,6 +240,8 @@ namespace ApexSenseBridgeTray.Services
         public event Action<string, string> SessionStarted;
         public event Action<string> SessionStopped;
         public event Action<string> SessionError;
+        public event Action<string> SessionWarning;
+        private const string UdpListenerWarningPrefix = "Warning: UDP trigger listener disabled";
         public event Action<string> LogMessage;
         public event Action SteamAlreadyRunning;
 
@@ -318,7 +320,7 @@ namespace ApexSenseBridgeTray.Services
                     args,
                     TimeSpan.FromSeconds(timeoutSec),
                     msg => RaiseLogMessage(msg),
-                    err => RaiseLogMessage("[ERROR] " + err),
+                    err => RouteEngineStderr(err),
                     out error, gameTitle, activeProfile, sessionDiscoveryName, progressChanged: state =>
                     {
                         if (state.Phase == SessionPhase.Failed) engineExitCode = state.ExitCode;
@@ -428,6 +430,20 @@ namespace ApexSenseBridgeTray.Services
             {
                 stopHandler(reason);
             }
+        }
+
+        private void RouteEngineStderr(string line)
+        {
+            if (line != null && line.IndexOf(UdpListenerWarningPrefix, StringComparison.Ordinal) >= 0)
+            {
+                RaiseLogMessage("[WARNING] " + line);
+                lock (syncLock) { lastReason = "Loc_UdpTriggersUnavailable"; }
+                StateChanged?.Invoke();
+                var warningHandler = SessionWarning;
+                if (warningHandler != null) warningHandler(line);
+                return;
+            }
+            RaiseLogMessage("[ERROR] " + line);
         }
 
         private void RaiseSessionError(string err)

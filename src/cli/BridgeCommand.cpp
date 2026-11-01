@@ -855,12 +855,14 @@ int commandBridgeTriggers(int argc, char** argv) {
     if (udpTriggerServer) {
         std::string udpError;
         if (!udpTriggerServer->start(udpError)) {
-            const std::string message = "UDP trigger listener failed: " + udpError;
-            std::cerr << message << '\n';
-            return failSession(17, message);
+            std::cerr << "Warning: UDP trigger listener disabled for this session: " << udpError
+                      << " The bridge continues without UDP triggers. Choose another --udp-port"
+                      << " or close the application using it.\n";
+            udpTriggerServer.reset();
+        } else {
+            std::cout << "UDP trigger listener: " << options.udpBindAddress << ':'
+                      << options.udpPort << " (localhost only).\n";
         }
-        std::cout << "UDP trigger listener: " << options.udpBindAddress << ':'
-                  << options.udpPort << " (localhost only).\n";
     }
 
     const auto initializedAt = std::chrono::steady_clock::now();
