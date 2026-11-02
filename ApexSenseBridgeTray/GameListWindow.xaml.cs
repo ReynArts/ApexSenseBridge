@@ -475,7 +475,7 @@ namespace ApexSenseBridgeTray
             // Only the capabilities of the identified controller are shown (and therefore navigable).
             var items = new FrameworkElement[]
             {
-                TileSettingSyncLightbar, TileSettingZoneEmulation, RowTriggerStrength, RowVibrationStrength,
+                TileSettingSyncLightbar, RowLightbarBrightness, TileSettingZoneEmulation, RowTriggerStrength, RowVibrationStrength,
                 RowGyroStrength, RowGyroYawStrength, RowVibrationThreshold, RowGripVibrations
             }.Where(item => item != null);
             return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
@@ -492,6 +492,7 @@ namespace ApexSenseBridgeTray
         {
             var row = GetFocusedSettingsItem();
             if (row == null) return null;
+            if (row == RowLightbarBrightness) return SliderLightbarBrightness;
             if (row == RowTriggerStrength) return SliderTriggerStrength;
             if (row == RowVibrationStrength) return SliderVibrationStrength;
             if (row == RowGyroStrength) return SliderApex4GyroStrength;
@@ -2233,6 +2234,7 @@ namespace ApexSenseBridgeTray
             SliderApex4GyroStrength.Value = displayed.GyroStrengthPercent;
             SliderApex4GyroYawStrength.Value = displayed.GyroYawStrengthPercent;
             SliderVibrationThreshold.Value = displayed.HapticThresholdPercent;
+            SliderLightbarBrightness.Value = displayed.LightbarBrightnessPercent;
             ChkGripVibrations.IsChecked = displayed.EnableRumble;
             SliderTriggerStrength.IsEnabled = canEdit;
             SliderVibrationStrength.IsEnabled = canEdit;
@@ -2243,6 +2245,8 @@ namespace ApexSenseBridgeTray
             TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5";
             // Show only what the identified model supports; keep the locked message otherwise.
             TileSettingSyncLightbar.Visibility = TileSettingSyncLightbar.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            SliderLightbarBrightness.IsEnabled = TileSettingSyncLightbar.IsEnabled;
+            RowLightbarBrightness.Visibility = TileSettingSyncLightbar.Visibility;
             TileSettingZoneEmulation.IsEnabled = lastControllerStatus == "apex5";
             TileSettingZoneEmulation.Visibility = TileSettingZoneEmulation.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             PnlControllerEffects.Visibility = canEdit ? Visibility.Visible : Visibility.Collapsed;
@@ -2282,8 +2286,10 @@ namespace ApexSenseBridgeTray
         {
             if (TxtTriggerStrength == null || SliderTriggerStrength == null ||
                 SliderVibrationStrength == null || SliderApex4GyroStrength == null ||
-                SliderApex4GyroYawStrength == null || SliderVibrationThreshold == null) return;
+                SliderApex4GyroYawStrength == null || SliderVibrationThreshold == null ||
+                SliderLightbarBrightness == null) return;
             TxtTriggerStrength.Text = ((int)SliderTriggerStrength.Value) + " %";
+            TxtLightbarBrightness.Text = ((int)SliderLightbarBrightness.Value) + " %";
             TxtVibrationStrength.Text = ((int)SliderVibrationStrength.Value) + " %";
             TxtApex4GyroStrength.Text = ((int)SliderApex4GyroStrength.Value) + " %";
             TxtApex4GyroYawStrength.Text = ((int)SliderApex4GyroYawStrength.Value) + " %";
@@ -2304,6 +2310,7 @@ namespace ApexSenseBridgeTray
                 else if (sender == SliderApex4GyroStrength && lastControllerStatus == "apex4") calibration.GyroStrengthPercent = (int)SliderApex4GyroStrength.Value;
                 else if (sender == SliderApex4GyroYawStrength && lastControllerStatus == "apex4") calibration.GyroYawStrengthPercent = (int)SliderApex4GyroYawStrength.Value;
                 else if (sender == SliderVibrationThreshold && lastControllerStatus != "apex6") calibration.HapticThresholdPercent = (int)SliderVibrationThreshold.Value;
+                else if (sender == SliderLightbarBrightness && lastControllerStatus == "apex5") calibration.LightbarBrightnessPercent = (int)SliderLightbarBrightness.Value;
                 else return;
             }
             settings.Save();

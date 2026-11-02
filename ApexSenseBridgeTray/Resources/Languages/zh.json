@@ -123,6 +123,8 @@
   "Loc_NotificationsHint": "桥接激活时显示 Windows 通知气泡",
   "Loc_SyncLightbar": "DualSense 灯条同步 (RGB)",
   "Loc_SyncLightbarHint": "根据游戏中 DualSense 灯条色彩事件同步手柄 LED 灯带",
+  "Loc_LightbarBrightness": "灯条最大亮度",
+  "Loc_LightbarBrightnessHint": "同步 LED 的亮度上限（0 到 100%，默认 100%）。颜色跟随游戏；亮度保持 Flydigi Space Station 中保存的值，但不超过此上限。下次会话生效。",
   "Loc_ZoneEmulation": "扳机效果模拟",
   "Loc_ZoneEmulationHint": "在 APEX 5 上还原 DualSense 扳机的分区力度、震动和节奏类效果。关闭后恢复之前的行为",
   "Loc_ManualBridge": "强制常驻激活",

@@ -111,9 +111,15 @@
             <!-- Lightbar Settings -->
             <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,4,12,10"
                        VerticalAlignment="Center" Text="Barre lumineuse" />
-            <CheckBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10"
-                      IsChecked="{Binding Settings.SyncLightbar}"
-                      Content="Synchroniser les LED avec la barre lumineuse DualSense (RVB)" />
+            <StackPanel Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10">
+                <CheckBox IsChecked="{Binding Settings.SyncLightbar}"
+                          Content="Synchroniser les LED avec la barre lumineuse DualSense (RVB)" />
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="Luminosité max. (%)" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox x:Name="TxtLightbarBrightness" Width="60" Text="{Binding Settings.LightbarBrightnessPercent, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="APEX 5 : 0–100 %, 100 % par défaut. La couleur suit le jeu ; la luminosité reste celle enregistrée dans Space Station, plafonnée par cette valeur." />
+                </StackPanel>
+            </StackPanel>
 
             <!-- Haptic Threshold -->
             <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,4,12,10"

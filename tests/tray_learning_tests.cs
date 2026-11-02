@@ -794,6 +794,15 @@ internal static class TrayLearningTests
             "Default arguments disabled the trigger emulation.");
         Assert(BridgeArguments.Build("none", true, 12, false, 0, zoneEmulation: false).Contains("--no-zone-emulation"),
             "Disabling the trigger emulation did not reach the engine.");
+        Assert(BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: 40).Contains("--sync-lightbar --lightbar-brightness 40"),
+            "The lightbar brightness limit did not reach the engine.");
+        Assert(!BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: 100).Contains("--lightbar-brightness"),
+            "The default lightbar brightness limit changed the launch arguments.");
+        Assert(!BridgeArguments.Build("none", false, 12, false, 0, lightbarBrightnessPercent: 40).Contains("--lightbar-brightness"),
+            "The lightbar brightness limit was passed without the lightbar sync.");
+        Assert(BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: -5).Contains("--lightbar-brightness 0") &&
+            !BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: 999).Contains("--lightbar-brightness"),
+            "The lightbar brightness limit was not bounded.");
         settings.ZoneEmulation = false;
         var disabledEmulation = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
         Assert(!disabledEmulation.ZoneEmulation, "Disabled trigger emulation did not survive serialization.");
@@ -830,11 +839,29 @@ internal static class TrayLearningTests
         a4.GyroStrengthPercent = 900;
         a5.VibrationStrengthPercent = 999;
         a6.HapticThresholdPercent = 95;
+        Assert(a4.LightbarBrightnessPercent == 100 && a5.LightbarBrightnessPercent == 100 && a6.LightbarBrightnessPercent == 100,
+            "The lightbar brightness limit did not default to 100.");
+        a4.LightbarBrightnessPercent = 40;
+        a5.LightbarBrightnessPercent = 40;
+        a6.LightbarBrightnessPercent = 999;
         var arguments = settings.BuildControllerCalibrationArguments();
-        Assert(arguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225") &&
-            arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100") &&
-            arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100"),
+        Assert(arguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225:100") &&
+            arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100:40") &&
+            arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100:100"),
             "Controller profiles were not bounded/serialized to the native protocol.");
+        Assert(a4.LightbarBrightnessPercent == 100 && a5.LightbarBrightnessPercent == 40 && a6.LightbarBrightnessPercent == 100,
+            "The lightbar brightness limit crossed the APEX 5 boundary.");
+        a5.LightbarBrightnessPercent = -5;
+        settings.BuildControllerCalibrationArguments();
+        Assert(a5.LightbarBrightnessPercent == 0, "The lightbar brightness limit was not bounded.");
+        a5.LightbarBrightnessPercent = 40;
+        Assert(serializer.Deserialize<TraySettings>(serializer.Serialize(settings))
+                .GetControllerCalibration("apex5").LightbarBrightnessPercent == 40,
+            "The lightbar brightness limit did not survive serialization.");
+        Assert(serializer.Deserialize<TraySettings>(
+                "{\"ControllerCalibrations\":{\"apex5\":{\"SyncLightbar\":true}}}")
+                .GetControllerCalibration("apex5").LightbarBrightnessPercent == 100,
+            "A settings file without the brightness limit did not keep the full brightness.");
         a4.VibrationStrengthPercent = 150;
         a5.VibrationStrengthPercent = 175;
         a6.VibrationStrengthPercent = 200;

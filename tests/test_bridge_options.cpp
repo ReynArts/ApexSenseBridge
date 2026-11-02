@@ -60,11 +60,13 @@ int main() {
     assert(defaults.options.apex4GyroYawStrengthPercent == 100);
     assert(defaults.options.touchpadProfile == Profile::None);
     assert(defaults.options.zoneEmulation);
+    assert(defaults.options.lightbarBrightnessPercent == 100);
 
     const auto complete = parse({
         "3", "--seconds", "42", "--viiper", "C:\\Tools\\Viiper.exe",
         "--virtual-backend", "sidecar", "--telemetry-json", "result.json",
         "--xinput-index", "2", "--rumble", "--sync-lightbar",
+        "--lightbar-brightness", "40",
         "--haptic-threshold", "25", "--apex4-gyro-strength", "175",
         "--apex4-gyro-yaw-strength", "225", "--verify-virtual-input",
         "--touchpad-profile", "warframe", "--apex-profile", "4",
@@ -79,6 +81,7 @@ int main() {
     assert(complete.options.xinputIndex == 2U);
     assert(complete.options.routeRumble);
     assert(complete.options.syncLightbar);
+    assert(complete.options.lightbarBrightnessPercent == 40);
     assert(complete.options.hapticThresholdPercent == 25);
     assert(complete.options.apex4GyroStrengthPercent == 175);
     assert(complete.options.apex4GyroYawStrengthPercent == 225);
@@ -144,6 +147,19 @@ int main() {
     assert(!parse({"--rumble", "--apex6-haptic-gain"}).succeeded);
     assert(!parse({"--apex6-haptic-gain", "150"}).succeeded);
     assert(usage.find("--apex6-haptic-gain 100..200") != std::string_view::npos);
+    // The lightbar brightness limit is a plain percentage; it is accepted
+    // without --sync-lightbar so launchers can always pass it.
+    for (const auto brightness : {"0", "55", "100"}) {
+        const auto parsed = parse({"--lightbar-brightness", brightness});
+        assert(parsed.succeeded);
+        assert(parsed.options.lightbarBrightnessPercent == std::stoul(brightness));
+    }
+    for (const auto brightness : {"101", "-1", "50junk", "50.5", "999999999999999999999999999"}) {
+        assert(!parse({"--sync-lightbar", "--lightbar-brightness", brightness}).succeeded);
+    }
+    assert(!parse({"--lightbar-brightness"}).succeeded);
+    assert(usage.find("--lightbar-brightness 0..100") != std::string_view::npos);
+    assert(usage.find("YAW[:RGBBRIGHTNESS]") != std::string_view::npos);
     assert(usage.find("--vibration-strength 0..200") != std::string_view::npos);
     assert(usage.find("[--no-zone-emulation]") != std::string_view::npos);
     assert(usage.find("[--zone-emulation]") == std::string_view::npos);
@@ -180,6 +196,8 @@ int main() {
         } else if (std::string_view(model) == "apex5") {
             assert(options.triggerStrengthPercent == 45 && options.vibrationStrengthPercent == 70);
             assert(options.routeRumble && options.syncLightbar && options.apexProfileSlot == 2);
+            // Seven fields keep the default brightness limit.
+            assert(options.lightbarBrightnessPercent == 100);
         } else {
             assert(options.triggerStrengthPercent == 80 && options.vibrationStrengthPercent == 90);
             assert(options.routeRumble && !options.syncLightbar && options.hapticThresholdPercent == 0);
@@ -194,6 +212,29 @@ int main() {
     auto legacy = complete.options;
     assert(asb::cli::applyControllerCalibration(legacy, "apex5", calibrationError));
     assert(legacy.triggerStrengthPercent == complete.options.triggerStrengthPercent && legacy.syncLightbar);
+    assert(legacy.lightbarBrightnessPercent == 40);
+    // The optional eighth field carries the brightness limit; the calibration
+    // of the verified model replaces any plain --lightbar-brightness.
+    auto limited = parse({"--lightbar-brightness", "40",
+                          "--controller-calibration", "apex5:45:70:12:1:1:100:100:35",
+                          "--controller-calibration", "apex4:35:60:24:0:0:175:225:100"});
+    assert(limited.succeeded);
+    assert(limited.options.controllerCalibrations[1]->rgbBrightness == 35);
+    assert(asb::cli::applyControllerCalibration(limited.options, "apex5", calibrationError));
+    assert(limited.options.lightbarBrightnessPercent == 35);
+    auto limitedApex4 = limited.options;
+    assert(asb::cli::applyControllerCalibration(limitedApex4, "apex4", calibrationError));
+    assert(limitedApex4.lightbarBrightnessPercent == 100 && !limitedApex4.syncLightbar);
+    for (const auto brightness : {"0", "100"}) {
+        assert(parse({"--controller-calibration",
+                      std::string("apex5:45:70:12:1:1:100:100:") + brightness}).succeeded);
+    }
+    for (const auto invalid : {
+             "apex5:45:70:12:1:1:100:100:101", "apex5:45:70:12:1:1:100:100:-1",
+             "apex5:45:70:12:1:1:100:100:4x", "apex5:45:70:12:1:1:100:100:",
+             "apex5:45:70:12:1:1:100:100:40:1", "apex4:35:60:24:0:0:175:225:40",
+             "apex6:80:90:0:1:0:100:100:99"})
+        assert(!parse({"--controller-calibration", invalid}).succeeded);
     for (const auto invalid : {
              "apex7:100:100:12:1:0:100:100", "apex4:101:100:12:1:0:100:100",
              "apex4:-1:100:12:1:0:100:100", "apex5:100junk:100:12:1:0:100:100",

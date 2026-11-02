@@ -385,7 +385,9 @@ int commandBridgeTriggers(int argc, char** argv) {
     const auto lightbarSlot = options.apexProfileSlot.value_or(
         originalProfile ? originalProfile->slot : 0);
     auto lightbarBridge = options.syncLightbar
-        ? std::make_unique<asb::dualsense::LightbarBridge>(*device, lightbarSlot)
+        ? std::make_unique<asb::dualsense::LightbarBridge>(
+              *device, lightbarSlot,
+              static_cast<std::uint8_t>((std::min)(options.lightbarBrightnessPercent, 100U)))
         : std::unique_ptr<asb::dualsense::LightbarBridge>{};
     if (lightbarBridge && lightbarBridge->failed()) {
         const std::string message =
@@ -908,8 +910,13 @@ int commandBridgeTriggers(int argc, char** argv) {
                           ? "Grip-rumble and DualSense audio-haptics routing enabled.\n"
                           : "Grip-rumble and audio haptics routing remain disabled.\n")
               << (lightbarBridge
-                      ? "DualSense lightbar RGB synchronization enabled.\n"
-                      : "")
+                      ? "DualSense lightbar RGB synchronization enabled (brightness " +
+                            std::to_string(lightbarBridge->brightness()) +
+                            "%: Space Station " +
+                            std::to_string(lightbarBridge->storedBrightness()) +
+                            "%, limit " +
+                            std::to_string(lightbarBridge->maxBrightness()) + "%).\n"
+                      : std::string{})
               << "All APEX controls are proxied through " << inputBackend
               << " into the virtual DualSense.\n"
               << "Virtual DualSense backend: "
@@ -1723,7 +1730,10 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     std::cout << "lightbar_routing=" << (lightbarBridge ? "enabled" : "disabled") << '\n';
     if (lightbarBridge) {
-        std::cout << "lightbar_updates=" << lightbarStats.updates << '\n'
+        std::cout << "lightbar_brightness=" << static_cast<unsigned>(lightbarBridge->brightness()) << '\n'
+                  << "lightbar_stored_brightness=" << static_cast<unsigned>(lightbarBridge->storedBrightness()) << '\n'
+                  << "lightbar_max_brightness=" << static_cast<unsigned>(lightbarBridge->maxBrightness()) << '\n'
+                  << "lightbar_updates=" << lightbarStats.updates << '\n'
                   << "lightbar_writes=" << lightbarStats.writes << '\n'
                   << "lightbar_deduplicated=" << lightbarStats.deduplicated << '\n'
                   << "lightbar_write_failures=" << lightbarStats.writeFailures << '\n';

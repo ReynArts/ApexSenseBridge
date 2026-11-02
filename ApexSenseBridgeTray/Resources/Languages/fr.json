@@ -123,6 +123,8 @@
   "Loc_NotificationsHint": "Alerte Windows lors de l'activation du pont",
   "Loc_SyncLightbar": "Synchronisation barre lumineuse (RVB)",
   "Loc_SyncLightbarHint": "Synchronise les bandes LED de la manette avec les couleurs du jeu",
+  "Loc_LightbarBrightness": "Luminosité max. de la barre lumineuse",
+  "Loc_LightbarBrightnessHint": "Limite supérieure pour les LED synchronisées (0 à 100 %, 100 % par défaut). La couleur suit le jeu ; la luminosité reste celle enregistrée dans Flydigi Space Station, plafonnée par cette valeur. S'applique à la prochaine session.",
   "Loc_ZoneEmulation": "Émulation des effets de gâchette",
   "Loc_ZoneEmulationHint": "Reproduit sur l'APEX 5 la force par zone, la vibration et les effets rythmés des gâchettes DualSense. Désactiver pour revenir au comportement précédent",
   "Loc_ManualBridge": "Forcer l'activation permanente",

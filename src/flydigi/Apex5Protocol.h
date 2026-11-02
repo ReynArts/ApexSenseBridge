@@ -33,6 +33,8 @@ constexpr std::uint8_t kCmdWriteRgbPack = 0xA9;
 constexpr std::uint8_t kRgbPacketSize = 20;
 constexpr std::uint8_t kRgbPacketCount = 19;
 constexpr std::size_t kRgbConfigSize = 380;
+// Header byte of the RGB configuration holding the LED brightness (0..100).
+constexpr std::size_t kRgbBrightnessOffset = 6;
 constexpr std::size_t kApex5LedCount = 12;
 constexpr std::uint8_t kProfileSlotCount = 4;
 constexpr std::size_t kReportSize = 32;

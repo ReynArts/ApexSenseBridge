@@ -40,6 +40,8 @@ try {
             if ((Get-Control $control).IsEnabled -ne ($status -eq "apex4")) { throw "Gyro tuning unlocked for $status" }
         }
         if ((Get-Control "TileSettingSyncLightbar").IsEnabled -ne ($status -eq "apex5")) { throw "RGB unlocked for $status" }
+        if ((Get-Control "SliderLightbarBrightness").IsEnabled -ne ($status -eq "apex5")) { throw "Lightbar brightness unlocked for $status" }
+        if (((Get-Control "RowLightbarBrightness").Visibility -eq "Visible") -ne ($status -eq "apex5")) { throw "Lightbar brightness shown for $status" }
         if ((Get-Control "TileSettingZoneEmulation").IsEnabled -ne ($status -eq "apex5")) { throw "Trigger emulation unlocked for $status" }
         if ((Get-Control "SliderVibrationThreshold").IsEnabled -ne ($connected -and $status -ne "apex6")) {
             throw "Incorrect threshold availability for $status"
@@ -59,12 +61,15 @@ try {
     $settings.GetControllerCalibration("apex6").TriggerStrengthPercent = 80
     $settings.GetControllerCalibration("apex5").VibrationStrengthPercent = 175
     $settings.GetControllerCalibration("apex6").VibrationStrengthPercent = 200
+    $settings.GetControllerCalibration("apex5").LightbarBrightnessPercent = 40
     foreach ($model in @("apex5", "apex6", "apex5")) {
         $statusMethod.Invoke($window, @($model))
         $expected = if ($model -eq "apex5") { 35 } else { 80 }
         if ((Get-Control "SliderTriggerStrength").Value -ne $expected) { throw "UI did not restore $model calibration" }
         $expectedVibration = if ($model -eq "apex5") { 175 } else { 100 }
         if ((Get-Control "SliderVibrationStrength").Value -ne $expectedVibration) { throw "UI lost the independent gain for $model" }
+        $expectedBrightness = if ($model -eq "apex5") { 40 } else { 100 }
+        if ((Get-Control "SliderLightbarBrightness").Value -ne $expectedBrightness) { throw "UI lost the lightbar brightness limit for $model" }
         $count++
     }
     [string]$catalog = (@{ games = @([ordered]@{ title = "Profile Test"; normalized = "profiletest"; adaptiveTriggers = $true; hapticFeedback = $true }) } | ConvertTo-Json -Depth 4 -Compress)

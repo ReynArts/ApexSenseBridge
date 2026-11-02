@@ -16,9 +16,11 @@
 #include <cstdint>
 #include <ctime>
 #include <deque>
+#include <initializer_list>
 #include <span>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -360,6 +362,11 @@ int main() {
     {
         LightbarBridge lightbar(device);
         assert(!lightbar.failed());
+        // The brightness saved by Flydigi Space Station (70 here) is kept; the
+        // default limit of 100 does not raise it.
+        assert(lightbar.storedBrightness() == 70);
+        assert(lightbar.maxBrightness() == 100);
+        assert(lightbar.brightness() == 70);
         const auto writesBeforeLightbarUpdate = transport->writes.size();
         DualSenseFeedback lightbarFeedback{};
         lightbarFeedback.hasLightbar = true;
@@ -406,6 +413,7 @@ int main() {
         assert((latchValues == std::vector<std::uint8_t>{1, 0}));
         assert(writtenConfig[3] == 0);
         assert(writtenConfig[4] == 9);
+        assert(writtenConfig[asb::flydigi::kRgbBrightnessOffset] == 70);
         assert(writtenConfig[8] == 4);
         for (std::size_t offset = 20; offset + 2 < writtenConfig.size();
              offset += 3) {
@@ -461,6 +469,58 @@ int main() {
                     {std::uint8_t{0}, std::uint8_t{19}},
                     {std::uint8_t{0}, std::uint8_t{1}}}));
         assert((restoreLatchValues == std::vector<std::uint8_t>{1, 0}));
+    }
+
+    {
+        // A limit below the saved brightness caps every synchronized color; a
+        // limit above it leaves the saved brightness alone. Restore always
+        // puts the original configuration back.
+        const auto expectedBackup =
+            asb::flydigi::buildStaticRgbPayload(32, 48, 64, 70);
+        for (const auto& [limit, expected] :
+             std::initializer_list<std::pair<std::uint8_t, std::uint8_t>>{
+                 {40, 40}, {100, 70}, {0, 0}, {255, 70}}) {
+            LightbarBridge limited(device, 0, limit);
+            assert(!limited.failed());
+            assert(limited.storedBrightness() == 70);
+            assert(limited.maxBrightness() == (std::min)(limit, std::uint8_t{100}));
+            assert(limited.brightness() == expected);
+            const auto writesBefore = transport->writes.size();
+            DualSenseFeedback feedback{};
+            feedback.hasLightbar = true;
+            feedback.lightbarRed = 200;
+            feedback.lightbarGreen = 100;
+            feedback.lightbarBlue = 50;
+            limited.handle(feedback);
+            const auto deadline = std::chrono::steady_clock::now() +
+                                  std::chrono::milliseconds(250);
+            while (limited.stats().writes == 0 &&
+                   std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            assert(limited.stats().writes == 1);
+            bool headerSeen = false;
+            std::uint8_t rangeStart = 0;
+            for (auto it = transport->writes.begin() + writesBefore;
+                 it != transport->writes.end(); ++it) {
+                const auto& report = *it;
+                if (report.size() > 6 &&
+                    report[3] == asb::flydigi::kCmdWriteRgbStart) {
+                    rangeStart = report[6];
+                } else if (report.size() > 12 &&
+                           report[3] == asb::flydigi::kCmdWriteRgbPack &&
+                           rangeStart == 0 && report[5] == 0) {
+                    assert(report[6 + asb::flydigi::kRgbBrightnessOffset] == expected);
+                    assert(report[6 + 4] == 9);
+                    headerSeen = true;
+                }
+            }
+            assert(headerSeen);
+            assert(transport->rgbConfig()[asb::flydigi::kRgbBrightnessOffset] == expected);
+            limited.restore();
+            assert(!limited.failed());
+            assert(transport->rgbConfig() == expectedBackup);
+        }
     }
 
     {

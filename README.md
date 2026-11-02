@@ -241,7 +241,9 @@ in the settings file; the engine selects the matching profile after
 verifying the actual hardware, not from the last model displayed in the UI.
 Gyro tuning is APEX 4-only (25–400% sensitivity and separate yaw correction);
 for APEX 4 gyro to work, the gyro must be enabled in the active Flydigi Space
-Station profile (Gyro tab). RGB is APEX 5-only, and the APEX 6 haptic
+Station profile (Gyro tab). RGB is APEX 5-only: the lightbar sync writes the
+game color with the brightness saved in Flydigi Space Station, and the
+"Lightbar max brightness" slider (0–100%) caps it further. The APEX 6 haptic
 threshold is fixed at 0. General Tray preferences remain editable without a
 controller. Existing strength/rumble preferences migrate without being reset;
 subsequent edits affect only the selected model. Playnite keeps its independent

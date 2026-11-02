@@ -12,6 +12,9 @@ namespace ApexSenseBridgeTray.Models
         public int HapticThresholdPercent { get; set; } = 12;
         public bool EnableRumble { get; set; } = true;
         public bool SyncLightbar { get; set; }
+        // Upper limit for the synchronized lightbar. The engine uses the lower
+        // of this and the brightness saved in Flydigi Space Station.
+        public int LightbarBrightnessPercent { get; set; } = 100;
         public int GyroStrengthPercent { get; set; } = 100;
         public int GyroYawStrengthPercent { get; set; } = 100;
 
@@ -21,6 +24,7 @@ namespace ApexSenseBridgeTray.Models
             VibrationStrengthPercent = Math.Max(0, Math.Min(model == "apex6" ? 100 : 200, VibrationStrengthPercent));
             HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
             SyncLightbar = model == "apex5" && SyncLightbar;
+            LightbarBrightnessPercent = model == "apex5" ? Math.Max(0, Math.Min(100, LightbarBrightnessPercent)) : 100;
             GyroStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroStrengthPercent)) : 100;
             GyroYawStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroYawStrengthPercent)) : 100;
         }
@@ -100,10 +104,10 @@ namespace ApexSenseBridgeTray.Models
                 {
                     var c = GetControllerCalibration(model);
                     result.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
-                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}",
+                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}:{8}",
                         model, c.TriggerStrengthPercent, c.VibrationStrengthPercent,
                         c.HapticThresholdPercent, c.EnableRumble ? 1 : 0, c.SyncLightbar ? 1 : 0,
-                        c.GyroStrengthPercent, c.GyroYawStrengthPercent);
+                        c.GyroStrengthPercent, c.GyroYawStrengthPercent, c.LightbarBrightnessPercent);
                 }
                 return result.ToString();
             }
