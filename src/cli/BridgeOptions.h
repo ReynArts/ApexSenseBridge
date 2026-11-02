@@ -22,6 +22,7 @@ struct ControllerCalibration {
     bool rgb = false;
     unsigned gyro = 100;
     unsigned gyroYaw = 100;
+    unsigned rgbBrightness = 100;
 };
 
 struct BridgeCommandOptions {
@@ -32,6 +33,9 @@ struct BridgeCommandOptions {
         asb::dualsense::VirtualDualSenseBackend::Auto;
     bool routeRumble = false;
     bool syncLightbar = false;
+    // Upper limit for the synchronized lightbar; the saved profile brightness
+    // is kept when lower.
+    unsigned int lightbarBrightnessPercent = 100;
     bool zoneEmulation = true;
     bool verifyVirtualInput = false;
     asb::dualsense::TouchpadGestureProfile touchpadProfile =

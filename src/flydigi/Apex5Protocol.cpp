@@ -167,7 +167,7 @@ std::array<std::uint8_t, kRgbConfigSize> buildStaticRgbPayload(
     payload[3] = 0x00;
     payload[4] = 0x00;
     payload[5] = 0x00;
-    payload[6] = brightness;
+    payload[kRgbBrightnessOffset] = brightness;
     payload[7] = static_cast<std::uint8_t>(kApex5LedCount);
     payload[8] = 0x04;
     payload[9] = 0x00;

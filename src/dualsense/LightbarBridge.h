@@ -23,7 +23,11 @@ struct LightbarBridgeStats {
 
 class LightbarBridge {
 public:
-    explicit LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot = 0);
+    // maxBrightnessPercent caps the brightness written with every color. The
+    // brightness saved in the controller profile (Flydigi Space Station) is
+    // kept when it is lower.
+    explicit LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot = 0,
+                            std::uint8_t maxBrightnessPercent = 100);
     ~LightbarBridge();
 
     LightbarBridge(const LightbarBridge&) = delete;
@@ -35,6 +39,9 @@ public:
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
     [[nodiscard]] LightbarBridgeStats stats() const noexcept;
+    [[nodiscard]] std::uint8_t brightness() const noexcept;
+    [[nodiscard]] std::uint8_t storedBrightness() const noexcept;
+    [[nodiscard]] std::uint8_t maxBrightness() const noexcept;
 
 private:
     void workerLoop() noexcept;
@@ -44,6 +51,8 @@ private:
 
     flydigi::Apex5Device& device_;
     std::uint8_t slot_ = 0;
+    std::uint8_t maxBrightness_ = 100;
+    std::uint8_t storedBrightness_ = 100;
 
     mutable std::mutex mutex_;
     std::condition_variable cv_;
