@@ -32,6 +32,7 @@ struct BridgeCommandOptions {
         asb::dualsense::VirtualDualSenseBackend::Auto;
     bool routeRumble = false;
     bool syncLightbar = false;
+    bool zoneEmulation = true;
     bool verifyVirtualInput = false;
     asb::dualsense::TouchpadGestureProfile touchpadProfile =
         asb::dualsense::TouchpadGestureProfile::None;

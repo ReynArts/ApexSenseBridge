@@ -371,7 +371,8 @@ namespace ApexSenseBridge
                 100,
                 settings.Settings.VibrationStrengthPercent,
                 settings.Settings.Apex4GyroStrengthPercent,
-                settings.Settings.Apex4GyroYawStrengthPercent);
+                settings.Settings.Apex4GyroYawStrengthPercent,
+                settings.Settings.ZoneEmulation);
         }
 
         private static string Mark(bool selected)

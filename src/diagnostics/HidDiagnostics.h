@@ -2,11 +2,21 @@
 
 #include "core/DeviceInfo.h"
 
+#include <cstddef>
+#include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
 
 namespace asb::diagnostics {
+
+[[nodiscard]] std::vector<HidDeviceInfo> orderApexCandidates(std::vector<HidDeviceInfo> candidates);
+
+[[nodiscard]] std::optional<std::size_t> firstVerifiedCandidate(
+    std::size_t count,
+    const std::function<bool(std::size_t)>& verify,
+    const std::function<bool()>& shouldStop);
 
 [[nodiscard]] bool isRelevantHidDevice(const HidDeviceInfo& info);
 

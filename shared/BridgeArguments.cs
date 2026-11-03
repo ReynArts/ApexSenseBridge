@@ -16,6 +16,7 @@ namespace ApexSenseBridge.Common
             int vibrationStrengthPercent = 100,
             int apex4GyroStrengthPercent = 100,
             int apex4GyroYawStrengthPercent = 100,
+            bool zoneEmulation = true,
             bool enableUdpTriggers = false,
             int udpPort = 10026,
             IDictionary<string, string> rearButtonBindings = null)
@@ -47,6 +48,11 @@ namespace ApexSenseBridge.Common
             if (syncLightbar)
             {
                 arguments.Add("--sync-lightbar");
+            }
+
+            if (!zoneEmulation)
+            {
+                arguments.Add("--no-zone-emulation");
             }
 
             if (apexProfileSlot >= 1 && apexProfileSlot <= 4)

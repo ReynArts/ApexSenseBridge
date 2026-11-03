@@ -26,6 +26,21 @@ constexpr std::string_view kApex5UnresponsiveHint =
     "Flydigi Space Station, then retry; if it persists in XInput mode, switch "
     "the controller to DInput/Switch mode";
 
+constexpr auto kApex4IdentityRequestSpacing = std::chrono::milliseconds(1500);
+std::atomic<std::chrono::steady_clock::rep> gLastUnansweredApex4IdentityRequest{0};
+
+bool waitForApex4IdentitySlot(std::chrono::steady_clock::time_point nextRequest,
+                              const std::function<bool()>& shouldStop) {
+    for (;;) {
+        if (shouldStop && shouldStop()) return false;
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= nextRequest) return true;
+        std::this_thread::sleep_for((std::min)(
+            nextRequest - now,
+            std::chrono::steady_clock::duration(std::chrono::milliseconds(25))));
+    }
+}
+
 bool isApex4Candidate(const HidDeviceInfo& info) noexcept {
     return isApex4Product(info.vendorId, info.productId) &&
            info.usagePage == kApex4VendorUsagePage &&
@@ -186,6 +201,7 @@ Apex5Device& Apex5Device::operator=(Apex5Device&& other) noexcept {
     if (!writeMutex_) writeMutex_ = std::make_unique<std::recursive_mutex>();
     lastVendorWriteAt_ = other.lastVendorWriteAt_;
     lastTriggerWriteAt_ = other.lastTriggerWriteAt_;
+    apex4Pacer_ = other.apex4Pacer_;
     asyncPolicy_ = other.asyncPolicy_;
     {
         std::scoped_lock statsLock(feedbackStatsMutex_, other.feedbackStatsMutex_);
@@ -288,9 +304,18 @@ bool Apex5Device::verifyIdentity(std::string& error,
     // first shared vendor-interface reply. Retry Apex 5 identity exchanges so
     // that this benign race does not abort a bridge session. Apex 6 uses a
     // different dedicated interface and retains its single exchange.
-    const std::size_t maximumAttempts = apex4 ? 30 : (apex6Pro ? 1 : 3);
+    const std::size_t maximumAttempts = apex6Pro ? 1 : 3;
     Apex4IdentityObservation apex4Observation;
+    std::chrono::steady_clock::time_point lastApex4Request{
+        std::chrono::steady_clock::duration(
+            gLastUnansweredApex4IdentityRequest.load(std::memory_order_acquire))};
     for (std::size_t attempt = 0; attempt < maximumAttempts; ++attempt) {
+        if (apex4 && lastApex4Request.time_since_epoch().count() != 0 &&
+            !waitForApex4IdentitySlot(lastApex4Request + kApex4IdentityRequestSpacing,
+                                      shouldStop)) {
+            error = "Identity check cancelled by a stop request";
+            return false;
+        }
         if (shouldStop && shouldStop()) {
             error = "Identity check cancelled by a stop request";
             return false;
@@ -305,6 +330,7 @@ bool Apex5Device::verifyIdentity(std::string& error,
             if (!apex4 && !apex6Pro) error += "; " + std::string(kApex5UnresponsiveHint);
             return false;
         }
+        if (apex4) lastApex4Request = std::chrono::steady_clock::now();
 
         const auto deadline = std::chrono::steady_clock::now() +
             (apex4 ? kApex4AttemptTimeout : kApex5AttemptTimeout);
@@ -362,13 +388,16 @@ bool Apex5Device::verifyIdentity(std::string& error,
                 return false;
             }
             identity_ = *parsed;
+            if (apex4) gLastUnansweredApex4IdentityRequest.store(0, std::memory_order_release);
             return true;
         }
     }
 
     identityUnanswered_ = true;
     if (apex4) {
-        error = "No valid command 0xEC Apex 4 identity reply arrived after 30 attempts;" +
+        gLastUnansweredApex4IdentityRequest.store(
+            lastApex4Request.time_since_epoch().count(), std::memory_order_release);
+        error = "No valid command 0xEC Apex 4 identity reply arrived after 3 attempts spaced 1.5 s apart;" +
                 apex4Observation.describe() +
                 "; use USB/dongle DInput mode and close Flydigi Space Station before retrying";
     } else if (apex6Pro) {
@@ -438,17 +467,14 @@ bool Apex5Device::usesApex6Protocol() const noexcept {
 }
 
 bool Apex5Device::writeSpacedOutputReport(
-    std::span<const std::uint8_t> report, std::string& error) {
-    constexpr auto kVendorWriteSpacing = std::chrono::milliseconds(25);
+    std::span<const std::uint8_t> report, Apex4WriteKind kind, std::string& error) {
     const auto lock = acquireWriteLock();
-    if (lastVendorWriteAt_.time_since_epoch().count() != 0) {
-        const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
-        if (since < kVendorWriteSpacing) {
-            std::this_thread::sleep_for(kVendorWriteSpacing - since);
-        }
-    }
+    const auto readyAt = apex4Pacer_.earliest(kind);
+    const auto now = std::chrono::steady_clock::now();
+    if (now < readyAt) std::this_thread::sleep_for(readyAt - now);
     const bool ok = transport_->writeOutputReport(report, error);
     lastVendorWriteAt_ = std::chrono::steady_clock::now();
+    apex4Pacer_.record(kind, lastVendorWriteAt_);
     return ok;
 }
 
@@ -495,7 +521,8 @@ bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     }
     const auto lock = acquireWriteLock();
     if (identity_->isApex4()) {
-        return writeSpacedOutputReport(buildApex4ForceTrigger(effect), error);
+        return writeSpacedOutputReport(buildApex4ForceTrigger(effect), Apex4WriteKind::Trigger,
+                                       error);
     }
     const auto report = buildForceTrigger(effect, true);
     return writeFeedbackReport(report, true, error);
@@ -511,7 +538,8 @@ bool Apex5Device::setTriggerRaw(const ForceTriggerCommand& command, std::string&
     }
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
-        ? writeSpacedOutputReport(buildApex4ForceTriggerRaw(command), error)
+        ? writeSpacedOutputReport(buildApex4ForceTriggerRaw(command), Apex4WriteKind::Trigger,
+                                  error)
         : writeFeedbackReport(buildForceTriggerRaw(command, true), true, error);
 }
 
@@ -525,7 +553,7 @@ bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
     }
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
-        ? writeSpacedOutputReport(buildApex4Normal(side), error)
+        ? writeSpacedOutputReport(buildApex4Normal(side), Apex4WriteKind::Trigger, error)
         : writeFeedbackReport(buildNormal(side), true, error);
 }
 
@@ -565,7 +593,8 @@ bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
         ? writeSpacedOutputReport(
-              buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor), error)
+              buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor),
+              Apex4WriteKind::Rumble, error)
         : writeFeedbackReport(
               buildRumble(lowFrequencyMotor, highFrequencyMotor), false, error);
 }
@@ -861,7 +890,8 @@ bool Apex5Device::requestBatteryRefresh(std::string& error) {
 std::optional<AsyncWritePolicy> Apex5Device::asyncWritePolicy() const noexcept {
     if (!identity_) return std::nullopt;
     if (identity_->isApex4()) {
-        return AsyncWritePolicy{std::chrono::milliseconds(25), std::chrono::milliseconds(0)};
+        return AsyncWritePolicy{(std::min)(apex4Pacer_.rumbleSpacing(), kApex4TriggerWriteSpacing),
+                                std::chrono::milliseconds(0), true};
     }
     if (identity_->isApex5() && !identity_->isWired()) {
         return AsyncWritePolicy{std::chrono::milliseconds(10), std::chrono::milliseconds(30)};
@@ -1003,26 +1033,46 @@ void Apex5Device::writerLoop() {
         std::optional<std::pair<std::uint8_t, std::uint8_t>> rumble;
         auto queuedAt = std::chrono::steady_clock::time_point{};
         auto rumbleHeldUntil = std::chrono::steady_clock::time_point{};
+        auto pacedUntil = std::chrono::steady_clock::time_point{};
+        bool pacedStop = false;
         {
             std::lock_guard lock(queueMutex_);
             if (writerStopping_) return;
             // Triggers go ahead of rumble unless rumble has waited too long.
             constexpr auto kRumbleMaximumWait = std::chrono::milliseconds(100);
             const auto now = std::chrono::steady_clock::now();
-            const bool rumbleFirst = !(pendingLeftTrigger_ || pendingRightTrigger_) ||
+            const bool rumbleStop = asyncPolicy_.rumbleStopFirst && pendingRumble_ &&
+                pendingRumble_->first == 0 && pendingRumble_->second == 0;
+            const bool rumbleFirst = rumbleStop ||
+                !(pendingLeftTrigger_ || pendingRightTrigger_) ||
                 now - rumblePendingSince_ > kRumbleMaximumWait;
             const auto holdoffEnds = (std::min)(
                 lastTriggerWriteAt_ + asyncPolicy_.rumbleHoldoffAfterTrigger,
                 rumblePendingSince_ + kRumbleMaximumWait);
             if (pendingRumble_ && now < holdoffEnds) rumbleHeldUntil = holdoffEnds;
+            const unsigned firstSlot =
+                rumbleStop && rumbleHeldUntil == std::chrono::steady_clock::time_point{}
+                    ? 2u : nextSlot_;
+            const bool apex4 = identity_ && identity_->isApex4();
+            const auto pacingHolds = [&](Apex4WriteKind kind, bool stop) {
+                if (!apex4) return false;
+                const auto readyAt = apex4Pacer_.earliest(kind);
+                if (now >= readyAt) return false;
+                pacedUntil = readyAt;
+                pacedStop = stop;
+                return true;
+            };
             for (unsigned attempt = 0; attempt < 3; ++attempt) {
-                const unsigned slot = (nextSlot_ + attempt) % 3;
+                const unsigned slot = (firstSlot + attempt) % 3;
                 if (slot == 0 && pendingLeftTrigger_) {
+                    if (pacingHolds(Apex4WriteKind::Trigger, false)) break;
                     trigger = std::exchange(pendingLeftTrigger_, std::nullopt);
                 } else if (slot == 1 && pendingRightTrigger_) {
+                    if (pacingHolds(Apex4WriteKind::Trigger, false)) break;
                     trigger = std::exchange(pendingRightTrigger_, std::nullopt);
                 } else if (slot == 2 && pendingRumble_ && rumbleFirst &&
                            rumbleHeldUntil == std::chrono::steady_clock::time_point{}) {
+                    if (pacingHolds(Apex4WriteKind::Rumble, rumbleStop)) break;
                     rumble = std::exchange(pendingRumble_, std::nullopt);
                 } else {
                     continue;
@@ -1035,6 +1085,14 @@ void Apex5Device::writerLoop() {
         if (!trigger && !rumble) {
             if (writeLock.owns_lock()) writeLock.unlock();
             std::unique_lock lock(queueMutex_);
+            if (pacedUntil != std::chrono::steady_clock::time_point{}) {
+                queueSignal_.wait_until(lock, pacedUntil, [this, pacedStop] {
+                    return writerStopping_ ||
+                           (!pacedStop && asyncPolicy_.rumbleStopFirst && pendingRumble_ &&
+                            pendingRumble_->first == 0 && pendingRumble_->second == 0);
+                });
+                continue;
+            }
             queueSignal_.wait_until(lock, rumbleHeldUntil, [this] {
                 return writerStopping_ || pendingLeftTrigger_ || pendingRightTrigger_;
             });

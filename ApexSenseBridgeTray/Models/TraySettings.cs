@@ -34,6 +34,7 @@ namespace ApexSenseBridgeTray.Models
         public bool EnableNotifications { get; set; }
         public bool EnableRumble { get; set; }
         public bool SyncLightbar { get; set; }
+        public bool ZoneEmulation { get; set; }
         public int HapticThresholdPercent { get; set; }
         public int TriggerStrengthPercent { get; set; }
         public int VibrationStrengthPercent { get; set; }
@@ -121,6 +122,7 @@ namespace ApexSenseBridgeTray.Models
             EnableNotifications = true;
             EnableRumble = true;
             SyncLightbar = false;
+            ZoneEmulation = true;
             HapticThresholdPercent = 12;
             TriggerStrengthPercent = 100;
             VibrationStrengthPercent = 100;

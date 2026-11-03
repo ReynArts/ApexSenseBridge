@@ -23,6 +23,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="190" />
@@ -141,15 +142,22 @@
                      MaxWidth="100" HorizontalAlignment="Left"
                      Text="{Binding Settings.InitializationTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
 
+            <TextBlock Grid.Row="10" Grid.Column="0" Margin="0,4,12,10"
+                       VerticalAlignment="Center" Text="Gâchettes APEX 5" />
+            <CheckBox x:Name="ChkZoneEmulation" Grid.Row="10" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,4,0,10"
+                      IsChecked="{Binding Settings.ZoneEmulation}"
+                      Content="Émuler les effets de gâchette DualSense (force par zone, vibration, rythmes)"
+                      ToolTip="Désactiver pour revenir au comportement précédent (un seul profil de gâchette par effet)." />
+
             <!-- Enabled Profiles Header -->
-            <StackPanel Grid.Row="10" Grid.ColumnSpan="3" Margin="0,12,0,8">
+            <StackPanel Grid.Row="11" Grid.ColumnSpan="3" Margin="0,12,0,8">
                 <TextBlock FontWeight="SemiBold" Text="Overrides manuels" />
                 <TextBlock Margin="0,4,0,0" Opacity="0.75" TextWrapping="Wrap"
                            Text="La liste reste vide quand tout est automatique. Clic droit sur un jeu → ApexSenseBridge pour régler séparément l’activation, le remapping tactile et le profil matériel APEX." />
             </StackPanel>
 
             <!-- Profiles Grid -->
-            <DataGrid Grid.Row="11" Grid.ColumnSpan="3" MinHeight="180"
+            <DataGrid Grid.Row="12" Grid.ColumnSpan="3" MinHeight="180"
                       AutoGenerateColumns="False" CanUserAddRows="False"
                       CanUserDeleteRows="False" IsReadOnly="True"
                       ItemsSource="{Binding Settings.Profiles}">

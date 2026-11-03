@@ -87,6 +87,14 @@ foreach ($name in @(
         (Join-Path $stagingFull "Drivers\$name")
 }
 
+$driverManifest = Get-Content -LiteralPath (Join-Path $projectRoot "installer\driver-manifest.json") -Raw |
+    ConvertFrom-Json
+foreach ($package in @($driverManifest.'usbip-win2', $driverManifest.HidHide)) {
+    $packaged = Join-Path $stagingFull ("Drivers\" + $package.installer)
+    if ((Get-FileHash -LiteralPath $packaged -Algorithm SHA256).Hash -ne $package.sha256) {
+        Fail "$($package.installer) does not match the SHA-256 pinned in installer\driver-manifest.json"
+    }
+}
 foreach ($name in @(
     "Install-Drivers.cmd",
     "Install-Drivers.ps1",

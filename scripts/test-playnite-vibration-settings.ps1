@@ -35,12 +35,20 @@ $box.Text = "150"
 $box.GetBindingExpression([Windows.Controls.TextBox]::TextProperty).UpdateSource()
 if ($settings.VibrationStrengthPercent -ne 150) { throw "Playnite did not update the gain setting." }
 $builder = $plugin.GetType("ApexSenseBridge.Common.BridgeArguments").GetMethod("Build")
-$arguments = $builder.Invoke($null, @("none", $true, [int]12, $false, [int]0, [int]100, [int]$settings.VibrationStrengthPercent, [int]100, [int]100))
+$arguments = $builder.Invoke($null, @("none", $true, [int]12, $false, [int]0, [int]100, [int]$settings.VibrationStrengthPercent, [int]100, [int]100, $true))
 if (-not $arguments.Contains("--vibration-strength 150")) { throw "Playnite arguments lost the gain." }
+if ($arguments.Contains("--no-zone-emulation")) { throw "Playnite arguments disabled the trigger emulation by default." }
+if ($settings.ZoneEmulation -ne $true -or $legacy.ZoneEmulation -ne $true) { throw "Trigger emulation is not enabled by default." }
+$settings.ZoneEmulation = $false
+$disabled = $deserialize.Invoke($serializer, @($serializer.Serialize($settings), $settingsType))
+if ($disabled.ZoneEmulation -ne $false) { throw "Disabled trigger emulation did not survive persistence." }
+$checkbox = $view.FindName("ChkZoneEmulation")
+if ($checkbox.IsChecked -ne $false) { throw "Playnite did not display the disabled trigger emulation." }
 $enginePluginType = $plugin.GetType("ApexSenseBridge.ApexSenseBridge")
 $enginePlugin = [Runtime.Serialization.FormatterServices]::GetUninitializedObject($enginePluginType)
 $enginePluginType.GetField("settings", $flags).SetValue($enginePlugin, $vm)
 $profile = [Activator]::CreateInstance($plugin.GetType("ApexSenseBridge.GameBridgeProfile"))
 $launchArguments = $enginePluginType.GetMethod("BuildBridgeArguments", $flags).Invoke($enginePlugin, @($profile))
 if (-not $launchArguments.Contains("--vibration-strength 150")) { throw "Actual Playnite launch lost the gain." }
-Write-Output "PASS: Playnite gain defaults, legacy migration, persistence, WPF binding and engine arguments."
+if (-not $launchArguments.Contains("--no-zone-emulation")) { throw "Actual Playnite launch ignored the disabled trigger emulation." }
+Write-Output "PASS: Playnite gain and trigger emulation defaults, legacy migration, persistence, WPF binding and engine arguments."

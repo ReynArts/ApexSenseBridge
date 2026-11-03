@@ -62,7 +62,8 @@ function Assert-ArtifactVersion([string]$RelativePath) {
         Fail "release artifact is missing: $RelativePath"
     }
     # Inno Setup reserves a fixed-width string and pads ProductVersion with spaces.
-    $productVersion = (Get-Item -LiteralPath $path).VersionInfo.ProductVersion.Trim()
+    $productVersion = ([string](Get-Item -LiteralPath $path).VersionInfo.ProductVersion).Trim(
+        [char[]](0, 9, 10, 11, 12, 13, 32, 133, 160))
     $actual = Get-CoreVersion $productVersion
     if ($actual -ne $script:Version) {
         Fail "$RelativePath has product version '$actual', expected '$script:Version'"

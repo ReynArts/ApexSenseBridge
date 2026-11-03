@@ -1,3 +1,4 @@
+using ApexSenseBridge.Common;
 using ApexSenseBridgeTray.Common;
 using ApexSenseBridgeTray.Models;
 using System;
@@ -10,10 +11,10 @@ using System.Threading;
 
 namespace ApexSenseBridgeTray.Services
 {
+    internal delegate ProcessLivenessState ProcessLivenessProbe(uint processId, long expectedCreationUtcTicks, out long creationUtcTicks);
+
     public class ProcessMonitorService : IDisposable
     {
-        private static readonly TimeSpan ProcessExitGracePeriod = TimeSpan.FromSeconds(2);
-
         private readonly CloudGameListService gameListService;
         private readonly EngineSessionManager sessionManager;
         private readonly ExecutableLearningService learningService;
@@ -27,6 +28,13 @@ namespace ApexSenseBridgeTray.Services
         private readonly GameProcessSessionTracker processSession = new GameProcessSessionTracker();
         private readonly StartRetryPolicy startRetries = new StartRetryPolicy();
         private readonly Dictionary<uint, Timer> quickRetryTimers = new Dictionary<uint, Timer>();
+        private readonly PreparedLaunchTracker preparedLaunch = new PreparedLaunchTracker();
+        internal Func<uint[]> processIdSource = NativeMethods.GetProcessIds;
+        internal Func<uint, string> processPathSource = NativeMethods.GetProcessPath;
+        internal Func<DateTime> retryClock = () => DateTime.UtcNow;
+        internal ProcessLivenessProbe livenessSource = ProcessLiveness.Check;
+        private readonly Dictionary<uint, long> trackedCreationTicks = new Dictionary<uint, long>();
+        private readonly HashSet<uint> unclassifiedTrackedProcesses = new HashSet<uint>();
 
         private ManagementEventWatcher startWatcher;
         private ManagementEventWatcher stopWatcher;
@@ -37,15 +45,37 @@ namespace ApexSenseBridgeTray.Services
         private bool recoveryWasBlocked;
         private DateTime nextProcessSweepUtc;
         private DateTime nextForegroundCheckUtc;
+        private DateTime nextPreparedLaunchCheckUtc;
 
         public event Action<SupportedGame, string> GameDetected;
         public event Action<string> GameExited;
         public event Action<SupportedGame> ManualFixRequired;
-        public event Action<string> AutomaticStartPaused;
+        public event Action<string, string> AutomaticStartPaused;
 
         public bool HasPausedAutomaticStart
         {
-            get { lock (retryCooldowns) return startRetries.HasPausedProcess; }
+            get { lock (retryCooldowns) return startRetries.HasPausedGame; }
+        }
+
+        public bool HasPreparedLaunch
+        {
+            get { lock (sessionStateLock) return preparedLaunch.IsActive; }
+        }
+
+        public void TrackPreparedLaunch(string executablePath, string sessionTitle, uint processId)
+        {
+            if (string.IsNullOrWhiteSpace(executablePath)) return;
+            lock (sessionStateLock) preparedLaunch.Begin(executablePath, sessionTitle, processId, DateTime.UtcNow);
+            nextPreparedLaunchCheckUtc = DateTime.UtcNow.AddSeconds(1);
+            LogDetection(string.Format(
+                CultureInfo.InvariantCulture,
+                "Tracking prepared launch '{0}' (PID {1}). The bridge stops {2:F0} s after its last process exits.",
+                executablePath, processId, PreparedLaunchTracker.ExitGracePeriod.TotalSeconds));
+        }
+
+        public void CancelPreparedLaunch()
+        {
+            lock (sessionStateLock) preparedLaunch.Clear();
         }
 
         public void RetryPausedStarts()
@@ -222,6 +252,13 @@ namespace ApexSenseBridgeTray.Services
                 PruneExitedTrackedProcesses();
                 PruneStartRetries();
 
+                if (!IsManualBridgeMode()) CancelPreparedLaunch();
+                else if (DateTime.UtcNow >= nextPreparedLaunchCheckUtc)
+                {
+                    nextPreparedLaunchCheckUtc = DateTime.UtcNow.AddSeconds(1);
+                    if (TryEndPreparedLaunch(DateTime.UtcNow)) return;
+                }
+
                 if (settings == null || !settings.AutoDetectGames)
                 {
                     if (!IsManualBridgeMode() && sessionManager.AutomaticActivationBlocked)
@@ -239,10 +276,7 @@ namespace ApexSenseBridgeTray.Services
                     ResetTrackedSessionOnly();
                 }
 
-                if (!passiveLearning && HasTrackedSession() && !sessionManager.IsSessionActive && !sessionManager.AutomaticActivationBlocked)
-                {
-                    ResetTrackedSessionOnly();
-                }
+                if (!passiveLearning) ReleaseEndedSession();
 
                 if ((passiveLearning || !HasTrackedSession() || IsAwaitingReplacement()) &&
                     DateTime.UtcNow >= nextProcessSweepUtc)
@@ -311,15 +345,7 @@ namespace ApexSenseBridgeTray.Services
                         string fileName = process.ProcessName + ".exe";
                         if (IsSystemOrIgnoredProcess(fileName)) continue;
 
-                        long startedAt;
-                        try
-                        {
-                            startedAt = process.StartTime.ToUniversalTime().Ticks;
-                        }
-                        catch
-                        {
-                            startedAt = 0;
-                        }
+                        long startedAt = ProcessLiveness.TryGetCreationTimeUtcTicks(pid);
                         lock (evaluatedProcesses)
                         {
                             evaluatedProcesses[pid] = startedAt;
@@ -402,7 +428,7 @@ namespace ApexSenseBridgeTray.Services
                 {
                     if (retryCooldowns.ContainsKey(pid))
                     {
-                        if (DateTime.UtcNow < retryCooldowns[pid])
+                        if (retryClock() < retryCooldowns[pid])
                         {
                             return;
                         }
@@ -438,7 +464,12 @@ namespace ApexSenseBridgeTray.Services
 
             SupportedGame matchedGame;
             string matchedBy;
-            if (TryResolveGame(exePath, exeTitle, folderName, fileName, out matchedGame, out matchedBy))
+            bool matchedByInstallFolder = false;
+            if (!TryResolveGame(exePath, exeTitle, folderName, fileName, out matchedGame, out matchedBy))
+            {
+                matchedByInstallFolder = TryMatchActiveInstallFolder(exePath, out matchedGame, out matchedBy);
+            }
+            if (matchedGame != null)
             {
                 if (sessionManager.AutomaticActivationBlocked)
                 {
@@ -491,7 +522,7 @@ namespace ApexSenseBridgeTray.Services
                     {
                         HandleGameDetected(
                             matchedGame, pid, exePath, matchedBy, detectionStartedAt,
-                            processEventUtc, detectionSource);
+                            processEventUtc, detectionSource, !matchedByInstallFolder);
                     }
                 }
                 else
@@ -633,7 +664,8 @@ namespace ApexSenseBridgeTray.Services
             string matchedBy,
             long detectionStartedAt,
             DateTime? processEventUtc,
-            string detectionSource)
+            string detectionSource,
+            bool learnExecutable = true)
         {
             if (game == null) return;
 
@@ -649,10 +681,7 @@ namespace ApexSenseBridgeTray.Services
                 {
                     if (isStoppingDetectedSession || sessionManager.AutomaticActivationBlocked) return;
 
-                    if (processSession.HasSession && !sessionManager.IsSessionActive)
-                    {
-                        processSession.Clear();
-                    }
+                    ReleaseEndedSession();
 
                     if (processSession.HasSession)
                     {
@@ -671,6 +700,7 @@ namespace ApexSenseBridgeTray.Services
                     }
                     else
                     {
+                        if (IsStartDeferred(game, pid)) return;
                         long startSessionCalledAt = Stopwatch.GetTimestamp();
                         string error;
                         int apexProfileSlot = settings != null
@@ -679,7 +709,7 @@ namespace ApexSenseBridgeTray.Services
                         // Learning is about the stability of the identified game
                         // process. It must not wait for controller initialization,
                         // which can legitimately fail or take up to the timeout.
-                        BeginExecutableObservation(pid, exePath, game, matchedBy);
+                        if (learnExecutable) BeginExecutableObservation(pid, exePath, game, matchedBy);
                         int exitCode;
                         if (!sessionManager.StartSession(
                                 game.Title, game.Profile, settings,
@@ -688,7 +718,7 @@ namespace ApexSenseBridgeTray.Services
                             ScheduleStartRetry(game, pid, exitCode, error);
                             return;
                         }
-                        ForgetStartFailures(pid);
+                        lock (retryCooldowns) retryCooldowns.Remove(pid);
 
                         long readyAt = Stopwatch.GetTimestamp();
                         candidateToStartMs = ElapsedMilliseconds(
@@ -702,7 +732,7 @@ namespace ApexSenseBridgeTray.Services
                     }
                 }
 
-                BeginExecutableObservation(pid, exePath, game, matchedBy);
+                if (learnExecutable) BeginExecutableObservation(pid, exePath, game, matchedBy);
 
                 if (attachedToExistingSession)
                 {
@@ -754,8 +784,9 @@ namespace ApexSenseBridgeTray.Services
             bool sessionOwnedElsewhere = SessionOwnedElsewhere();
             lock (retryCooldowns)
             {
-                if (!sessionOwnedElsewhere) delay = startRetries.RecordFailure(pid, exitCode, error);
-                var retryAt = delay.HasValue ? DateTime.UtcNow.Add(delay.Value) : DateTime.MaxValue;
+                var now = retryClock();
+                if (!sessionOwnedElsewhere) delay = startRetries.RecordFailure(GetRetryKey(game), exitCode, error, now, pid);
+                var retryAt = delay.HasValue ? now.Add(delay.Value) : DateTime.MaxValue;
                 retryCooldowns[pid] = retryAt;
                 if (delay.HasValue && delay.Value < StartRetryPolicy.RetryDelay)
                 {
@@ -772,15 +803,142 @@ namespace ApexSenseBridgeTray.Services
             {
                 evaluatedProcesses.Remove(pid);
             }
-            if (!delay.HasValue)
+            if (!delay.HasValue) NotifyAutomaticStartPaused(game, pid, exitCode, error);
+        }
+
+        private void NotifyAutomaticStartPaused(SupportedGame game, uint pid, int exitCode, string error)
+        {
+            LogDetection(string.Format(
+                CultureInfo.InvariantCulture,
+                "Paused automatic starts for '{1}' (PID {0}) after {2} identical failures within {3:F0} s (code {4}): {5}",
+                pid, game.Title, StartRetryPolicy.IdenticalFailureLimit,
+                StartRetryPolicy.IdenticalFailureWindow.TotalSeconds, exitCode, error));
+            var handler = AutomaticStartPaused;
+            if (handler != null) handler(game.Title, error);
+        }
+
+        private bool IsStartDeferred(SupportedGame game, uint pid)
+        {
+            DateTime retryAt;
+            lock (retryCooldowns)
             {
-                LogDetection(string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Paused automatic starts for PID {0} ('{1}') after {2} identical failures (code {3}): {4}",
-                    pid, game.Title, StartRetryPolicy.IdenticalFailureLimit, exitCode, error));
-                var handler = AutomaticStartPaused;
-                if (handler != null) handler(game.Title);
+                var key = GetRetryKey(game);
+                if (!startRetries.IsDeferred(key, retryClock(), out retryAt)) return false;
+                startRetries.Observe(key, pid);
+                retryCooldowns[pid] = retryAt;
             }
+            lock (evaluatedProcesses)
+            {
+                evaluatedProcesses.Remove(pid);
+            }
+            LogDetection(string.Format(
+                CultureInfo.InvariantCulture,
+                "Deferred automatic start for PID {0} ('{1}') until {2}: an earlier start of this game failed.",
+                pid, game.Title,
+                retryAt == DateTime.MaxValue ? "Retry" : retryAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture)));
+            return true;
+        }
+
+        private void ReleaseEndedSession()
+        {
+            SupportedGame game;
+            uint[] processIds;
+            lock (sessionStateLock)
+            {
+                if (!processSession.HasSession || sessionManager.IsSessionActive ||
+                    sessionManager.AutomaticActivationBlocked) return;
+                game = processSession.ActiveGame;
+                processIds = processSession.GetProcessIds();
+                processSession.Clear();
+            }
+
+            int exitCode;
+            string reason;
+            if (sessionManager.TryTakeUnexpectedExit(out exitCode, out reason) &&
+                !sessionManager.AutomaticActivationBlocked)
+            {
+                RecordSessionFailure(game, processIds, exitCode, reason);
+            }
+
+            lock (evaluatedProcesses)
+            {
+                evaluatedProcesses.Clear();
+            }
+            nextProcessSweepUtc = DateTime.MinValue;
+        }
+
+        private void RecordSessionFailure(SupportedGame game, uint[] processIds, int exitCode, string reason)
+        {
+            TimeSpan? delay;
+            lock (retryCooldowns)
+            {
+                var now = retryClock();
+                delay = startRetries.RecordFailure(GetRetryKey(game), exitCode, reason, now, processIds);
+                var retryAt = delay.HasValue ? now.Add(delay.Value) : DateTime.MaxValue;
+                foreach (var pid in processIds) retryCooldowns[pid] = retryAt;
+            }
+            LogDetection(string.Format(
+                CultureInfo.InvariantCulture,
+                "The bridge for '{0}' stopped unexpectedly (code {1}): {2}. Next automatic start: {3}",
+                game.Title, exitCode, reason,
+                delay.HasValue ? "in " + delay.Value.TotalSeconds.ToString("F0", CultureInfo.InvariantCulture) + " s" : "paused"));
+            if (!delay.HasValue)
+                NotifyAutomaticStartPaused(game, processIds.Length > 0 ? processIds[0] : 0, exitCode, reason);
+        }
+
+        private static string GetRetryKey(SupportedGame game)
+        {
+            if (game == null) return string.Empty;
+            var identity = !string.IsNullOrWhiteSpace(game.Normalized) ? game.Normalized : game.Title;
+            return CloudGameListService.Normalize(identity ?? string.Empty);
+        }
+
+        private bool TryMatchActiveInstallFolder(string exePath, out SupportedGame game, out string matchedBy)
+        {
+            lock (sessionStateLock)
+            {
+                if (processSession.IsInInstallFolder(exePath))
+                {
+                    game = processSession.ActiveGame;
+                    matchedBy = "install folder '" + processSession.InstallFolder + "' of the active game";
+                    return true;
+                }
+            }
+            game = null;
+            matchedBy = null;
+            return false;
+        }
+
+        internal bool TryEndPreparedLaunch(DateTime nowUtc)
+        {
+            string path;
+            string title;
+            lock (sessionStateLock)
+            {
+                if (!preparedLaunch.IsActive) return false;
+                var running = processIdSource();
+                if (running == null || running.Length == 0) return false;
+                preparedLaunch.Update(new HashSet<uint>(running), processPathSource, nowUtc);
+                if (!preparedLaunch.ShouldEnd(nowUtc)) return false;
+                path = preparedLaunch.ExecutablePath;
+                title = preparedLaunch.SessionTitle;
+                preparedLaunch.Clear();
+            }
+
+            bool sessionPresent = sessionManager.IsSessionActive || sessionManager.IsBusy;
+            if (sessionPresent && !string.Equals(sessionManager.ActiveGameTitle, title, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            LogDetection(string.Format(
+                CultureInfo.InvariantCulture,
+                "The game started with the bridge ('{0}') has no process left after {1:F0} s; leaving forced activation.",
+                path, PreparedLaunchTracker.ExitGracePeriod.TotalSeconds));
+            if (settings != null) settings.ForcedProfile = "none";
+            if (sessionManager.IsSessionActive) sessionManager.StopSession("The game started with the bridge has exited");
+            var handler = GameExited;
+            if (handler != null) handler(path);
+            ForceCheck();
+            return true;
         }
 
         private void ReleaseRetryCooldown(uint pid, DateTime scheduled, Timer timer)
@@ -829,7 +987,7 @@ namespace ApexSenseBridgeTray.Services
                     quickRetryTimers[pid].Dispose();
                     quickRetryTimers.Remove(pid);
                 }
-                startRetries.Retain(runningProcessIds);
+                startRetries.Retain(runningProcessIds, retryClock());
             }
         }
 
@@ -837,7 +995,7 @@ namespace ApexSenseBridgeTray.Services
         {
             lock (retryCooldowns)
             {
-                startRetries.Forget(pid);
+                startRetries.Forget(pid, retryClock());
                 retryCooldowns.Remove(pid);
             }
         }
@@ -848,14 +1006,25 @@ namespace ApexSenseBridgeTray.Services
             {
                 bool removed;
                 bool awaitingReplacement;
+                TimeSpan grace;
                 lock (sessionStateLock)
                 {
-                    removed = processSession.Remove(
-                        processId, DateTime.UtcNow, ProcessExitGracePeriod);
+                    var now = DateTime.UtcNow;
+                    grace = processSession.GetExitGracePeriod(now);
+                    removed = processSession.Remove(processId, now, grace);
                     awaitingReplacement = processSession.IsAwaitingReplacement;
                 }
 
                 if (!removed) return;
+
+                if (awaitingReplacement)
+                {
+                    lock (evaluatedProcesses)
+                    {
+                        evaluatedProcesses.Clear();
+                    }
+                    nextProcessSweepUtc = DateTime.MinValue;
+                }
 
                 if (learningService != null)
                 {
@@ -863,10 +1032,11 @@ namespace ApexSenseBridgeTray.Services
                 }
 
                 LogDetection(string.Format(
+                    CultureInfo.InvariantCulture,
                     "Detached PID {0}: {1}. Waiting for same-game replacement: {2}",
                     processId,
                     reason,
-                    awaitingReplacement ? "yes" : "no"));
+                    awaitingReplacement ? "yes (" + grace.TotalSeconds.ToString("F0", CultureInfo.InvariantCulture) + " s)" : "no"));
             }
             catch (Exception ex)
             {
@@ -922,7 +1092,7 @@ namespace ApexSenseBridgeTray.Services
             string detectionMethod)
         {
             if (learningService == null) return;
-            var observedStartTicks = TryGetProcessStartTimeTicks(processId);
+            var observedStartTicks = ProcessLiveness.TryGetCreationTimeUtcTicks(processId);
             learningService.BeginObservation(
                 processId,
                 executablePath,
@@ -943,9 +1113,8 @@ namespace ApexSenseBridgeTray.Services
                 return false;
             }
 
-            var currentStartTicks = TryGetProcessStartTimeTicks(processId);
-            if (observedStartTicks > 0 && currentStartTicks > 0 &&
-                observedStartTicks != currentStartTicks)
+            var liveness = ProcessLiveness.Check(processId, observedStartTicks);
+            if (liveness == ProcessLivenessState.Exited || liveness == ProcessLivenessState.Replaced)
             {
                 return false;
             }
@@ -965,8 +1134,7 @@ namespace ApexSenseBridgeTray.Services
             {
                 using (var process = Process.GetProcessById((int)processId))
                 {
-                    if (process.HasExited ||
-                        !string.Equals(
+                    if (!string.Equals(
                             process.ProcessName,
                             Path.GetFileNameWithoutExtension(executablePath),
                             StringComparison.OrdinalIgnoreCase))
@@ -993,21 +1161,6 @@ namespace ApexSenseBridgeTray.Services
                 fileName);
         }
 
-        private static long TryGetProcessStartTimeTicks(uint processId)
-        {
-            try
-            {
-                using (var process = Process.GetProcessById((int)processId))
-                {
-                    return process.StartTime.ToUniversalTime().Ticks;
-                }
-            }
-            catch
-            {
-                return 0;
-            }
-        }
-
         private bool IsManualBridgeMode()
         {
             return settings != null &&
@@ -1021,35 +1174,62 @@ namespace ApexSenseBridgeTray.Services
             lock (sessionStateLock)
             {
                 trackedProcessIds = processSession.GetProcessIds();
+                RetainTrackedIdentities(trackedProcessIds);
             }
 
             foreach (var processId in trackedProcessIds)
             {
-                bool hasExited = false;
-                string reason = "Process terminated";
-                try
+                long expectedCreationTicks;
+                lock (sessionStateLock)
                 {
-                    using (var process = Process.GetProcessById((int)processId))
-                    {
-                        hasExited = process.HasExited;
-                    }
-                }
-                catch (ArgumentException)
-                {
-                    hasExited = true;
-                    reason = "Process exited";
-                }
-                catch (Exception)
-                {
-                    hasExited = true;
-                    reason = "Process inaccessible";
+                    trackedCreationTicks.TryGetValue(processId, out expectedCreationTicks);
                 }
 
-                if (hasExited)
+                long creationTicks;
+                var state = livenessSource(processId, expectedCreationTicks, out creationTicks);
+                if (state == ProcessLivenessState.Alive)
                 {
-                    HandleProcessStopped(processId, reason);
+                    if (expectedCreationTicks == 0 && creationTicks > 0)
+                    {
+                        lock (sessionStateLock)
+                        {
+                            if (processSession.Contains(processId)) trackedCreationTicks[processId] = creationTicks;
+                        }
+                    }
+                    continue;
                 }
+
+                if (state == ProcessLivenessState.Unknown)
+                {
+                    bool firstReport;
+                    lock (sessionStateLock)
+                    {
+                        firstReport = unclassifiedTrackedProcesses.Add(processId);
+                    }
+                    if (firstReport)
+                    {
+                        LogDetection(string.Format(
+                            CultureInfo.InvariantCulture,
+                            "PID {0} liveness could not be determined; keeping it attached.",
+                            processId));
+                    }
+                    continue;
+                }
+
+                HandleProcessStopped(
+                    processId,
+                    state == ProcessLivenessState.Replaced ? "Process ID reused by another process" : "Process exited");
             }
+        }
+
+        private void RetainTrackedIdentities(uint[] trackedProcessIds)
+        {
+            var tracked = new HashSet<uint>(trackedProcessIds);
+            var stale = new List<uint>();
+            foreach (var processId in trackedCreationTicks.Keys)
+                if (!tracked.Contains(processId)) stale.Add(processId);
+            foreach (var processId in stale) trackedCreationTicks.Remove(processId);
+            unclassifiedTrackedProcesses.RemoveWhere(processId => !tracked.Contains(processId));
         }
 
         private bool IsTrackedProcess(uint processId)

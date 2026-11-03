@@ -34,7 +34,7 @@ try {
     # Only the identified model's capabilities are reachable with the D-pad.
     $expected = @{
         "apex4" = "RowTriggerStrength,RowVibrationStrength,RowGyroStrength,RowGyroYawStrength,RowVibrationThreshold,RowGripVibrations"
-        "apex5" = "TileSettingSyncLightbar,RowTriggerStrength,RowVibrationStrength,RowVibrationThreshold,RowGripVibrations"
+        "apex5" = "TileSettingSyncLightbar,TileSettingZoneEmulation,RowTriggerStrength,RowVibrationStrength,RowVibrationThreshold,RowGripVibrations"
         "apex6" = "RowTriggerStrength,RowVibrationStrength,RowGripVibrations"
         "disconnected" = ""
     }

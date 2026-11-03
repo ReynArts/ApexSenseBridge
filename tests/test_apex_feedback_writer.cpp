@@ -206,6 +206,231 @@ void testContinuousTriggersDoNotStarveRumble(bool apex4) {
     assert(rumblesWhileFeeding >= 2);
 }
 
+bool isApex4RumbleStop(const RecordedWrite& write) {
+    return isRumbleWrite(true, write.bytes) && write.bytes.size() > 3 &&
+           write.bytes[2] == 0 && write.bytes[3] == 0;
+}
+
+void testApex4RumbleStopSkipsTriggerQueue() {
+    auto* transport = new RecordingTransport(true);
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    const auto policy = device.asyncWritePolicy();
+    assert(policy.has_value() && policy->spacing == milliseconds(10) && policy->rumbleStopFirst);
+    assert(device.startAsyncWrites(error));
+    const auto baseline = transport->writeCount();
+
+    std::atomic<bool> feeding{true};
+    std::atomic<unsigned> updates{0};
+    const auto feedTriggers = [&device, &updates] {
+        const auto value = static_cast<std::uint8_t>(++updates);
+        std::string ignored;
+        assert(device.queueTriggerRaw({TriggerSide::Left, TriggerMode::Race, {25, value}}, ignored));
+        assert(device.queueTriggerRaw({TriggerSide::Right, TriggerMode::Race, {25, value}}, ignored));
+    };
+    transport->setAfterWrite([&feeding, &feedTriggers] {
+        if (feeding.load(std::memory_order_relaxed)) feedTriggers();
+    });
+    feedTriggers();
+    assert(device.queueRumble(200, 100, error));
+    const auto waitFor = [&transport, baseline](auto&& predicate) {
+        const auto deadline = Clock::now() + std::chrono::seconds(2);
+        for (;;) {
+            const auto writes = transport->writes();
+            for (std::size_t index = baseline; index < writes.size(); ++index) {
+                if (predicate(writes[index])) return true;
+            }
+            if (Clock::now() >= deadline) return false;
+            std::this_thread::sleep_for(milliseconds(1));
+        }
+    };
+    assert(waitFor([](const RecordedWrite& write) { return isRumbleWrite(true, write.bytes); }));
+    const auto stopQueuedAt = Clock::now();
+    assert(device.queueRumble(0, 0, error));
+    assert(waitFor(isApex4RumbleStop));
+    feeding.store(false, std::memory_order_relaxed);
+    transport->setAfterWrite({});
+    device.stopAsyncWrites();
+
+    const auto writes = transport->writes();
+    std::optional<Clock::time_point> stopAt;
+    std::size_t triggerWrites = 0;
+    for (std::size_t index = baseline; index < writes.size(); ++index) {
+        if (isTriggerWrite(true, writes[index].bytes)) ++triggerWrites;
+        if (!stopAt && isApex4RumbleStop(writes[index])) stopAt = writes[index].at;
+    }
+    assert(stopAt.has_value());
+    assert(triggerWrites >= 4);
+    assert(*stopAt - stopQueuedAt < milliseconds(75));
+}
+
+bool isApex4Rumble(const RecordedWrite& write, std::uint8_t low, std::uint8_t high) {
+    return isRumbleWrite(true, write.bytes) && write.bytes.size() > 3 &&
+           write.bytes[2] == low && write.bytes[3] == high;
+}
+
+bool waitUntil(const std::function<bool()>& predicate) {
+    const auto deadline = Clock::now() + std::chrono::seconds(2);
+    while (!predicate()) {
+        if (Clock::now() >= deadline) return false;
+        std::this_thread::sleep_for(milliseconds(1));
+    }
+    return true;
+}
+
+void testApex4ShortBurstReachesWriter() {
+    auto* transport = new RecordingTransport(true);
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    assert(device.startAsyncWrites(error));
+    const auto baseline = transport->writeCount();
+
+    std::atomic<bool> armed{true};
+    std::atomic<Clock::rep> firstWriteAt{0};
+    transport->setAfterWrite([&device, &armed, &firstWriteAt] {
+        if (!armed.exchange(false)) return;
+        firstWriteAt.store(Clock::now().time_since_epoch().count());
+        std::string ignored;
+        assert(device.queueRumble(200, 180, ignored));
+    });
+    assert(device.queueRumble(40, 30, error));
+    assert(waitUntil([&firstWriteAt] { return firstWriteAt.load() != 0; }));
+    const auto burstEndsAt = Clock::time_point(Clock::duration(firstWriteAt.load())) +
+                             milliseconds(23);
+    while (Clock::now() < burstEndsAt) std::this_thread::yield();
+    assert(device.queueRumble(0, 0, error));
+    assert(waitUntil([&transport, baseline] {
+        const auto writes = transport->writes();
+        return writes.size() > baseline && isApex4RumbleStop(writes.back());
+    }));
+    transport->setAfterWrite({});
+    device.stopAsyncWrites();
+
+    const auto all = transport->writes();
+    const std::vector<RecordedWrite> writes(all.begin() + static_cast<std::ptrdiff_t>(baseline),
+                                            all.end());
+    assert(writes.size() == 3);
+    assert(isApex4Rumble(writes[0], 40, 30));
+    assert(isApex4Rumble(writes[1], 200, 180));
+    assert(isApex4RumbleStop(writes[2]));
+    assert(writes[1].at - writes[0].at >= milliseconds(10));
+    assert(writes[2].at - writes[1].at >= milliseconds(10));
+    const auto stats = device.asyncWriteStats();
+    assert(stats.writes == 3);
+    assert(stats.coalesced == 0);
+}
+
+void testApex4PacingAndCounters() {
+    auto* transport = new RecordingTransport(true);
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    assert(device.startAsyncWrites(error));
+    const auto baseline = transport->writeCount();
+
+    std::atomic<bool> feeding{true};
+    std::atomic<unsigned> updates{0};
+    std::atomic<unsigned> step{0};
+    const auto feed = [&device, &updates, &step] {
+        const unsigned current = ++step;
+        std::string ignored;
+        const auto value = static_cast<std::uint8_t>(1 + current % 200);
+        if (current % 5 == 0) {
+            assert(device.queueTriggerRaw({current % 10 == 0 ? TriggerSide::Left : TriggerSide::Right,
+                                           TriggerMode::Race, {25, value}}, ignored));
+            ++updates;
+        }
+        assert(device.queueRumble(current % 3 == 0 ? 0 : value, current % 3 == 0 ? 0 : 9,
+                                  ignored));
+        ++updates;
+    };
+    transport->setAfterWrite([&feeding, &feed] {
+        if (feeding.load(std::memory_order_relaxed)) feed();
+    });
+    feed();
+    std::this_thread::sleep_for(milliseconds(600));
+    feeding.store(false, std::memory_order_relaxed);
+    transport->setAfterWrite({});
+    std::this_thread::sleep_for(milliseconds(150));
+    assert(device.queueRumble(0, 0, error));
+    ++updates;
+    assert(waitUntil([&transport, baseline] {
+        const auto writes = transport->writes();
+        return writes.size() > baseline && isApex4RumbleStop(writes.back());
+    }));
+    std::this_thread::sleep_for(milliseconds(60));
+    device.stopAsyncWrites();
+
+    const auto all = transport->writes();
+    const std::vector<RecordedWrite> writes(all.begin() + static_cast<std::ptrdiff_t>(baseline),
+                                            all.end());
+    std::size_t rumblePairs = 0;
+    std::size_t triggerNeighbours = 0;
+    for (std::size_t index = 1; index < writes.size(); ++index) {
+        const auto gap = writes[index].at - writes[index - 1].at;
+        const bool rumblePair = isRumbleWrite(true, writes[index].bytes) &&
+                                isRumbleWrite(true, writes[index - 1].bytes);
+        assert(gap >= milliseconds(10));
+        if (rumblePair) {
+            ++rumblePairs;
+        } else {
+            ++triggerNeighbours;
+            assert(gap >= milliseconds(25));
+        }
+    }
+    assert(rumblePairs > 0);
+    assert(triggerNeighbours > 0);
+    assert(isApex4RumbleStop(writes.back()));
+    const auto stats = device.asyncWriteStats();
+    assert(stats.writes == writes.size());
+    assert(stats.coalesced + stats.writes == updates.load());
+    assert(device.takeAsyncWriteError(error) == false);
+}
+
+void testApex5WriteSequenceUnchanged() {
+    for (const bool async : {false, true}) {
+        auto* transport = new RecordingTransport(false);
+        Apex5Device device{TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        const auto policy = device.asyncWritePolicy();
+        assert(policy.has_value());
+        assert(policy->spacing == milliseconds(10));
+        assert(policy->rumbleHoldoffAfterTrigger == milliseconds(30));
+        assert(!policy->rumbleStopFirst);
+        if (async) assert(device.startAsyncWrites(error));
+        const auto baseline = transport->writeCount();
+        const asb::ForceTriggerCommand command{TriggerSide::Right, TriggerMode::Race, {25, 40}};
+        assert(device.queueTriggerRaw(command, error));
+        assert(transport->waitForWrites(baseline + 1));
+        assert(device.queueRumble(10, 20, error));
+        assert(transport->waitForWrites(baseline + 2));
+        assert(device.queueRumble(0, 0, error));
+        assert(transport->waitForWrites(baseline + 3));
+        device.stopAsyncWrites();
+
+        const auto all = transport->writes();
+        assert(all.size() == baseline + 3);
+        const auto trigger = asb::flydigi::buildForceTriggerRaw(command, true);
+        const auto rumble = asb::flydigi::buildRumble(10, 20);
+        const auto stop = asb::flydigi::buildRumble(0, 0);
+        assert(all[baseline].bytes == std::vector<std::uint8_t>(trigger.begin(), trigger.end()));
+        assert(all[baseline + 1].bytes == std::vector<std::uint8_t>(rumble.begin(), rumble.end()));
+        assert(all[baseline + 2].bytes == std::vector<std::uint8_t>(stop.begin(), stop.end()));
+        if (async) {
+            assert(all[baseline + 1].at - all[baseline].at >= milliseconds(30));
+            assert(all[baseline + 2].at - all[baseline + 1].at >= milliseconds(10));
+            assert(device.asyncWriteStats().writes == 3);
+        } else {
+            assert(device.asyncWriteStats().writes == 0);
+        }
+        assert(device.triggerWriteStats().writes == 1);
+        assert(device.rumbleWriteStats().writes == 2);
+    }
+}
+
 void testReceiverSpacesSynchronousVendorWrites() {
     auto* transport = new RecordingTransport(false);
     Apex5Device device{TransportPtr(transport)};
@@ -213,6 +438,7 @@ void testReceiverSpacesSynchronousVendorWrites() {
     assert(device.verifyIdentity(error));
     const auto policy = device.asyncWritePolicy();
     assert(policy.has_value() && policy->spacing == milliseconds(10));
+    assert(!policy->rumbleStopFirst);
     assert(device.startAsyncWrites(error));
     const auto baseline = transport->writeCount();
 
@@ -326,6 +552,10 @@ void testQueueingWhileWriterStartsAndStops() {
 int main() {
     testContinuousTriggersDoNotStarveRumble(false);
     testContinuousTriggersDoNotStarveRumble(true);
+    testApex4RumbleStopSkipsTriggerQueue();
+    testApex4ShortBurstReachesWriter();
+    testApex4PacingAndCounters();
+    testApex5WriteSequenceUnchanged();
     testReceiverSpacesSynchronousVendorWrites();
     testMoveCarriesDeviceState();
     testQueueingWhileWriterStartsAndStops();

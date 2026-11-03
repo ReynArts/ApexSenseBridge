@@ -114,8 +114,8 @@ namespace ApexSenseBridge.Common
                     view.ReadArray(4, bytes, 0, length);
                     var info = new JavaScriptSerializer().Deserialize<SessionInfo>(Encoding.UTF8.GetString(bytes));
                     if (info == null || info.Token == null || info.Token.Length != 32) return null;
-                    using (var engine = Process.GetProcessById(info.EngineProcessId))
-                        if (engine.HasExited || engine.StartTime.ToUniversalTime().Ticks != info.EngineStartedUtcTicks) return null;
+                    if (info.EngineProcessId <= 0 || info.EngineStartedUtcTicks <= 0 ||
+                        ProcessLiveness.Check((uint)info.EngineProcessId, info.EngineStartedUtcTicks) != ProcessLivenessState.Alive) return null;
                     using (var status = MemoryMappedFile.OpenExisting("Local\\ApexSenseBridge.Session." + info.Token + ".Status", MemoryMappedFileRights.Read))
                     using (var statusReader = status.CreateViewAccessor(0, StatusSize, MemoryMappedFileAccess.Read))
                     {

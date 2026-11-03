@@ -66,6 +66,8 @@ void printUsage() {
         << "                  [--xinput-index 0..3]\n"
         << "                  [--rumble]\n"
         << "                  [--sync-lightbar]\n"
+        << "                  [--no-zone-emulation]\n"
+        << "                  APEX 5 only: the PC follows DualSense per-zone force and vibration curves, and plays Galloping and Machine rhythms, by updating the trigger over time. On by default; this option turns it off.\n"
         << "                  [--haptic-threshold 0..95] (APEX 4/5; APEX 6 always uses 0)\n"
         << "                  [--trigger-strength 0..100] [--vibration-strength 0..200]\n"
         << "                  Vibration above 100% boosts APEX 4/5 grip motors only; APEX 6 stays capped at 100%.\n"

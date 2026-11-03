@@ -59,6 +59,7 @@ int main() {
     assert(defaults.options.apex4GyroStrengthPercent == 100);
     assert(defaults.options.apex4GyroYawStrengthPercent == 100);
     assert(defaults.options.touchpadProfile == Profile::None);
+    assert(defaults.options.zoneEmulation);
 
     const auto complete = parse({
         "3", "--seconds", "42", "--viiper", "C:\\Tools\\Viiper.exe",
@@ -97,6 +98,14 @@ int main() {
            Backend::Integrated);
     assert(parse({"--view-hold-swipe-up"}).options.touchpadProfile ==
            Profile::LegacyViewHoldSwipeUp);
+    const auto zoneEmulation = parse({"--zone-emulation"});
+    assert(zoneEmulation.succeeded);
+    assert(zoneEmulation.options.zoneEmulation);
+    const auto noZoneEmulation = parse({"--no-zone-emulation"});
+    assert(noZoneEmulation.succeeded);
+    assert(!noZoneEmulation.options.zoneEmulation);
+    assert(!parse({"--no-zone-emulation", "--rumble"}).options.zoneEmulation);
+    assert(parse({"--no-zone-emulation", "--zone-emulation"}).options.zoneEmulation);
     const auto deathStranding = parse({"--touchpad-profile", "death-stranding-2"});
     assert(deathStranding.succeeded);
     assert(deathStranding.options.touchpadProfile == Profile::DeathStranding2);
@@ -136,6 +145,8 @@ int main() {
     assert(!parse({"--apex6-haptic-gain", "150"}).succeeded);
     assert(usage.find("--apex6-haptic-gain 100..200") != std::string_view::npos);
     assert(usage.find("--vibration-strength 0..200") != std::string_view::npos);
+    assert(usage.find("[--no-zone-emulation]") != std::string_view::npos);
+    assert(usage.find("[--zone-emulation]") == std::string_view::npos);
     auto boosted = parse({"--rumble", "--vibration-strength", "150"}).options;
     std::string boostError;
     assert(asb::cli::applyControllerCalibration(boosted, "apex5", boostError));

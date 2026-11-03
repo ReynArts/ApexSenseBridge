@@ -13,6 +13,8 @@ This document covers common questions, diagnostic interpretations, game-specific
 5.1. [APEX 4 Gyro Setup for DualSense Aiming](#51-apex-4-gyro-setup-for-dualsense-aiming)
 6. [Hardware Feedback: Trigger Clicking / Motor Noise at Startup](#6-hardware-feedback-trigger-clicking--motor-noise-at-startup)
 7. [Interface & System Tray Quick Reference (FR / EN)](#7-interface--system-tray-quick-reference-fr--en)
+8. [What Does "Manual fix" Mean?](#8-what-does-manual-fix-mean)
+9. [What to Attach to a Bug Report](#9-what-to-attach-to-a-bug-report)
 
 ---
 
@@ -121,6 +123,39 @@ shared through the dashboard export workflow.
 
 ---
 
+### Issue E: Steam Shows Both the Physical Controller and the Virtual DualSense
+
+**Symptoms:** a Steam game registers D-pad or button presses twice, Windows keeps announcing a new controller, or Steam lists both the Flydigi pad and a DualSense. Restarting Steam makes it go away.
+
+**Cause:** Steam was already running when the bridge started and had opened the physical APEX before HidHide began hiding it. HidHide blocks *new* connections to the controller; it cannot take back one that Steam already holds, so Steam keeps seeing both pads until it is restarted. ApexSenseBridge never restarts Steam by itself, because that could interrupt a running game or download. Since 1.0.1 the Tray shows one notification per Steam session that points to the steps below.
+
+**Start the bridge first, then restart Steam:**
+1. Exit Steam completely (**Steam** ➔ **Exit**) and make sure its icon is gone from the notification area.
+2. In the Tray, enable **Force continuous activation** and wait for **Bridge ready** / **Bridge active**.
+3. Start Steam again and keep **Steam Input disabled** for the game (see Issue A).
+4. Launch the game. Turn **Force continuous activation** off when you are done.
+
+If the duplicate input still appears after this exact order, attach the automatic report and a screenshot of `joy.cpl` taken while the session is active (see [section 9](#9-what-to-attach-to-a-bug-report)). One user also reported the duplicate returning every time the controller disconnected and reconnected while Steam was running; the cause there has not been confirmed.
+
+---
+
+### Issue F: The Bridge Turns On and Off Repeatedly While the Game Starts
+
+**Symptoms:** while a game is starting, the Tray status flips several times between active and idle, the virtual DualSense connects and disconnects, and in-game prompts or button labels flicker between DualSense and Xbox styles. One user saw it calm down once the game had fully loaded and had focus, and also saw the physical and virtual controllers behave as if both were active (LT not working, laggy camera).
+
+**What is known:** the loop was reported with Automatic detection on some Unreal Engine titles. The exact cause has not been confirmed; the workaround below avoids relying on Automatic detection.
+
+**Workaround one user reported as effective (not guaranteed):**
+1. In the Tray Dashboard, select the game. Under **Game executable (optional)**, choose the game's actual executable instead of **Automatic detection**: pick it in the list if it appears there (*learned*), or use **Choose an .exe file…**.
+2. Unreal Engine games typically start from a small `<Game>.exe` in the install folder, while the real game process is `<Game>-Win64-Shipping.exe` in a `Binaries\Win64` subfolder. To find the real process, start the game, open Task Manager ➔ **Details**, right-click the game's process ➔ **Open file location**.
+3. Restart the game.
+
+Enabling **Force continuous activation** before launching the game (Issue B) keeps the virtual DualSense plugged in during startup and is another way to avoid the flip-flopping.
+
+**If it still loops, attach:** `tray_bridge.log` and `tray_detection.log` covering one launch, the names of the game's processes in Task Manager ➔ **Details** during startup, a screenshot of the Tray status while it flips, and the automatic report (see [section 9](#9-what-to-attach-to-a-bug-report)).
+
+---
+
 ## 3. Step-by-Step Hardware & Virtual Controller Validation (`joy.cpl`)
 
 If a game is not responding, follow this quick diagnostic flow to determine whether the issue is with ApexSenseBridge/Windows or isolated to the game itself:
@@ -171,6 +206,35 @@ Assign M1–M4 in Flydigi Space Station to standard controller buttons or
 keyboard/mouse inputs. Those configured mappings remain usable in game while
 ApexSenseBridge is active. Leaving them as unassigned independent "extra
 buttons" will not make them appear in a game's binding menu.
+
+### Rear Buttons (M1–M4) Do Nothing in an Emulator or PC Port
+
+**What the bridge forwards** (checked in the source):
+- Sticks, triggers, D-pad, face and shoulder buttons, stick clicks, View and Menu come from the controller's *mapped* gamepad state. A rear button that Space Station assigns to one of these standard buttons therefore reaches the virtual DualSense as that button.
+- The bridge decodes no rear-button field from the Flydigi vendor stream it also reads (motion, battery, PS button), so M1–M4 never appear as separate buttons.
+- A rear button assigned to a keyboard key, mouse button or macro is not handled by the bridge. Flydigi's `SpaceStationService.exe` produces those inputs itself and stays authorized in HidHide so it can keep reading the controller.
+
+**Decision tree:**
+1. Open Space Station and check what the rear button does.
+   - *Nothing, or its default:* there is nothing to forward. Assign it a gamepad button (step 2) or a key (step 3).
+   - *A gamepad button:* go to step 2.
+   - *A keyboard key, mouse button or macro:* go to step 3.
+2. **Gamepad-button mapping.**
+   1. Enable **Force continuous activation**, wait for **Bridge active**, open `joy.cpl` ➔ **Wireless Controller** ➔ **Properties** and press the rear button.
+   2. If a button lights up, the bridge forwards it. If the game or emulator still ignores it, open its own binding screen and make sure it reads the controller as a DualSense (not through Steam Input or an XInput layer) and supports that button.
+   3. If nothing lights up, the rear button is not producing a standard gamepad button. Check that the assignment is saved in the profile that is active on the controller, then test again. Then close Space Station and test once more: the source treats the controller's own mapped state as authoritative, so the result should not change, but this has not been verified for every mapping. Tell us if it does change.
+3. **Keyboard or mouse mapping.**
+   1. Space Station must be running (`SpaceStationService.exe` in Task Manager), because it generates the keystrokes. Test in Notepad: the key should appear when you press the rear button.
+   2. The game must accept keyboard or mouse input while a controller is in use. Many emulators and PC ports bind the keyboard separately, switch every prompt to the keyboard after a key press, or ignore the keyboard while a gamepad is the active device. A game that reads only the DualSense never sees these keys: use a gamepad-button mapping (step 2) instead.
+   3. Bind the key in the game's own keyboard bindings.
+4. Space Station's duplicate DualSense and XInput gamepads are hidden from games on purpose, so they are not a workaround.
+
+**When reporting a rear-button problem, tell us:**
+- The game, emulator or port and its version, and how it reads controllers (SDL, DirectInput, XInput, Steam Input).
+- What each rear button is assigned to in Space Station (a screenshot of the mapping page) and which onboard profile is active.
+- Whether the same assignment works in that game with the bridge off (physical pad visible).
+- What `joy.cpl` shows with the bridge active (step 2.1) and whether Space Station was running.
+- Cable or receiver, plus `tray_bridge.log` and the automatic report ([section 9](#9-what-to-attach-to-a-bug-report)).
 
 ### Minecraft/Controlify shows duplicate or frozen controllers
 
@@ -268,6 +332,37 @@ Upstream USBip installers can hang if an older incompatible driver version is al
 
 ---
 
+### USB or Driver Trouble After Installing the Drivers
+
+ApexSenseBridge relies on two third-party kernel components: USBip (the `usbip2_ude` driver and the `usbip2_filter` USB filter driver) for the virtual DualSense, and HidHide (`HidHide`) to hide the physical controller. These are the service names the installer and the portable driver helper verify.
+
+- **See what is registered.** The *Installation* block of the automatic report ([section 9](#9-what-to-attach-to-a-bug-report)) lists the registered USBip and HidHide versions and the three service keys, normally `registered (Start=3)`. In PowerShell, without administrator rights:
+  ```powershell
+  Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_ude, HKLM:\SYSTEM\CurrentControlSet\Services\usbip2_filter, HKLM:\SYSTEM\CurrentControlSet\Services\HidHide | Select-Object PSChildName, Start
+  ```
+  `Start` 3 is Windows' "start on demand" value. A missing key is reported as an error.
+- **Read the driver log.** The installer writes `%ProgramData%\ApexSenseBridge\usbip-install.log`; the portable helper writes `driver-install.log` next to `Install-Drivers.cmd`. A line such as *The operation was canceled by the user* for one component means Windows reported the launch of that component's installer as cancelled, typically a declined elevation prompt or security software blocking it. Allow it and run the installation again.
+- **"The `-File` path does not exist."** If PowerShell says the path of `Install-Drivers.ps1` does not exist, the administrator session could not see the folder. One possible cause is that Windows keeps drive mappings per logon session, so mapped network drives are typically not visible to elevated programs. Extract the ZIP to a local folder (for example `C:\ApexSenseBridge-Portable`) and run `Install-Drivers.cmd` as administrator again.
+- **Restart Windows** after installing or removing a driver before judging device state.
+- **If USB devices stop responding:** keep a second input path (another keyboard or mouse on a different port, or touch) before changing anything, and do not disable USB controllers or delete driver packages by hand. Uninstall USBip, and HidHide if needed, in Windows Settings ➔ Apps ➔ Installed apps, then restart. ApexSenseBridge itself never removes either driver. If no input works in Windows at all, use Windows Recovery: **Troubleshoot** ➔ **Advanced options** ➔ **Startup Settings** ➔ **Restart**, then press <kbd>4</kbd> or <kbd>F4</kbd> for Safe Mode (the path documented by Microsoft), or use System Restore to a point before the driver installation. Whether USBip can be uninstalled from Safe Mode has not been verified. Keep the logs above for diagnosis.
+
+---
+
+### FACEIT Anti-Cheat Refuses to Start Because of the USBip Driver
+
+**Symptom:** FACEIT Anti-Cheat (used for FACEIT matches in Counter-Strike 2) does not start and its message names the USBip driver and asks you to uninstall it.
+
+**What is known:**
+- A user reported exactly this message after installing ApexSenseBridge's drivers. FACEIT decides which drivers its anti-cheat blocks; the criteria are not documented in this repository, and FACEIT's own article could not be consulted when this entry was written, so treat the details below as unverified.
+- ApexSenseBridge needs USBip to create the virtual DualSense. It cannot bypass, hide or work around an anti-cheat check, and it does not inject into or modify any game.
+- Not verified: whether FACEIT objects to the driver being installed or only loaded, and whether a later FACEIT or USBip release changes the outcome. Excluding the game in ApexSenseBridge, or leaving the bridge idle, does not remove the driver, so it is not expected to help.
+
+**Options (your choice):**
+1. Uninstall USBip (and HidHide if you wish) in Windows Settings ➔ Apps ➔ Installed apps, restart Windows and play FACEIT. Run the ApexSenseBridge setup, or `Install-Drivers.cmd` for the portable package, again when you want to use the bridge. Follow the precautions in the previous entry before removing USBip.
+2. Ask FACEIT support whether this driver can be allowed. ApexSenseBridge has no influence on that decision.
+
+---
+
 ## 5.1. APEX 4 Gyro Setup for DualSense Aiming
 
 ### APEX 4 gyro aiming does nothing in games
@@ -311,3 +406,43 @@ When `ApexSenseBridgeTray.exe` or the bridge engine initializes, it sends a hand
 | **Tester l'APEX** | Test APEX Controller | Runs a 2-second physical input test on the Flydigi controller. |
 | **Restaurer la visibilité** | Restore Controller Visibility | Unhides the physical controller in HidHide if an abnormal shutdown occurred. |
 | **Quitter** | Exit | Safely closes the bridge, detaches the virtual DualSense, and unhides the physical controller. |
+
+---
+
+## 8. What Does "Manual fix" Mean?
+
+Some games in the Tray game list carry an amber **Manual fix** badge (*Correctif manuel* in French). When the fix is allowed, the badge turns into a green **Manual fix applied**.
+
+### What a manual fix is
+
+- The game catalogue is generated from PCGamingWiki's list of games with DualSense support. For some titles PCGamingWiki classes the feature as "hackable": the game does not provide it by itself, but a third-party modification, tool or setting can add it. The badge is set per feature (adaptive triggers, haptic feedback), and the Tray notification shows the address of the game's PCGamingWiki page, which is where to look for the workaround (the page content is not checked by ApexSenseBridge).
+- **You apply it.** ApexSenseBridge does not download, install, enable or check any manual fix, and it does not bundle one.
+- **Why the bridge stays off by default.** Activating the bridge hides your physical controller with HidHide and offers a virtual DualSense instead. A game that cannot use a DualSense and has no working fix would then see no usable controller. For a manual-fix game whose requested features all need the fix, the Tray therefore does not activate the bridge, leaves the physical controller available and shows *Manual setup required*.
+
+### What "Allow automatic activation" does
+
+- It only records that you consider the fix applied for this game. From the next launch, the bridge starts automatically for it like for any other game, which includes hiding the physical controller.
+- It does **not** install or verify the fix, and it does **not** make the game accept the virtual DualSense.
+- It is disabled while the game is excluded; exclusion always wins.
+- **Leave it off** if you have not applied the fix yourself, if you are not sure the fix works together with a virtual DualSense, or if the game already works with your physical controller. If the game shows no controller or cannot be controlled after you enabled it, turn it off again and restart the game.
+
+### Example: Forza Horizon and Forza Motorsport 7
+
+In the catalogue, Forza Horizon 4, 5 and 6 and Forza Motorsport 7 are marked as manual fix for adaptive triggers only (no haptic feedback), each with its PCGamingWiki page as the reference. The community utility [Forza-Horizon-DualSense-Python](https://github.com/HamzaYslmn/Forza-Horizon-DualSense-Python) is an external fix that users mention for these games: according to its own README, it adds adaptive-trigger feedback from the game's telemetry and drives a real DualSense. ApexSenseBridge does not bundle it, has not validated it together with its virtual DualSense and does not replace it.
+
+One user reported being unable to move the car after enabling **Allow automatic activation** for a Forza Horizon game, and getting normal control back by re-enabling Steam Input and using that utility. The likely explanation (a hypothesis, not verified) is that the game did not use the virtual DualSense on its own and, with Steam Input disabled as ApexSenseBridge normally requires, no layer translated it. If you see this, turn the switch off.
+
+---
+
+## 9. What to Attach to a Bug Report
+
+Open the Tray ➔ **Settings** ➔ **Controller Diagnostics & Test** ➔ **Report a bug**. The window prepares an anonymized installation report that you can preview, and GitHub lets you review the issue before publishing. Then check this list; each item removes a round of questions:
+
+- [ ] **The automatic installation report** (system, ApexSenseBridge version, driver registration, bridge state, recent log lines).
+- [ ] **The full `tray_bridge.log` and `tray_detection.log`** from `%LocalAppData%\ApexSenseBridge\logs\`. The report only contains the latest lines. Add `tray_crash.log` or `tray_startup_error.log` if the Tray crashed or did not open. For a bridge that does not become ready, note the last `Startup phase:` line of `tray_bridge.log`.
+- [ ] **Cable or receiver:** USB cable, or the 2.4 GHz receiver; the controller model and, for APEX 4, DInput mode.
+- [ ] **Flydigi Space Station:** running or fully closed (check Task Manager for `SpaceStationService.exe`), and the mapping involved if rear buttons are concerned.
+- [ ] **The game:** title, executable name, store or launcher (Steam, Epic, Game Pass, Playnite, the Tray's **Launch a game (.exe)**), and whether Steam Input is disabled for it.
+- [ ] **What you did and what you saw:** the steps, a screenshot of the Tray status or error, and whether **Wireless Controller** in `joy.cpl` responds while the bridge is active.
+
+Attach files on the GitHub issue page itself: replying to a GitHub notification e-mail drops attachments. Read the logs before sharing them; they can contain game names and install paths.

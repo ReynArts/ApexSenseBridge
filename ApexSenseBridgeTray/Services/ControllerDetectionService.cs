@@ -12,6 +12,8 @@ namespace ApexSenseBridgeTray.Services
     internal sealed class ControllerDetectionService : IDisposable
     {
         internal const string Ambiguous = "ambiguous";
+        internal const string Multiple = "multiple";
+        internal const string SeveralControllersMarker = "Several APEX controllers are connected";
         internal const int ReverifyMilliseconds = 30000;
         internal const int FailureScans = 3;
         internal const int DisconnectScans = 2;
@@ -30,8 +32,11 @@ namespace ApexSenseBridgeTray.Services
         private long verifiedAt;
         private int failures;
         private int disposed;
+        private int candidateCount;
 
         public event Action<string> StatusChanged;
+
+        public int CandidateCount { get { return Volatile.Read(ref candidateCount); } }
 
         public ControllerDetectionService() : this(ReadCandidate, DetectModel,
             () => BridgeSession.ReadActiveSession(), EngineSessionManager.IsExternalSessionActive, true) { }
@@ -61,11 +66,24 @@ namespace ApexSenseBridgeTray.Services
             {
                 string candidate;
                 string stateStatus = candidateReader(out candidate);
+                Volatile.Write(ref candidateCount, CountCandidates(candidate));
+                if (stateStatus == Ambiguous)
+                {
+                    var bridged = activeSessionReader();
+                    if (bridged != null || ownerProbe())
+                    {
+                        verifiedCandidate = string.Empty;
+                        failures = 0;
+                        Publish(ParseActiveModel(bridged));
+                        return;
+                    }
+                }
                 if (stateStatus != null)
                 {
                     // A transient extra interface is tolerated only while the verified one is still listed.
-                    if (stateStatus == Ambiguous && !ContainsCandidate(candidate, verifiedCandidate)) Lock("unavailable");
-                    else Downgrade(stateStatus == "disconnected" ? stateStatus : "unavailable");
+                    if (stateStatus == Ambiguous && !ContainsCandidate(candidate, verifiedCandidate)) Lock(Multiple);
+                    else Downgrade(stateStatus == Ambiguous ? Multiple
+                        : stateStatus == "disconnected" ? stateStatus : "unavailable");
                     return;
                 }
                 // During a bridge, use its live IPC identity, not extra HID
@@ -125,6 +143,23 @@ namespace ApexSenseBridgeTray.Services
         {
             return candidate.Length != 0 &&
                 Array.IndexOf((candidates ?? "").Split(new[] { "\n\n" }, StringSplitOptions.None), candidate) >= 0;
+        }
+
+        private static int CountCandidates(string candidates)
+        {
+            return string.IsNullOrEmpty(candidates) ? 0
+                : candidates.Split(new[] { "\n\n" }, StringSplitOptions.None).Length;
+        }
+
+        internal static bool TryParseSeveralControllers(string message, out int count)
+        {
+            count = 0;
+            if (string.IsNullOrEmpty(message)) return false;
+            int at = message.IndexOf(SeveralControllersMarker, StringComparison.Ordinal);
+            if (at < 0) return false;
+            var match = Regex.Match(message.Substring(at + SeveralControllersMarker.Length), @"\A \((\d{1,3}) vendor interfaces\)");
+            if (match.Success) count = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            return true;
         }
 
         internal static string ParseActiveModel(BridgeSession.SessionInfo active)

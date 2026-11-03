@@ -124,6 +124,10 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             options.routeRumble = true;
         } else if (value == "--sync-lightbar") {
             options.syncLightbar = true;
+        } else if (value == "--zone-emulation") {
+            options.zoneEmulation = true;
+        } else if (value == "--no-zone-emulation") {
+            options.zoneEmulation = false;
         } else if (value == "--haptic-threshold") {
             if (++i >= argc) {
                 error = "--haptic-threshold requires an integer percentage from 0 to 95.";
@@ -333,6 +337,7 @@ std::string_view bridgeCommandUsage() noexcept {
     return "Usage: ApexSenseBridge bridge-triggers [index] [--seconds N] "
            "[--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
+           "[--no-zone-emulation] [--sync-lightbar] [--haptic-threshold 0..95] "
            "[--udp-bind 127.0.0.1 --udp-port 1..65535] "
            "[--sync-lightbar] [--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..200] "

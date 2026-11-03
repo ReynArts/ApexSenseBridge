@@ -2,6 +2,7 @@
 
 #include "core/DeviceInfo.h"
 #include "core/TriggerEffect.h"
+#include "flydigi/Apex4WritePacing.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex6Protocol.h"
 #include "platform/HidTransport.h"
@@ -38,6 +39,7 @@ struct AsyncWriteStats {
 struct AsyncWritePolicy {
     std::chrono::milliseconds spacing{};
     std::chrono::milliseconds rumbleHoldoffAfterTrigger{};
+    bool rumbleStopFirst = false;
 };
 
 struct FeedbackWriteStats {
@@ -137,6 +139,7 @@ private:
     [[nodiscard]] bool usesApex6Protocol() const noexcept;
     [[nodiscard]] std::unique_lock<std::recursive_mutex> acquireWriteLock() const noexcept;
     [[nodiscard]] bool writeSpacedOutputReport(std::span<const std::uint8_t> report,
+                                               Apex4WriteKind kind,
                                                std::string& error);
     [[nodiscard]] bool writeFeedbackReport(std::span<const std::uint8_t> report,
                                            bool trigger,
@@ -151,6 +154,7 @@ private:
     mutable std::unique_ptr<std::recursive_mutex> writeMutex_{std::make_unique<std::recursive_mutex>()};
     std::chrono::steady_clock::time_point lastVendorWriteAt_{};
     std::chrono::steady_clock::time_point lastTriggerWriteAt_{};
+    Apex4WritePacer apex4Pacer_{configuredApex4RumbleSpacing().spacing};
     AsyncWritePolicy asyncPolicy_{};
     std::thread writer_{};
     std::atomic<bool> asyncWritesRunning_{false};

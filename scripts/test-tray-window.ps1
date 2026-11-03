@@ -55,7 +55,53 @@ try {
             }
         }
     }
-    Write-Output "PASS: $count WPF window initialization/phase/tab scenarios."
+    $monitorType = [ApexSenseBridgeTray.Services.ProcessMonitorService]
+    $ctor = $monitorType.GetConstructor($flags, $null, [Type[]]@(
+        [ApexSenseBridgeTray.Services.CloudGameListService], $managerType,
+        [ApexSenseBridgeTray.Services.ExecutableLearningService], [ApexSenseBridgeTray.Models.TraySettings], [bool]), $null)
+    $readiness = "Virtual DualSense HID readiness verification failed after 2 attempts: The newly-created virtual DualSense firmware interface was not found."
+    $manager = New-Object ApexSenseBridgeTray.Services.EngineSessionManager
+    $service = New-Object ApexSenseBridgeTray.Services.CloudGameListService
+    $settings = New-Object ApexSenseBridgeTray.Models.TraySettings
+    $monitor = $ctor.Invoke([object[]]@($service.psobject.BaseObject, $manager.psobject.BaseObject, $null, $settings.psobject.BaseObject, $false))
+    $window = New-Object ApexSenseBridgeTray.GameListWindow -ArgumentList @(
+        $service, $settings, $null, $manager, $monitor, $null, "dashboard")
+    try {
+        $update = $windowType.GetMethod("UpdateDashboardStatus", $flags)
+        $field = { param($name) $windowType.GetField($name, $flags).GetValue($window) }
+        $policy = $monitorType.GetField("startRetries", $flags).GetValue($monitor)
+        $record = $policy.GetType().GetMethod("RecordFailure")
+        $now = [DateTime]::UtcNow
+        [void]$record.Invoke($policy, @("silentgame", 9, $readiness, $now, [uint32[]]@(4101)))
+        [void]$record.Invoke($policy, @("silentgame", 9, $readiness, $now.AddSeconds(11), [uint32[]]@(4102)))
+        $managerType.GetField("failed", $flags).SetValue($manager, $true)
+        $managerType.GetField("lastReason", $flags).SetValue($manager, $readiness)
+        $managerType.GetField("activeGameTitle", $flags).SetValue($manager, "Silent Game")
+        $windowType.GetField("viewInitialized", $flags).SetValue($window, $true)
+        $update.Invoke($window, $null)
+        if ((& $field "BtnRetryStart").Visibility -ne [Windows.Visibility]::Visible) { throw "A paused automatic start offered no Retry action." }
+        if ((& $field "TxtDashboardHint").Text -ne $readiness) { throw "The paused start did not show the engine error text." }
+        $monitor.RetryPausedStarts()
+        $update.Invoke($window, $null)
+        if ((& $field "BtnRetryStart").Visibility -ne [Windows.Visibility]::Collapsed) { throw "Retry stayed visible after resuming automatic starts." }
+        $count++
+
+        (& $field "PnlDashboardActiveCover").Visibility = [Windows.Visibility]::Visible
+        (& $field "TxtDashboardGameTitle").Text = "Silent Game"
+        $managerType.GetField("failed", $flags).SetValue($manager, $false)
+        $managerType.GetField("lastReason", $flags).SetValue($manager, $null)
+        $managerType.GetField("activeGameTitle", $flags).SetValue($manager, $null)
+        $update.Invoke($window, $null)
+        if ((& $field "PnlDashboardActiveCover").Visibility -ne [Windows.Visibility]::Collapsed) { throw "The game artwork stayed on the dashboard after the session ended." }
+        if ((& $field "TxtDashboardGameTitle").Text -ne [ApexSenseBridgeTray.Common.LocalizationManager]::Get("Loc_NoActiveGame")) { throw "The dashboard kept the previous game title after the session ended." }
+        if ((& $field "BtnRetryStart").Visibility -ne [Windows.Visibility]::Collapsed) { throw "An idle dashboard offered Retry." }
+        $count++
+    } finally {
+        $window.Close()
+        $monitor.Dispose()
+        ([Threading.Timer]$managerType.GetField("healthTimer", $flags).GetValue($manager)).Dispose()
+    }
+    Write-Output "PASS: $count WPF window initialization/phase/tab and session-state scenarios."
 } finally {
     $app.Shutdown()
 }

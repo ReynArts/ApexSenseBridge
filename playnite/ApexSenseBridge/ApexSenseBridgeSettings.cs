@@ -167,6 +167,7 @@ namespace ApexSenseBridge
         private string bridgeExecutablePath = string.Empty;
         private bool enableRumble = true;
         private bool syncLightbar = false;
+        private bool zoneEmulation = true;
         private int hapticThresholdPercent = 12;
         private int vibrationStrengthPercent = 100;
         private int apex4GyroStrengthPercent = 100;
@@ -183,6 +184,7 @@ namespace ApexSenseBridge
         public string BridgeExecutablePath { get => bridgeExecutablePath; set => SetValue(ref bridgeExecutablePath, value); }
         public bool EnableRumble { get => enableRumble; set => SetValue(ref enableRumble, value); }
         public bool SyncLightbar { get => syncLightbar; set => SetValue(ref syncLightbar, value); }
+        public bool ZoneEmulation { get => zoneEmulation; set => SetValue(ref zoneEmulation, value); }
         public int HapticThresholdPercent { get => hapticThresholdPercent; set => SetValue(ref hapticThresholdPercent, value); }
         public int VibrationStrengthPercent { get => vibrationStrengthPercent; set => SetValue(ref vibrationStrengthPercent, value); }
         public int Apex4GyroStrengthPercent { get => apex4GyroStrengthPercent; set => SetValue(ref apex4GyroStrengthPercent, value); }

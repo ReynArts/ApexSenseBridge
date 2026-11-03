@@ -20,6 +20,7 @@
 #include <iostream>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -50,9 +51,14 @@ public:
 
     bool writeOutputReport(std::span<const std::uint8_t> report, std::string&) override {
         writes.emplace_back(report.begin(), report.end());
+        writeTimes.push_back(std::chrono::steady_clock::now());
         if (!silent_ && apex4_ && report.size() >= 2 &&
             report[0] == asb::flydigi::kApex4CommandReportId &&
             report[1] == asb::flydigi::kApex4CmdGetInfo) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto sinceRequest = now - lastApex4Request;
+            lastApex4Request = now;
+            if (sinceRequest < apex4QuietInterval) return true;
             if (ignoredApex4Requests_ != 0) {
                 --ignoredApex4Requests_;
                 return true;
@@ -143,6 +149,14 @@ public:
         std::string&) override {
         bytesRead = 0;
         if (replies_.empty()) {
+            if (streamApex4State && !writes.empty()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                std::fill_n(report.begin(), 32, std::uint8_t{0});
+                report[0] = asb::flydigi::kApex4InputReportId;
+                report[1] = asb::flydigi::kApex4StateMarker;
+                bytesRead = 32;
+                return asb::platform::HidReadStatus::Data;
+            }
             return asb::platform::HidReadStatus::Timeout;
         }
         const auto reply = std::move(replies_.front());
@@ -154,9 +168,13 @@ public:
     }
 
     std::vector<std::vector<std::uint8_t>> writes;
+    std::vector<std::chrono::steady_clock::time_point> writeTimes;
     std::uint8_t apex6Features = 0x9F;
     std::uint8_t thirdPartyControlByte = 0;
     bool corruptApex6Checksum = false;
+    bool streamApex4State = false;
+    std::chrono::milliseconds apex4QuietInterval{0};
+    std::chrono::steady_clock::time_point lastApex4Request{};
 
 private:
     asb::HidDeviceInfo info_{};
@@ -264,6 +282,10 @@ int main() {
     assert(apex6Device.enableApex6Haptics(error));
     assert(apex6Transport->writes.size() == 3);
     assert(apex6Transport->writes[1][3] == apex6::kCmdMotorRoute);
+    assert(!apex6Device.asyncWritePolicy().has_value());
+    assert(apex6Device.startAsyncWrites(error));
+    assert(!apex6Device.asyncWritesRunning());
+    assert(apex6Transport->writes.size() == 3);
 
     FakeTransport* variantTransport = nullptr;
     auto variant = makeDevice(variantTransport, 0x98, false, false, 0, true);
@@ -453,12 +475,41 @@ int main() {
 
     FakeTransport* intermittentApex4Transport = nullptr;
     auto intermittentApex4 = makeDevice(
-        intermittentApex4Transport, 84, false, true, 5);
+        intermittentApex4Transport, 84, false, true, 2);
     error.clear();
     assert(intermittentApex4.verifyIdentity(error));
     assert(intermittentApex4.identity() && intermittentApex4.identity()->isApex4());
     assert(!intermittentApex4.identityUnanswered());
-    assert(intermittentApex4Transport->writes.size() == 6);
+    assert(intermittentApex4Transport->writes.size() == 3);
+    for (std::size_t index = 1; index < intermittentApex4Transport->writeTimes.size(); ++index) {
+        assert(intermittentApex4Transport->writeTimes[index] -
+                   intermittentApex4Transport->writeTimes[index - 1] >=
+               std::chrono::milliseconds(1500));
+    }
+
+    FakeTransport* coolingApex4Transport = nullptr;
+    auto coolingApex4 = makeDevice(coolingApex4Transport, 84, false, true);
+    coolingApex4Transport->apex4QuietInterval = std::chrono::milliseconds(1000);
+    coolingApex4Transport->lastApex4Request = std::chrono::steady_clock::now();
+    coolingApex4Transport->streamApex4State = true;
+    error.clear();
+    assert(coolingApex4.verifyIdentity(error));
+    assert(coolingApex4.identity() && coolingApex4.identity()->isApex4());
+    assert(coolingApex4Transport->writes.size() == 2);
+    assert(!coolingApex4.identityUnanswered());
+
+    FakeTransport* cancelQuietTransport = nullptr;
+    auto cancelQuiet = makeDevice(cancelQuietTransport, 84, true, true);
+    unsigned quietPolls = 0;
+    const auto cancellationStarted = std::chrono::steady_clock::now();
+    error.clear();
+    assert(!cancelQuiet.verifyIdentity(error, [&] {
+        return !cancelQuietTransport->writes.empty() && ++quietPolls == 2;
+    }));
+    assert(error.find("stop request") != std::string::npos);
+    assert(cancelQuietTransport->writes.size() == 1);
+    assert(!cancelQuiet.identityUnanswered());
+    assert(std::chrono::steady_clock::now() - cancellationStarted < std::chrono::milliseconds(500));
 
     FakeTransport* wrongTransport = nullptr;
     auto wrong = makeDevice(wrongTransport, 130);
@@ -482,10 +533,38 @@ int main() {
     auto silentApex4 = makeDevice(silentApex4Transport, 84, true, true);
     error.clear();
     assert(!silentApex4.verifyIdentity(error));
-    assert(error.find("after 30 attempts") != std::string::npos);
+    assert(error.find("after 3 attempts spaced 1.5 s apart") != std::string::npos);
     assert(error.find("observed_reports=0") != std::string::npos);
-    assert(silentApex4Transport->writes.size() == 30);
+    assert(silentApex4Transport->writes.size() == 3);
     assert(silentApex4.identityUnanswered());
+    const auto lastSilentRequest = silentApex4Transport->writeTimes.back();
+
+    FakeTransport* cancelReopenTransport = nullptr;
+    auto cancelReopen = makeDevice(cancelReopenTransport, 84, false, true);
+    const auto reopenCancelStarted = std::chrono::steady_clock::now();
+    error.clear();
+    assert(!cancelReopen.verifyIdentity(error, [&] {
+        return std::chrono::steady_clock::now() - reopenCancelStarted >= std::chrono::milliseconds(50);
+    }));
+    assert(error.find("stop request") != std::string::npos);
+    assert(cancelReopenTransport->writes.empty());
+    assert(std::chrono::steady_clock::now() - reopenCancelStarted < std::chrono::milliseconds(500));
+
+    FakeTransport* reopenedApex4Transport = nullptr;
+    auto reopenedApex4 = makeDevice(reopenedApex4Transport, 84, false, true);
+    error.clear();
+    assert(reopenedApex4.verifyIdentity(error));
+    assert(reopenedApex4Transport->writes.size() == 1);
+    assert(reopenedApex4Transport->writeTimes.front() - lastSilentRequest >=
+           std::chrono::milliseconds(1500));
+
+    FakeTransport* restedApex4Transport = nullptr;
+    auto restedApex4 = makeDevice(restedApex4Transport, 84, false, true);
+    const auto restedStarted = std::chrono::steady_clock::now();
+    error.clear();
+    assert(restedApex4.verifyIdentity(error));
+    assert(restedApex4Transport->writes.size() == 1);
+    assert(std::chrono::steady_clock::now() - restedStarted < std::chrono::milliseconds(500));
     assert(!wrongApex4.setTrigger(effect, error));
     assert(wrongApex4Transport->writes.size() == 1);
 

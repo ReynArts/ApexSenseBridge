@@ -4,6 +4,7 @@
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/VirtualDualSense.h"
+#include "dualsense/VirtualDualSenseStartup.h"
 #include "platform/PhysicalInputSource.h"
 #include "platform/AudioEndpointProtection.h"
 
@@ -12,6 +13,7 @@
 #include <iosfwd>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace asb::cli {
 
@@ -26,6 +28,7 @@ struct BridgeTelemetry {
     unsigned int independentTriggerRuntimeRecoveries = 0;
     bool virtualInputMonitorEnabled = false;
     std::size_t startupAttempts = 0;
+    std::vector<asb::dualsense::VirtualDualSenseProbeReport> virtualStartupProbes;
     std::int64_t initializationMilliseconds = 0;
     std::int64_t physicalInputInitializationMilliseconds = 0;
     std::int64_t virtualInputInitializationMilliseconds = 0;

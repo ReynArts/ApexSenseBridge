@@ -663,12 +663,16 @@
                                         </Button>
 
                                         <Button x:Name="BtnDetailToggleManualFix" Style="{StaticResource BtnSecondary}"
-                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,18"
+                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,6"
                                                 ToolTip="{DynamicResource Loc_ManualFixAllowHint}" Visibility="Collapsed"
                                                 Click="OnDetailToggleManualFixClick">
                                             <TextBlock x:Name="TxtDetailManualFixAction" Text="{DynamicResource Loc_BtnManualFixAllow}"
                                                        FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
                                         </Button>
+                                        <TextBlock x:Name="TxtDetailManualFixNote" Text="{DynamicResource Loc_ManualFixNote}"
+                                                   Visibility="{Binding Visibility, ElementName=BtnDetailToggleManualFix}"
+                                                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                                   Margin="6,0,6,18"/>
 
                                         <!-- Advanced: optional executable association -->
                                         <TextBlock Text="{DynamicResource Loc_GameExecutable}" ToolTip="{DynamicResource Loc_GameExecutableHint}"
@@ -999,6 +1003,21 @@
                                                 <Path DockPanel.Dock="Left" Data="M 12,2 L 12,5 M 12,19 L 12,22 M 2,12 L 5,12 M 19,12 L 22,12 M 5,5 L 7,7 M 17,17 L 19,19 M 5,19 L 7,17 M 17,7 L 19,5 M 12,8 A 4,4 0 1 0 12.001,8 Z"
                                                       Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
                                                 <TextBlock Text="{DynamicResource Loc_SyncLightbar}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
+                                        <Border x:Name="TileSettingZoneEmulation" Style="{StaticResource SettingRow}" Cursor="Hand" Visibility="Collapsed"
+                                                MouseLeftButtonDown="OnSettingZoneEmulationToggled" ToolTip="{DynamicResource Loc_ZoneEmulationHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingZoneEmulation" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingZoneEmulation" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 2,12 L 6,12 L 9,5 L 13,19 L 16,9 L 18,12 L 22,12"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_ZoneEmulation}" Style="{StaticResource RowLabel}"/>
                                             </DockPanel>
                                         </Border>
 
