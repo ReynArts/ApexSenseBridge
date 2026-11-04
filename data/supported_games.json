@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-03T11:40:24.498718+00:00",
-  "totalGames": 223,
-  "discordExecutableGames": 135,
+  "updatedAt": "2026-11-04T11:53:57.365169+00:00",
+  "totalGames": 224,
+  "discordExecutableGames": 136,
   "games": [
     {
       "title": "007 First Light",
@@ -28,6 +28,20 @@
         "aplaguetalerequiem_x64.exe"
       ],
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "A Quiet Place: The Road Ahead",
+      "normalized": "aquietplacetheroadahead",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 2233120,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2233120/library_600x900.jpg?t=1790864553",
+      "executables": [
+        "aquietplace-win64-shipping.exe"
+      ],
+      "addedAt": "2026-11-04"
     },
     {
       "title": "Ace Combat 8: Wings of Theve",
