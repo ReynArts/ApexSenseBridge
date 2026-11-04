@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-27T09:39:04.706550+00:00",
-  "totalGames": 222,
-  "discordExecutableGames": 134,
+  "updatedAt": "2026-11-04T11:54:07.486973+00:00",
+  "totalGames": 224,
+  "discordExecutableGames": 136,
   "games": [
     {
       "title": "007 First Light",
@@ -28,6 +28,20 @@
         "aplaguetalerequiem_x64.exe"
       ],
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "A Quiet Place: The Road Ahead",
+      "normalized": "aquietplacetheroadahead",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 2233120,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2233120/library_600x900.jpg?t=1790864553",
+      "executables": [
+        "aquietplace-win64-shipping.exe"
+      ],
+      "addedAt": "2026-11-04"
     },
     {
       "title": "Ace Combat 8: Wings of Theve",
@@ -114,6 +128,9 @@
       "steamAppId": 4732690,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4732690/791911bc19f47ed3546d70fbce423026f7d846bc/library_capsule_2x.jpg?t=1791291076",
+      "executables": [
+        "endfield.exe"
+      ],
       "addedAt": "2026-09-01"
     },
     {
@@ -367,7 +384,7 @@
       "profile": "standard",
       "steamAppId": 1938090,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1793043140",
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1793656583",
       "executables": [
         "cod.exe"
       ],
@@ -2666,6 +2683,17 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "Phantom Blade Zero",
+      "normalized": "phantombladezero",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 4115450,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4115450/471e77854910665c03eb9a53ad06f2ac12903acd/library_capsule_2x.jpg?t=1793261976",
+      "addedAt": "2026-10-30"
     },
     {
       "title": "Pragmata",
