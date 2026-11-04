@@ -1,4 +1,4 @@
-#define AppName "ApexSenseBridge"
+﻿#define AppName "ApexSenseBridge"
 #define AppVersion "1.0.2"
 #define AppPublisher "ApexSenseBridge contributors"
 #define AppReleaseLabel "1.0.2"
@@ -47,18 +47,38 @@ SignedUninstaller=yes
 #endif
 
 [Languages]
-Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "french"; MessagesFile: "compiler:Languages\French.isl"
+Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
+Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [CustomMessages]
 french.InstallingUsbip=Installation de usbip-win2 {#UsbipVersion}…
 english.InstallingUsbip=Installing usbip-win2 {#UsbipVersion}…
 french.InstallingHidHide=Installation de HidHide 1.5.230…
 english.InstallingHidHide=Installing HidHide 1.5.230…
+english.StartWithWindows=Start ApexSenseBridge Tray when Windows starts (recommended if you do not use Playnite)
+french.StartWithWindows=Démarrer ApexSenseBridge Tray au démarrage de Windows (Recommandé si vous n'utilisez pas Playnite)
+korean.StartWithWindows=Windows 시작 시 ApexSenseBridge Tray 실행 (Playnite를 사용하지 않는 경우 권장)
+english.DesktopIcon=Create a desktop shortcut for ApexSenseBridge Tray
+french.DesktopIcon=Créer un raccourci sur le Bureau pour ApexSenseBridge Tray
+korean.DesktopIcon=ApexSenseBridge Tray 바탕 화면 바로 가기 만들기
+english.StartupGroup=Startup options:
+french.StartupGroup=Options de démarrage :
+korean.StartupGroup=시작 옵션:
+english.ShortcutsGroup=Shortcuts:
+french.ShortcutsGroup=Raccourcis :
+korean.ShortcutsGroup=바로 가기:
+english.LaunchTray=Launch ApexSenseBridge Tray (system tray)
+french.LaunchTray=Lancer ApexSenseBridge Tray (Barre des tâches)
+korean.LaunchTray=ApexSenseBridge Tray 실행 (시스템 트레이)
 
 [Tasks]
-Name: "startwithwindows"; Description: "Démarrer ApexSenseBridge Tray au démarrage de Windows (Recommandé si vous n'utilisez pas Playnite)"; GroupDescription: "Options de démarrage :"
-Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau pour ApexSenseBridge Tray"; GroupDescription: "Raccourcis :"; Flags: unchecked
+Name: "startwithwindows"; Description: "{cm:StartWithWindows}"; GroupDescription: "{cm:StartupGroup}"
+Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:ShortcutsGroup}"; Flags: unchecked
 
 [Files]
 Source: "..\APEX6_DUALSENSE_VALIDATION.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
@@ -100,7 +120,7 @@ Source: "..\playnite\ApexSenseBridge\bin\Release\Localization\*"; DestDir: "{use
 ; InitializeSetup and use a bounded wrapper only for a genuinely fresh install.
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{tmp}\ApexSenseBridge\install-usbip.ps1"" -InstallerPath ""{tmp}\ApexSenseBridge\{#UsbipInstaller}"" -LogPath ""{commonappdata}\ApexSenseBridge\usbip-install.log"""; StatusMsg: "{cm:InstallingUsbip}"; Flags: runhidden waituntilterminated; Check: NeedUsbip; AfterInstall: VerifyUsbipInstall
 Filename: "{tmp}\ApexSenseBridge\HidHide_1.5.230_x64.exe"; Parameters: "/quiet /norestart"; StatusMsg: "{cm:InstallingHidHide}"; Flags: runhidden waituntilterminated; Check: NeedHidHide; AfterInstall: VerifyHidHideInstall
-Filename: "{app}\ApexSenseBridgeTray.exe"; Description: "Lancer ApexSenseBridge Tray (Barre des tâches)"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\ApexSenseBridgeTray.exe"; Description: "{cm:LaunchTray}"; Flags: nowait postinstall skipifsilent
 
 [Registry]
 Root: HKLM64; Subkey: "SOFTWARE\ApexSenseBridge"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
