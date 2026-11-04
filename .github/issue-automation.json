@@ -1,0 +1,36 @@
+{
+  "skipLabel": "automation:skip",
+  "pendingTestingLabel": "pending-testing",
+  "supersededStatusLabels": ["needs-info", "needs-triage", "in-progress", "needs-testing"],
+  "excludedReleaseLabels": ["duplicate", "invalid", "wontfix"],
+  "labels": {
+    "bug": { "color": "d73a4a", "description": "Something is not working" },
+    "enhancement": { "color": "a2eeef", "description": "New feature or improvement" },
+    "question": { "color": "d876e3", "description": "Help or clarification requested" },
+    "controller:apex4": { "color": "1d76db", "description": "Flydigi APEX 4" },
+    "controller:apex5": { "color": "1d76db", "description": "Flydigi APEX 5" },
+    "controller:apex6": { "color": "1d76db", "description": "Flydigi APEX 6 Pro" },
+    "area:triggers": { "color": "c5def5", "description": "Adaptive trigger feedback" },
+    "area:haptics": { "color": "c5def5", "description": "Haptic audio, vibration or rumble" },
+    "area:detection": { "color": "c5def5", "description": "Game detection and automatic activation" },
+    "area:installer": { "color": "c5def5", "description": "Installation, updates or driver setup" },
+    "area:playnite": { "color": "c5def5", "description": "Playnite extension" },
+    "area:hidhide": { "color": "c5def5", "description": "Physical controller isolation and HidHide" },
+    "pending-testing": { "color": "fbca04", "description": "A published release is ready for reporter testing" },
+    "automation:skip": { "color": "ededed", "description": "Disable automatic issue labeling and release follow-up" }
+  },
+  "rules": [
+    { "label": "bug", "pattern": "\\b(bug|bugs|crash|crashes|crashing|regression|broken|erreur|plantage|plante)\\b" },
+    { "label": "enhancement", "pattern": "\\b(feature request|enhancement|suggestion|amelioration|nouvelle fonctionnalite)\\b" },
+    { "label": "question", "pattern": "\\b(question|help wanted|support request|demande d'aide)\\b" },
+    { "label": "controller:apex4", "pattern": "\\bapex[ -]?4\\b" },
+    { "label": "controller:apex5", "pattern": "\\bapex[ -]?5\\b" },
+    { "label": "controller:apex6", "pattern": "\\bapex[ -]?6(?:[ -]?pro)?\\b" },
+    { "label": "area:triggers", "pattern": "\\b(trigger|triggers|gachette|gachettes|forceadapt)\\b" },
+    { "label": "area:haptics", "pattern": "\\b(haptic|haptics|haptique|haptiques|vibration|vibrations|rumble)\\b" },
+    { "label": "area:detection", "pattern": "\\b(game detection|auto[ -]?detection|detection automatique|detection (?:du |des )?jeu[x]?|jeu[x]? non detecte[s]?)\\b" },
+    { "label": "area:installer", "pattern": "\\b(installer|installation|install|uninstall|uninstallation|desinstallation|setup|mise a jour|updater)\\b" },
+    { "label": "area:playnite", "pattern": "\\bplaynite\\b" },
+    { "label": "area:hidhide", "pattern": "\\b(hidhide|isolation|double input|double entree)\\b" }
+  ]
+}

@@ -1,0 +1,35 @@
+name: Test issue automation
+
+on:
+  pull_request:
+    paths:
+      - '.github/issue-automation.json'
+      - '.github/workflows/issue-*.yml'
+      - '.github/workflows/release*.yml'
+      - 'scripts/github-issue-automation.cjs'
+      - 'tests/test_github_issue_automation.cjs'
+  push:
+    branches: [stable, dev]
+    paths:
+      - '.github/issue-automation.json'
+      - '.github/workflows/issue-*.yml'
+      - '.github/workflows/release*.yml'
+      - 'scripts/github-issue-automation.cjs'
+      - 'tests/test_github_issue_automation.cjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: node --test tests/test_github_issue_automation.cjs
