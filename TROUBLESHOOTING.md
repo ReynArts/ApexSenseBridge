@@ -97,6 +97,12 @@ ApexSenseBridge's automatic game detection hooks into games as soon as their exe
 
 ---
 
+### Xbox button prompts instead of PlayStation ones with adaptive triggers
+
+There is no supported way to get both. A delayed bridge start was tried: on Grand Theft Auto V Enhanced a bridge attaching after the game had chosen its controller type kept the Xbox prompts but the game then sent no adaptive-trigger effect, and one attaching earlier gave PlayStation prompts with working effects. If a game offers a button-prompt setting of its own, or a Steam Input controller-type override, use that instead; it changes only the icons and leaves the DualSense effects alone.
+
+---
+
 ### Issue C: Known Game-Side Bugs
 Some games have known bugs with controller detection on PC.
 - *Example:* *007 First Light* has a documented upstream issue where controller input is not recognized on the title/start screen (see [IO Interactive 007 Known Issues](https://007firstlight-support.zendesk.com/hc/en-us/articles/36203682496413-007-First-Light-Known-Issues)).
@@ -153,6 +159,20 @@ If the duplicate input still appears after this exact order, attach the automati
 Enabling **Force continuous activation** before launching the game (Issue B) keeps the virtual DualSense plugged in during startup and is another way to avoid the flip-flopping.
 
 **If it still loops, attach:** `tray_bridge.log` and `tray_detection.log` covering one launch, the names of the game's processes in Task Manager ➔ **Details** during startup, a screenshot of the Tray status while it flips, and the automatic report (see [section 9](#9-what-to-attach-to-a-bug-report)).
+
+---
+
+### Issue G: The Controller Was Switched Off or Unplugged During a Game
+
+**What should happen (APEX 4 and APEX 5):** the Tray shows **Waiting for controller**, the game keeps its virtual DualSense (it receives a neutral input and does not see a disconnection), and when you switch the controller back on the bridge reattaches by itself within a few seconds. You do not need to restart the game or the bridge. The bridge waits 10 minutes by default.
+
+**If it did not come back:**
+1. Switch the controller on with the same connection as before (the same receiver or the same cable). Another APEX connected at the same time cannot take over the session: with several controllers only the one the bridge was using is accepted.
+2. Close Flydigi Space Station if it is running; it competes for the controller's vendor interface while the bridge asks it to identify itself.
+3. Check `tray_bridge.log` for lines starting with `Physical APEX lost`, `Waiting for the physical APEX:` (the last reason shown) and `Physical APEX reattached`. A message about controller isolation means HidHide did not accept the returning controller; the bridge then stops instead of exposing it to the game.
+4. After 10 minutes without the controller, after more than six losses within 10 minutes, or on an APEX 6 Pro, the bridge stops as before; use **Resume bridge** in the Tray and restart the game if it does not pick the new DualSense up.
+
+`bridge-triggers --reattach-seconds N` changes the wait (0 to 3600 seconds); `0` disables the automatic reattachment. The telemetry file reports `physical_reattaches` and `physical_lost_ms`.
 
 ---
 

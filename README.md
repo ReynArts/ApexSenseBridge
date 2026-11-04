@@ -249,7 +249,21 @@ settings.
 
 ### Disconnection Recovery
 
-After a confirmed runtime disconnection, Tray pauses automatic activation for
+**Switching the controller off and on.** On an APEX 4 or APEX 5, turning the
+controller off, letting it fall asleep or unplugging it during a session does
+not end the session. The virtual DualSense stays connected with neutral input,
+so the game never sees a controller disappear, does not need to be restarted
+and does not change its button prompts. The bridge waits up to 10 minutes (the
+`--reattach-seconds` option of `bridge-triggers`; `0` turns it off) for the same
+controller, then re-checks it, hides it again if Windows gave it new device
+identifiers (another USB port, cable instead of receiver), restores the profile
+and input routing the session needs, and replays the game's last trigger effect
+and RGB colour. Rumble is deliberately not replayed. The Tray shows
+"Waiting for controller" meanwhile. If the controller does not return in time,
+is lost more than six times within 10 minutes, or is an APEX 6 Pro, the bridge
+stops as before and the voluntary recovery below applies.
+
+After a confirmed runtime disconnection that the bridge cannot ride out, Tray pauses automatic activation for
 the interrupted session. The home page offers a voluntary **Resume bridge**
 action and shows real controller, virtual-device, isolation and runtime checks.
 Recovery retains the game/profile/APEX slot and never closes or relaunches the

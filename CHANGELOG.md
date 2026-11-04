@@ -2,6 +2,110 @@
 
 ## Unreleased
 
+### Catalogue: workaround notes for manual-fix games
+
+- The nightly catalogue update now reads each manual-fix game's PCGamingWiki
+  page and stores, per feature (adaptive triggers, haptic feedback), the
+  workaround note in `manualFixDetails`: a cleaned plain-text note (at most 600
+  characters), up to 6 links (external links and namespaced wiki pages such as
+  the DSX section) and the well-known helper tools it names (DSX, DSY,
+  RacingDSX, DualSenseAT, Special K, SimHub).
+- When a page cannot be read, the previous notes are kept, so a PCGamingWiki
+  outage never empties the catalogue. Games that no longer need a manual fix
+  lose the field.
+- `validate_supported_games.py` checks the new field (matching manual-fix
+  flag, HTTPS links, known tool names). The Tray ignores it for now; the
+  compatibility of each workaround with the virtual DualSense is not known and
+  is not inferred by the update.
+
+### Reset buttons for controller tuning, per-game tuning and a lighter executable control
+
+- Each tuning slider (trigger strength, vibration strength, APEX 4 gyro and
+  haptic activation threshold) has a reset button that restores the default.
+- A game's detail pane has one "Customize settings for this game" button. It
+  reveals trigger strength, vibration strength and (APEX 4 and 5) the haptic
+  threshold for that game only; "Default settings" returns all three to the
+  global values. Applied when the game's session starts. The APEX 6 Pro keeps
+  its fixed threshold of 0 and its 100 % vibration limit.
+- The game executable is a single button: choose an .exe, then the same button
+  returns to automatic detection. The dropdown of learned executables is gone;
+  learned executables are still used automatically and managed in the learned
+  executables tab.
+- The Support button no longer has a white outline.
+
+### The virtual DualSense survives a controller power cycle (APEX 4 and APEX 5)
+
+- Switching the APEX off, letting it sleep (the 2.4 GHz receiver stays present
+  but goes silent for one second) or unplugging it during a session no longer
+  ends the engine. It keeps the virtual DualSense connected with a neutral input
+  and waits for the same controller, so a game that was running does not have
+  to be restarted and its button prompts do not flip. The wait lasts 10 minutes
+  by default; `--reattach-seconds N` (0 to 3600) changes it and `0` restores the
+  previous behaviour (the engine stops and the Tray offers its voluntary
+  recovery).
+- When the controller answers again the bridge verifies its identity, accepts
+  only the same model and, with several APEX connected, only the interface it
+  was using (same path, then serial number, then container). It then refreshes
+  the HidHide device list so a controller that came back under new device
+  identifiers (other USB port, cable instead of receiver) is hidden again,
+  re-applies the requested APEX profile and the input routing when the power
+  cycle reset them, re-establishes the neutral trigger and rumble baseline,
+  reopens the physical input with three fresh reports and, on an APEX 5, the
+  independent LT/RT stream, then recreates the trigger and rumble bridges. The
+  game's last trigger effect and RGB colour are replayed; rumble is never
+  replayed.
+- More than six losses within 10 minutes, no return within the window, an APEX
+  6 Pro, a different model or an isolation refresh that keeps failing fall back
+  to the previous behaviour. Stopping a session while the controller is off now
+  ends cleanly: restoring the original profile and input routing is deferred to
+  the next time that controller is awake (the same record as
+  [#44](https://github.com/ReynArts/ApexSenseBridge/issues/44)/[#45](https://github.com/ReynArts/ApexSenseBridge/issues/45))
+  instead of failing the session.
+- The session progress block gains the bit `PhysicalLost` (16) while the engine
+  waits; the phase stays Ready. The Tray shows "Waiting for controller" with an
+  explanation, offers no recovery and records no failure. Telemetry reports
+  `physical_reattaches` and `physical_lost_ms`.
+- New tests cover the controller matching, the loss budget, the reattach plan,
+  the feedback router that remembers the last effects, the new option, the
+  progress bit, closing the device transport and the Tray status. Not yet
+  validated on hardware: power-cycling an APEX 4/5 during a game, and a
+  controller returning on another USB port.
+
+### Home no longer covered by the running game's cover art
+
+- With a game running, a portrait cover (such as a Steam capsule) could stretch
+  the home banner to several thousand pixels: the blurred image filled the whole
+  home tab and pushed the status, title and controller out of the window. The
+  cover is now painted as a background brush, so it no longer takes part in the
+  layout.
+
+### Game detection: Grand Theft Auto V Enhanced was matched to the original game
+
+- `GTA5_Enhanced.exe` carries the product name "Grand Theft Auto V", and the
+  detection kept the first exact match, so the process was attached to the
+  original "Grand Theft Auto V" entry (which needs a manual fix) and skipped: the
+  bridge never started for the real game. When several clues give an exact match,
+  the most specific game now wins, so the install folder "Grand Theft Auto V
+  Enhanced" beats the product name.
+
+### Why keeping the Xbox prompts with adaptive triggers is not offered
+
+- Tried and removed: delaying the start of the bridge after the game is detected,
+  hoping a game that chooses its prompts at launch would keep the Xbox ones. On
+  Grand Theft Auto V Enhanced (Steam), one session with the bridge attached 26 s
+  after the game process appeared kept the Xbox prompts but the game sent no
+  adaptive-trigger effect (5 distinct blocks, all off or zero force); another
+  attached after 20 s showed PlayStation prompts with weapon and vibration
+  effects, as did the sessions without delay. The game seems to choose its
+  controller type once, between roughly 20 and 26 s after it starts, and that same
+  choice enables or disables the DualSense effects. Xbox prompts and adaptive
+  triggers did not come together with this method; each result is a single
+  session.
+- Flydigi Space Station has no such delay: its decompiled code enables its
+  DualSense as soon as the game process is seen (about 0.5 s on Grand Theft Auto V
+  Enhanced in its own log), and on this machine it showed PlayStation prompts
+  there as well. An earlier session where it showed Xbox prompts remains
+  unexplained.
 ### Per-zone and rhythmic trigger emulation (APEX 5, on by default)
 
 - The APEX 5 now follows DualSense trigger curves and rhythms from the PC. It
