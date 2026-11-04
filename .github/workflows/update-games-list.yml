@@ -33,11 +33,13 @@ jobs:
           python scripts/update_pcgw_list.py
           python tests/test_update_pcgw_list.py
           python scripts/validate_supported_games.py
-          if [ -n "$(git status --porcelain data/supported_games.json data/manual_fix_translations.json)" ]; then
-            git add data/supported_games.json data/manual_fix_translations.json
+          python tests/test_generate_games_markdown.py
+          python scripts/generate_games_markdown.py
+          if [ -n "$(git status --porcelain data/supported_games.json data/manual_fix_translations.json GAMES.md)" ]; then
+            git add data/supported_games.json data/manual_fix_translations.json GAMES.md
             git commit -m "chore(data): update DualSense games and Discord executables"
             git push origin stable
-            echo "Successfully updated supported_games.json on stable."
+            echo "Successfully updated the game catalogue and GAMES.md on stable."
           else
             echo "No changes detected on stable."
           fi
@@ -52,14 +54,16 @@ jobs:
           python scripts/update_pcgw_list.py
           python tests/test_update_pcgw_list.py
           python scripts/validate_supported_games.py
+          python tests/test_generate_games_markdown.py
+          python scripts/generate_games_markdown.py
 
           if [ -f .git/MERGE_HEAD ]; then
-            git add data/supported_games.json data/manual_fix_translations.json
+            git add data/supported_games.json data/manual_fix_translations.json GAMES.md
             git commit -m "chore(data): sync supported_games.json from stable into dev"
             git push origin dev
             echo "Completed merge from stable and updated dev."
-          elif [ -n "$(git status --porcelain data/supported_games.json data/manual_fix_translations.json)" ]; then
-            git add data/supported_games.json data/manual_fix_translations.json
+          elif [ -n "$(git status --porcelain data/supported_games.json data/manual_fix_translations.json GAMES.md)" ]; then
+            git add data/supported_games.json data/manual_fix_translations.json GAMES.md
             git commit -m "chore(data): update DualSense games and Discord executables"
             git push origin dev
             echo "Committed fresh updates to dev."

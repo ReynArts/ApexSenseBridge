@@ -89,6 +89,8 @@ Hardware-tested titles include the following. Features depend on the game and co
 
 The catalogue tracks native PlayStation 5 DualSense support using PCGamingWiki. Catalogue detection does not certify every effect on every APEX model. The Standalone Tray App and Playnite extension automatically recognize and engage the bridge when any supported title launches.
 
+**[🎮 Browse the full game catalogue](GAMES.md)** — an alphabetical list with adaptive-trigger and haptic-feedback support, manual-fix links, and recent additions with cover art. Updated automatically with the daily catalogue refresh.
+
 ### What Does "Manual fix" Mean?
 
 A **Manual fix** badge in the game list means the game does not provide the listed DualSense feature by itself: PCGamingWiki classes it as "hackable", so it needs a third-party modification or setting that **you** apply. ApexSenseBridge does not install, run or check these fixes. By default the bridge therefore stays off for such games and leaves your physical controller available.
