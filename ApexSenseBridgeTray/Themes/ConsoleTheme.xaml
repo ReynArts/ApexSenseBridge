@@ -592,6 +592,34 @@
         </Setter>
     </Style>
 
+    <Style x:Key="BtnResetDefault" TargetType="Button">
+        <Setter Property="Width" Value="26"/>
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="Background" Value="#1FFFFFFF"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="13">
+                        <Path x:Name="glyph" Data="M 3,12 A 9,9 0 1 0 6,5.3 M 3,3 L 3,8 L 8,8" Style="{StaticResource IconPath}"
+                              Stroke="{DynamicResource TextSecondary}" StrokeThickness="2" Width="13" Height="13"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bg" Property="Background" Value="#38FFFFFF"/>
+                            <Setter TargetName="glyph" Property="Stroke" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="BtnDanger" TargetType="Button">
         <Setter Property="Background" Value="#24EF4444"/>
         <Setter Property="Foreground" Value="#FF8A8A"/>
@@ -641,8 +669,7 @@
                         <!-- Pulsing crisp outline detached from the pill (no blur that gets cut off). -->
                         <Border x:Name="Halo" Margin="-4" CornerRadius="23" BorderBrush="{DynamicResource SupportGradient}"
                                 BorderThickness="2" Opacity="0.45" IsHitTestVisible="False"/>
-                        <Border x:Name="bg" CornerRadius="19" Padding="6,0,16,0" Background="{DynamicResource SupportGradient}"
-                                BorderBrush="#59FFFFFF" BorderThickness="1">
+                        <Border x:Name="bg" CornerRadius="19" Padding="6,0,16,0" Background="{DynamicResource SupportGradient}">
                             <ContentPresenter VerticalAlignment="Center">
                                 <ContentPresenter.Effect>
                                     <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Color="#5A0A1E" Opacity="0.6"/>

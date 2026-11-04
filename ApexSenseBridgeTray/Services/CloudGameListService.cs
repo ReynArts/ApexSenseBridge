@@ -280,6 +280,8 @@ namespace ApexSenseBridgeTray.Services
                     g.ManualFixUrl = item.ContainsKey("manualFixUrl") && item["manualFixUrl"] != null
                         ? item["manualFixUrl"].ToString()
                         : string.Empty;
+                    g.AdaptiveTriggersFix = ParseManualFixDetail(item, "adaptiveTriggers");
+                    g.HapticFeedbackFix = ParseManualFixDetail(item, "hapticFeedback");
                     g.Profile = item.ContainsKey("profile") && item["profile"] != null ? item["profile"].ToString() : "standard";
                     g.IconUrl = item.ContainsKey("iconUrl") && item["iconUrl"] != null ? item["iconUrl"].ToString() : string.Empty;
                     if (item.ContainsKey("steamAppId") && item["steamAppId"] != null)
@@ -365,6 +367,54 @@ namespace ApexSenseBridgeTray.Services
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out date)
                 ? date.Date
                 : (DateTime?)null;
+        }
+
+        internal static ManualFixDetail ParseManualFixDetail(Dictionary<string, object> item, string feature)
+        {
+            var details = item != null && item.ContainsKey("manualFixDetails")
+                ? item["manualFixDetails"] as Dictionary<string, object>
+                : null;
+            var entry = details != null && details.ContainsKey(feature)
+                ? details[feature] as Dictionary<string, object>
+                : null;
+            if (entry == null) return null;
+
+            var detail = new ManualFixDetail();
+            detail.Note = entry.ContainsKey("note") && entry["note"] != null
+                ? entry["note"].ToString().Trim()
+                : string.Empty;
+
+            var links = new List<ManualFixLink>();
+            var linkValues = entry.ContainsKey("links") ? entry["links"] as System.Collections.IEnumerable : null;
+            if (linkValues != null && !(entry["links"] is string))
+            {
+                foreach (var value in linkValues)
+                {
+                    var linkItem = value as Dictionary<string, object>;
+                    if (linkItem == null || !linkItem.ContainsKey("url") || linkItem["url"] == null) continue;
+                    var url = linkItem["url"].ToString().Trim();
+                    var label = linkItem.ContainsKey("label") && linkItem["label"] != null
+                        ? linkItem["label"].ToString().Trim()
+                        : string.Empty;
+                    if (url.Length == 0) continue;
+                    links.Add(new ManualFixLink { Label = label.Length > 0 ? label : url, Url = url });
+                }
+            }
+            detail.Links = links.ToArray();
+
+            var tools = new List<string>();
+            var toolValues = entry.ContainsKey("tools") ? entry["tools"] as System.Collections.IEnumerable : null;
+            if (toolValues != null && !(entry["tools"] is string))
+            {
+                foreach (var value in toolValues)
+                {
+                    var tool = value as string;
+                    if (!string.IsNullOrWhiteSpace(tool)) tools.Add(tool.Trim());
+                }
+            }
+            detail.Tools = tools.ToArray();
+
+            return detail.Note.Length > 0 || detail.Links.Length > 0 ? detail : null;
         }
 
         private static string[] ParseExecutables(Dictionary<string, object> item)

@@ -48,6 +48,8 @@
   "Loc_SessionReason": "Motivo:",
   "Loc_SessionStarting": "Preparando ponte",
   "Loc_SessionReady": "Ponte pronta",
+  "Loc_SessionControllerLost": "Aguardando o controle",
+  "Loc_SessionControllerLostHint": "Controle desconectado, aguardando a volta dele. Seu jogo mantém o DualSense virtual.",
   "Loc_SessionStopping": "Parando",
   "Loc_SessionStopped": "Ponte parada",
   "Loc_SessionFailed": "Ativação recusada / erro",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "saudável",
   "Loc_GyroSensorStill": "estacionário",
   "Loc_SteamAlreadyRunningTitle": "Steam já estava em execução",
-  "Loc_SteamAlreadyRunningBody": "Steam estava em execução quando o controlador foi ocultado. Se você vir entradas duplicadas, saia completamente do Steam e reabra-o enquanto o Bridge está ativo. Mantenha o Steam Input desabilitado para o jogo."
+  "Loc_SteamAlreadyRunningBody": "Steam estava em execução quando o controlador foi ocultado. Se você vir entradas duplicadas, saia completamente do Steam e reabra-o enquanto o Bridge está ativo. Mantenha o Steam Input desabilitado para o jogo.",
+  "Loc_ResetToDefault": "Restaurar padrão",
+  "Loc_GameTuningCustomize": "Personalizar as configurações deste jogo",
+  "Loc_GameTuningUseGlobal": "Configurações padrão",
+  "Loc_GameTuningHint": "Substitui a força dos gatilhos, a força da vibração e o limiar tátil apenas para este jogo. «Configurações padrão» volta aos valores globais. Aplicado ao iniciar a sessão do bridge deste jogo.",
+  "Loc_ExecutableUseAutomatic": "Voltar à detecção automática"
 }

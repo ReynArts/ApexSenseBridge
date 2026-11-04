@@ -48,6 +48,8 @@
   "Loc_SessionReason": "Причина:",
   "Loc_SessionStarting": "Подготовка моста",
   "Loc_SessionReady": "Мост готов",
+  "Loc_SessionControllerLost": "Ожидание геймпада",
+  "Loc_SessionControllerLostHint": "Геймпад отключён, ожидаем его возвращения. Ваша игра сохраняет виртуальный DualSense.",
   "Loc_SessionStopping": "Остановка",
   "Loc_SessionStopped": "Мост остановлен",
   "Loc_SessionFailed": "Отказ активации / ошибка",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "исправен",
   "Loc_GyroSensorStill": "неподвижен",
   "Loc_SteamAlreadyRunningTitle": "Steam уже был запущен",
-  "Loc_SteamAlreadyRunningBody": "Steam был запущен при скрытии контроллера. Если вы видите повторяющиеся входные данные, полностью закройте Steam и снова откройте его, пока Bridge активен. Отключите Steam Input для игры."
+  "Loc_SteamAlreadyRunningBody": "Steam был запущен при скрытии контроллера. Если вы видите повторяющиеся входные данные, полностью закройте Steam и снова откройте его, пока Bridge активен. Отключите Steam Input для игры.",
+  "Loc_ResetToDefault": "Сбросить по умолчанию",
+  "Loc_GameTuningCustomize": "Настроить параметры для этой игры",
+  "Loc_GameTuningUseGlobal": "Параметры по умолчанию",
+  "Loc_GameTuningHint": "Заменяет силу курков, силу вибрации и порог тактильной отдачи только для этой игры. «Параметры по умолчанию» возвращает общие значения. Применяется при запуске сессии моста для этой игры.",
+  "Loc_ExecutableUseAutomatic": "Вернуться к автоопределению"
 }

@@ -67,6 +67,7 @@ namespace ApexSenseBridgeTray.Services
         private string lastReason;
         private bool failed;
         private bool unexpectedExit;
+        private bool controllerLost;
         private int unexpectedExitCode;
         private string controller;
         private readonly Timer healthTimer;
@@ -114,61 +115,99 @@ namespace ApexSenseBridgeTray.Services
         public string StateName { get { lock (syncLock) { return isStarting ? "Starting" : isStopping ? "Stopping" : activeSession != null ? activeSession.ReadStatus().Phase.ToString() : failed ? "Failed" : "Stopped"; } } }
         public string LastReason { get { lock (syncLock) { return lastReason; } } }
         public string ActiveController { get { lock (syncLock) { return controller; } } }
+        public bool ControllerLost { get { lock (syncLock) { return controllerLost; } } }
         public bool HasExternalSession { get { return externalSessionProbe(); } }
         public event Action StateChanged;
+
+        internal static bool IsWaitingForController(string phase, bool controllerLost)
+        {
+            return controllerLost && phase == "Ready";
+        }
+
+        internal static string SessionStatusKey(string phase, bool controllerLost, bool interrupted)
+        {
+            if (interrupted) return "Loc_SessionInterrupted";
+            return IsWaitingForController(phase, controllerLost) ? "Loc_SessionControllerLost" : "Loc_Session" + phase;
+        }
+
+        private bool SetControllerLost(bool lost)
+        {
+            if (controllerLost == lost) return false;
+            controllerLost = lost;
+            return true;
+        }
+
+        private static bool ReportsLostController(BridgeSession.SessionInfo info)
+        {
+            return info != null && info.Phase == SessionPhase.Ready && info.ControllerLost;
+        }
 
         private void CheckHealth(object unused)
         {
             if (Interlocked.Exchange(ref checkingHealth, 1) != 0) return;
             try
             {
-                string exitReason = null;
-                lock (syncLock)
-                {
-                    if (activeSession == null)
-                    {
-                        if (isStarting || isStopping) return;
-                        var external = BridgeSession.ReadActiveSession(sessionDiscoveryName);
-                        if (external != null && external.Owner != "Tray")
-                        {
-                            observedExternalSession = external;
-                            if (external.Phase == SessionPhase.Ready) recovery.Clear();
-                            return;
-                        }
-                        if (observedExternalSession == null) return;
-                        var previous = observedExternalSession;
-                        observedExternalSession = null;
-                        var final = BridgeSession.ReadSessionStatus(previous.Token);
-                        if (final == null || final.Phase != SessionPhase.Failed ||
-                            !recovery.Offer(previous.Game, previous.Profile, 0, final.Interruption, final.Stages, previous.Owner)) return;
-                        activeGameTitle = previous.Game;
-                        activeProfile = previous.Profile;
-                        controller = previous.Controller;
-                        failed = true;
-                        lastReason = final.Message;
-                        exitReason = lastReason;
-                    }
-                    else
-                    {
-                        var status = activeSession.ReadStatus();
-                        if (activeSession.ProcessId != 0) return;
-                        failed = status.Phase != SessionPhase.Stopped;
-                        lastReason = status.Message;
-                        if (string.IsNullOrWhiteSpace(lastReason) || status.Phase == SessionPhase.Ready || status.Phase == SessionPhase.Stopping)
-                            lastReason = "Le moteur s'est arrêté de façon inattendue.";
-                        exitReason = lastReason;
-                        unexpectedExit = true;
-                        unexpectedExitCode = status.ExitCode;
-                        if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages)) recovery.Clear();
-                        activeSession.Dispose();
-                        activeSession = null;
-                    }
-                }
+                string exitReason;
+                bool lostToggled;
+                bool stopped;
+                lock (syncLock) stopped = ObserveHealth(out exitReason, out lostToggled);
+                if (lostToggled) StateChanged?.Invoke();
+                if (!stopped) return;
                 StateChanged?.Invoke();
                 SessionStopped?.Invoke(exitReason);
             }
             catch (Exception ex) { RaiseLogMessage("Session health: " + ex.Message); }
             finally { Interlocked.Exchange(ref checkingHealth, 0); }
+        }
+
+        private bool ObserveHealth(out string exitReason, out bool lostToggled)
+        {
+            exitReason = null;
+            lostToggled = false;
+            if (activeSession == null)
+            {
+                if (isStarting || isStopping) return false;
+                var external = BridgeSession.ReadActiveSession(sessionDiscoveryName);
+                if (external != null && external.Owner != "Tray")
+                {
+                    observedExternalSession = external;
+                    lostToggled = SetControllerLost(ReportsLostController(external));
+                    if (external.Phase == SessionPhase.Ready) recovery.Clear();
+                    return false;
+                }
+                lostToggled = SetControllerLost(false);
+                if (observedExternalSession == null) return false;
+                var previous = observedExternalSession;
+                observedExternalSession = null;
+                var final = BridgeSession.ReadSessionStatus(previous.Token);
+                if (final == null || final.Phase != SessionPhase.Failed ||
+                    !recovery.Offer(previous.Game, previous.Profile, 0, final.Interruption, final.Stages, previous.Owner)) return false;
+                activeGameTitle = previous.Game;
+                activeProfile = previous.Profile;
+                controller = previous.Controller;
+                failed = true;
+                lastReason = final.Message;
+                exitReason = lastReason;
+                return true;
+            }
+            var status = activeSession.ReadStatus();
+            if (activeSession.ProcessId != 0)
+            {
+                lostToggled = SetControllerLost(ReportsLostController(status));
+                return false;
+            }
+            SetControllerLost(false);
+            failed = status.Phase != SessionPhase.Stopped;
+            lastReason = status.Message;
+            if (string.IsNullOrWhiteSpace(lastReason) || status.Phase == SessionPhase.Ready || status.Phase == SessionPhase.Stopping)
+                lastReason = "Le moteur s'est arrêté de façon inattendue.";
+            exitReason = lastReason;
+            unexpectedExit = true;
+            unexpectedExitCode = status.ExitCode;
+            if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages)) recovery.Clear();
+            activeSession.Dispose();
+            activeSession = null;
+            return true;
         }
 
         public void Dispose() { healthTimer.Dispose(); }
@@ -301,6 +340,7 @@ namespace ApexSenseBridgeTray.Services
                 lastReason = null;
                 failed = false;
                 unexpectedExit = false;
+                controllerLost = false;
                 controller = null;
                 activeProfileName = profileName;
                 activeApexSlot = apexProfileSlot;
@@ -325,7 +365,7 @@ namespace ApexSenseBridgeTray.Services
                     return false;
                 }
 
-                var args = BuildArguments(profileName, settings, apexProfileSlot);
+                var args = BuildArguments(profileName, settings, apexProfileSlot, gameTitle);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
 
                 int timeoutSec = Math.Max(MinimumInitializationSeconds,
@@ -417,6 +457,7 @@ namespace ApexSenseBridgeTray.Services
                 activeGameTitle = null;
                 activeProfile = null;
                 failed = false;
+                controllerLost = false;
                 lastReason = reason;
             }
 
@@ -503,14 +544,16 @@ namespace ApexSenseBridgeTray.Services
         }
 
         private static string BuildArguments(string profileName, TraySettings settings,
-                                             int apexProfileSlot)
+                                             int apexProfileSlot, string gameTitle)
         {
             var arguments = BridgeArguments.Build(
                 profileName, false, 12, false, apexProfileSlot,
                 zoneEmulation: settings == null || settings.ZoneEmulation);
             // Send all model profiles; only the engine's verified device selects
             // one. A stale UI label / hot swap can never select another model's data.
-            return arguments + (settings != null ? settings.BuildControllerCalibrationArguments() : string.Empty);
+            return arguments + (settings != null
+                ? settings.BuildControllerCalibrationArguments(settings.GetGameTuning(gameTitle))
+                : string.Empty);
         }
     }
 }

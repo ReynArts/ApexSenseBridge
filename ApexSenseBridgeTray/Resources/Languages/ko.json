@@ -48,6 +48,8 @@
   "Loc_SessionReason": "이유:",
   "Loc_SessionStarting": "브리지 준비 중",
   "Loc_SessionReady": "브리지 준비 완료",
+  "Loc_SessionControllerLost": "컨트롤러 대기 중",
+  "Loc_SessionControllerLostHint": "컨트롤러 연결이 끊어졌습니다. 다시 연결되기를 기다리는 중입니다. 게임은 가상 DualSense를 그대로 유지합니다.",
   "Loc_SessionStopping": "중지 중",
   "Loc_SessionStopped": "브리지 중지됨",
   "Loc_SessionFailed": "활성화 거부됨 / 오류",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "정상 작동",
   "Loc_GyroSensorStill": "정지됨",
   "Loc_SteamAlreadyRunningTitle": "Steam이 이미 실행 중입니다",
-  "Loc_SteamAlreadyRunningBody": "컨트롤러가 숨겨졌을 때 Steam이 이미 실행 중이었습니다. 중복 입력이 보이면 Steam을 완전히 종료하고 Bridge가 활성화된 상태에서 다시 열어주세요. 게임에 대해 Steam Input을 비활성화하세요."
+  "Loc_SteamAlreadyRunningBody": "컨트롤러가 숨겨졌을 때 Steam이 이미 실행 중이었습니다. 중복 입력이 보이면 Steam을 완전히 종료하고 Bridge가 활성화된 상태에서 다시 열어주세요. 게임에 대해 Steam Input을 비활성화하세요.",
+  "Loc_ResetToDefault": "기본값으로 재설정",
+  "Loc_GameTuningCustomize": "이 게임의 설정 사용자 지정",
+  "Loc_GameTuningUseGlobal": "기본 설정",
+  "Loc_GameTuningHint": "트리거 강도, 진동 강도, 햅틱 임계값을 이 게임에만 덮어씁니다. '기본 설정'을 누르면 전체 값으로 돌아갑니다. 이 게임의 브리지 세션이 시작될 때 적용됩니다.",
+  "Loc_ExecutableUseAutomatic": "자동 감지로 되돌리기"
 }

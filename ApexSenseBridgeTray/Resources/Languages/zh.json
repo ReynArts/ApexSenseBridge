@@ -48,6 +48,8 @@
   "Loc_SessionReason": "原因：",
   "Loc_SessionStarting": "正在准备桥接",
   "Loc_SessionReady": "桥接已就绪",
+  "Loc_SessionControllerLost": "正在等待手柄",
+  "Loc_SessionControllerLostHint": "手柄已断开连接，正在等待其重新连接。游戏仍保留虚拟 DualSense。",
   "Loc_SessionStopping": "正在停止",
   "Loc_SessionStopped": "桥接已停止",
   "Loc_SessionFailed": "激活被拒绝 / 错误",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "正常",
   "Loc_GyroSensorStill": "静止",
   "Loc_SteamAlreadyRunningTitle": "Steam已在运行",
-  "Loc_SteamAlreadyRunningBody": "Steam在控制器被隐藏时已在运行。如果看到重复输入，请完全退出Steam，然后在Bridge活跃时重新打开它。对游戏禁用Steam Input。"
+  "Loc_SteamAlreadyRunningBody": "Steam在控制器被隐藏时已在运行。如果看到重复输入，请完全退出Steam，然后在Bridge活跃时重新打开它。对游戏禁用Steam Input。",
+  "Loc_ResetToDefault": "恢复默认值",
+  "Loc_GameTuningCustomize": "自定义此游戏的设置",
+  "Loc_GameTuningUseGlobal": "默认设置",
+  "Loc_GameTuningHint": "仅为此游戏覆盖扳机强度、振动强度和触觉阈值。点击“默认设置”可恢复全局值。在该游戏的桥接会话启动时生效。",
+  "Loc_ExecutableUseAutomatic": "恢复自动检测"
 }

@@ -118,6 +118,7 @@
     <Compile Include="Services\ExecutableLearningService.cs" />
     <Compile Include="Services\GameProcessSessionTracker.cs" />
     <Compile Include="Services\GameActivationPolicy.cs" />
+    <Compile Include="Services\ManualFixGuide.cs" />
     <Compile Include="Services\PlatformClientProcessFilter.cs" />
     <Compile Include="Services\ProcessMonitorService.cs" />
     <Compile Include="Services\EngineSessionManager.cs" />

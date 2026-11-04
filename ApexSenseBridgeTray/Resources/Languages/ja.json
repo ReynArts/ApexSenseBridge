@@ -48,6 +48,8 @@
   "Loc_SessionReason": "理由:",
   "Loc_SessionStarting": "ブリッジの準備中",
   "Loc_SessionReady": "ブリッジ準備完了",
+  "Loc_SessionControllerLost": "コントローラー待機中",
+  "Loc_SessionControllerLostHint": "コントローラーが切断されました。再接続を待っています。ゲームは仮想DualSenseをそのまま使い続けます。",
   "Loc_SessionStopping": "停止中",
   "Loc_SessionStopped": "ブリッジ停止",
   "Loc_SessionFailed": "アクティブ化拒否 / エラー",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "正常",
   "Loc_GyroSensorStill": "静止中",
   "Loc_SteamAlreadyRunningTitle": "Steamは既に実行中です",
-  "Loc_SteamAlreadyRunningBody": "コントローラーが隠された時、Steamは既に実行中でした。重複した入力が見られる場合は、Steamを完全に終了してからBridgeがアクティブな状態で再度開いてください。ゲームのSteam Inputは無効にしてください。"
+  "Loc_SteamAlreadyRunningBody": "コントローラーが隠された時、Steamは既に実行中でした。重複した入力が見られる場合は、Steamを完全に終了してからBridgeがアクティブな状態で再度開いてください。ゲームのSteam Inputは無効にしてください。",
+  "Loc_ResetToDefault": "既定値に戻す",
+  "Loc_GameTuningCustomize": "このゲームの設定をカスタマイズ",
+  "Loc_GameTuningUseGlobal": "既定の設定",
+  "Loc_GameTuningHint": "トリガー強度、振動強度、ハプティックしきい値をこのゲームに限って上書きします。「既定の設定」で全体の値に戻ります。このゲームのブリッジセッション開始時に適用されます。",
+  "Loc_ExecutableUseAutomatic": "自動検出に戻す"
 }

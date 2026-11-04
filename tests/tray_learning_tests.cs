@@ -66,6 +66,10 @@ internal static class TrayLearningTests
             TestHidHideBusyDetection();
             TestInterruptedSessionRecovery();
             TestExternalRecoveryOwnership();
+            TestControllerLostStatusMapping();
+            TestControllerLostLocalization();
+            TestControllerLostIsNotAFailure();
+            TestControllerLostOnExternalSession();
             TestRecoveryCancelledDuringStartup();
             TestRecoveryGameLifetimeTracking();
             TestStartRetryPolicy();
@@ -847,10 +851,40 @@ internal static class TrayLearningTests
             "Model-specific amplification did not survive persistence.");
         arguments = settings.BuildControllerCalibrationArguments();
         var builder = typeof(EngineSessionManager).GetMethod("BuildArguments", BindingFlags.Static | BindingFlags.NonPublic);
-        var sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3 });
+        var sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Alpha" });
         Assert(sessionArguments.EndsWith(arguments, StringComparison.Ordinal) &&
             !sessionArguments.Contains("--sync-lightbar") && !sessionArguments.Contains("--haptic-threshold"),
             "Session launch used legacy global tuning instead of verified-model selection.");
+        Assert(settings.GetGameTuning("alpha") == null, "A game had tuning it was never given.");
+        settings.SetGameTuning("alpha", "Alpha", new GameTuning
+        {
+            TriggerStrengthPercent = 55, VibrationStrengthPercent = 160, HapticThresholdPercent = 40
+        });
+        var stored = settings.GetGameTuning("ALPHA");
+        Assert(stored != null && stored.TriggerStrengthPercent == 55 && stored.VibrationStrengthPercent == 160 &&
+            stored.HapticThresholdPercent == 40 && settings.GetGameTuning("Alpha") != null,
+            "The per-game tuning was not stored under both the normalized name and the title.");
+        sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Alpha" });
+        Assert(sessionArguments.Contains("--controller-calibration apex4:55:160:40:0:0:400:225") &&
+            sessionArguments.Contains("--controller-calibration apex5:55:160:40:0:1:100:100") &&
+            sessionArguments.Contains("--controller-calibration apex6:55:100:0:1:0:100:100"),
+            "The per-game tuning did not replace the three settings within each model's limits.");
+        sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Beta" });
+        Assert(sessionArguments.EndsWith(arguments, StringComparison.Ordinal),
+            "A per-game tuning leaked to another game.");
+        restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(restored.GetGameTuning("alpha") != null && restored.GetGameTuning("alpha").HapticThresholdPercent == 40,
+            "The per-game tuning did not survive serialization.");
+        settings.SetGameTuning("alpha", "Alpha", new GameTuning
+        {
+            TriggerStrengthPercent = 500, VibrationStrengthPercent = 500, HapticThresholdPercent = 500
+        });
+        stored = settings.GetGameTuning("alpha");
+        Assert(stored.TriggerStrengthPercent == 100 && stored.VibrationStrengthPercent == 200 && stored.HapticThresholdPercent == 95,
+            "The per-game tuning was not bounded.");
+        settings.SetGameTuning("alpha", "Alpha", null);
+        Assert(settings.GetGameTuning("alpha") == null && settings.GetGameTuning("Alpha") == null &&
+            settings.GameTunings.Count == 0, "Clearing the per-game tuning left an override behind.");
         Assert(ControllerDetectionService.ParseVerifiedModel("Verified: Apex 4 (k4)") == "apex4" &&
             ControllerDetectionService.ParseVerifiedModel("Verified: Apex 5 (k5)") == "apex5" &&
             ControllerDetectionService.ParseVerifiedModel("Verified: Apex 6 Pro (k6)") == "apex6",
@@ -1135,6 +1169,18 @@ internal static class TrayLearningTests
                 view.WriteArray(16, failure, 0, failure.Length);
                 return 11;
             }
+            var lossEvent = Environment.GetEnvironmentVariable("ASB_TEST_LOSS_EVENT");
+            if (!string.IsNullOrEmpty(lossEvent))
+            {
+                using (var loss = EventWaitHandle.OpenExisting(lossEvent))
+                {
+                    var guard = Stopwatch.StartNew();
+                    while (guard.Elapsed < TimeSpan.FromSeconds(30) && !stop.WaitOne(25))
+                        progress.Write(8, loss.WaitOne(0) ? 31u : 15u);
+                }
+                view.Write(6, (ushort)4);
+                return 0;
+            }
             if (Array.IndexOf(args, "--disconnect") < 0) stop.WaitOne(10000);
             view.Write(6, (ushort)4);
             return 0;
@@ -1308,6 +1354,186 @@ internal static class TrayLearningTests
                 Assert(manager.AutomaticActivationBlocked, "Automatic Tray activation took over an interrupted external session.");
             }
             finally { manager.Dispose(); }
+        }
+    }
+
+    private static void TestControllerLostStatusMapping()
+    {
+        var lost = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Stages = 31 };
+        var steady = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Stages = 15 };
+        Assert(lost.ControllerLost && !steady.ControllerLost && !new BridgeSession.SessionInfo().ControllerLost,
+            "The physical-lost progress bit was not exposed as ControllerLost.");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var json = serializer.Serialize(lost);
+        Assert(!json.Contains("ControllerLost") && serializer.Deserialize<BridgeSession.SessionInfo>(json).ControllerLost,
+            "ControllerLost leaked into the discovery JSON or the stages no longer round-trip.");
+        Assert(EngineSessionManager.SessionStatusKey("Ready", true, false) == "Loc_SessionControllerLost",
+            "A ready session with a lost controller did not map to the waiting status.");
+        Assert(EngineSessionManager.SessionStatusKey("Ready", false, false) == "Loc_SessionReady",
+            "A ready session with its controller did not return to the normal status.");
+        Assert(EngineSessionManager.SessionStatusKey("Stopping", true, false) == "Loc_SessionStopping" &&
+               EngineSessionManager.SessionStatusKey("Failed", true, false) == "Loc_SessionFailed",
+            "A stale lost bit overrode a session that is no longer ready.");
+        Assert(EngineSessionManager.SessionStatusKey("Ready", true, true) == "Loc_SessionInterrupted",
+            "A pending recovery was hidden by the waiting status.");
+        Assert(EngineSessionManager.IsWaitingForController("Ready", true) && !EngineSessionManager.IsWaitingForController("Starting", true) &&
+               !EngineSessionManager.IsWaitingForController("Ready", false),
+            "The waiting-for-controller predicate is wrong.");
+
+        var recovery = new SessionRecoveryState();
+        Assert(recovery.Offer("Alpha", "standard", 2, 1, 31), "The lost bit changed which interruptions offer recovery.");
+        Assert(recovery.Begin(), "Recovery could not begin.");
+        recovery.Observe(16);
+        Assert(recovery.Stages == 0, "Recovery observed the physical-lost bit as a verification stage.");
+        recovery.Observe(31);
+        Assert(recovery.Stages == 15, "Recovery stages no longer mask the physical-lost bit.");
+        recovery.Clear();
+        Assert(!recovery.Offer("Alpha", "standard", 2, 1, 23), "The lost bit stood in for the runtime-ready stage.");
+    }
+
+    private static void TestControllerLostLocalization()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", ".."));
+        var directory = Path.Combine(root, "ApexSenseBridgeTray", "Resources", "Languages");
+        Assert(Directory.Exists(directory), "The language resources were not found.");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        var english = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(directory, "en.json"), Encoding.UTF8));
+        var languages = new[] { "en", "es", "fr", "ja", "ko", "pt", "ru", "vi", "zh" };
+        foreach (var language in languages)
+        {
+            var path = Path.Combine(directory, language + ".json");
+            Assert(File.Exists(path), language + ".json is missing.");
+            var entries = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(path, Encoding.UTF8));
+            Assert(entries.Count == english.Count && english.Keys.All(entries.ContainsKey),
+                language + ".json does not define exactly the English key set.");
+            foreach (var key in new[] { "Loc_SessionControllerLost", "Loc_SessionControllerLostHint" })
+            {
+                var text = entries[key] as string;
+                Assert(!string.IsNullOrWhiteSpace(text), language + " has an empty " + key + ".");
+                Assert(language == "en" || text != (string)english[key], language + " reuses the English text for " + key + ".");
+            }
+        }
+    }
+
+    private static void TestControllerLostIsNotAFailure()
+    {
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ControllerLostTest." + Guid.NewGuid().ToString("N");
+        var signalName = "Local\\ASB.ControllerLostSignal." + Guid.NewGuid().ToString("N");
+        using (var signal = new EventWaitHandle(false, EventResetMode.ManualReset, signalName))
+        {
+            Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", signalName);
+            var manager = new EngineSessionManager(() => executable, discovery, () => false);
+            try
+            {
+                int changes = 0, stops = 0, errors = 0;
+                manager.StateChanged += () => Interlocked.Increment(ref changes);
+                manager.SessionStopped += reason => Interlocked.Increment(ref stops);
+                manager.SessionError += error => Interlocked.Increment(ref errors);
+                string startError;
+                Assert(manager.StartSession("Alpha", "standard", new TraySettings(), out startError), "Fake bridge session did not start: " + startError);
+                Thread.Sleep(1200);
+                Assert(manager.IsSessionActive && !manager.ControllerLost &&
+                       EngineSessionManager.SessionStatusKey(manager.StateName, manager.ControllerLost, false) == "Loc_SessionReady",
+                    "A healthy Tray-owned session was reported as waiting for its controller.");
+                int baseline = Volatile.Read(ref changes);
+
+                signal.Set();
+                WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "The Tray-owned session never reported the lost controller.");
+                Thread.Sleep(1200);
+                Assert(manager.IsSessionActive && manager.IsSessionHealthy && manager.StateName == "Ready",
+                    "Losing the controller ended or degraded the still-running session.");
+                Assert(EngineSessionManager.SessionStatusKey(manager.StateName, manager.ControllerLost, manager.Recovery.Pending && !manager.Recovery.Resuming) == "Loc_SessionControllerLost",
+                    "The dashboard status for a lost controller is not the waiting status.");
+                int unexpectedCode;
+                string unexpectedReason;
+                Assert(!manager.Recovery.Pending && !manager.AutomaticActivationBlocked && !manager.TryTakeUnexpectedExit(out unexpectedCode, out unexpectedReason),
+                    "A lost controller was handled as a failure or offered recovery.");
+                Assert(stops == 0 && errors == 0, "A lost controller raised a stop or error notification.");
+                Assert(Volatile.Read(ref changes) == baseline + 1, "StateChanged did not fire exactly once when the flag was set.");
+
+                signal.Reset();
+                WaitUntil(() => !manager.ControllerLost, TimeSpan.FromSeconds(3), "The Tray-owned session never recovered from the lost controller.");
+                Thread.Sleep(1200);
+                Assert(EngineSessionManager.SessionStatusKey(manager.StateName, manager.ControllerLost, false) == "Loc_SessionReady" &&
+                       manager.IsSessionActive && !manager.Recovery.Pending,
+                    "The dashboard status did not return to normal when the controller came back.");
+                Assert(Volatile.Read(ref changes) == baseline + 2, "StateChanged did not fire exactly once when the flag cleared.");
+                Assert(stops == 0 && errors == 0, "Recovering the controller raised a stop or error notification.");
+
+                signal.Set();
+                WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "A second loss was not reported.");
+                manager.StopSession("Controller loss test stopped");
+                Assert(!manager.ControllerLost && !manager.IsSessionActive, "Stopping a waiting session left the flag set.");
+            }
+            finally
+            {
+                manager.Dispose();
+                Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", null);
+            }
+        }
+    }
+
+    private static void TestControllerLostOnExternalSession()
+    {
+        string error;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ExternalControllerLostTest." + Guid.NewGuid().ToString("N");
+        var signalName = "Local\\ASB.ExternalControllerLostSignal." + Guid.NewGuid().ToString("N");
+        using (var signal = new EventWaitHandle(false, EventResetMode.ManualReset, signalName))
+        {
+            Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", signalName);
+            try
+            {
+                using (var session = BridgeSession.TryStart(executable, "--fake-session", TimeSpan.FromSeconds(3), null, null, out error, "Alpha", "standard", discovery))
+                {
+                    Assert(session != null, "Fake external session did not start: " + error);
+                    var info = BridgeSession.ReadActiveSession(discovery);
+                    info.Owner = "Playnite";
+                    using (var mapping = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(discovery))
+                    using (var view = mapping.CreateViewAccessor())
+                    {
+                        var bytes = Encoding.UTF8.GetBytes(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(info));
+                        view.Write(0, 0); view.WriteArray(4, bytes, 0, bytes.Length); view.Write(0, bytes.Length);
+                    }
+                    var manager = new EngineSessionManager(() => executable, discovery, () => false);
+                    try
+                    {
+                        int changes = 0, stops = 0, errors = 0;
+                        manager.StateChanged += () => Interlocked.Increment(ref changes);
+                        manager.SessionStopped += reason => Interlocked.Increment(ref stops);
+                        manager.SessionError += err => Interlocked.Increment(ref errors);
+                        Thread.Sleep(1200);
+                        Assert(!manager.ControllerLost && BridgeSession.ReadActiveSession(discovery).ControllerLost == false,
+                            "A healthy external session was reported as waiting for its controller.");
+                        int baseline = Volatile.Read(ref changes);
+
+                        signal.Set();
+                        WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "The external session never reported the lost controller.");
+                        var read = BridgeSession.ReadActiveSession(discovery);
+                        Assert(read != null && read.Phase == SessionPhase.Ready && read.ControllerLost && read.Interruption == 0,
+                            "The external lost-controller state was not read from the shared progress block.");
+                        Thread.Sleep(1200);
+                        Assert(!manager.Recovery.Pending && !manager.AutomaticActivationBlocked && !manager.IsSessionActive && stops == 0 && errors == 0,
+                            "A lost controller on an external session was handled as a failure or offered recovery.");
+                        Assert(Volatile.Read(ref changes) == baseline + 1, "StateChanged did not fire exactly once for the external flag.");
+
+                        signal.Reset();
+                        WaitUntil(() => !manager.ControllerLost, TimeSpan.FromSeconds(3), "The external session never recovered from the lost controller.");
+                        Thread.Sleep(1200);
+                        Assert(Volatile.Read(ref changes) == baseline + 2 && !manager.Recovery.Pending && stops == 0 && errors == 0,
+                            "The external flag clearing was not reported exactly once or raised a failure.");
+
+                        signal.Set();
+                        WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "A second external loss was not reported.");
+                        Assert(session.StopAndWait(TimeSpan.FromSeconds(3)), "The fake external session did not stop.");
+                        WaitUntil(() => !manager.ControllerLost, TimeSpan.FromSeconds(3), "A finished external session kept the waiting flag.");
+                        Assert(!manager.Recovery.Pending && stops == 0, "A cleanly stopped external session offered recovery.");
+                    }
+                    finally { manager.Dispose(); }
+                }
+            }
+            finally { Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", null); }
         }
     }
 

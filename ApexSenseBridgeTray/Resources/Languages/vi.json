@@ -48,6 +48,8 @@
   "Loc_SessionReason": "Lý do:",
   "Loc_SessionStarting": "Đang chuẩn bị cầu nối",
   "Loc_SessionReady": "Cầu nối sẵn sàng",
+  "Loc_SessionControllerLost": "Đang chờ tay cầm",
+  "Loc_SessionControllerLostHint": "Tay cầm đã ngắt kết nối, đang chờ kết nối lại. Trò chơi của bạn vẫn giữ DualSense ảo.",
   "Loc_SessionStopping": "Đang dừng",
   "Loc_SessionStopped": "Cầu nối đã dừng",
   "Loc_SessionFailed": "Từ chối kích hoạt / lỗi",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "hoạt động tốt",
   "Loc_GyroSensorStill": "đứng yên",
   "Loc_SteamAlreadyRunningTitle": "Steam đã chạy trước đó",
-  "Loc_SteamAlreadyRunningBody": "Steam đã chạy khi bộ điều khiển bị ẩn. Nếu bạn thấy đầu vào trùng lặp, hãy thoát hoàn toàn Steam và mở lại nó trong khi Bridge đang hoạt động. Vô hiệu hóa Steam Input cho trò chơi."
+  "Loc_SteamAlreadyRunningBody": "Steam đã chạy khi bộ điều khiển bị ẩn. Nếu bạn thấy đầu vào trùng lặp, hãy thoát hoàn toàn Steam và mở lại nó trong khi Bridge đang hoạt động. Vô hiệu hóa Steam Input cho trò chơi.",
+  "Loc_ResetToDefault": "Đặt lại mặc định",
+  "Loc_GameTuningCustomize": "Tùy chỉnh cài đặt cho trò chơi này",
+  "Loc_GameTuningUseGlobal": "Cài đặt mặc định",
+  "Loc_GameTuningHint": "Ghi đè lực cò, lực rung và ngưỡng xúc giác chỉ cho trò chơi này. «Cài đặt mặc định» quay về giá trị chung. Áp dụng khi phiên bridge của trò chơi này khởi động.",
+  "Loc_ExecutableUseAutomatic": "Quay lại tự động phát hiện"
 }

@@ -42,16 +42,10 @@ namespace ApexSenseBridgeTray
         private int currentTabIndex = 0;
         private int selectedGameIndex = -1;
         private bool updatingEffectSettings;
-        private bool updatingExecutables;
         private bool preparedLaunchPending;
         private bool viewInitialized;
+        private Brush hintErrorBrush;
         private readonly System.Windows.Threading.DispatcherTimer statusTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-
-        private sealed class ExecutableChoice
-        {
-            public string Path { get; set; }
-            public string Label { get; set; }
-        }
 
         public GameListWindow(
             CloudGameListService gameListService,
@@ -1313,15 +1307,18 @@ namespace ApexSenseBridgeTray
             bool unknownExternal = !isActive && external == null && phase != "Starting" && phase != "Stopping" && sessionManager != null && sessionManager.HasExternalSession;
             if (unknownExternal) phase = "External";
             bool anyActive = isActive || external != null || unknownExternal;
+            bool interrupted = recovery != null && recovery.Pending && !recovery.Resuming && external == null;
+            bool controllerLost = external != null ? external.ControllerLost : isActive && sessionManager.ControllerLost;
+            bool waitingForController = !interrupted && EngineSessionManager.IsWaitingForController(phase, controllerLost);
+            bool activeStyle = anyActive && !waitingForController;
             if (BadgeDashboardStatus != null)
             {
-                BadgeDashboardStatus.Background = (Brush)FindResource(anyActive ? "BadgeActiveBg" : "BadgeStandbyBg");
+                BadgeDashboardStatus.Background = (Brush)FindResource(activeStyle ? "BadgeActiveBg" : "BadgeStandbyBg");
             }
             if (TxtDashboardStatus != null)
             {
-                TxtDashboardStatus.Text = LocalizationManager.Get(recovery != null && recovery.Pending && !recovery.Resuming && external == null
-                    ? "Loc_SessionInterrupted" : "Loc_Session" + phase);
-                TxtDashboardStatus.Foreground = (Brush)FindResource(anyActive ? "BadgeActiveFg" : "BadgeStandbyFg");
+                TxtDashboardStatus.Text = LocalizationManager.Get(EngineSessionManager.SessionStatusKey(phase, controllerLost, interrupted));
+                TxtDashboardStatus.Foreground = (Brush)FindResource(activeStyle ? "BadgeActiveFg" : "BadgeStandbyFg");
             }
 
             if (external != null && TxtDashboardGameTitle != null)
@@ -1356,6 +1353,8 @@ namespace ApexSenseBridgeTray
                         readable = LocalizationManager.Get("Loc_RefusedIsolation");
                     }
                 }
+                string waitingText = waitingForController && readable == null ? LocalizationManager.Get("Loc_SessionControllerLostHint") : null;
+                string hintText = readable ?? waitingText;
                 if (BtnRetryStart != null)
                     BtnRetryStart.Visibility = !isActive && external == null && sessionManager != null &&
                         (sessionManager.CanRetryHidHideBusy || (monitorService != null && monitorService.HasPausedAutomaticStart))
@@ -1372,9 +1371,11 @@ namespace ApexSenseBridgeTray
                         ? Visibility.Visible : Visibility.Collapsed;
                     PnlSessionChips.ToolTip = details;
                 }
-                TxtDashboardHint.Text = readable ?? string.Empty;
-                TxtDashboardHint.Visibility = readable != null ? Visibility.Visible : Visibility.Collapsed;
-                TxtDashboardHint.ToolTip = readable != null ? details + "\n" + LocalizationManager.Get("Loc_SessionReason") + " " + readable : null;
+                if (hintErrorBrush == null) hintErrorBrush = TxtDashboardHint.Foreground;
+                TxtDashboardHint.Foreground = waitingText != null ? (Brush)FindResource("TextSecondary") : hintErrorBrush;
+                TxtDashboardHint.Text = hintText ?? string.Empty;
+                TxtDashboardHint.Visibility = hintText != null ? Visibility.Visible : Visibility.Collapsed;
+                TxtDashboardHint.ToolTip = readable != null ? details + "\n" + LocalizationManager.Get("Loc_SessionReason") + " " + readable : waitingText;
             }
 
             if (isActive && sessionManager != null)
@@ -1382,9 +1383,9 @@ namespace ApexSenseBridgeTray
                 if (TxtDashboardGameTitle != null) TxtDashboardGameTitle.Text = sessionManager.ActiveGameTitle ?? LocalizationManager.Get("Loc_NotificationGame");
 
                 var activeGame = allGameViewModels.FirstOrDefault(g => string.Equals(g.Title, sessionManager.ActiveGameTitle, StringComparison.OrdinalIgnoreCase));
-                if (activeGame != null && activeGame.HasCoverImage && ImgDashboardActiveCover != null)
+                if (activeGame != null && activeGame.HasCoverImage && BrushDashboardActiveCover != null)
                 {
-                    ImgDashboardActiveCover.Source = activeGame.CoverImage;
+                    BrushDashboardActiveCover.ImageSource = activeGame.CoverImage;
                     PnlDashboardActiveCover.Visibility = Visibility.Visible;
                     PnlDashboardStandbyCover.Visibility = Visibility.Collapsed;
                 }
@@ -1871,6 +1872,7 @@ namespace ApexSenseBridgeTray
 
             if (TxtDetailApexProfile != null) TxtDetailApexProfile.Text = game.SelectedApexProfileDisplay;
             UpdateApexProfileSelector();
+            UpdateGameTuningPanel();
             UpdateExecutableChoices();
 
             if (TxtDetailExcludeAction != null)
@@ -1896,51 +1898,32 @@ namespace ApexSenseBridgeTray
                         ? "Loc_BtnManualFixBlock"
                         : "Loc_BtnManualFixAllow");
             }
+            UpdateManualFixGuide(game);
         }
 
         private void UpdateExecutableChoices()
         {
-            if (CmbGameExecutable == null || SelectedGame == null || settings == null) return;
-            updatingExecutables = true;
-            try
-            {
-                var game = SelectedGame;
-                var configured = settings.GetGameExecutable(game.Normalized);
-                var choices = new List<ExecutableChoice> { new ExecutableChoice { Path = string.Empty, Label = LocalizationManager.Get("Loc_ExecutableAutomatic") } };
-                if (!string.IsNullOrWhiteSpace(configured))
-                    choices.Add(new ExecutableChoice { Path = configured, Label = System.IO.Path.GetFileName(configured) + " · " + LocalizationManager.Get("Loc_ExecutableSelected") });
-                if (learningService != null)
-                    foreach (var binding in learningService.GetBindings())
-                    {
-                        if (!string.Equals(binding.GameNormalized, game.Normalized, StringComparison.OrdinalIgnoreCase) &&
-                            !(game.Game.SteamAppIdVerified && binding.SteamAppId > 0 && binding.SteamAppId == game.Game.SteamAppId)) continue;
-                        if (choices.Any(x => string.Equals(x.Path, binding.Path, StringComparison.OrdinalIgnoreCase))) continue;
-                        choices.Add(new ExecutableChoice { Path = binding.Path, Label = System.IO.Path.GetFileName(binding.Path) + " · " + LocalizationManager.Get("Loc_ExecutableLearned") });
-                    }
-                CmbGameExecutable.ItemsSource = choices;
-                CmbGameExecutable.SelectedItem = choices.FirstOrDefault(x => string.Equals(x.Path, configured, StringComparison.OrdinalIgnoreCase)) ?? choices[0];
-                TxtExecutablePath.Text = configured + (!string.IsNullOrWhiteSpace(configured) && !File.Exists(configured) ? "\n" + LocalizationManager.Get("Loc_ExecutableMissing") : string.Empty);
-            }
-            finally { updatingExecutables = false; }
+            if (BtnGameExecutable == null || SelectedGame == null || settings == null) return;
+            var configured = settings.GetGameExecutable(SelectedGame.Normalized);
+            bool hasExecutable = !string.IsNullOrWhiteSpace(configured);
+            TxtExecutablePath.Visibility = hasExecutable ? Visibility.Visible : Visibility.Collapsed;
+            TxtExecutablePath.Text = configured + (hasExecutable && !File.Exists(configured)
+                ? "\n" + LocalizationManager.Get("Loc_ExecutableMissing") : string.Empty);
+            TxtGameExecutableAction.Text = LocalizationManager.Get(
+                hasExecutable ? "Loc_ExecutableUseAutomatic" : "Loc_BrowseExecutable");
         }
 
-        private void OnGameExecutableChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (updatingExecutables || SelectedGame == null || settings == null) return;
-            var choice = CmbGameExecutable.SelectedItem as ExecutableChoice;
-            if (choice == null) return;
-            settings.SetGameExecutable(SelectedGame.Normalized, choice.Path);
-            settings.Save();
-            UpdateExecutableChoices();
-            monitorService?.ForceCheck();
-        }
-
-        private void OnBrowseGameExecutable(object sender, RoutedEventArgs e)
+        private void OnGameExecutableButtonClick(object sender, RoutedEventArgs e)
         {
             if (SelectedGame == null || settings == null) return;
-            var picker = new OpenFileDialog { Filter = "Programs (*.exe)|*.exe", CheckFileExists = true, Multiselect = false };
-            if (picker.ShowDialog(this) != true) return;
-            settings.SetGameExecutable(SelectedGame.Normalized, picker.FileName);
+            string path = string.Empty;
+            if (string.IsNullOrWhiteSpace(settings.GetGameExecutable(SelectedGame.Normalized)))
+            {
+                var picker = new OpenFileDialog { Filter = "Programs (*.exe)|*.exe", CheckFileExists = true, Multiselect = false };
+                if (picker.ShowDialog(this) != true) return;
+                path = picker.FileName;
+            }
+            settings.SetGameExecutable(SelectedGame.Normalized, path);
             settings.Save();
             UpdateExecutableChoices();
             monitorService?.ForceCheck();
@@ -1983,6 +1966,74 @@ namespace ApexSenseBridgeTray
             UpdateDetailPane();
         }
 
+        private bool updatingGameTuning;
+
+        private GameTuning GlobalGameTuning()
+        {
+            var calibration = settings.GetControllerCalibration(lastControllerStatus);
+            return new GameTuning
+            {
+                TriggerStrengthPercent = calibration != null ? calibration.TriggerStrengthPercent : settings.TriggerStrengthPercent,
+                VibrationStrengthPercent = calibration != null ? calibration.VibrationStrengthPercent : settings.VibrationStrengthPercent,
+                HapticThresholdPercent = calibration != null ? calibration.HapticThresholdPercent : settings.HapticThresholdPercent
+            }.Clone();
+        }
+
+        private void UpdateGameTuningLabels()
+        {
+            TxtGameTrigger.Text = ((int)SliderGameTrigger.Value) + " %";
+            TxtGameVibration.Text = ((int)SliderGameVibration.Value) + " %";
+            TxtGameThreshold.Text = ((int)SliderGameThreshold.Value) + " %";
+        }
+
+        private void UpdateGameTuningPanel()
+        {
+            var game = SelectedGame;
+            if (PnlGameTuningSliders == null || settings == null || game == null) return;
+            var tuning = settings.GetGameTuning(game.Normalized);
+            updatingGameTuning = true;
+            try
+            {
+                SliderGameVibration.Maximum = lastControllerStatus == "apex6" ? 100 : 200;
+                PnlGameThresholdRow.Visibility = lastControllerStatus == "apex6" ? Visibility.Collapsed : Visibility.Visible;
+                PnlGameTuningSliders.Visibility = tuning != null ? Visibility.Visible : Visibility.Collapsed;
+                if (tuning != null)
+                {
+                    SliderGameTrigger.Value = tuning.TriggerStrengthPercent;
+                    SliderGameVibration.Value = tuning.VibrationStrengthPercent;
+                    SliderGameThreshold.Value = tuning.HapticThresholdPercent;
+                }
+                UpdateGameTuningLabels();
+            }
+            finally { updatingGameTuning = false; }
+            TxtGameTuningToggle.Text = LocalizationManager.Get(
+                tuning != null ? "Loc_GameTuningUseGlobal" : "Loc_GameTuningCustomize");
+        }
+
+        private void OnGameTuningToggleClick(object sender, RoutedEventArgs e)
+        {
+            var game = SelectedGame;
+            if (game == null || settings == null) return;
+            bool hasCustom = settings.GetGameTuning(game.Normalized) != null;
+            settings.SetGameTuning(game.Normalized, game.Title, hasCustom ? null : GlobalGameTuning());
+            settings.Save();
+            UpdateGameTuningPanel();
+        }
+
+        private void OnGameTuningChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (updatingGameTuning || settings == null || !IsLoaded) return;
+            var game = SelectedGame;
+            if (game == null) return;
+            var tuning = settings.GetGameTuning(game.Normalized) ?? GlobalGameTuning();
+            tuning.TriggerStrengthPercent = (int)SliderGameTrigger.Value;
+            tuning.VibrationStrengthPercent = (int)SliderGameVibration.Value;
+            if (lastControllerStatus != "apex6") tuning.HapticThresholdPercent = (int)SliderGameThreshold.Value;
+            settings.SetGameTuning(game.Normalized, game.Title, tuning);
+            settings.Save();
+            UpdateGameTuningLabels();
+        }
+
         private void UpdateApexProfileSelector()
         {
             bool locked = IsApexProfileLocked();
@@ -2006,6 +2057,115 @@ namespace ApexSenseBridgeTray
         private void OnDetailToggleManualFixClick(object sender, RoutedEventArgs e)
         {
             ToggleSelectedManualFix();
+        }
+
+        private void UpdateManualFixGuide(GameItemViewModel game)
+        {
+            if (PnlManualFixGuide == null || PnlManualFixEntries == null) return;
+
+            PnlManualFixEntries.Children.Clear();
+            if (game == null || !game.RequiresManualFix)
+            {
+                PnlManualFixGuide.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var entries = ManualFixGuide.BuildEntries(game.Game);
+            foreach (var entry in entries) PnlManualFixEntries.Children.Add(BuildManualFixEntry(entry));
+            TxtManualFixNoNote.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            BtnManualFixOpenPage.Visibility = ManualFixGuide.PageUrl(game.Game).Length > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            PnlManualFixGuide.Visibility = Visibility.Visible;
+        }
+
+        private UIElement BuildManualFixEntry(ManualFixGuideEntry entry)
+        {
+            var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+            panel.Children.Add(new TextBlock
+            {
+                Text = string.Join(" · ", entry.FeatureKeys.Select(key => LocalizationManager.Get(key))),
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 0, 3)
+            });
+
+            if (entry.Note.Length > 0)
+            {
+                var note = new TextBlock
+                {
+                    Text = entry.Note,
+                    FontSize = 11.5,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
+                note.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimary");
+                panel.Children.Add(note);
+            }
+
+            if (entry.Tools.Length > 0)
+            {
+                var tools = new TextBlock
+                {
+                    Text = LocalizationManager.Format("Loc_ManualFixTools", string.Join(", ", entry.Tools)),
+                    FontSize = 11,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+                tools.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+                panel.Children.Add(tools);
+            }
+
+            if (entry.Links.Length > 0)
+            {
+                var links = new WrapPanel();
+                foreach (var link in entry.Links)
+                {
+                    var button = new Button
+                    {
+                        Style = (Style)FindResource("BtnSecondary"),
+                        Tag = link.Url,
+                        ToolTip = link.Url,
+                        Margin = new Thickness(0, 0, 6, 6),
+                        Content = new TextBlock
+                        {
+                            Text = link.Label,
+                            FontSize = 11.5,
+                            MaxWidth = 220,
+                            TextTrimming = TextTrimming.CharacterEllipsis
+                        }
+                    };
+                    button.Click += OnManualFixLinkClick;
+                    links.Children.Add(button);
+                }
+                panel.Children.Add(links);
+            }
+
+            return panel;
+        }
+
+        private void OnManualFixLinkClick(object sender, RoutedEventArgs e)
+        {
+            OpenManualFixUrl((sender as FrameworkElement)?.Tag as string);
+        }
+
+        private void OnManualFixOpenPageClick(object sender, RoutedEventArgs e)
+        {
+            var game = SelectedGame;
+            if (game != null) OpenManualFixUrl(ManualFixGuide.PageUrl(game.Game));
+        }
+
+        private static void OpenManualFixUrl(string url)
+        {
+            if (!ManualFixGuide.IsOpenableUrl(url)) return;
+            try
+            {
+                Process.Start(new ProcessStartInfo(url.Trim()) { UseShellExecute = true });
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private void ToggleSelectedManualFix()
@@ -2240,6 +2400,11 @@ namespace ApexSenseBridgeTray
             SliderApex4GyroStrength.IsEnabled = lastControllerStatus == "apex4";
             SliderApex4GyroYawStrength.IsEnabled = lastControllerStatus == "apex4";
             SliderVibrationThreshold.IsEnabled = canEdit && lastControllerStatus != "apex6";
+            BtnResetTrigger.IsEnabled = SliderTriggerStrength.IsEnabled;
+            BtnResetVibration.IsEnabled = SliderVibrationStrength.IsEnabled;
+            BtnResetGyro.IsEnabled = SliderApex4GyroStrength.IsEnabled;
+            BtnResetGyroYaw.IsEnabled = SliderApex4GyroYawStrength.IsEnabled;
+            BtnResetThreshold.IsEnabled = SliderVibrationThreshold.IsEnabled;
             TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5";
             // Show only what the identified model supports; keep the locked message otherwise.
             TileSettingSyncLightbar.Visibility = TileSettingSyncLightbar.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
@@ -2256,6 +2421,7 @@ namespace ApexSenseBridgeTray
                     : LocalizationManager.Get("Loc_ControllerCalibrationLocked");
             UpdateEffectLabels();
             updatingEffectSettings = false;
+            UpdateGameTuningPanel();
 
             UpdateSettingToggle(BadgeSettingAutoDetect, DotSettingAutoDetect, settings.AutoDetectGames);
             UpdateSettingToggle(BadgeSettingAdaptive, DotSettingAdaptive, settings.TriggerOnAdaptiveTriggers);
@@ -2308,6 +2474,26 @@ namespace ApexSenseBridgeTray
             }
             settings.Save();
             UpdateEffectLabels();
+        }
+
+        private void OnResetEffectClick(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            if (button == null) return;
+            var defaults = new ControllerCalibration();
+            Slider slider;
+            double value;
+            switch (button.Tag as string)
+            {
+                case "Trigger": slider = SliderTriggerStrength; value = defaults.TriggerStrengthPercent; break;
+                case "Vibration": slider = SliderVibrationStrength; value = defaults.VibrationStrengthPercent; break;
+                case "Gyro": slider = SliderApex4GyroStrength; value = defaults.GyroStrengthPercent; break;
+                case "GyroYaw": slider = SliderApex4GyroYawStrength; value = defaults.GyroYawStrengthPercent; break;
+                case "Threshold": slider = SliderVibrationThreshold; value = defaults.HapticThresholdPercent; break;
+                default: return;
+            }
+            if (!slider.IsEnabled) return;
+            slider.Value = value;
         }
 
         private void OnGripVibrationsChanged(object sender, RoutedEventArgs e)

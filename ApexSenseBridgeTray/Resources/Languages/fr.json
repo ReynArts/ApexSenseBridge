@@ -48,6 +48,8 @@
   "Loc_SessionReason": "Raison :",
   "Loc_SessionStarting": "Préparation du bridge",
   "Loc_SessionReady": "Bridge prêt",
+  "Loc_SessionControllerLost": "En attente de la manette",
+  "Loc_SessionControllerLostHint": "Manette déconnectée, en attente de son retour. Votre jeu conserve sa DualSense virtuelle.",
   "Loc_SessionStopping": "Arrêt en cours",
   "Loc_SessionStopped": "Bridge arrêté",
   "Loc_SessionFailed": "Activation refusée / erreur",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "opérationnel",
   "Loc_GyroSensorStill": "immobile",
   "Loc_SteamAlreadyRunningTitle": "Steam était déjà ouvert",
-  "Loc_SteamAlreadyRunningBody": "Steam était ouvert quand la manette a été masquée. Si les commandes sont doublées, quittez complètement Steam puis rouvrez-le pendant que le bridge est actif. Laissez Steam Input désactivé pour ce jeu."
+  "Loc_SteamAlreadyRunningBody": "Steam était ouvert quand la manette a été masquée. Si les commandes sont doublées, quittez complètement Steam puis rouvrez-le pendant que le bridge est actif. Laissez Steam Input désactivé pour ce jeu.",
+  "Loc_ResetToDefault": "Réinitialiser par défaut",
+  "Loc_GameTuningCustomize": "Personnaliser les paramètres pour ce jeu",
+  "Loc_GameTuningUseGlobal": "Paramètres par défaut",
+  "Loc_GameTuningHint": "Remplace la force des gâchettes, la force de vibration et le seuil haptique pour ce jeu uniquement. « Paramètres par défaut » revient aux valeurs globales. Appliqué au démarrage de la session du bridge pour ce jeu.",
+  "Loc_ExecutableUseAutomatic": "Revenir à la détection automatique"
 }

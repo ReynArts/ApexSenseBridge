@@ -48,6 +48,8 @@
   "Loc_SessionReason": "Reason:",
   "Loc_SessionStarting": "Preparing bridge",
   "Loc_SessionReady": "Bridge ready",
+  "Loc_SessionControllerLost": "Waiting for controller",
+  "Loc_SessionControllerLostHint": "Controller disconnected, waiting for it to come back. Your game keeps its virtual DualSense.",
   "Loc_SessionStopping": "Stopping",
   "Loc_SessionStopped": "Bridge stopped",
   "Loc_SessionFailed": "Activation refused / error",
@@ -389,5 +391,10 @@
   "Loc_GyroSensorOk": "healthy",
   "Loc_GyroSensorStill": "stationary",
   "Loc_SteamAlreadyRunningTitle": "Steam was already running",
-  "Loc_SteamAlreadyRunningBody": "Steam was running when the controller was hidden. If you see duplicate inputs, fully exit Steam and reopen it while the bridge is active. Keep Steam Input disabled for the game."
+  "Loc_SteamAlreadyRunningBody": "Steam was running when the controller was hidden. If you see duplicate inputs, fully exit Steam and reopen it while the bridge is active. Keep Steam Input disabled for the game.",
+  "Loc_ResetToDefault": "Reset to default",
+  "Loc_GameTuningCustomize": "Customize settings for this game",
+  "Loc_GameTuningUseGlobal": "Default settings",
+  "Loc_GameTuningHint": "Overrides trigger strength, vibration strength and haptic threshold for this game only. \"Default settings\" goes back to the global values. Applied when this game's bridge session starts.",
+  "Loc_ExecutableUseAutomatic": "Back to automatic detection"
 }

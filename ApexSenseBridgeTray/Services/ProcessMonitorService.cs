@@ -596,13 +596,23 @@ namespace ApexSenseBridgeTray.Services
             AddCandidate(candidates, "executable name", exeTitle);
             AddCandidate(candidates, "file name", fileName);
 
+            SupportedGame mostSpecific = null;
+            string mostSpecificBy = null;
             foreach (var candidate in candidates)
             {
-                if (gameListService.TryFindExactGame(candidate.Value, out game))
+                SupportedGame exact;
+                if (gameListService.TryFindExactGame(candidate.Value, out exact) &&
+                    (mostSpecific == null || exact.Normalized.Length > mostSpecific.Normalized.Length))
                 {
-                    matchedBy = FormatMatchEvidence(candidate);
-                    return true;
+                    mostSpecific = exact;
+                    mostSpecificBy = FormatMatchEvidence(candidate);
                 }
+            }
+            if (mostSpecific != null)
+            {
+                game = mostSpecific;
+                matchedBy = mostSpecificBy;
+                return true;
             }
 
             foreach (var candidate in candidates)
