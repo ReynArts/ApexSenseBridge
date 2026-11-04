@@ -227,7 +227,8 @@ namespace ApexSenseBridge
                 TouchpadRemappingMode.MilesMorales,
                 TouchpadRemappingMode.GhostOfTsushima,
                 TouchpadRemappingMode.Warframe,
-                TouchpadRemappingMode.DeathStranding2
+                TouchpadRemappingMode.DeathStranding2,
+                TouchpadRemappingMode.AlanWake2
             })
             {
                 var selectedChoice = choice;
@@ -357,6 +358,9 @@ namespace ApexSenseBridge
                     break;
                 case BridgeProfileType.DeathStranding2:
                     gestureProfile = "death-stranding-2";
+                    break;
+                case BridgeProfileType.AlanWake2:
+                    gestureProfile = "alan-wake-2";
                     break;
                 default:
                     gestureProfile = "none";

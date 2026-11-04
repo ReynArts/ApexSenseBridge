@@ -18,7 +18,8 @@ namespace ApexSenseBridge
         GhostOfTsushima,
         Warframe,
         Disabled,
-        DeathStranding2
+        DeathStranding2,
+        AlanWake2
     }
 
     public enum BridgeActivationMode
@@ -36,7 +37,8 @@ namespace ApexSenseBridge
         MilesMorales,
         GhostOfTsushima,
         Warframe,
-        DeathStranding2
+        DeathStranding2,
+        AlanWake2
     }
 
     public class GameBridgeProfile : ObservableObject
@@ -120,6 +122,8 @@ namespace ApexSenseBridge
                     return "Warframe (layout Xbox par défaut)";
                 case BridgeProfileType.DeathStranding2:
                     return "Death Stranding 2: On the Beach";
+                case BridgeProfileType.AlanWake2:
+                    return "Alan Wake 2";
                 case BridgeProfileType.Disabled:
                     return "Désactivé (override manuel)";
                 default:
@@ -156,6 +160,8 @@ namespace ApexSenseBridge
                     return "Warframe";
                 case TouchpadRemappingMode.DeathStranding2:
                     return "Death Stranding 2: On the Beach";
+                case TouchpadRemappingMode.AlanWake2:
+                    return "Alan Wake 2";
                 default:
                     return "Automatique";
             }
@@ -350,6 +356,8 @@ namespace ApexSenseBridge
                     return TouchpadRemappingMode.Warframe;
                 case BridgeProfileType.DeathStranding2:
                     return TouchpadRemappingMode.DeathStranding2;
+                case BridgeProfileType.AlanWake2:
+                    return TouchpadRemappingMode.AlanWake2;
                 default:
                     // Standard already auto-detected special remappings in 0.6.1.
                     return TouchpadRemappingMode.Automatic;
@@ -370,6 +378,8 @@ namespace ApexSenseBridge
                     return BridgeProfileType.Warframe;
                 case TouchpadRemappingMode.DeathStranding2:
                     return BridgeProfileType.DeathStranding2;
+                case TouchpadRemappingMode.AlanWake2:
+                    return BridgeProfileType.AlanWake2;
                 default:
                     return BridgeProfileType.StandardDualSense;
             }

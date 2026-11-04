@@ -72,6 +72,11 @@ namespace ApexSenseBridge
                 profileType = BridgeProfileType.DeathStranding2;
                 return true;
             }
+            if (normalized == "alanwake2" || normalized == "alanwakeii")
+            {
+                profileType = BridgeProfileType.AlanWake2;
+                return true;
+            }
             if (normalized == "warframe" || normalized.StartsWith("warframe", StringComparison.Ordinal))
             {
                 profileType = BridgeProfileType.Warframe;

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
+
+- New `alan-wake-2` touchpad profile. On the Xbox layout, `View` opens the Mind
+  Place / Writer's Room and holding it goes straight to the map; the DualSense
+  version expects the right and left sides of the touchpad instead. A `View` tap
+  is now sent as a right-side click and a hold (400 ms) as a left-side click kept
+  down until release. Previously `View` was a centre click, which the game ignores.
+  (Issue #73)
+- The **Touchpad remapping** pill in the Tray game details now opens a panel,
+  like the manual-fix one, that lists for each profile the APEX control (Xbox
+  layout) and the DualSense input it becomes, with what it does in the game.
+  Available in all nine languages.
+
 ### APEX 6 Pro: trigger vibration no longer rings after release on newer firmware
 
 - Newer controller firmware keeps playing the last trigger waveform when the

@@ -150,6 +150,7 @@ namespace ApexSenseBridge
                 case "ghost-of-tsushima": return BridgeProfileType.GhostOfTsushima;
                 case "warframe": return BridgeProfileType.Warframe;
                 case "death-stranding-2": return BridgeProfileType.DeathStranding2;
+                case "alan-wake-2": return BridgeProfileType.AlanWake2;
                 default: return BridgeProfileType.StandardDualSense;
             }
         }

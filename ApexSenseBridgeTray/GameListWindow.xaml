@@ -628,15 +628,24 @@
                                                                   Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
                                                         </StackPanel>
                                                     </Border>
-                                                    <Border x:Name="BadgeDetailTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
+                                                    <Border x:Name="BadgeDetailTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed"
+                                                            Cursor="Hand" MouseLeftButtonUp="OnTouchpadBadgeClick">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Image Source="{StaticResource IconTouchpad}" Style="{StaticResource FeaturePillIcon}"/>
                                                             <TextBlock Text="{DynamicResource Loc_PillTouchpad}" Style="{StaticResource FeaturePillText}"/>
+                                                            <Path x:Name="ChevronTouchpad" Style="{StaticResource IconPath}" Data="M 1,1 L 5,5 L 9,1"
+                                                                  Width="9" Height="6" Stroke="{DynamicResource BadgeActiveFg}" StrokeThickness="1.8"
+                                                                  Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </WrapPanel>
                                             </StackPanel>
                                         </Grid>
+
+                                        <Border x:Name="PnlTouchpadGuide" Style="{StaticResource SettingRow}" Margin="0,-6,0,14"
+                                                Visibility="Collapsed">
+                                            <StackPanel x:Name="PnlTouchpadEntries"/>
+                                        </Border>
 
                                         <Border x:Name="PnlManualFixGuide" Style="{StaticResource SettingRow}" Margin="0,-6,0,14"
                                                 Visibility="Collapsed">

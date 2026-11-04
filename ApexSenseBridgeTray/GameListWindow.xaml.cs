@@ -1895,6 +1895,7 @@ namespace ApexSenseBridgeTray
                         : "Loc_BtnManualFixAllow");
             }
             UpdateManualFixGuide(game);
+            UpdateTouchpadGuide(game);
         }
 
         private void UpdateExecutableChoices()
@@ -2089,6 +2090,76 @@ namespace ApexSenseBridgeTray
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             PnlManualFixGuide.Visibility = Visibility.Visible;
+        }
+
+        private string touchpadGuideOpenFor = string.Empty;
+
+        private void OnTouchpadBadgeClick(object sender, MouseButtonEventArgs e)
+        {
+            var game = SelectedGame;
+            if (game == null || !game.HasCustomRemapping) return;
+
+            touchpadGuideOpenFor = touchpadGuideOpenFor == game.Normalized ? string.Empty : game.Normalized;
+            UpdateTouchpadGuide(game);
+            e.Handled = true;
+        }
+
+        private void UpdateTouchpadGuide(GameItemViewModel game)
+        {
+            if (PnlTouchpadGuide == null || PnlTouchpadEntries == null) return;
+
+            PnlTouchpadEntries.Children.Clear();
+            bool open = game != null && game.HasCustomRemapping && touchpadGuideOpenFor == game.Normalized;
+            if (ChevronTouchpad != null) ChevronTouchpad.RenderTransform = new RotateTransform(open ? 180 : 0);
+            if (!open)
+            {
+                PnlTouchpadGuide.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            foreach (var entry in TouchpadRemapGuide.BuildEntries(game.Game.Profile))
+            {
+                PnlTouchpadEntries.Children.Add(BuildTouchpadEntry(entry));
+            }
+            PnlTouchpadGuide.Visibility = PnlTouchpadEntries.Children.Count > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private UIElement BuildTouchpadEntry(TouchpadRemapEntry entry)
+        {
+            var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+            panel.Children.Add(new TextBlock
+            {
+                Text = LocalizationManager.Format(
+                    "Loc_TouchpadRowApex",
+                    LocalizationManager.Format(entry.ApexKey, (object[])entry.ApexArguments)),
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 3)
+            });
+
+            var result = new TextBlock
+            {
+                Text = LocalizationManager.Format(
+                    "Loc_TouchpadRowDualSense", LocalizationManager.Get(entry.DualSenseKey)),
+                FontSize = 11.5,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+            result.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimary");
+            panel.Children.Add(result);
+
+            var use = entry.UseKey != null ? LocalizationManager.Get(entry.UseKey) : entry.UseText;
+            if (!string.IsNullOrEmpty(use))
+            {
+                var useBlock = new TextBlock { Text = use, FontSize = 11, TextWrapping = TextWrapping.Wrap };
+                useBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+                panel.Children.Add(useBlock);
+            }
+            return panel;
         }
 
         private UIElement BuildManualFixEntry(ManualFixGuideEntry entry)

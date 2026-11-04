@@ -23,6 +23,17 @@ class DiscordExecutableTests(unittest.TestCase):
                 "standard", UPDATER.get_special_profile(UPDATER.normalize_title(title))
             )
 
+    def test_alan_wake_2_profile_survives_catalogue_regeneration(self):
+        for title in ("Alan Wake 2", "Alan Wake II"):
+            self.assertEqual(
+                "alan-wake-2",
+                UPDATER.get_special_profile(UPDATER.normalize_title(title)),
+            )
+        self.assertEqual(
+            "standard",
+            UPDATER.get_special_profile(UPDATER.normalize_title("Alan Wake Remastered")),
+        )
+
     def test_pcgw_support_parser_preserves_manual_fix_state_and_page_url(self):
         markup = """
         <table><tbody>

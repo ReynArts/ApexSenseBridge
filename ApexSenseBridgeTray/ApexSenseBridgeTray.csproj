@@ -128,6 +128,7 @@
     <Compile Include="Services\GameProcessSessionTracker.cs" />
     <Compile Include="Services\GameActivationPolicy.cs" />
     <Compile Include="Services\ManualFixGuide.cs" />
+    <Compile Include="Services\TouchpadRemapGuide.cs" />
     <Compile Include="Services\PlatformClientProcessFilter.cs" />
     <Compile Include="Services\ReportRelayClient.cs" />
     <Compile Include="Services\ProcessMonitorService.cs" />

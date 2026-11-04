@@ -205,13 +205,13 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             options.verifyVirtualInput = true;
         } else if (value == "--touchpad-profile") {
             if (++i >= argc) {
-                error = "--touchpad-profile requires one of: none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, death-stranding-2.";
+                error = "--touchpad-profile requires one of: none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, death-stranding-2, alan-wake-2.";
                 return false;
             }
             const auto profile = asb::dualsense::parseTouchpadGestureProfile(argv[i]);
             if (!profile || *profile ==
                                 asb::dualsense::TouchpadGestureProfile::LegacyViewHoldSwipeUp) {
-                error = "Unknown --touchpad-profile. Expected none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, or death-stranding-2.";
+                error = "Unknown --touchpad-profile. Expected none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, death-stranding-2, or alan-wake-2.";
                 return false;
             }
             options.touchpadProfile = *profile;

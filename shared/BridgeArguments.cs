@@ -70,6 +70,7 @@ namespace ApexSenseBridge.Common
                 case "ghost-of-tsushima":
                 case "warframe":
                 case "death-stranding-2":
+                case "alan-wake-2":
                     return profile.Trim().ToLowerInvariant();
                 default:
                     return "none";

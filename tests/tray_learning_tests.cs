@@ -856,6 +856,22 @@ internal static class TrayLearningTests
             Assert(FindGame(explicitGames, "Death Stranding 2: On the Beach").Profile == explicitProfile,
                 "An explicit cloud profile was overwritten by the embedded fallback.");
         }
+        var cachedAlanWake = CreateGameList("{\"games\":[{\"title\":\"Alan Wake II\",\"profile\":\"standard\"}]}");
+        Assert(FindGame(cachedAlanWake, "Alan Wake II").Profile == "alan-wake-2",
+            "An older cached catalogue lost the embedded Alan Wake 2 remapping.");
+        Assert(BridgeArguments.Build("alan-wake-2", false, 12, false, 0).Contains(
+            "--touchpad-profile alan-wake-2"),
+            "The shared launcher dropped the Alan Wake 2 touchpad profile.");
+        foreach (var profile in new[] { "spider-man-2", "miles-morales", "ghost-of-tsushima", "warframe", "death-stranding-2", "alan-wake-2" })
+        {
+            var entries = TouchpadRemapGuide.BuildEntries(profile);
+            Assert(entries.Count > 0 && entries.All(entry =>
+                    !string.IsNullOrEmpty(entry.ApexKey) && entry.ApexArguments.Length > 0 &&
+                    !string.IsNullOrEmpty(entry.DualSenseKey)),
+                "The touchpad remapping guide is incomplete for " + profile + ".");
+        }
+        Assert(TouchpadRemapGuide.BuildEntries("standard").Count == 0 && TouchpadRemapGuide.BuildEntries(null).Count == 0,
+            "The touchpad remapping guide invented entries for a standard game.");
         var originalDeathStranding = CreateGameList("{\"games\":[{\"title\":\"Death Stranding Director's Cut\",\"profile\":\"standard\"}]}");
         Assert(FindGame(originalDeathStranding, "Death Stranding Director's Cut").Profile == "standard",
             "The Death Stranding 2 profile leaked into the original game.");

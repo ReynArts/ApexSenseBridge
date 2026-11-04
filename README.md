@@ -289,6 +289,7 @@ For games that use DualSense touchpad regions or swipes, ApexSenseBridge transla
 | **Ghost of Tsushima** | Hold `D-pad Right` + Flick Right Stick | Directional Wind Swipe in flick direction |
 | **Warframe** | Hold `RB` + Press `A/B/X/Y` | Ability Swipes (Up / Down / Left / Right) |
 | **Death Stranding 2** | Press/hold `View/Back` / `LB + Menu` | Right-side Click/Hold (Likes, Communication, Like Icon) / Left-side Click (Photo Mode) |
+| **Alan Wake 2** | Press `View` / Hold `View` | Right-side Click (Mind Place / Writer's Room) / Left-side Click while held (Map) |
 | **Standard DualSense** | Press `View` | Touchpad Click (no directional swipe) |
 
 Death Stranding 2 uses the default Xbox layout: `View/Back` is forwarded without

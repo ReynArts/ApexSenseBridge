@@ -96,6 +96,7 @@ std::optional<TouchpadGestureProfile> parseTouchpadGestureProfile(
     if (name == "ghost-of-tsushima") return TouchpadGestureProfile::GhostOfTsushima;
     if (name == "warframe") return TouchpadGestureProfile::Warframe;
     if (name == "death-stranding-2") return TouchpadGestureProfile::DeathStranding2;
+    if (name == "alan-wake-2") return TouchpadGestureProfile::AlanWake2;
     return std::nullopt;
 }
 
@@ -109,6 +110,7 @@ std::string_view touchpadGestureProfileName(TouchpadGestureProfile profile) noex
     case TouchpadGestureProfile::GhostOfTsushima: return "ghost-of-tsushima";
     case TouchpadGestureProfile::Warframe: return "warframe";
     case TouchpadGestureProfile::DeathStranding2: return "death-stranding-2";
+    case TouchpadGestureProfile::AlanWake2: return "alan-wake-2";
     }
     return "none";
 }
@@ -211,6 +213,8 @@ bool TouchpadGestureMapper::transformHold(
         return false;
     case HoldPhase::WaitForRelease:
         if (!pressed) hold.phase = HoldPhase::Idle;
+        return false;
+    case HoldPhase::Held:
         return false;
     }
     return false;
@@ -336,10 +340,69 @@ void TouchpadGestureMapper::transformDeathStranding(DualSenseInputState& state) 
     state.touch1Y = kTouchCenterY;
 }
 
+void TouchpadGestureMapper::transformAlanWake(DualSenseInputState& state,
+                                              Clock::time_point now) noexcept {
+    const auto emitClick = [&state](std::uint16_t x) {
+        state.buttons = static_cast<std::uint16_t>(
+            state.buttons | button::kTouchpadClick);
+        state.touch1X = x;
+        state.touch1Y = kTouchCenterY;
+        state.touch1Active = true;
+    };
+    const bool pressed = (state.buttons & button::kTouchpadClick) != 0;
+    state.buttons = static_cast<std::uint16_t>(
+        state.buttons & ~button::kTouchpadClick);
+
+    auto& hold = alanWakeHold_;
+    switch (hold.phase) {
+    case HoldPhase::Idle:
+        if (pressed) {
+            hold.phase = HoldPhase::Pending;
+            hold.started = now;
+        }
+        break;
+    case HoldPhase::Pending:
+        if (!pressed) {
+            hold.phase = HoldPhase::TapPulse;
+            hold.started = now;
+            ++stats_.replayedTaps;
+            emitClick(kTouchRightX);
+        } else if (now - hold.started >= kHoldThreshold) {
+            hold.phase = HoldPhase::Held;
+            ++stats_.replayedTaps;
+            emitClick(kTouchLeftX);
+        }
+        break;
+    case HoldPhase::TapPulse:
+        if (now - hold.started < kTapPulseDuration) {
+            emitClick(kTouchRightX);
+        } else if (pressed) {
+            hold.phase = HoldPhase::Pending;
+            hold.started = now;
+        } else {
+            hold.phase = HoldPhase::Idle;
+        }
+        break;
+    case HoldPhase::Held:
+        if (pressed) {
+            emitClick(kTouchLeftX);
+        } else {
+            hold.phase = HoldPhase::Idle;
+        }
+        break;
+    case HoldPhase::WaitForRelease:
+        hold.phase = HoldPhase::Idle;
+        break;
+    }
+}
+
 void TouchpadGestureMapper::transform(DualSenseInputState& state,
                                       Clock::time_point now) noexcept {
     switch (profile_) {
     case TouchpadGestureProfile::None:
+        return;
+    case TouchpadGestureProfile::AlanWake2:
+        transformAlanWake(state, now);
         return;
     case TouchpadGestureProfile::DeathStranding2:
         transformDeathStranding(state);

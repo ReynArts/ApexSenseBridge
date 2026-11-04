@@ -40,6 +40,8 @@ SPECIAL_PROFILES = {
     "warframe": "warframe",
     "deathstranding2": "death-stranding-2",
     "deathstranding2onthebeach": "death-stranding-2",
+    "alanwake2": "alan-wake-2",
+    "alanwakeii": "alan-wake-2",
 }
 
 BUILTIN_GAMES = [
