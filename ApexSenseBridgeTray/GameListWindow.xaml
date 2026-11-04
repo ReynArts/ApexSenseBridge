@@ -609,12 +609,24 @@
                                                         </StackPanel>
                                                     </Border>
                                                     <Border x:Name="BadgeDetailManualFix" Style="{StaticResource FeaturePill}" Background="#26F59E0B"
-                                                            ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="Collapsed">
-                                                        <TextBlock Text="{DynamicResource Loc_PillManualFix}" Style="{StaticResource FeaturePillText}" Foreground="#FBBF24" FontWeight="SemiBold"/>
+                                                            ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="Collapsed"
+                                                            Cursor="Hand" MouseLeftButtonUp="OnManualFixBadgeClick">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{DynamicResource Loc_PillManualFix}" Style="{StaticResource FeaturePillText}" Foreground="#FBBF24" FontWeight="SemiBold"/>
+                                                            <Path x:Name="ChevronManualFix" Style="{StaticResource IconPath}" Data="M 1,1 L 5,5 L 9,1"
+                                                                  Width="9" Height="6" Stroke="#FBBF24" StrokeThickness="1.8"
+                                                                  Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
+                                                        </StackPanel>
                                                     </Border>
                                                     <Border x:Name="BadgeDetailManualFixApplied" Style="{StaticResource FeaturePill}" Background="#2634D399"
-                                                            ToolTip="{DynamicResource Loc_ManualFixAppliedHint}" Visibility="Collapsed">
-                                                        <TextBlock Text="{DynamicResource Loc_PillManualFixApplied}" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource BadgeActiveFg}" FontWeight="SemiBold"/>
+                                                            ToolTip="{DynamicResource Loc_ManualFixAppliedHint}" Visibility="Collapsed"
+                                                            Cursor="Hand" MouseLeftButtonUp="OnManualFixBadgeClick">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{DynamicResource Loc_PillManualFixApplied}" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource BadgeActiveFg}" FontWeight="SemiBold"/>
+                                                            <Path x:Name="ChevronManualFixApplied" Style="{StaticResource IconPath}" Data="M 1,1 L 5,5 L 9,1"
+                                                                  Width="9" Height="6" Stroke="{DynamicResource BadgeActiveFg}" StrokeThickness="1.8"
+                                                                  Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
+                                                        </StackPanel>
                                                     </Border>
                                                     <Border x:Name="BadgeDetailTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
                                                         <StackPanel Orientation="Horizontal">
@@ -625,6 +637,33 @@
                                                 </WrapPanel>
                                             </StackPanel>
                                         </Grid>
+
+                                        <Border x:Name="PnlManualFixGuide" Style="{StaticResource SettingRow}" Margin="0,-6,0,14"
+                                                Visibility="Collapsed">
+                                            <StackPanel>
+                                                <StackPanel x:Name="PnlManualFixEntries"/>
+                                                <TextBlock x:Name="TxtManualFixNoNote" Text="{DynamicResource Loc_ManualFixNoNote}" FontSize="11.5"
+                                                           TextWrapping="Wrap" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"
+                                                           Visibility="Collapsed"/>
+                                                <Button x:Name="BtnManualFixOpenPage" Style="{StaticResource BtnSecondary}"
+                                                        HorizontalAlignment="Left" Margin="0,0,0,10" Click="OnManualFixOpenPageClick">
+                                                    <TextBlock Text="{DynamicResource Loc_ManualFixOpenPage}" FontSize="11.5"/>
+                                                </Button>
+                                                <TextBlock Text="{DynamicResource Loc_ManualFixCompatWarning}" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="#FBBF24" Margin="0,0,0,12"/>
+                                                <Button x:Name="BtnDetailToggleManualFix" Style="{StaticResource BtnSecondary}"
+                                                        MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                        ToolTip="{DynamicResource Loc_ManualFixAllowHint}" Visibility="Collapsed"
+                                                        Click="OnDetailToggleManualFixClick">
+                                                    <TextBlock x:Name="TxtDetailManualFixAction" Text="{DynamicResource Loc_BtnManualFixAllow}"
+                                                               FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                                                </Button>
+                                                <TextBlock x:Name="TxtDetailManualFixNote" Text="{DynamicResource Loc_ManualFixNote}"
+                                                           Visibility="{Binding Visibility, ElementName=BtnDetailToggleManualFix}"
+                                                           TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                                           Margin="2,0,2,0"/>
+                                            </StackPanel>
+                                        </Border>
 
                                         <!-- APEX profile: D-pad left/right -->
                                         <Border x:Name="PnlApexProfile" CornerRadius="26" Height="52" Background="#12FFFFFF" Padding="8" Margin="0,0,0,10"
@@ -688,7 +727,7 @@
                                         </StackPanel>
 
                                         <Button x:Name="BtnDetailToggleExclude" Style="{StaticResource BtnSecondary}"
-                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,10"
+                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,18"
                                                 Click="OnDetailToggleExcludeClick">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                 <Border Style="{StaticResource XboxBtnX}" Margin="0,0,8,0">
@@ -699,37 +738,6 @@
                                             </StackPanel>
                                         </Button>
 
-                                        <Border x:Name="PnlManualFixGuide" Style="{StaticResource SettingRow}" Margin="0,0,0,10"
-                                                Visibility="Collapsed">
-                                            <StackPanel>
-                                                <TextBlock Text="{DynamicResource Loc_ManualFixGuideTitle}" FontSize="12.5" FontWeight="SemiBold"
-                                                           Foreground="#FBBF24" Margin="0,0,0,4"/>
-                                                <TextBlock Text="{DynamicResource Loc_ManualFixGuideIntro}" FontSize="11" TextWrapping="Wrap"
-                                                           Foreground="{DynamicResource TextMuted}" Margin="0,0,0,10"/>
-                                                <StackPanel x:Name="PnlManualFixEntries"/>
-                                                <TextBlock x:Name="TxtManualFixNoNote" Text="{DynamicResource Loc_ManualFixNoNote}" FontSize="11.5"
-                                                           TextWrapping="Wrap" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"
-                                                           Visibility="Collapsed"/>
-                                                <Button x:Name="BtnManualFixOpenPage" Style="{StaticResource BtnSecondary}"
-                                                        HorizontalAlignment="Left" Margin="0,0,0,10" Click="OnManualFixOpenPageClick">
-                                                    <TextBlock Text="{DynamicResource Loc_ManualFixOpenPage}" FontSize="11.5"/>
-                                                </Button>
-                                                <TextBlock Text="{DynamicResource Loc_ManualFixCompatWarning}" FontSize="11" TextWrapping="Wrap"
-                                                           Foreground="#FBBF24"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <Button x:Name="BtnDetailToggleManualFix" Style="{StaticResource BtnSecondary}"
-                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,6"
-                                                ToolTip="{DynamicResource Loc_ManualFixAllowHint}" Visibility="Collapsed"
-                                                Click="OnDetailToggleManualFixClick">
-                                            <TextBlock x:Name="TxtDetailManualFixAction" Text="{DynamicResource Loc_BtnManualFixAllow}"
-                                                       FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-                                        </Button>
-                                        <TextBlock x:Name="TxtDetailManualFixNote" Text="{DynamicResource Loc_ManualFixNote}"
-                                                   Visibility="{Binding Visibility, ElementName=BtnDetailToggleManualFix}"
-                                                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMuted}"
-                                                   Margin="6,0,6,18"/>
 
                                         <!-- Advanced: optional executable association -->
                                         <TextBlock Text="{DynamicResource Loc_GameExecutable}" ToolTip="{DynamicResource Loc_GameExecutableHint}"

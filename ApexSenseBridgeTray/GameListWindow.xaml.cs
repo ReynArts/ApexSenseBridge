@@ -1886,10 +1886,6 @@ namespace ApexSenseBridgeTray
             {
                 BtnDetailToggleManualFix.Visibility = game.ManualFixVisibility;
                 BtnDetailToggleManualFix.IsEnabled = GameActivationPolicy.CanToggleManualFix(game.Game, game.IsExcluded);
-                if (BtnDetailToggleExclude != null)
-                {
-                    BtnDetailToggleExclude.Margin = new Thickness(0, 0, 0, game.RequiresManualFix ? 10 : 18);
-                }
             }
             if (TxtDetailManualFixAction != null)
             {
@@ -2059,18 +2055,34 @@ namespace ApexSenseBridgeTray
             ToggleSelectedManualFix();
         }
 
+        private string manualFixGuideOpenFor = string.Empty;
+
+        private void OnManualFixBadgeClick(object sender, MouseButtonEventArgs e)
+        {
+            var game = SelectedGame;
+            if (game == null || !game.RequiresManualFix) return;
+
+            manualFixGuideOpenFor = manualFixGuideOpenFor == game.Normalized ? string.Empty : game.Normalized;
+            UpdateManualFixGuide(game);
+            e.Handled = true;
+        }
+
         private void UpdateManualFixGuide(GameItemViewModel game)
         {
             if (PnlManualFixGuide == null || PnlManualFixEntries == null) return;
 
             PnlManualFixEntries.Children.Clear();
-            if (game == null || !game.RequiresManualFix)
+            bool open = game != null && game.RequiresManualFix && manualFixGuideOpenFor == game.Normalized;
+            var chevronRotation = new RotateTransform(open ? 180 : 0);
+            if (ChevronManualFix != null) ChevronManualFix.RenderTransform = chevronRotation;
+            if (ChevronManualFixApplied != null) ChevronManualFixApplied.RenderTransform = chevronRotation;
+            if (!open)
             {
                 PnlManualFixGuide.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            var entries = ManualFixGuide.BuildEntries(game.Game);
+            var entries = ManualFixGuide.BuildEntries(game.Game, LocalizationManager.CurrentLanguage);
             foreach (var entry in entries) PnlManualFixEntries.Children.Add(BuildManualFixEntry(entry));
             TxtManualFixNoNote.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             BtnManualFixOpenPage.Visibility = ManualFixGuide.PageUrl(game.Game).Length > 0
@@ -2772,7 +2784,16 @@ namespace ApexSenseBridgeTray
             gamepadNav?.Stop();
             try
             {
-                var win = new BugReportWindow(settings, sessionManager, lastControllerStatus)
+                var chooser = new ReportChooserWindow { Owner = this };
+                if (chooser.ShowDialog() != true) return;
+
+                if (chooser.SelectedChoice == ReportChoice.Logs)
+                {
+                    ExportLogs();
+                    return;
+                }
+
+                var win = new BugReportWindow(settings, sessionManager, lastControllerStatus, chooser.SelectedChoice)
                 {
                     Owner = this
                 };
@@ -2781,6 +2802,32 @@ namespace ApexSenseBridgeTray
             finally
             {
                 gamepadNav?.Start();
+            }
+        }
+
+        private void ExportLogs()
+        {
+            string reportId = DiagnosticReportService.NewReportId();
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = LocalizationManager.Get("Loc_BtnExportLogs"),
+                Filter = "ZIP (*.zip)|*.zip",
+                DefaultExt = ".zip",
+                FileName = DiagnosticReportService.SuggestedBundleName(reportId)
+            };
+            try
+            {
+                if (dialog.ShowDialog(this) != true) return;
+                string report = DiagnosticReportService.BuildMarkdown(
+                    settings, sessionManager, lastControllerStatus, reportId);
+                DiagnosticReportService.CreateSupportBundle(dialog.FileName, report, null, true);
+                BugReportWindow.ShowInExplorer(dialog.FileName);
+            }
+            catch (Exception ex)
+            {
+                AppLog.WriteLine("tray_bug_report.log", "Unable to export the logs: " + ex.Message);
+                MessageBox.Show(this, LocalizationManager.Format("Loc_ReportExportFailed", ex.Message),
+                    LocalizationManager.Get("Loc_BtnExportLogs"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 

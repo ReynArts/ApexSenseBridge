@@ -23,6 +23,14 @@ namespace ApexSenseBridgeTray.Services
         private readonly List<SupportedGame> allGames = new List<SupportedGame>();
         private static readonly Lazy<Dictionary<string, string>> EmbeddedProfiles =
             new Lazy<Dictionary<string, string>>(LoadEmbeddedProfiles);
+        private sealed class EmbeddedManualFix
+        {
+            public ManualFixDetail AdaptiveTriggers;
+            public ManualFixDetail HapticFeedback;
+        }
+
+        private static readonly Lazy<Dictionary<string, EmbeddedManualFix>> EmbeddedManualFixes =
+            new Lazy<Dictionary<string, EmbeddedManualFix>>(LoadEmbeddedManualFixes);
         private volatile Dictionary<string, SupportedGame> gamesByExecutableName =
             new Dictionary<string, SupportedGame>(StringComparer.OrdinalIgnoreCase);
 
@@ -75,8 +83,8 @@ namespace ApexSenseBridgeTray.Services
         {
             var endpoints = new[]
             {
-                "https://raw.githubusercontent.com/ReynArts/ApexSenseBridge/main/data/supported_games.json",
-                "https://cdn.jsdelivr.net/gh/ReynArts/ApexSenseBridge@main/data/supported_games.json"
+                "https://raw.githubusercontent.com/ReynArts/ApexSenseBridge/stable/data/supported_games.json",
+                "https://cdn.jsdelivr.net/gh/ReynArts/ApexSenseBridge@stable/data/supported_games.json"
             };
 
             foreach (var url in endpoints)
@@ -306,6 +314,16 @@ namespace ApexSenseBridgeTray.Services
                         EmbeddedProfiles.Value.TryGetValue(g.Normalized, out embeddedProfile))
                         g.Profile = embeddedProfile;
 
+                    EmbeddedManualFix embeddedFix;
+                    if (g.RequiresManualFix &&
+                        EmbeddedManualFixes.Value.TryGetValue(g.Normalized, out embeddedFix))
+                    {
+                        if (g.AdaptiveTriggersManualFix && g.AdaptiveTriggersFix == null)
+                            g.AdaptiveTriggersFix = embeddedFix.AdaptiveTriggers;
+                        if (g.HapticFeedbackManualFix && g.HapticFeedbackFix == null)
+                            g.HapticFeedbackFix = embeddedFix.HapticFeedback;
+                    }
+
                     if (!string.IsNullOrWhiteSpace(g.Normalized))
                     {
                         parsedByNormalizedName[g.Normalized] = g;
@@ -397,7 +415,12 @@ namespace ApexSenseBridgeTray.Services
                         ? linkItem["label"].ToString().Trim()
                         : string.Empty;
                     if (url.Length == 0) continue;
-                    links.Add(new ManualFixLink { Label = label.Length > 0 ? label : url, Url = url });
+                    links.Add(new ManualFixLink
+                    {
+                        Label = label.Length > 0 ? label : url,
+                        Url = url,
+                        Translations = ParseTranslations(linkItem)
+                    });
                 }
             }
             detail.Links = links.ToArray();
@@ -413,8 +436,24 @@ namespace ApexSenseBridgeTray.Services
                 }
             }
             detail.Tools = tools.ToArray();
+            detail.Translations = ParseTranslations(entry);
 
             return detail.Note.Length > 0 || detail.Links.Length > 0 ? detail : null;
+        }
+
+        private static Dictionary<string, string> ParseTranslations(Dictionary<string, object> item)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var values = item.ContainsKey("translations") ? item["translations"] as Dictionary<string, object> : null;
+            if (values == null) return result;
+
+            foreach (var pair in values)
+            {
+                var text = pair.Value as string;
+                if (!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(text))
+                    result[pair.Key.Trim()] = text.Trim();
+            }
+            return result;
         }
 
         private static string[] ParseExecutables(Dictionary<string, object> item)
@@ -502,6 +541,38 @@ namespace ApexSenseBridgeTray.Services
                 }
             }
             return profiles;
+        }
+
+        private static Dictionary<string, EmbeddedManualFix> LoadEmbeddedManualFixes()
+        {
+            var fixes = new Dictionary<string, EmbeddedManualFix>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(
+                    "ApexSenseBridgeTray.supported_games.json"))
+                {
+                    if (stream == null) return fixes;
+                    using (var reader = new StreamReader(stream, Encoding.UTF8))
+                    {
+                        var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                        var root = serializer.Deserialize<Dictionary<string, object>>(reader.ReadToEnd());
+                        var games = root["games"] as System.Collections.IEnumerable;
+                        if (games == null) return fixes;
+                        foreach (Dictionary<string, object> item in games)
+                        {
+                            var adaptive = ParseManualFixDetail(item, "adaptiveTriggers");
+                            var haptic = ParseManualFixDetail(item, "hapticFeedback");
+                            if (adaptive == null && haptic == null) continue;
+                            fixes[Normalize(item["title"] as string)] =
+                                new EmbeddedManualFix { AdaptiveTriggers = adaptive, HapticFeedback = haptic };
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return fixes;
         }
 
         private void LoadEmbeddedDatabase()

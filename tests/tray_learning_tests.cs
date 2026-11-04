@@ -53,11 +53,13 @@ internal static class TrayLearningTests
             TestCatalogAddedDates();
             TestActivationPolicyStillAppliesAfterLearning();
             TestManualFixGamesPreservePhysicalInput();
+            TestManualFixGuideEntries();
             TestPerGameApexProfileSettings();
             TestOnboardProfileSelectorLock();
             TestManualBridgeModeIsNotPersisted();
             TestSharedBridgeArguments();
             TestControllerCalibrations();
+            TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
             TestGameExecutableSettings();
@@ -675,6 +677,117 @@ internal static class TrayLearningTests
             "A game with a ready selected feature was incorrectly reported as fully blocked.");
     }
 
+    private static void TestManualFixGuideEntries()
+    {
+        const string json = "{\"games\":[" +
+            "{\"title\":\"Forza Horizon 5\",\"normalized\":\"forzahorizon5\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"https://www.pcgamingwiki.com/wiki/Forza_Horizon_5\"," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Requires DSX and RacingDSX.\"," +
+            "\"links\":[{\"label\":\"RacingDSX\",\"url\":\"https://github.com/cosmii02/RacingDSX\"}," +
+            "{\"label\":\"Local\",\"url\":\"file:///C:/Windows/System32/calc.exe\"}," +
+            "{\"label\":\"Plain\",\"url\":\"http://example.com/fix\"}," +
+            "{\"label\":\"Broken\"},\"text\"]," +
+            "\"tools\":[\"DSX\",\"RacingDSX\"]}}}," +
+            "{\"title\":\"Onimusha\",\"normalized\":\"onimusha\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true," +
+            "\"hapticFeedback\":true,\"hapticFeedbackManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"https://www.pcgamingwiki.com/wiki/Onimusha\"," +
+            "\"manualFixDetails\":{" +
+            "\"adaptiveTriggers\":{\"note\":\"Use the mod.\",\"links\":[],\"tools\":[]}," +
+            "\"hapticFeedback\":{\"note\":\"Use the mod.\",\"links\":[],\"tools\":[]}}}," +
+            "{\"title\":\"Dying Light\",\"normalized\":\"dyinglight\"," +
+            "\"hapticFeedback\":true,\"hapticFeedbackManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"javascript:alert(1)\"," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Stale entry.\",\"links\":[],\"tools\":[]}}}," +
+            "{\"title\":\"Native\",\"normalized\":\"native\",\"adaptiveTriggers\":true,\"manualFixDetails\":\"oops\"}" +
+            "]}";
+        var list = CreateGameList(json);
+
+        var forza = FindGame(list, "Forza Horizon 5");
+        Assert(forza.AdaptiveTriggersFix != null && forza.HapticFeedbackFix == null &&
+               forza.AdaptiveTriggersFix.Links.Length == 3 &&
+               forza.AdaptiveTriggersFix.Tools.SequenceEqual(new[] { "DSX", "RacingDSX" }),
+            "The manual-fix notes of the catalogue were not loaded.");
+        var forzaEntries = ManualFixGuide.BuildEntries(forza);
+        Assert(forzaEntries.Count == 1 &&
+               forzaEntries[0].Note == "Requires DSX and RacingDSX." &&
+               forzaEntries[0].Links.Length == 1 &&
+               forzaEntries[0].Links[0].Url == "https://github.com/cosmii02/RacingDSX" &&
+               forzaEntries[0].FeatureKeys.SequenceEqual(new[] { "Loc_PillTriggers" }),
+            "The guide kept a link that is not a plain HTTPS address.");
+        Assert(ManualFixGuide.PageUrl(forza) == "https://www.pcgamingwiki.com/wiki/Forza_Horizon_5",
+            "The PCGamingWiki page address was not exposed to the guide.");
+
+        var onimusha = ManualFixGuide.BuildEntries(FindGame(list, "Onimusha"));
+        Assert(onimusha.Count == 1 &&
+               onimusha[0].FeatureKeys.SequenceEqual(new[] { "Loc_PillTriggers", "Loc_PillHaptics" }),
+            "Identical notes for both features were not merged into one guide entry.");
+
+        var dyingLight = FindGame(list, "Dying Light");
+        Assert(ManualFixGuide.BuildEntries(dyingLight).All(entry =>
+                   entry.Note != "Stale entry." && !entry.FeatureKeys.Contains("Loc_PillTriggers")),
+            "A note of a feature that needs no manual fix reached the guide.");
+        Assert(ManualFixGuide.PageUrl(dyingLight).Length == 0,
+            "A non-HTTPS page address was exposed to the guide.");
+
+        var staleCloud = CreateGameList("{\"games\":[" +
+            "{\"title\":\"Forza Horizon 5\",\"normalized\":\"forzahorizon5\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"https://www.pcgamingwiki.com/wiki/Forza_Horizon_5\"}," +
+            "{\"title\":\"Forza Motorsport 7\",\"normalized\":\"forzamotorsport7\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Cloud note.\",\"links\":[],\"tools\":[]}}}," +
+            "{\"title\":\"Forza Horizon 4\",\"normalized\":\"forzahorizon4\",\"adaptiveTriggers\":true}" +
+            "]}");
+        var filledFromEmbedded = ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Horizon 5"));
+        Assert(filledFromEmbedded.Count == 1 && filledFromEmbedded[0].Note.Length > 0,
+            "A catalogue without manual-fix notes did not fall back to the notes embedded in the Tray.");
+        var cloudWins = ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Motorsport 7"));
+        Assert(cloudWins.Count == 1 && cloudWins[0].Note == "Cloud note.",
+            "The embedded notes replaced the notes of the up-to-date catalogue.");
+        Assert(ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Horizon 4")).Count == 0,
+            "A game that needs no manual fix received the embedded notes.");
+
+        var translated = CreateGameList("{\"games\":[" +
+            "{\"title\":\"Forza Horizon 5\",\"normalized\":\"forzahorizon5\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Requires DSX.\"," +
+            "\"links\":[{\"label\":\"Custom config\",\"url\":\"https://example.com/a\"," +
+            "\"translations\":{\"fr\":\"Configuration personnalisée\"}}]," +
+            "\"tools\":[\"DSX\"],\"translations\":{\"fr\":\"Nécessite DSX.\",\"ja\":\"\",\"es\":5}}}}" +
+            "]}");
+        var translatedGame = FindGame(translated, "Forza Horizon 5");
+        var french = ManualFixGuide.BuildEntries(translatedGame, "fr")[0];
+        Assert(french.Note == "Nécessite DSX." && french.Links[0].Label == "Configuration personnalisée",
+            "The note and link label were not shown in the selected language.");
+        foreach (var language in new[] { "en", "ja", "es", "xx", "", null })
+        {
+            var fallback = ManualFixGuide.BuildEntries(translatedGame, language)[0];
+            Assert(fallback.Note == "Requires DSX." && fallback.Links[0].Label == "Custom config",
+                "A missing or empty translation did not fall back to the English text: " + language);
+        }
+        Assert(translatedGame.AdaptiveTriggersFix.Links[0].Translations["FR"] == "Configuration personnalisée",
+            "Translation languages are not matched case-insensitively.");
+        Assert(translatedGame.AdaptiveTriggersFix.Translations.Count == 1,
+            "Empty or non-text translations were kept.");
+
+        Assert(ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Horizon 5"), "fr")[0].Note
+                   .StartsWith("Nécessite DSX et RacingDSX", StringComparison.Ordinal),
+            "The embedded fallback lost the translations of the notes.");
+
+        var native = FindGame(list, "Native");
+        Assert(native.AdaptiveTriggersFix == null && ManualFixGuide.BuildEntries(native).Count == 0,
+            "A malformed manualFixDetails value produced guide entries.");
+        Assert(ManualFixGuide.BuildEntries(null).Count == 0, "A missing game produced guide entries.");
+
+        foreach (var url in new[] { "", "   ", "ftp://example.com/a", "http://example.com/a", "file:///C:/a.exe",
+                     "javascript:alert(1)", "https://user:secret@example.com/a", "https://", "not a url" })
+            Assert(!ManualFixGuide.IsOpenableUrl(url), "An unsafe address was accepted: " + url);
+        Assert(ManualFixGuide.IsOpenableUrl("https://github.com/cosmii02/RacingDSX"),
+            "A plain HTTPS address was rejected.");
+    }
+
     private static void TestPerGameApexProfileSettings()
     {
         var settings = new TraySettings();
@@ -801,6 +914,73 @@ internal static class TrayLearningTests
         settings.ZoneEmulation = false;
         var disabledEmulation = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
         Assert(!disabledEmulation.ZoneEmulation, "Disabled trigger emulation did not survive serialization.");
+    }
+
+    private static void TestReportRelayClient()
+    {
+        var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        probe.Start();
+        int port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        string endpoint = "http://localhost:" + port + "/v1/report";
+
+        string bigImage = Path.Combine(Path.GetTempPath(), "asb-relay-big-" + Guid.NewGuid().ToString("N") + ".png");
+        string smallImage = Path.Combine(Path.GetTempPath(), "asb-relay-shot-" + Guid.NewGuid().ToString("N") + ".png");
+        File.WriteAllBytes(bigImage, new byte[9 * 1024 * 1024]);
+        File.WriteAllBytes(smallImage, new byte[] { 0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4 });
+
+        var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add("http://localhost:" + port + "/");
+        listener.Start();
+        string clientHeader = null;
+        string firstBody = null;
+        var server = System.Threading.Tasks.Task.Run(() =>
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                var context = listener.GetContext();
+                string body;
+                using (var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8))
+                    body = reader.ReadToEnd();
+                if (i == 0) { clientHeader = context.Request.Headers["X-ASB-Client"]; firstBody = body; }
+                byte[] payload = Encoding.UTF8.GetBytes(i == 0
+                    ? "{\"ok\":true,\"number\":7,\"url\":\"https://github.com/ReynArts/ApexSenseBridge/issues/7\"}"
+                    : "{\"ok\":false,\"error\":\"rate_limited\"}");
+                context.Response.StatusCode = i == 0 ? 200 : 429;
+                context.Response.ContentType = "application/json";
+                context.Response.OutputStream.Write(payload, 0, payload.Length);
+                context.Response.Close();
+            }
+        });
+
+        try
+        {
+            var sent = ReportRelayClient.Send(endpoint, "feature", "Per-game profiles", "A profile per game.",
+                null, null, "ASB-TEST", null, new[] { smallImage, bigImage });
+            Assert(sent.Success && sent.Url == "https://github.com/ReynArts/ApexSenseBridge/issues/7",
+                "The relay answer was not turned into an issue address: " + sent.Error);
+            Assert(sent.SkippedAttachments, "An image over the relay limit was not reported as skipped.");
+            Assert(clientHeader != null && clientHeader.StartsWith("tray/", StringComparison.Ordinal),
+                "The relay request did not identify the Tray.");
+            Assert(firstBody.Contains("name=category") && firstBody.Contains("feature") &&
+                   firstBody.Contains("Per-game profiles") && firstBody.Contains("name=screenshots"),
+                "The relay request lost its report fields.");
+            Assert(!firstBody.Contains(Path.GetFileName(bigImage)), "An image over the relay limit was uploaded.");
+
+            var refused = ReportRelayClient.Send(endpoint, "bug", "Title", "Text", null, null, "ASB-TEST", null, null);
+            Assert(!refused.Success && refused.Error == "rate_limited", "A refused report was reported as sent.");
+            server.Wait(5000);
+        }
+        finally
+        {
+            listener.Close();
+            File.Delete(bigImage);
+            File.Delete(smallImage);
+        }
+
+        var unreachable = ReportRelayClient.Send(endpoint, "bug", "Title", "Text", null, null, "ASB-TEST", null, null);
+        Assert(!unreachable.Success && !string.IsNullOrEmpty(unreachable.Error),
+            "An unreachable relay was reported as sent.");
     }
 
     private static void TestControllerCalibrations()
@@ -2483,6 +2663,13 @@ internal static class TrayLearningTests
             "The generated database lost the PCGamingWiki RequireManualFix metadata.");
         Assert(manualFixGames.All(game => !string.IsNullOrWhiteSpace(game.ManualFixUrl)),
             "A manual-fix game has no PCGamingWiki guidance URL.");
+        Assert(manualFixGames.Count(game => ManualFixGuide.BuildEntries(game).Count > 0) >= 20,
+            "The generated database lost the PCGamingWiki manual-fix notes.");
+        var translatableGames = manualFixGames.Where(game => ManualFixGuide.BuildEntries(game, "fr")
+            .Any(entry => entry.Note.Length > 3 && !ManualFixGuide.BuildEntries(game, "en")
+                .Any(english => english.Note == entry.Note))).Count();
+        Assert(translatableGames >= 25,
+            "The generated database lost the translations of the manual-fix notes.");
 
         SupportedGame resolved;
         Assert(gameList.TryFindByExecutable(@"C:\Games\Apex\r5apex.exe", out resolved) &&

@@ -19,14 +19,28 @@ namespace ApexSenseBridgeTray.Services
 
         public static IReadOnlyList<ManualFixGuideEntry> BuildEntries(SupportedGame game)
         {
+            return BuildEntries(game, "en");
+        }
+
+        public static IReadOnlyList<ManualFixGuideEntry> BuildEntries(SupportedGame game, string language)
+        {
             var entries = new List<ManualFixGuideEntry>();
             if (game == null) return entries;
 
             AddEntry(entries, "Loc_PillTriggers",
-                game.AdaptiveTriggersManualFix ? game.AdaptiveTriggersFix : null);
+                game.AdaptiveTriggersManualFix ? game.AdaptiveTriggersFix : null, language);
             AddEntry(entries, "Loc_PillHaptics",
-                game.HapticFeedbackManualFix ? game.HapticFeedbackFix : null);
+                game.HapticFeedbackManualFix ? game.HapticFeedbackFix : null, language);
             return entries;
+        }
+
+        private static string Localize(Dictionary<string, string> translations, string language, string source)
+        {
+            string translated;
+            return translations != null && !string.IsNullOrWhiteSpace(language) &&
+                   translations.TryGetValue(language, out translated) && !string.IsNullOrWhiteSpace(translated)
+                ? translated.Trim()
+                : source;
         }
 
         public static string PageUrl(SupportedGame game)
@@ -44,14 +58,20 @@ namespace ApexSenseBridgeTray.Services
                    string.IsNullOrEmpty(uri.UserInfo);
         }
 
-        private static void AddEntry(List<ManualFixGuideEntry> entries, string featureKey, ManualFixDetail detail)
+        private static void AddEntry(
+            List<ManualFixGuideEntry> entries, string featureKey, ManualFixDetail detail, string language)
         {
             if (detail == null) return;
 
-            var note = (detail.Note ?? string.Empty).Trim();
+            var note = Localize(detail.Translations, language, (detail.Note ?? string.Empty).Trim());
             var links = (detail.Links ?? new ManualFixLink[0])
                 .Where(link => link != null && IsOpenableUrl(link.Url))
                 .Take(MaxLinks)
+                .Select(link => new ManualFixLink
+                {
+                    Label = Localize(link.Translations, language, link.Label),
+                    Url = link.Url
+                })
                 .ToArray();
             if (note.Length == 0 && links.Length == 0) return;
 

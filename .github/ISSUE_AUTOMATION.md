@@ -10,12 +10,22 @@ Opening, editing or reopening an issue checks its current title and description
 against the English/French rules in [issue-automation.json](issue-automation.json).
 Matching type, controller and component labels are added. Existing labels and
 their colours/descriptions are preserved; missing matching labels are created.
+Model and component labels use short names without prefixes, such as `apex4`,
+`apex5`, `apex6`, `triggers`, `haptics` and `installer`.
 Classification is additive: remove incorrect labels manually and adjust the rule
-if needed. Pull requests are ignored.
+if needed. Existing maintainer type labels (`bug`, `enhancement`, `question`)
+take precedence over automatic type classification. Pull requests are ignored.
+
+The Tray's report window sends three categories, recognised from the title
+prefix: `[Bug]` (`bug`), `[Feature request]` (`enhancement`) and
+`[Unsupported game]` (`game-request`). Feature requests carry no diagnostics.
 
 The application report includes settings for all controllers and driver names.
 Folded diagnostics and fenced logs are excluded from keyword classification;
-the `Controller state:` line is used to identify the reported controller.
+the `Controller state:` line and title take precedence over controller models
+mentioned only in comparisons. The automatic report heading is also ignored.
+The release status uses the repository's existing `pending testing` label;
+`working on it` is removed when a published release requests testing.
 
 Add `automation:skip` to opt an issue out of both labeling and release follow-up.
 Create that label manually when first needed, using the definition in the JSON.
@@ -39,7 +49,7 @@ and pre-releases are supported; drafts are ignored.
 
 For each referenced issue in this repository, automation:
 
-1. Adds `pending-testing` and removes the old status labels listed in the config.
+1. Adds `pending testing` and removes the old status labels listed in the config.
 2. Reopens an issue closed as completed, including issues auto-closed by a merge.
 3. Mentions the reporter in an English comment with the exact release download
    link, reproduction instructions and the information to include in feedback.

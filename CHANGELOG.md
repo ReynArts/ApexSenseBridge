@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Report window: categories, full logs and saving without a GitHub account
+
+- **Settings → Send a report** opens a choice with an icon and a title for each
+  entry: **Bug**, **Feature or improvement**, **Unsupported game** and
+  **Download the logs**. The first three open the form for that category (matching
+  the GitHub automation; an unsupported game asks for the game name and an
+  optional executable or store link; feature requests carry no diagnostics). The
+  last one saves the logs as a ZIP straight away.
+- The report can attach the **full logs** as a ZIP (user name and personal
+  folders removed, last 8 MB of each log). The ZIP is copied like the screenshots
+  so it can be pasted into the issue with Ctrl+V.
+- Without a GitHub account, a small link next to the main button sends the report
+  anonymously: a relay (Cloudflare Worker, `tools/report-relay`) opens the issue
+  through the `apexsensebridge-reports` GitHub App, so the issue is public and
+  authored by the bot, without the reporter's name. Images are served through
+  unguessable links; attached full logs are readable only by the maintainer. If
+  the relay cannot be reached, the Tray offers to save the report, diagnostics,
+  logs and images as one file instead.
+- New `game-request` label and `[Unsupported game]` title rule for the issue
+  automation.
+
 ### Catalogue: workaround notes for manual-fix games
 
 - The nightly catalogue update now reads each manual-fix game's PCGamingWiki
@@ -14,9 +35,44 @@
   outage never empties the catalogue. Games that no longer need a manual fix
   lose the field.
 - `validate_supported_games.py` checks the new field (matching manual-fix
-  flag, HTTPS links, known tool names). The Tray ignores it for now; the
-  compatibility of each workaround with the virtual DualSense is not known and
-  is not inferred by the update.
+  flag, HTTPS links, known tool names). The compatibility of each workaround
+  with the virtual DualSense is not known and is not inferred by the update.
+- The Tray shows these notes without adding permanent clutter: the **Manual
+  fix** badge of a game's detail pane (also **Manual fix applied**) is now
+  clickable and unfolds a panel right below the badges, collapsed by default and
+  closed again when another game is selected. The panel lists, per feature, the
+  PCGamingWiki note, the tools it names and its links (plain HTTPS addresses
+  only, opened in the default browser), a button to the game's PCGamingWiki page
+  and a warning that the workaround was not tested with the virtual DualSense.
+  The "Allow automatic activation" switch and its explanation moved into this
+  panel, so the pane keeps its former layout when it is folded. The panel is
+  mouse-only, like the per-game tuning controls.
+- The notes and the generic link labels ("Custom config", "Mod") are shown in
+  the interface language. The translations live in
+  `data/manual_fix_translations.json`, keyed by a hash of the English note, in
+  the 8 non-English languages; the nightly update attaches them to the
+  catalogue (`translations`). Nothing needs reviewing day to day: when
+  PCGamingWiki adds or rewrites a note its hash changes, the old translation is
+  dropped and the nightly update translates the new text with the free
+  MyMemory web service (no account, no key, nothing to install) and commits it
+  to `data/manual_fix_translations.json` together with the catalogue. The tool
+  names (DSX, RacingDSX, Special K…) are hidden from the service behind neutral
+  tokens and put back afterwards. Each language is checked on its own (one
+  line, no added web address, a reasonable length, every tool name of the
+  source) and only the good ones are kept; a rejected language, a service
+  failure or the daily free quota (about 5000 characters) just leaves the
+  English text in the Tray, and the note is retried the next night. The
+  validator enforces the same rules on the stored file. Optionally, the
+  environment variable `MANUAL_FIX_TRANSLATION_EMAIL` raises the free quota
+  tenfold. Machine translation is less polished than the hand-written one the
+  25 current notes have, and generic link labels are not translated
+  automatically.
+- The Tray downloaded its catalogue from a `main` branch that the repository
+  does not have; it now reads `stable`, the branch the nightly update keeps
+  current. That copy has no manual-fix notes until the updated script and data
+  reach `stable`. A manual-fix game whose downloaded entry carries no note now falls back
+  to the note embedded in the Tray's own catalogue (as already done for
+  profiles); notes present in the downloaded catalogue always win.
 
 ### Reset buttons for controller tuning, per-game tuning and a lighter executable control
 

@@ -13,7 +13,9 @@ function withoutExamples(text) {
 }
 
 function narrative(text) {
-  return withoutExamples((text || '').replace(/<details\b[^>]*>[\s\S]*?<\/details>/gi, ''));
+  return withoutExamples((text || '')
+    .replace(/<details\b[^>]*>[\s\S]*?<\/details>/gi, '')
+    .replace(/^#{1,6}\s+Automatic installation report\s*$/gmi, ''));
 }
 
 function classifyIssue(issue, config = defaultConfig) {
@@ -23,7 +25,18 @@ function classifyIssue(issue, config = defaultConfig) {
   const controllerState = (issue.body || '').match(/^Controller state:[^\r\n]*/mi)?.[0] || '';
   const text = `${issue.title || ''}\n${narrative(issue.body)}\n${controllerState}`
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return config.rules.filter(rule => new RegExp(rule.pattern, 'i').test(text)).map(rule => rule.label);
+  const existing = labelNames(issue);
+  const types = ['bug', 'enhancement', 'question'];
+  const hasManualType = existing.some(label => types.includes(label));
+  const controllerRules = config.rules.filter(rule => rule.category === 'controller');
+  // Prefer an explicit title/controller-state model over incidental comparisons.
+  const modelSource = `${issue.title || ''}\n${controllerState}`;
+  const hasExplicitModel = controllerRules.some(rule => new RegExp(rule.pattern, 'i').test(modelSource));
+  return config.rules.filter(rule => {
+    if (hasManualType && types.includes(rule.label)) return false;
+    const source = hasExplicitModel && rule.category === 'controller' ? modelSource : text;
+    return new RegExp(rule.pattern, 'i').test(source);
+  }).map(rule => rule.label);
 }
 
 function referencedIssues(body, owner, repo) {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ApexSenseBridgeTray.Models
 {
@@ -6,11 +7,13 @@ namespace ApexSenseBridgeTray.Models
     {
         public string Label { get; set; }
         public string Url { get; set; }
+        public Dictionary<string, string> Translations { get; set; }
 
         public ManualFixLink()
         {
             Label = string.Empty;
             Url = string.Empty;
+            Translations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -19,12 +22,14 @@ namespace ApexSenseBridgeTray.Models
         public string Note { get; set; }
         public ManualFixLink[] Links { get; set; }
         public string[] Tools { get; set; }
+        public Dictionary<string, string> Translations { get; set; }
 
         public ManualFixDetail()
         {
             Note = string.Empty;
             Links = new ManualFixLink[0];
             Tools = new string[0];
+            Translations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
     }
 

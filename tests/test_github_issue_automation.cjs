@@ -69,23 +69,45 @@ function fixture(issues = [makeIssue(44)], releaseExtra = {}) {
 
 test('labels French reports by model and component, with accents', () => {
   assert.deepEqual(classifyIssue(makeIssue(44, { title: '[Bug] Gâchettes APEX-4 et vibrations' })),
-    ['bug', 'controller:apex4', 'area:triggers', 'area:haptics']);
+    ['bug', 'apex4', 'triggers', 'haptics']);
 });
 
 test('the app diagnostic boilerplate does not tag every model, driver and feature', () => {
-  const body = '## Description\nMy controller disconnects.\n' +
+  const body = '## Description\nMy controller disconnects.\n## Automatic installation report\n' +
     '<details><summary>Installation diagnostics</summary>\n```text\n' +
     'HidHide registered version: 1.5.230\nMode: Installer\n' +
     'Controller state: APEX 6 Pro connected\n' +
     '--apex4-gyro 100 --apex5-rumble 100 --apex6-haptic-gain 100\n' +
     'Adaptive triggers and haptic feedback\n```\n</details>';
-  assert.deepEqual(classifyIssue(makeIssue(44, { title: '[Bug] Disconnect', body })), ['bug', 'controller:apex6']);
+  assert.deepEqual(classifyIssue(makeIssue(44, { title: '[Bug] Disconnect', body })), ['bug', 'apex6']);
+});
+
+test('an environment setup heading or an installed dependency is not an installer failure', () => {
+  assert.deepEqual(classifyIssue(makeIssue(44, {
+    title: '[Bug] APEX 5 inputs ignored', body: 'Setup\nGameInput installed. Also tried the Playnite extension.'
+  })), ['bug', 'apex5', 'playnite']);
+  assert.ok(classifyIssue(makeIssue(44, { title: 'Driver install error' })).includes('installer'));
+});
+
+test('preserves maintainer type labels and prefers the explicitly reported controller', () => {
+  assert.deepEqual(classifyIssue(makeIssue(44, {
+    title: '[Bug] APEX  4 touchpad mapping', labels: ['enhancement'],
+    body: 'The APEX 5 is mentioned only for comparison.'
+  })), ['apex4', 'touchpad']);
 });
 
 test('ignores comments and fenced log examples when classifying', () => {
   assert.deepEqual(classifyIssue(makeIssue(44, {
     title: 'Question', body: '<!-- apex 4 -->\n```text\nAPEX 5 trigger crash\n```'
   })), ['question']);
+});
+
+test('labels the three report categories sent by the application', () => {
+  assert.deepEqual(classifyIssue(makeIssue(44, { title: '[Bug] Overlay stays open', body: '## Description\nIt never closes.' })), ['bug']);
+  assert.deepEqual(classifyIssue(makeIssue(44, { title: '[Feature request] Per-game profiles', body: '## Request\nA profile per game.' })), ['enhancement']);
+  assert.deepEqual(classifyIssue(makeIssue(44, {
+    title: '[Unsupported game] Hades II', body: '## Game\n\n- Name: Hades II\n- Executable or store link: Hades2.exe'
+  })), ['game-request']);
 });
 
 test('honours opt-out labels and ignores pull requests', () => {
@@ -95,7 +117,7 @@ test('honours opt-out labels and ignores pull requests', () => {
 
 test('adds missing labels without replacing manual labels, and is safe to rerun', async () => {
   const f = fixture([makeIssue(44, { labels: ['priority:high', 'bug'] })]);
-  assert.deepEqual(await labelIssue(f), ['controller:apex5', 'area:triggers']);
+  assert.deepEqual(await labelIssue(f), ['apex5', 'triggers']);
   assert.ok(f.byNumber.get(44).labels.includes('priority:high'));
   const before = f.calls.length;
   assert.deepEqual(await labelIssue(f), []);
@@ -116,10 +138,10 @@ test('recognises local references, deduplicates them and ignores foreign reposit
   assert.deepEqual(referencedIssues(body, repository.owner, repository.repo), [44, 45, 46, 47, 48]);
 });
 
-test('published release moves issues to pending-testing and posts an actionable comment', async () => {
-  const f = fixture([makeIssue(44, { labels: ['needs-info', 'area:triggers', 'priority:high'] })]);
+test('published release moves issues to pending testing and posts an actionable comment', async () => {
+  const f = fixture([makeIssue(44, { labels: ['needs-info', 'triggers', 'priority:high'] })]);
   assert.deepEqual(await followRelease(f), [44]);
-  assert.deepEqual(f.byNumber.get(44).labels, ['area:triggers', 'priority:high', 'pending-testing']);
+  assert.deepEqual(f.byNumber.get(44).labels, ['triggers', 'priority:high', 'pending testing']);
   const body = f.comments.get(44)[0].body;
   assert.match(body, /@reporter/);
   assert.match(body, /v1\.0\.3/);
