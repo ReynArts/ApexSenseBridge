@@ -14,6 +14,9 @@
 
 namespace asb::cli {
 
+inline constexpr std::chrono::seconds kDefaultReattachWindow{600};
+inline constexpr std::chrono::seconds kMaximumReattachWindow{3600};
+
 struct ControllerCalibration {
     unsigned triggerStrength = 100;
     unsigned vibrationStrength = 100;
@@ -27,6 +30,7 @@ struct ControllerCalibration {
 struct BridgeCommandOptions {
     std::optional<std::size_t> deviceIndex;
     std::optional<std::chrono::seconds> duration;
+    std::chrono::seconds reattachWindow = kDefaultReattachWindow;
     std::filesystem::path viiperExecutable;
     asb::dualsense::VirtualDualSenseBackend virtualBackend =
         asb::dualsense::VirtualDualSenseBackend::Auto;

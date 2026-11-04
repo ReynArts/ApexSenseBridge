@@ -216,6 +216,11 @@ int main() {
     assert(!defersApexRestore(stale, ApexRestoreOutcome::Restored));
     assert(!defersApexRestore(own, ApexRestoreOutcome::Absent));
     assert(!defersApexRestore(own, ApexRestoreOutcome::Unresponsive));
+    const auto ownAbsent = ApexRecoveryMode::OwnSessionControllerAbsent;
+    assert(defersApexRestore(ownAbsent, ApexRestoreOutcome::Absent));
+    assert(defersApexRestore(ownAbsent, ApexRestoreOutcome::Unresponsive));
+    assert(!defersApexRestore(ownAbsent, ApexRestoreOutcome::Failed));
+    assert(!defersApexRestore(ownAbsent, ApexRestoreOutcome::Restored));
     assert(defersApexRestore(activation, ApexRestoreOutcome::NotAttempted));
     assert(!defersApexRestore(activation, ApexRestoreOutcome::Restored));
 
@@ -294,5 +299,42 @@ int main() {
     assert(nextHidHideOpenDelay(40, milliseconds(9800), window) == milliseconds(200));
     assert(nextHidHideOpenDelay(40, window, window) == milliseconds(0));
     assert(nextHidHideOpenDelay(1, milliseconds(0), milliseconds(0)) == milliseconds(0));
+
+    using asb::platform::detail::mergeMissingIsolationTargets;
+    using Targets = std::vector<std::wstring>;
+
+    const Targets hidden{
+        L"HID\\VID_37D7&PID_2501&IG_00\\7&1A2B3C4D&0&0000",
+        L"USB\\VID_37D7&PID_2501&MI_00\\6&5E6F7A8B&0&0000",
+        L"ROOT\\GENITECH_VIRTUAL_GAMEPAD_DEVICE\\0000"};
+    assert(!mergeMissingIsolationTargets(hidden, hidden));
+    assert(!mergeMissingIsolationTargets(
+        hidden, {L"usb\\vid_37d7&pid_2501&mi_00\\6&5e6f7a8b&0&0000"}));
+
+    const auto oneMissing = mergeMissingIsolationTargets(
+        hidden, {hidden[0], L"HID\\VID_37D7&PID_2503&IG_00\\8&CAFE&0&0000"});
+    assert(oneMissing);
+    assert((*oneMissing == Targets{
+        hidden[0], hidden[1], hidden[2],
+        L"HID\\VID_37D7&PID_2503&IG_00\\8&CAFE&0&0000"}));
+
+    const auto caseDuplicates = mergeMissingIsolationTargets(
+        hidden,
+        {L"USB\\VID_37D7&PID_2503&MI_00\\9&BEEF&0&0000",
+         L"usb\\vid_37d7&pid_2503&mi_00\\9&beef&0&0000",
+         L"rOOt\\genitech_virtual_gamepad_device\\0000"});
+    assert(caseDuplicates);
+    assert((*caseDuplicates == Targets{
+        hidden[0], hidden[1], hidden[2],
+        L"USB\\VID_37D7&PID_2503&MI_00\\9&BEEF&0&0000"}));
+
+    const Targets required{L"HID\\NEW\\A", L"hid\\new\\a", L"", L"USB\\NEW\\B"};
+    const auto fromEmpty = mergeMissingIsolationTargets({}, required);
+    assert(fromEmpty);
+    assert((*fromEmpty == Targets{L"HID\\NEW\\A", L"USB\\NEW\\B"}));
+
+    assert(!mergeMissingIsolationTargets(hidden, {}));
+    assert(!mergeMissingIsolationTargets({}, {}));
+    assert(!mergeMissingIsolationTargets(hidden, {L""}));
     return 0;
 }

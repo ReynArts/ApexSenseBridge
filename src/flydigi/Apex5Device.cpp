@@ -180,7 +180,9 @@ void TransportDeleter::operator()(platform::HidTransport* transport) const noexc
 }
 
 Apex5Device::Apex5Device(TransportPtr transport)
-    : transport_(std::move(transport)) {}
+    : transport_(std::move(transport)) {
+    if (transport_) lastInfo_ = transport_->info();
+}
 
 Apex5Device::~Apex5Device() {
     stopAsyncWrites();
@@ -195,6 +197,7 @@ Apex5Device& Apex5Device::operator=(Apex5Device&& other) noexcept {
     stopAsyncWrites();
     other.stopAsyncWrites();
     transport_ = std::move(other.transport_);
+    lastInfo_ = std::move(other.lastInfo_);
     identity_ = std::move(other.identity_);
     identityUnanswered_ = other.identityUnanswered_;
     writeMutex_ = std::move(other.writeMutex_);
@@ -239,8 +242,30 @@ bool Apex5Device::isOpen() const noexcept {
     return transport_ && transport_->isOpen();
 }
 
+bool Apex5Device::reopen(const HidDeviceInfo& info, std::string& error) {
+    stopAsyncWrites();
+    TransportPtr transport(platform::createHidTransport(info, error));
+    if (!transport || !transport->isOpen()) return false;
+    const auto lock = acquireWriteLock();
+    transport_ = std::move(transport);
+    lastInfo_ = transport_->info();
+    identity_.reset();
+    identityUnanswered_ = false;
+    lastVendorWriteAt_ = {};
+    lastTriggerWriteAt_ = {};
+    apex4Pacer_ = Apex4WritePacer{configuredApex4RumbleSpacing().spacing};
+    return true;
+}
+
+void Apex5Device::closeTransport() noexcept {
+    stopAsyncWrites();
+    const auto lock = acquireWriteLock();
+    if (transport_) lastInfo_ = transport_->info();
+    transport_.reset();
+}
+
 const HidDeviceInfo& Apex5Device::info() const {
-    return transport_->info();
+    return transport_ ? transport_->info() : lastInfo_;
 }
 
 const std::optional<Apex5Identity>& Apex5Device::identity() const noexcept {

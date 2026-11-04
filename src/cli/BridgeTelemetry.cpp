@@ -144,6 +144,8 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << telemetry.independentTriggerStartupRecoveries << ",\n"
            << "  \"independent_trigger_runtime_recoveries\": "
            << telemetry.independentTriggerRuntimeRecoveries << ",\n"
+           << "  \"physical_reattaches\": " << telemetry.physicalReattaches << ",\n"
+           << "  \"physical_lost_ms\": " << telemetry.physicalLostMilliseconds << ",\n"
            << "  \"virtual_input_monitor\": \""
            << (telemetry.virtualInputMonitorEnabled ? "enabled" : "disabled")
            << "\",\n"

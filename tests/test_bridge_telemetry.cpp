@@ -33,6 +33,8 @@ int main() {
     telemetry.inputBackend = "hid\\vendor";
     telemetry.independentTriggerStartupRecoveries = 1;
     telemetry.independentTriggerRuntimeRecoveries = 1;
+    telemetry.physicalReattaches = 2;
+    telemetry.physicalLostMilliseconds = 4500;
     telemetry.virtualInputMonitorEnabled = true;
     telemetry.startupAttempts = 2;
     telemetry.runtimeMilliseconds = 3000;
@@ -70,6 +72,8 @@ int main() {
     assert(json.find(",\n}\n") == std::string::npos);
     assert(json.find("\"independent_trigger_startup_recoveries\": 1") != std::string::npos);
     assert(json.find("\"independent_trigger_runtime_recoveries\": 1") != std::string::npos);
+    assert(json.find("\"physical_reattaches\": 2") != std::string::npos);
+    assert(json.find("\"physical_lost_ms\": 4500") != std::string::npos);
     assert(json.find("\"physical_trigger_source_switches\": 23,") != std::string::npos);
     assert(json.find("\"physical_vendor_max_gap_ms\": 64,") != std::string::npos);
     assert(json.find("\"physical_r2_oscillations\": 24,") != std::string::npos);

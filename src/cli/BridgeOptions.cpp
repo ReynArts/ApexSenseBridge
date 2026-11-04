@@ -72,6 +72,25 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 error = "--seconds requires an integer from 1 to 86400.";
                 return false;
             }
+        } else if (value == "--reattach-seconds") {
+            const auto rangeError = "--reattach-seconds requires an integer from 0 to " +
+                                    std::to_string(kMaximumReattachWindow.count()) + ".";
+            if (++i >= argc) {
+                error = rangeError;
+                return false;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto seconds = std::stoul(argv[i], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[i]).size() || argv[i][0] == '-' ||
+                    seconds > static_cast<unsigned long>(kMaximumReattachWindow.count())) {
+                    throw std::out_of_range("reattach-seconds");
+                }
+                options.reattachWindow = std::chrono::seconds(seconds);
+            } catch (...) {
+                error = rangeError;
+                return false;
+            }
         } else if (value == "--viiper") {
             if (++i >= argc) {
                 error = "--viiper requires a path.";
@@ -297,7 +316,7 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
 
 std::string_view bridgeCommandUsage() noexcept {
     return "Usage: ApexSenseBridge bridge-triggers [index] [--seconds N] "
-           "[--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
+           "[--reattach-seconds 0..3600] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
            "[--no-zone-emulation] [--sync-lightbar] [--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..200] "

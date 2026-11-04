@@ -44,6 +44,30 @@ void LightbarBridge::restore() {
     workingConfig_ = backupConfig_;
 }
 
+void LightbarBridge::suspend() {
+    if (running_.exchange(false, std::memory_order_relaxed)) {
+        cv_.notify_all();
+    }
+    if (worker_.joinable()) {
+        worker_.join();
+    }
+}
+
+bool LightbarBridge::resume() {
+    if (!hasBackup_ || restored_) return false;
+    suspend();
+    {
+        std::lock_guard lock(mutex_);
+        hasWritten_ = false;
+        workingConfig_ = backupConfig_;
+    }
+    failed_.store(false, std::memory_order_relaxed);
+    running_.store(true, std::memory_order_relaxed);
+    worker_ = std::thread(&LightbarBridge::workerLoop, this);
+    cv_.notify_all();
+    return true;
+}
+
 void LightbarBridge::handle(const DualSenseFeedback& feedback) {
     if (!feedback.hasLightbarColor() || !running_.load(std::memory_order_relaxed)) {
         return;

@@ -52,6 +52,10 @@ public:
         if (progress_) InterlockedOr(reinterpret_cast<volatile LONG*>(&progress_->stages), static_cast<LONG>(stage));
     }
 
+    void clearProgress(SessionProgress stage) noexcept override {
+        if (progress_) InterlockedAnd(reinterpret_cast<volatile LONG*>(&progress_->stages), ~static_cast<LONG>(stage));
+    }
+
     void markInterrupted(SessionInterruption cause) noexcept override {
         if (progress_) InterlockedExchange(reinterpret_cast<volatile LONG*>(&progress_->interruption), static_cast<LONG>(cause));
     }

@@ -31,6 +31,8 @@ public:
 
     void handle(const DualSenseFeedback& feedback);
     void restore();
+    void suspend();
+    bool resume();
 
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;

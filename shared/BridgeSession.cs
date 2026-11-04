@@ -23,6 +23,7 @@ namespace ApexSenseBridge.Common
         private const uint StatusMagic = 0x53425341;
         private const ushort ProtocolVersion = 1;
         private const int StatusSize = 512;
+        internal const uint PhysicalLostStage = 16;
 
         private readonly Action<string> logInfo;
         private readonly Action<string> logError;
@@ -52,6 +53,9 @@ namespace ApexSenseBridge.Common
             public string Message { get; set; }
             public uint Stages { get; set; }
             public uint Interruption { get; set; }
+
+            [ScriptIgnore]
+            public bool ControllerLost { get { return (Stages & PhysicalLostStage) != 0; } }
         }
 
         public SessionInfo ReadStatus()

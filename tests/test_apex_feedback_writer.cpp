@@ -549,7 +549,24 @@ void testQueueingWhileWriterStartsAndStops() {
 
 }
 
+void testClosedTransportKeepsInfoAndRefusesWrites() {
+    auto* transport = new RecordingTransport(false);
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    const auto productId = device.info().productId;
+    assert(device.startAsyncWrites(error));
+    device.closeTransport();
+    assert(!device.isOpen());
+    assert(!device.asyncWritesRunning());
+    assert(device.info().productId == productId);
+    assert(device.identity().has_value());
+    assert(!device.setRumble(1, 1, error));
+    assert(!device.queueTriggerRaw({TriggerSide::Left, TriggerMode::Race, {25, 1}}, error));
+}
+
 int main() {
+    testClosedTransportKeepsInfoAndRefusesWrites();
     testContinuousTriggersDoNotStarveRumble(false);
     testContinuousTriggersDoNotStarveRumble(true);
     testApex4RumbleStopSkipsTriggerQueue();

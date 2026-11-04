@@ -52,6 +52,7 @@ int main() {
     assert(defaults.error.empty());
     assert(!defaults.options.deviceIndex);
     assert(!defaults.options.duration);
+    assert(defaults.options.reattachWindow == 600s);
     assert(defaults.options.virtualBackend == Backend::Auto);
     assert(defaults.options.hapticThresholdPercent == 12);
     assert(defaults.options.apex6HapticGainPercent == 100);
@@ -113,6 +114,13 @@ int main() {
     // Numeric options must consume their entire argument. std::stoul alone
     // accepts these malformed values, which could silently select a setting.
     assert(!parse({"--seconds", "12junk"}).succeeded);
+    assert(parse({"--reattach-seconds", "0"}).options.reattachWindow == 0s);
+    assert(parse({"--reattach-seconds", "90"}).options.reattachWindow == 90s);
+    assert(parse({"--reattach-seconds", "3600"}).succeeded);
+    assert(!parse({"--reattach-seconds", "3601"}).succeeded);
+    assert(!parse({"--reattach-seconds", "-5"}).succeeded);
+    assert(!parse({"--reattach-seconds", "12junk"}).succeeded);
+    assert(!parse({"--reattach-seconds"}).succeeded);
     assert(!parse({"--xinput-index", "2junk"}).succeeded);
     assert(!parse({"7junk"}).succeeded);
     assert(!parse({"--apex-profile", "0"}).succeeded);
