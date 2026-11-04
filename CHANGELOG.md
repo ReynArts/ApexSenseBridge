@@ -183,6 +183,23 @@
   Enhanced in its own log), and on this machine it showed PlayStation prompts
   there as well. An earlier session where it showed Xbox prompts remains
   unexplained.
+
+### Lightbar sync keeps the Space Station brightness, with a limit (APEX 5)
+
+- "DualSense Lightbar sync (RGB)" no longer forces the LEDs to full
+  brightness. Each synchronized color is written with the brightness saved in
+  the controller profile by Flydigi Space Station, so a dimmed controller stays
+  dimmed while its color follows the game.
+- A "Lightbar max brightness" slider (0 to 100%, default 100%) next to the
+  sync switch in the Tray settings, APEX 5 only and translated in every
+  language, caps that brightness further. The Playnite extension has the same
+  field. The engine takes it as `--lightbar-brightness 0..100` on
+  `bridge-triggers`, or as an optional ninth field of
+  `--controller-calibration` (`MODEL:...:YAW:RGBBRIGHTNESS`); older launchers
+  that pass eight fields keep the full brightness. The startup banner and the
+  end-of-session summary report the brightness used, the Space Station value
+  and the limit.
+
 ### Per-zone and rhythmic trigger emulation (APEX 5, on by default)
 
 - The APEX 5 now follows DualSense trigger curves and rhythms from the PC. It

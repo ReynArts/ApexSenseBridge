@@ -5,13 +5,18 @@
 
 namespace asb::dualsense {
 
-LightbarBridge::LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot)
-    : device_(device), slot_(slot) {
+LightbarBridge::LightbarBridge(flydigi::Apex5Device& device, std::uint8_t slot,
+                               std::uint8_t maxBrightnessPercent)
+    : device_(device),
+      slot_(slot),
+      maxBrightness_((std::min)(maxBrightnessPercent, std::uint8_t{100})) {
     std::string error;
     if (!device_.readRgbConfig(slot_, backupConfig_, error)) {
         recordFailure(std::move(error));
         return;
     }
+    storedBrightness_ = (std::min)(backupConfig_[flydigi::kRgbBrightnessOffset],
+                                   std::uint8_t{100});
     workingConfig_ = backupConfig_;
     hasBackup_ = true;
     running_.store(true, std::memory_order_relaxed);
@@ -167,7 +172,7 @@ bool LightbarBridge::writeWorkingColor(
     loaded[3] = 0;
     loaded[4] = 9;
     loaded[5] = 1;
-    loaded[6] = 100;
+    loaded[flydigi::kRgbBrightnessOffset] = brightness();
     loaded[7] = static_cast<std::uint8_t>(flydigi::kApex5LedCount);
     loaded[8] = 4;
     loaded[9] = 0;
@@ -207,6 +212,18 @@ bool LightbarBridge::failed() const noexcept {
 std::string LightbarBridge::error() const {
     std::lock_guard lock(errorMutex_);
     return error_;
+}
+
+std::uint8_t LightbarBridge::brightness() const noexcept {
+    return (std::min)(storedBrightness_, maxBrightness_);
+}
+
+std::uint8_t LightbarBridge::storedBrightness() const noexcept {
+    return storedBrightness_;
+}
+
+std::uint8_t LightbarBridge::maxBrightness() const noexcept {
+    return maxBrightness_;
 }
 
 LightbarBridgeStats LightbarBridge::stats() const noexcept {

@@ -129,6 +129,8 @@
   "Loc_NotificationsHint": "ブリッジのアクティブ化時にWindows通知を表示",
   "Loc_SyncLightbar": "DualSenseライトバー同期 (RGB)",
   "Loc_SyncLightbarHint": "ゲーム内のDualSenseライトバー色イベントとコントローラーLEDを同期",
+  "Loc_LightbarBrightness": "ライトバー最大輝度",
+  "Loc_LightbarBrightnessHint": "同期する LED の上限（0〜100%、既定は 100%）。色はゲームに従い、輝度は Flydigi Space Station に保存された値のまま、この値を上限とします。次回のセッションから適用されます。",
   "Loc_ZoneEmulation": "トリガー効果のエミュレーション",
   "Loc_ZoneEmulationHint": "APEX 5でDualSenseのゾーン別の強さ、振動、リズム系トリガー効果を再現します。オフにすると従来の動作に戻ります",
   "Loc_ManualBridge": "常時アクティブ化を強制",

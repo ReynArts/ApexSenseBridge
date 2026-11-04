@@ -129,6 +129,8 @@
   "Loc_NotificationsHint": "Notificación de Windows al activar el puente",
   "Loc_SyncLightbar": "Sincronización de barra de luz (RGB)",
   "Loc_SyncLightbarHint": "Sincroniza las tiras LED del mando con los colores del juego",
+  "Loc_LightbarBrightness": "Brillo máximo de la barra de luz",
+  "Loc_LightbarBrightnessHint": "Límite superior para los LED sincronizados (0 a 100 %, 100 % por defecto). El color sigue al juego; el brillo se mantiene como está guardado en Flydigi Space Station, limitado por este valor. Se aplica a la siguiente sesión.",
   "Loc_ZoneEmulation": "Emulación de efectos de gatillo",
   "Loc_ZoneEmulationHint": "Reproduce en el APEX 5 la fuerza por zonas, la vibración y los efectos rítmicos de los gatillos del DualSense. Desactívalo para volver al comportamiento anterior",
   "Loc_ManualBridge": "Forzar activación continua",

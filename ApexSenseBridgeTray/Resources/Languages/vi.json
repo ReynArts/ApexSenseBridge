@@ -129,6 +129,8 @@
   "Loc_NotificationsHint": "Thông báo Windows khi cầu nối được kích hoạt",
   "Loc_SyncLightbar": "Đồng bộ thanh sáng DualSense (RGB)",
   "Loc_SyncLightbarHint": "Đồng bộ đèn LED tay cầm với màu sắc thanh sáng DualSense trong trò chơi",
+  "Loc_LightbarBrightness": "Độ sáng tối đa của dải đèn",
+  "Loc_LightbarBrightnessHint": "Giới hạn trên cho các LED được đồng bộ (0 đến 100%, mặc định 100%). Màu theo trò chơi; độ sáng giữ nguyên giá trị đã lưu trong Flydigi Space Station, nhưng không vượt quá giá trị này. Áp dụng cho phiên tiếp theo.",
   "Loc_ZoneEmulation": "Mô phỏng hiệu ứng cò",
   "Loc_ZoneEmulationHint": "Tái tạo trên APEX 5 lực theo vùng, rung và các hiệu ứng nhịp của cò DualSense. Tắt để quay lại hành vi trước đây",
   "Loc_ManualBridge": "Bắt buộc kích hoạt liên tục",

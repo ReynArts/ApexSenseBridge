@@ -27,34 +27,38 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
     for (int i = 2; i < argc; ++i) {
         const std::string_view value = argv[i];
         if (value == "--controller-calibration") {
-            error = "--controller-calibration expects apex4|apex5|apex6:trigger:vibration:threshold:rumble:rgb:gyro:yaw.";
+            error = "--controller-calibration expects apex4|apex5|apex6:trigger:vibration:threshold:rumble:rgb:gyro:yaw[:rgbbrightness].";
             if (++i >= argc) return false;
             std::istringstream input(argv[i]);
             std::string model;
             std::getline(input, model, ':');
             const int index = model == "apex4" ? 0 : model == "apex5" ? 1 : model == "apex6" ? 2 : -1;
             if (index < 0 || options.controllerCalibrations[index]) return false;
-            std::array<unsigned, 7> fields{};
+            std::array<unsigned, 8> fields{};
+            fields[7] = 100;
             for (std::size_t field = 0; field < fields.size(); ++field) {
+                // The RGB brightness limit is optional for older launchers.
+                if (field == 7 && input.eof()) break;
                 std::string token;
                 if (!std::getline(input, token, ':') || token.empty() ||
                     token.find_first_not_of("0123456789") != std::string::npos) return false;
                 try {
                     const auto parsed = std::stoul(token);
-                    const unsigned minimum = field >= 5 ? 25 : 0;
-                    const unsigned maximum = field >= 5 ? 400 : field >= 3 ? 1 : field == 2 ? 95 :
-                        field == 1 && index != 2 ? 200 : 100;
+                    const unsigned minimum = field == 5 || field == 6 ? 25 : 0;
+                    const unsigned maximum = field == 7 ? 100 : field >= 5 ? 400 : field >= 3 ? 1 :
+                        field == 2 ? 95 : field == 1 && index != 2 ? 200 : 100;
                     if (parsed < minimum || parsed > maximum) return false;
                     fields[field] = static_cast<unsigned>(parsed);
                 } catch (...) { return false; }
             }
             // Reject trailing separators / extra fields, rather than partial parses.
             if (!input.eof()) return false;
-            if ((index != 1 && fields[4] != 0) ||
+            if ((index != 1 && (fields[4] != 0 || fields[7] != 100)) ||
                 (index == 2 && fields[2] != 0) ||
                 (index != 0 && (fields[5] != 100 || fields[6] != 100))) return false;
             options.controllerCalibrations[index] = ControllerCalibration{
-                fields[0], fields[1], fields[2], fields[3] != 0, fields[4] != 0, fields[5], fields[6]};
+                fields[0], fields[1], fields[2], fields[3] != 0, fields[4] != 0, fields[5], fields[6],
+                fields[7]};
         } else if (value == "--seconds") {
             if (++i >= argc) {
                 error = "--seconds requires an integer from 1 to 86400.";
@@ -121,6 +125,22 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             options.routeRumble = true;
         } else if (value == "--sync-lightbar") {
             options.syncLightbar = true;
+        } else if (value == "--lightbar-brightness") {
+            if (++i >= argc) {
+                error = "--lightbar-brightness requires an integer percentage from 0 to 100.";
+                return false;
+            }
+            try {
+                std::size_t consumed = 0;
+                const auto parsed = std::stoul(argv[i], &consumed);
+                if (consumed != std::string_view(argv[i]).size() || parsed > 100 || argv[i][0] == '-') {
+                    throw std::out_of_range("lightbar-brightness");
+                }
+                options.lightbarBrightnessPercent = static_cast<unsigned int>(parsed);
+            } catch (...) {
+                error = "--lightbar-brightness requires an integer percentage from 0 to 100.";
+                return false;
+            }
         } else if (value == "--zone-emulation") {
             options.zoneEmulation = true;
         } else if (value == "--no-zone-emulation") {
@@ -318,10 +338,11 @@ std::string_view bridgeCommandUsage() noexcept {
     return "Usage: ApexSenseBridge bridge-triggers [index] [--seconds N] "
            "[--reattach-seconds 0..3600] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
-           "[--no-zone-emulation] [--sync-lightbar] [--haptic-threshold 0..95] "
+           "[--no-zone-emulation] [--sync-lightbar] [--lightbar-brightness 0..100] "
+           "[--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..200] "
            "[--apex6-haptic-gain 100..200] "
-           "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW] "
+           "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW[:RGBBRIGHTNESS]] "
            "[--apex4-gyro-strength 25..400] "
            "[--apex4-gyro-yaw-strength 25..400] "
            "[--verify-virtual-input] [--touchpad-profile NAME] "
@@ -351,6 +372,7 @@ bool applyControllerCalibration(BridgeCommandOptions& options,
     options.hapticThresholdPercent = c.threshold;
     options.routeRumble = c.rumble;
     options.syncLightbar = c.rgb;
+    options.lightbarBrightnessPercent = c.rgbBrightness;
     options.apex4GyroStrengthPercent = c.gyro;
     options.apex4GyroYawStrengthPercent = c.gyroYaw;
     if (index != 1) options.apexProfileSlot.reset();

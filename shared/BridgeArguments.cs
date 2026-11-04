@@ -16,7 +16,8 @@ namespace ApexSenseBridge.Common
             int vibrationStrengthPercent = 100,
             int apex4GyroStrengthPercent = 100,
             int apex4GyroYawStrengthPercent = 100,
-            bool zoneEmulation = true)
+            bool zoneEmulation = true,
+            int lightbarBrightnessPercent = 100)
         {
             var arguments = new List<string>
             {
@@ -45,6 +46,12 @@ namespace ApexSenseBridge.Common
             if (syncLightbar)
             {
                 arguments.Add("--sync-lightbar");
+                var brightness = Math.Max(0, Math.Min(100, lightbarBrightnessPercent));
+                if (brightness < 100)
+                {
+                    arguments.Add("--lightbar-brightness");
+                    arguments.Add(brightness.ToString(CultureInfo.InvariantCulture));
+                }
             }
 
             if (!zoneEmulation)
