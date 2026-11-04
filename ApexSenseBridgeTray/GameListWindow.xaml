@@ -634,7 +634,7 @@
                                                             <Image Source="{StaticResource IconTouchpad}" Style="{StaticResource FeaturePillIcon}"/>
                                                             <TextBlock Text="{DynamicResource Loc_PillTouchpad}" Style="{StaticResource FeaturePillText}"/>
                                                             <Path x:Name="ChevronTouchpad" Style="{StaticResource IconPath}" Data="M 1,1 L 5,5 L 9,1"
-                                                                  Width="9" Height="6" Stroke="{DynamicResource BadgeActiveFg}" StrokeThickness="1.8"
+                                                                  Width="9" Height="6" Stroke="{DynamicResource BadgeStandbyFg}" StrokeThickness="1.8"
                                                                   Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
                                                         </StackPanel>
                                                     </Border>
