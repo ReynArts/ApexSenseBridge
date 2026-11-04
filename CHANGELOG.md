@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### APEX 6 Pro: trigger vibration no longer rings after release on newer firmware
+
+- Newer controller firmware keeps playing the last trigger waveform when the
+  trigger channel is simply switched off. When a trigger effect ends, the bridge
+  now sends a few explicit zero-amplitude trigger frames (trigger channel still
+  enabled) before muting it, so the trigger and grip "hum" stops at release.
+  (Issue #74)
+
 ### Report window: categories, full logs and saving without a GitHub account
 
 - **Settings → Send a report** opens a choice with an icon and a title for each

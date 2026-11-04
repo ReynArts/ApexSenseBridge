@@ -17,6 +17,7 @@ namespace {
 constexpr auto kFramePeriod = std::chrono::milliseconds(8);
 constexpr auto kIdleKeepalive = std::chrono::milliseconds(50);
 constexpr unsigned kIdleEnterFrames = 8;
+constexpr unsigned kTriggerReleaseFrames = 4;
 constexpr auto kEnableDelay = std::chrono::milliseconds(94);
 constexpr auto kAudioEnvelopeTimeout = std::chrono::milliseconds(100);
 constexpr auto kMaximumWaveformAge = std::chrono::milliseconds(24);
@@ -568,12 +569,20 @@ void Apex6HapticBridge::run() noexcept {
     HighResolutionDeadlineTimer deadlineTimer;
 #endif
     unsigned silentStreak = 0;
+    unsigned triggerReleaseFrames = 0;
     for (;;) {
         deadline += kFramePeriod;
         flydigi::apex6::TriggerRoute route{};
         bool triggerEnabled = false;
         const auto renderedAt = Clock::now();
         const auto block = renderBlock(route, triggerEnabled, renderedAt);
+        if (triggerEnabled) {
+            triggerReleaseFrames = kTriggerReleaseFrames;
+        } else if (triggerReleaseFrames != 0) {
+            --triggerReleaseFrames;
+            triggerEnabled = true;
+            route = flydigi::apex6::TriggerRoute::Both;
+        }
         const bool silent = !triggerEnabled &&
             std::all_of(block.begin(), block.end(), [](const auto& sample) {
                 return sample.leftGrip == 0 && sample.rightGrip == 0 && sample.trigger == 0;
