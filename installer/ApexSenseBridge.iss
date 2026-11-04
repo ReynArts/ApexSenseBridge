@@ -1,7 +1,7 @@
 ﻿#define AppName "ApexSenseBridge"
-#define AppVersion "1.0.2"
+#define AppVersion "1.1.0"
 #define AppPublisher "ApexSenseBridge contributors"
-#define AppReleaseLabel "1.0.2"
+#define AppReleaseLabel "1.1.0"
 #define AppId "{{5F8B1901-93E1-41E2-96B4-F1B278A5A630}"
 #define ExtensionId "ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4"
 ; Inno sections require "{{" to encode a literal opening brace, whereas

@@ -514,7 +514,7 @@
                         <DockPanel>
                             <Button Content="{DynamicResource Loc_BtnCheck}" Style="{StaticResource BtnSmall}" DockPanel.Dock="Right"
                                     VerticalAlignment="Center" Click="OnCheckUpdatesClick"/>
-                            <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v1.0.2"
+                            <TextBlock x:Name="TxtVersionInfo" Text="ApexSenseBridge v1.1.0"
                                        FontSize="12" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
                         </DockPanel>
                     </Border>

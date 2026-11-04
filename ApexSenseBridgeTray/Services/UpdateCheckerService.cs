@@ -44,7 +44,7 @@ namespace ApexSenseBridgeTray.Services
             catch
             {
             }
-            return "1.0.2";
+            return "1.1.0";
         }
 
         public async Task<UpdateInfo> CheckForUpdatesAsync(bool silent)

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 ### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
 

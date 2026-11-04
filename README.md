@@ -1,4 +1,4 @@
-# ApexSenseBridge 1.0.2
+# ApexSenseBridge 1.1.0
 
 **Your Flydigi APEX. Native DualSense features. On Windows.**
 
