@@ -500,6 +500,364 @@ class ManualFixDetailsTests(unittest.TestCase):
             self.assertIsNone(UPDATER.fetch_pcgw_wikitext("Game"))
 
 
+class ManualFixTranslationTests(unittest.TestCase):
+    NOTE = "Requires DSX and RacingDSX."
+
+    def _games(self):
+        return [
+            {
+                "normalized": "game",
+                "manualFixDetails": {
+                    "adaptiveTriggers": {
+                        "note": self.NOTE,
+                        "links": [
+                            {"label": "Custom config", "url": "https://example.com/a"},
+                            {"label": "DSX", "url": "https://example.com/b"},
+                        ],
+                        "tools": ["DSX", "RacingDSX"],
+                        "translations": {"fr": "stale"},
+                    }
+                },
+            }
+        ]
+
+    def test_note_key_is_stable_and_depends_on_the_text(self):
+        key = UPDATER.manual_fix_note_key(self.NOTE)
+
+        self.assertEqual(16, len(key))
+        self.assertEqual(key, UPDATER.manual_fix_note_key(self.NOTE))
+        self.assertNotEqual(key, UPDATER.manual_fix_note_key(self.NOTE + " "))
+
+    def test_attach_uses_the_note_hash_and_replaces_stale_translations(self):
+        games = self._games()
+        translations = {
+            "notes": {
+                UPDATER.manual_fix_note_key(self.NOTE): {
+                    "source": self.NOTE,
+                    "fr": "Nécessite DSX et RacingDSX.",
+                    "zz": "ignored language",
+                    "ja": "  ",
+                }
+            },
+            "labels": {"Custom config": {"fr": "Configuration personnalisée"}},
+        }
+
+        stats = UPDATER.attach_manual_fix_translations(games, translations)
+
+        entry = games[0]["manualFixDetails"]["adaptiveTriggers"]
+        self.assertEqual({"fr": "Nécessite DSX et RacingDSX."}, entry["translations"])
+        self.assertEqual(
+            {"fr": "Configuration personnalisée"}, entry["links"][0]["translations"]
+        )
+        self.assertNotIn("translations", entry["links"][1])
+        self.assertEqual({"translated": 1, "missing": 0}, stats)
+
+    def test_changed_source_note_drops_the_translation_and_falls_back_to_english(self):
+        games = self._games()
+        games[0]["manualFixDetails"]["adaptiveTriggers"]["note"] = "Requires DSX only."
+        translations = {
+            "notes": {
+                UPDATER.manual_fix_note_key(self.NOTE): {"source": self.NOTE, "fr": "ancien"}
+            },
+            "labels": {},
+        }
+
+        stats = UPDATER.attach_manual_fix_translations(games, translations)
+
+        self.assertNotIn("translations", games[0]["manualFixDetails"]["adaptiveTriggers"])
+        self.assertEqual({"translated": 0, "missing": 1}, stats)
+
+    def test_missing_or_broken_translation_file_gives_no_translations(self):
+        empty = {"notes": {}, "labels": {}}
+        self.assertEqual(empty, UPDATER.load_manual_fix_translations("does-not-exist.json"))
+
+        with mock.patch("builtins.open", mock.mock_open(read_data="[1, 2]")):
+            self.assertEqual(empty, UPDATER.load_manual_fix_translations("x.json"))
+        with mock.patch("builtins.open", mock.mock_open(read_data="{broken")):
+            self.assertEqual(empty, UPDATER.load_manual_fix_translations("x.json"))
+
+    def test_shipped_translations_cover_every_language_and_keep_tool_names(self):
+        validator = ManualFixValidationTests._validator()
+        path = pathlib.Path(__file__).parents[1] / "data" / "manual_fix_translations.json"
+
+        validator.validate_manual_fix_translations_file(json.loads(path.read_text(encoding="utf-8")))
+
+    def test_validator_accepts_partial_entries_and_rejects_damaged_ones(self):
+        validator = ManualFixValidationTests._validator()
+        key = UPDATER.manual_fix_note_key(self.NOTE)
+        good = {"fr": "Nécessite DSX et RacingDSX.", "ko": "DSX와 RacingDSX가 필요합니다."}
+
+        def file_with(entry):
+            return {"notes": {key: entry}, "labels": {}}
+
+        validator.validate_manual_fix_translations_file(file_with({"source": self.NOTE, **good}))
+
+        damaged = [
+            {"source": self.NOTE},
+            {"source": self.NOTE, "xx": "unknown language"},
+            {"source": self.NOTE, "fr": "Nécessite DSX seulement."},
+            {"source": "another note", **good},
+            {"source": self.NOTE, "ko": ""},
+        ]
+        for entry in damaged:
+            with self.assertRaises(ValueError):
+                validator.validate_manual_fix_translations_file(file_with(entry))
+
+    def test_tool_names_followed_directly_by_cjk_text_are_accepted(self):
+        validator = ManualFixValidationTests._validator()
+
+        validator.validate_translated_text(
+            "Game", "note", {"ko": "DSX와 RacingDSX가 필요합니다."}, self.NOTE
+        )
+
+
+class ManualFixAutoTranslationTests(unittest.TestCase):
+    NOTE = "Requires DSX and RacingDSX."
+    KEY = UPDATER.manual_fix_note_key("Requires DSX and RacingDSX.")
+
+    @staticmethod
+    def _translated(text="Requiere DSX y RacingDSX.", **overrides):
+        values = {language: text for language in UPDATER.MANUAL_FIX_TRANSLATION_LANGUAGES}
+        values.update(overrides)
+        return values
+
+    def _games(self, note=None):
+        return [
+            {"manualFixDetails": {"adaptiveTriggers": {"note": note or self.NOTE, "links": []}}}
+        ]
+
+    def test_only_untranslated_or_changed_notes_are_pending(self):
+        complete = {"notes": {self.KEY: {"source": self.NOTE, **self._translated()}}}
+        partial_entry = self._translated()
+        partial_entry.pop("ko")
+        partial = {"notes": {self.KEY: {"source": self.NOTE, **partial_entry}}}
+
+        self.assertEqual({}, UPDATER.pending_manual_fix_notes(self._games(), complete))
+        self.assertEqual(
+            {self.KEY: self.NOTE}, UPDATER.pending_manual_fix_notes(self._games(), partial)
+        )
+        self.assertEqual(
+            {self.KEY: self.NOTE},
+            UPDATER.pending_manual_fix_notes(self._games(), {"notes": {}}),
+        )
+        changed = self._games("Requires DSX only.")
+        self.assertEqual(
+            {UPDATER.manual_fix_note_key("Requires DSX only."): "Requires DSX only."},
+            UPDATER.pending_manual_fix_notes(changed, complete),
+        )
+
+    def test_good_translations_are_stored_with_their_source(self):
+        translations = {"notes": {}, "labels": {}}
+        calls = []
+
+        def translator(items):
+            calls.append(items)
+            return {item["id"]: self._translated("  Nécessite DSX et RacingDSX.  ") for item in items}
+
+        stats = UPDATER.translate_missing_manual_fix_notes(
+            self._games(), translations, translator=translator
+        )
+
+        self.assertEqual([[{"id": self.KEY, "text": self.NOTE}]], calls)
+        self.assertEqual({"pending": 1, "added": 8, "rejected": 0, "failed": 0}, stats)
+        self.assertEqual(self.NOTE, translations["notes"][self.KEY]["source"])
+        self.assertEqual("Nécessite DSX et RacingDSX.", translations["notes"][self.KEY]["fr"])
+        self.assertEqual({}, UPDATER.pending_manual_fix_notes(self._games(), translations))
+
+    def test_each_language_is_judged_alone_and_good_ones_are_kept(self):
+        translations = {"notes": {}, "labels": {}}
+        candidate = self._translated(
+            fr="Nécessite DSX seulement.",
+            ja="DSX と RacingDSX が必要です。",
+            ko="  ",
+            ru="Требуются DSX и RacingDSX https://example.com",
+            vi="DSX\nRacingDSX",
+            zh="DSX RacingDSX " + "x" * 400,
+        )
+        candidate.pop("pt")
+
+        stats = UPDATER.translate_missing_manual_fix_notes(
+            self._games(), translations, translator=lambda items: {self.KEY: candidate}
+        )
+
+        stored = translations["notes"][self.KEY]
+        self.assertEqual({"source", "es", "ja"}, set(stored))
+        self.assertEqual({"pending": 1, "added": 2, "rejected": 5, "failed": 0}, stats)
+        self.assertEqual(
+            {self.KEY: self.NOTE}, UPDATER.pending_manual_fix_notes(self._games(), translations)
+        )
+
+    def test_later_runs_complete_a_partial_note_without_touching_good_languages(self):
+        first = {"notes": {}, "labels": {}}
+        UPDATER.translate_missing_manual_fix_notes(
+            self._games(), first, translator=lambda items: {self.KEY: self._translated(fr="Mauvais.")}
+        )
+        self.assertNotIn("fr", first["notes"][self.KEY])
+
+        UPDATER.translate_missing_manual_fix_notes(
+            self._games(),
+            first,
+            translator=lambda items: {self.KEY: self._translated("Nouveau DSX RacingDSX.")},
+        )
+
+        self.assertEqual("Requiere DSX y RacingDSX.", first["notes"][self.KEY]["es"])
+        self.assertEqual("Nouveau DSX RacingDSX.", first["notes"][self.KEY]["fr"])
+
+    def test_a_note_with_no_usable_language_is_not_stored(self):
+        translations = {"notes": {}, "labels": {}}
+
+        stats = UPDATER.translate_missing_manual_fix_notes(
+            self._games(), translations, translator=lambda items: {}
+        )
+
+        self.assertEqual({}, translations["notes"])
+        self.assertEqual(0, stats["added"])
+
+    def test_translator_failure_never_raises_and_postpones_the_notes(self):
+        translations = {"notes": {}, "labels": {}}
+
+        def broken(items):
+            raise UPDATER.TranslationQuotaExceeded("quota")
+
+        stats = UPDATER.translate_missing_manual_fix_notes(
+            self._games(), translations, translator=broken
+        )
+
+        self.assertEqual({"pending": 1, "added": 0, "rejected": 0, "failed": 1}, stats)
+        self.assertEqual({}, translations["notes"])
+
+    def test_notes_are_sent_in_bounded_batches(self):
+        games = [
+            {"manualFixDetails": {"adaptiveTriggers": {"note": f"Requires DSX {i}.", "links": []}}}
+            for i in range(5)
+        ]
+        sizes = []
+
+        def translator(items):
+            sizes.append(len(items))
+            return {}
+
+        UPDATER.translate_missing_manual_fix_notes(
+            games, {"notes": {}, "labels": {}}, translator=translator, batch_size=2
+        )
+
+        self.assertEqual([2, 2, 1], sizes)
+
+    def test_tool_names_are_hidden_from_the_service_and_restored_afterwards(self):
+        source = "Requires DSX and RacingDSX, or use Special K and DualSense AT."
+
+        hidden, names = UPDATER.protect_manual_fix_names(source)
+
+        for name in ("DSX", "RacingDSX", "Special K", "DualSense AT"):
+            self.assertNotIn(name, hidden)
+        self.assertEqual(4, len(names))
+        self.assertEqual(source, UPDATER.restore_manual_fix_names(hidden, names))
+        self.assertEqual(
+            "DSXとRacingDSXが必要です。SpecialK",
+            UPDATER.restore_manual_fix_names("Qzx 1とQzx 2が必要です。Qzx3", {
+                "Qzx1": "DSX", "Qzx2": "RacingDSX", "Qzx3": "SpecialK"}),
+        )
+        self.assertEqual(
+            "A10 and DSX",
+            UPDATER.restore_manual_fix_names("A10 and Qzx1", {"Qzx1": "DSX"}),
+        )
+
+    def test_batch_translates_every_language_with_protected_names(self):
+        seen = []
+
+        def fake(text, language):
+            seen.append((text, language))
+            return "[" + language + "] " + text
+
+        result = UPDATER.mymemory_translate_batch(
+            [{"id": "k", "text": "Use Special K and DSX."}], translate=fake, pause=0
+        )
+
+        self.assertEqual(
+            list(UPDATER.MANUAL_FIX_TRANSLATION_LANGUAGES), [language for _, language in seen]
+        )
+        self.assertTrue(all("Special K" not in text and "DSX" not in text for text, _ in seen))
+        self.assertEqual("[fr] Use Special K and DSX.", result["k"]["fr"])
+
+    def test_batch_skips_a_failing_language_but_stops_on_quota(self):
+        def partly_failing(text, language):
+            if language == "ja":
+                raise RuntimeError("bad answer")
+            return text
+
+        result = UPDATER.mymemory_translate_batch(
+            [{"id": "k", "text": "Use DSX."}], translate=partly_failing, pause=0
+        )
+        self.assertNotIn("ja", result["k"])
+        self.assertIn("fr", result["k"])
+
+        def out_of_quota(text, language):
+            raise UPDATER.TranslationQuotaExceeded("quota")
+
+        with self.assertRaises(UPDATER.TranslationQuotaExceeded):
+            UPDATER.mymemory_translate_batch(
+                [{"id": "k", "text": "Use DSX."}], translate=out_of_quota, pause=0
+            )
+
+    def _answer(self, text="Bonjour", status=200):
+        payload = {"responseData": {"translatedText": text}, "responseStatus": status}
+        return mock.patch.object(
+            UPDATER.urllib.request, "urlopen", return_value=_FakeResponse(payload)
+        )
+
+    def test_service_request_and_answer_are_handled(self):
+        with self._answer("Nécessite l&#39;outil DSX") as opener:
+            text = UPDATER.mymemory_translate("Requires the DSX tool", "zh")
+
+        self.assertEqual("Nécessite l'outil DSX", text)
+        url = opener.call_args.args[0].full_url
+        self.assertIn("langpair=en%7Czh-CN", url)
+        self.assertIn("q=Requires+the+DSX+tool", url)
+        self.assertNotIn("&de=", url)
+
+        with mock.patch.dict("os.environ", {"MANUAL_FIX_TRANSLATION_EMAIL": "a@b.c"}):
+            with self._answer() as opener:
+                UPDATER.mymemory_translate("Use DSX", "fr")
+        self.assertIn("de=a%40b.c", opener.call_args.args[0].full_url)
+
+    def test_service_errors_quota_and_oversized_notes(self):
+        with self._answer("MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS", 429):
+            with self.assertRaises(UPDATER.TranslationQuotaExceeded):
+                UPDATER.mymemory_translate("Use DSX", "fr")
+        with self._answer("MYMEMORY WARNING: quota", 200):
+            with self.assertRaises(UPDATER.TranslationQuotaExceeded):
+                UPDATER.mymemory_translate("Use DSX", "fr")
+        with self._answer("oops", 403):
+            with self.assertRaises(RuntimeError):
+                UPDATER.mymemory_translate("Use DSX", "fr")
+        with mock.patch.object(UPDATER.urllib.request, "urlopen", side_effect=OSError("down")):
+            with self.assertRaises(OSError):
+                UPDATER.mymemory_translate("Use DSX", "fr")
+        with self.assertRaises(ValueError):
+            UPDATER.mymemory_translate("x" * 600, "fr")
+
+    def test_save_keeps_the_line_endings_of_the_existing_file(self):
+        import os
+        import tempfile
+
+        for newline, expected in ((b"\r\n", b"\r\n"), (b"\n", b"\n")):
+            with tempfile.TemporaryDirectory() as directory:
+                path = os.path.join(directory, "translations.json")
+                with open(path, "wb") as stream:
+                    stream.write(b"{" + newline + b"}")
+
+                UPDATER.save_manual_fix_translations(
+                    path, {"notes": {"k": {"source": "é", "fr": "é"}}, "labels": {}}
+                )
+
+                with open(path, "rb") as stream:
+                    content = stream.read()
+                self.assertIn(expected, content)
+                if expected == b"\n":
+                    self.assertNotIn(b"\r", content)
+                self.assertEqual("é", json.loads(content.decode("utf-8"))["notes"]["k"]["fr"])
+
+
 class ManualFixValidationTests(unittest.TestCase):
     @staticmethod
     def _validator():

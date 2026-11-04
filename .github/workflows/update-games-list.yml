@@ -33,8 +33,8 @@ jobs:
           python scripts/update_pcgw_list.py
           python tests/test_update_pcgw_list.py
           python scripts/validate_supported_games.py
-          if [ -n "$(git status --porcelain data/supported_games.json)" ]; then
-            git add data/supported_games.json
+          if [ -n "$(git status --porcelain data/supported_games.json data/manual_fix_translations.json)" ]; then
+            git add data/supported_games.json data/manual_fix_translations.json
             git commit -m "chore(data): update DualSense games and Discord executables"
             git push origin stable
             echo "Successfully updated supported_games.json on stable."
@@ -54,12 +54,12 @@ jobs:
           python scripts/validate_supported_games.py
 
           if [ -f .git/MERGE_HEAD ]; then
-            git add data/supported_games.json
+            git add data/supported_games.json data/manual_fix_translations.json
             git commit -m "chore(data): sync supported_games.json from stable into dev"
             git push origin dev
             echo "Completed merge from stable and updated dev."
-          elif [ -n "$(git status --porcelain data/supported_games.json)" ]; then
-            git add data/supported_games.json
+          elif [ -n "$(git status --porcelain data/supported_games.json data/manual_fix_translations.json)" ]; then
+            git add data/supported_games.json data/manual_fix_translations.json
             git commit -m "chore(data): update DualSense games and Discord executables"
             git push origin dev
             echo "Committed fresh updates to dev."

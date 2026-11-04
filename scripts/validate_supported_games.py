@@ -3,6 +3,7 @@
 
 import json
 import pathlib
+import re
 import sys
 
 
@@ -48,12 +49,63 @@ def validate_manual_fix_details(game: dict) -> None:
             raise ValueError(f"{title}: manualFixDetails.{feature}.tools is invalid")
         if not note and not links:
             raise ValueError(f"{title}: manualFixDetails.{feature} is empty")
+        validate_translated_text(title, f"manualFixDetails.{feature}", entry.get("translations"), note)
+        for link in links:
+            validate_translated_text(
+                title, f"manualFixDetails.{feature} link {link['label']!r}", link.get("translations"), ""
+            )
+
+
+def validate_translated_text(title: str, where: str, translations, source: str) -> None:
+    if translations is None:
+        return
+    if not isinstance(translations, dict) or not translations:
+        raise ValueError(f"{title}: {where}.translations must be a non-empty object")
+    protected = [
+        re.compile(pattern.pattern, (pattern.flags & ~re.UNICODE) | re.ASCII)
+        for _, pattern in updater.MANUAL_FIX_TOOLS
+        if pattern.search(source)
+    ]
+    for language, text in translations.items():
+        if language not in updater.MANUAL_FIX_TRANSLATION_LANGUAGES:
+            raise ValueError(f"{title}: {where}.translations has unknown language {language!r}")
+        if not isinstance(text, str) or not text.strip() or len(text) > updater.MANUAL_FIX_NOTE_LIMIT * 2:
+            raise ValueError(f"{title}: {where}.translations.{language} is invalid")
+        for pattern in protected:
+            if not pattern.search(text):
+                raise ValueError(f"{title}: {where}.translations.{language} lost a tool name")
+
+
+def validate_manual_fix_translations_file(data: dict) -> None:
+    notes = data.get("notes")
+    labels = data.get("labels")
+    if not isinstance(notes, dict) or not isinstance(labels, dict):
+        raise ValueError("manual_fix_translations.json needs 'notes' and 'labels' objects")
+
+    languages = set(updater.MANUAL_FIX_TRANSLATION_LANGUAGES)
+    for key, entry in notes.items():
+        source = entry.get("source") if isinstance(entry, dict) else None
+        if not isinstance(source, str) or updater.manual_fix_note_key(source) != key:
+            raise ValueError(f"translation {key}: key does not match its source note")
+        provided = set(entry) - {"source"}
+        if not provided or not provided <= languages:
+            raise ValueError(f"translation {key}: it needs at least one known language")
+        validate_translated_text(key, "note", {k: v for k, v in entry.items() if k != "source"}, source)
+    for label, entry in labels.items():
+        if not isinstance(entry, dict) or set(entry) != languages:
+            raise ValueError(f"label {label!r}: every language is required exactly once")
+        validate_translated_text(label, "label", entry, "")
 
 
 def main() -> int:
     database_path = ROOT / "data" / "supported_games.json"
     with database_path.open("r", encoding="utf-8") as stream:
         data = json.load(stream)
+
+    translations_path = ROOT / "data" / "manual_fix_translations.json"
+    if translations_path.exists():
+        with translations_path.open("r", encoding="utf-8") as stream:
+            validate_manual_fix_translations_file(json.load(stream))
 
     games = data.get("games", [])
     if len(games) < 200:
