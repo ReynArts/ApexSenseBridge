@@ -290,6 +290,265 @@ class AddedDateTests(unittest.TestCase):
             self.assertFalse(UPDATER.is_valid_added_date(value), value)
 
 
+FORZA_WIKITEXT = """{{Infobox game
+|cover = x.jpg
+}}
+{{Input
+|playstation controllers   = hackable
+|light bar support notes   = Requires [[Controller:DualSense#DSX|DSX]] and [https://github.com/cosmii02/RacingDSX RacingDSX].
+|dualsense adaptive trigger support = hackable
+|dualsense adaptive trigger support notes = Requires [[Controller:DualSense#DSX|DSX]] and [https://github.com/cosmii02/RacingDSX RacingDSX].<ref>{{Refcheck|user=a|date=2026-01-18|comment=ok}}</ref>
+|dualsense haptics support  = false
+|dualsense haptics support notes =
+|haptic feedback notes     =
+}}
+"""
+
+MULTILINE_WIKITEXT = """{{Input
+|dualsense haptics support notes = Use the [https://github.com/AInine9/Onimusha-DualSense Onimusha DualSense] mod.
+Wired only.<br>Use {{code|dirt4}} and '''bold''' [[Special K]].
+|dualsense adaptive trigger support notes = [https://example.com/a Custom config]
+}}
+"""
+
+
+class ManualFixDetailsTests(unittest.TestCase):
+    def test_extracts_field_value_and_continuation_lines(self):
+        raw = UPDATER.extract_wikitext_field(
+            MULTILINE_WIKITEXT, "dualsense haptics support notes"
+        )
+
+        self.assertTrue(raw.startswith("Use the [https://github.com/AInine9"))
+        self.assertIn("Wired only.", raw)
+        self.assertNotIn("adaptive trigger", raw)
+
+    def test_missing_or_empty_field_gives_empty_value(self):
+        self.assertEqual("", UPDATER.extract_wikitext_field(FORZA_WIKITEXT, "absent field"))
+        self.assertEqual(
+            "",
+            UPDATER.extract_wikitext_field(FORZA_WIKITEXT, "dualsense haptics support notes"),
+        )
+
+    def test_clean_wikitext_keeps_text_labels_and_links(self):
+        raw = UPDATER.extract_wikitext_field(
+            FORZA_WIKITEXT, "dualsense adaptive trigger support notes"
+        )
+
+        note, links = UPDATER.clean_wikitext(raw)
+
+        self.assertEqual("Requires DSX and RacingDSX.", note)
+        self.assertEqual(
+            [
+                {
+                    "label": "DSX",
+                    "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX",
+                },
+                {"label": "RacingDSX", "url": "https://github.com/cosmii02/RacingDSX"},
+            ],
+            links,
+        )
+
+    def test_clean_wikitext_strips_markup_and_skips_plain_wiki_pages(self):
+        raw = UPDATER.extract_wikitext_field(
+            MULTILINE_WIKITEXT, "dualsense haptics support notes"
+        )
+
+        note, links = UPDATER.clean_wikitext(raw)
+
+        self.assertEqual(
+            "Use the Onimusha DualSense mod. Wired only. Use dirt4 and bold Special K.",
+            note,
+        )
+        self.assertEqual(["Onimusha DualSense"], [link["label"] for link in links])
+
+    def test_clean_wikitext_bounds_note_and_link_count(self):
+        raw = " ".join(["word"] * 400) + " " + " ".join(
+            f"[https://example.com/{i} L{i}]" for i in range(10)
+        )
+
+        note, links = UPDATER.clean_wikitext(raw)
+
+        self.assertLessEqual(len(note), UPDATER.MANUAL_FIX_NOTE_LIMIT + 1)
+        self.assertTrue(note.endswith("…"))
+        self.assertEqual(UPDATER.MANUAL_FIX_LINK_LIMIT, len(links))
+
+    def test_clean_wikitext_deduplicates_links(self):
+        _, links = UPDATER.clean_wikitext(
+            "[https://example.com/a A] and [https://example.com/a again]"
+        )
+
+        self.assertEqual(1, len(links))
+
+    def test_tool_detection_names_known_helpers_only(self):
+        note, links = UPDATER.clean_wikitext(
+            "Requires [[Controller:DualSense#DSX|DSX]] and "
+            "[https://github.com/cosmii02/RacingDSX RacingDSX], or use [[Special K]]."
+        )
+        self.assertEqual(
+            ["DSX", "RacingDSX", "Special K"],
+            UPDATER.detect_manual_fix_tools(note, links),
+        )
+
+        note, links = UPDATER.clean_wikitext(
+            "[https://github.com/josealissonbr/DualSenseAT Custom config]. Requires DSX."
+        )
+        self.assertEqual(["DSX", "DualSenseAT"], UPDATER.detect_manual_fix_tools(note, links))
+
+        self.assertEqual([], UPDATER.detect_manual_fix_tools("Wired only.", []))
+
+    def test_details_are_limited_to_requested_features_and_skip_empty_ones(self):
+        details = UPDATER.parse_manual_fix_details(
+            FORZA_WIKITEXT, ["adaptiveTriggers", "hapticFeedback"]
+        )
+
+        self.assertEqual(["adaptiveTriggers"], list(details))
+        self.assertEqual(["DSX", "RacingDSX"], details["adaptiveTriggers"]["tools"])
+        self.assertEqual({}, UPDATER.parse_manual_fix_details(FORZA_WIKITEXT, ["hapticFeedback"]))
+
+    def test_page_title_comes_from_the_manual_fix_url(self):
+        self.assertEqual(
+            "Forza Horizon 5",
+            UPDATER.pcgw_page_title("https://www.pcgamingwiki.com/wiki/Forza_Horizon_5"),
+        )
+        self.assertEqual(
+            "Grand Theft Auto: San Andreas",
+            UPDATER.pcgw_page_title(
+                "https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto%3A_San_Andreas"
+            ),
+        )
+        self.assertEqual("", UPDATER.pcgw_page_title("https://example.com/other"))
+        self.assertEqual("", UPDATER.pcgw_page_title(""))
+
+    def test_enrichment_fills_manual_fix_games_and_clears_the_others(self):
+        games = [
+            {
+                "normalized": "forzahorizon5",
+                "adaptiveTriggersManualFix": True,
+                "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Forza_Horizon_5",
+            },
+            {"normalized": "native", "manualFixDetails": {"adaptiveTriggers": {}}},
+        ]
+        requested = []
+
+        def fake_fetch(title):
+            requested.append(title)
+            return FORZA_WIKITEXT
+
+        stats = UPDATER.enrich_with_manual_fix_details(games, {}, fetch=fake_fetch, pause=0)
+
+        self.assertEqual(["Forza Horizon 5"], requested)
+        self.assertEqual(["adaptiveTriggers"], list(games[0]["manualFixDetails"]))
+        self.assertNotIn("manualFixDetails", games[1])
+        self.assertEqual({"fetched": 1, "cached": 0, "empty": 0}, stats)
+
+    def test_failed_fetch_keeps_cached_details_for_current_features_only(self):
+        cached_entry = {"note": "Cached", "links": [], "tools": []}
+        cache = {
+            "game": {
+                "manualFixDetails": {
+                    "adaptiveTriggers": cached_entry,
+                    "hapticFeedback": cached_entry,
+                }
+            }
+        }
+        games = [
+            {
+                "normalized": "game",
+                "adaptiveTriggersManualFix": True,
+                "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Game",
+            }
+        ]
+
+        stats = UPDATER.enrich_with_manual_fix_details(
+            games, cache, fetch=lambda title: None, pause=0
+        )
+
+        self.assertEqual({"adaptiveTriggers": cached_entry}, games[0]["manualFixDetails"])
+        self.assertEqual({"fetched": 0, "cached": 1, "empty": 0}, stats)
+
+    def test_game_without_any_note_has_no_details_entry(self):
+        games = [
+            {
+                "normalized": "game",
+                "hapticFeedbackManualFix": True,
+                "manualFixUrl": "https://www.pcgamingwiki.com/wiki/Game",
+            }
+        ]
+
+        stats = UPDATER.enrich_with_manual_fix_details(
+            games, {}, fetch=lambda title: FORZA_WIKITEXT, pause=0
+        )
+
+        self.assertNotIn("manualFixDetails", games[0])
+        self.assertEqual(1, stats["empty"])
+
+    def test_fetch_reads_wikitext_and_tolerates_errors(self):
+        payload = {"parse": {"wikitext": {"*": "{{Input}}"}}}
+        with mock.patch.object(
+            UPDATER.urllib.request, "urlopen", return_value=_FakeResponse(payload)
+        ):
+            self.assertEqual("{{Input}}", UPDATER.fetch_pcgw_wikitext("Game"))
+
+        with mock.patch.object(
+            UPDATER.urllib.request,
+            "urlopen",
+            return_value=_FakeResponse({"error": {"info": "missing"}}),
+        ):
+            self.assertIsNone(UPDATER.fetch_pcgw_wikitext("Game"))
+
+        with mock.patch.object(UPDATER.urllib.request, "urlopen", side_effect=OSError("down")):
+            self.assertIsNone(UPDATER.fetch_pcgw_wikitext("Game"))
+
+
+class ManualFixValidationTests(unittest.TestCase):
+    @staticmethod
+    def _validator():
+        path = pathlib.Path(__file__).parents[1] / "scripts" / "validate_supported_games.py"
+        spec = importlib.util.spec_from_file_location("validate_supported_games", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    @staticmethod
+    def _game(**details):
+        return {
+            "title": "Game",
+            "requiresManualFix": True,
+            "adaptiveTriggersManualFix": True,
+            "manualFixDetails": {
+                "adaptiveTriggers": {
+                    "note": "Requires DSX.",
+                    "links": [{"label": "DSX", "url": "https://example.com/dsx"}],
+                    "tools": ["DSX"],
+                    **details,
+                }
+            },
+        }
+
+    def test_valid_details_and_absent_details_pass(self):
+        validator = self._validator()
+
+        validator.validate_manual_fix_details(self._game())
+        validator.validate_manual_fix_details({"title": "Native"})
+
+    def test_invalid_details_are_rejected(self):
+        validator = self._validator()
+        broken = [
+            self._game(tools=["Unknown"]),
+            self._game(links=[{"label": "x", "url": "http://insecure"}]),
+            self._game(note=5),
+            self._game(note="", links=[]),
+        ]
+        no_flag = self._game()
+        no_flag.pop("adaptiveTriggersManualFix")
+        wrong_game = self._game()
+        wrong_game["requiresManualFix"] = False
+
+        for game in broken + [no_flag, wrong_game]:
+            with self.assertRaises(ValueError):
+                validator.validate_manual_fix_details(game)
+
+
 class _FakeResponse:
     def __init__(self, payload):
         self.payload = json.dumps(payload).encode("utf-8")

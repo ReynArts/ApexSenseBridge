@@ -186,7 +186,25 @@
         "jsgme.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for tires slipping or locking.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.racedepartment.com/downloads/dualsensexlink-dualsense-adaptive-trigger-and-led-effects.48675/"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ]
+        }
+      }
     },
     {
       "title": "Avatar: Frontiers of Pandora",
@@ -495,7 +513,19 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Mod",
+          "links": [
+            {
+              "label": "Mod",
+              "url": "https://github.com/tpetsas/control-dualsense-mod?tab=readme-ov-file"
+            }
+          ],
+          "tools": []
+        }
+      }
     },
     {
       "title": "Control Resonant",
@@ -637,7 +667,26 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config. Requires DSX.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ]
+        }
+      }
     },
     {
       "title": "Death Stranding 2: On the Beach",
@@ -712,7 +761,21 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use RacingDSX, follow same steps in readme as DiRT Rally, then add dirt4 to Executables to match.",
+          "links": [
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "RacingDSX"
+          ]
+        }
+      }
     },
     {
       "title": "DiRT Rally",
@@ -726,7 +789,21 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use RacingDSX",
+          "links": [
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "RacingDSX"
+          ]
+        }
+      }
     },
     {
       "title": "DiRT Rally 2.0",
@@ -743,7 +820,21 @@
         "dirtrally2.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use RacingDSX",
+          "links": [
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "RacingDSX"
+          ]
+        }
+      }
     },
     {
       "title": "Dolmen",
@@ -785,7 +876,25 @@
         "duckgame.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for guns.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=2654985616"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ]
+        }
+      }
     },
     {
       "title": "Dying Light",
@@ -803,7 +912,19 @@
         "dyinglightgame.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Adaptive triggers for guns and melee weapons",
+          "links": [],
+          "tools": []
+        },
+        "hapticFeedback": {
+          "note": "Haptic feedback for weapon swinging, climbing, flashlight, trap remote etc.",
+          "links": [],
+          "tools": []
+        }
+      }
     },
     {
       "title": "Dying Light 2 Stay Human",
@@ -845,7 +966,21 @@
         "wrc.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "hapticFeedback": {
+          "note": "Use the Shake-It Bass Shaker function of Simhub to emulate haptic feedback from the controller's VCA motors.",
+          "links": [
+            {
+              "label": "Simhub",
+              "url": "https://www.simhubdash.com/"
+            }
+          ],
+          "tools": [
+            "SimHub"
+          ]
+        }
+      }
     },
     {
       "title": "Eriksholm: The Stolen Dream",
@@ -873,7 +1008,26 @@
         "eurotrucks2.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX and Steam).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT/wiki/Tutorial-for-Euro-Truck-Simulator-2"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ]
+        }
+      }
     },
     {
       "title": "Everspace 2",
@@ -962,7 +1116,25 @@
         "fallout4.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). The author includes tutorial to configure the behavior of triggers.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/fallout4/mods/62113?tab=description"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ]
+        }
+      }
     },
     {
       "title": "Fantasian Neo Dimension",
@@ -1097,7 +1269,27 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-12"
+      "addedAt": "2026-09-12",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX. Alternatively, use of Special K can emulate support for Xbox Impulse Triggers.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX",
+            "Special K"
+          ]
+        }
+      }
     },
     {
       "title": "Forza Horizon 5",
@@ -1114,7 +1306,26 @@
         "forzahorizon5.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX"
+          ]
+        }
+      }
     },
     {
       "title": "Forza Horizon 6",
@@ -1128,7 +1339,27 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2483190/711e39803402def82a90e1f31578c64744f952f3/library_capsule_2x.jpg?t=1791312088",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX, or use Special K to translate Xbox Impulse Triggers signals to their DualSense equivalence.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX",
+            "Special K"
+          ]
+        }
+      }
     },
     {
       "title": "Forza Motorsport 7",
@@ -1142,7 +1373,26 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX"
+          ]
+        }
+      }
     },
     {
       "title": "Gears of War: E-Day",
@@ -1167,7 +1417,14 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "hapticFeedback": {
+          "note": "Requires manual configuration on the controller's audio device. Wired only.",
+          "links": [],
+          "tools": []
+        }
+      }
     },
     {
       "title": "Ghost of Tsushima Director's Cut",
@@ -1212,7 +1469,26 @@
         "gow.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config. Requires DSX and DualSense AT (see Custom config).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/godofwar/mods/145"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ]
+        }
+      }
     },
     {
       "title": "God of War Ragnarök",
@@ -1254,7 +1530,25 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900_2x.jpg?t=1765387725",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for weapons.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/zelmer69/dualsense4GTA5/"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ]
+        }
+      }
     },
     {
       "title": "Grand Theft Auto V Enhanced",
@@ -1279,7 +1573,21 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use GTASense and DSX.",
+          "links": [
+            {
+              "label": "GTASense",
+              "url": "https://github.com/theGENreel/GTASense"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ]
+        }
+      }
     },
     {
       "title": "Gravity Circuit",
@@ -1310,7 +1618,23 @@
         "hlvr.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config. Can only be used with HLA-NoVr MOD.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/WujekFoliarz/HLA-NoVR-DualSense"
+            },
+            {
+              "label": "HLA-NoVr MOD",
+              "url": "https://github.com/gb2dev/HLA-NoVR"
+            }
+          ],
+          "tools": []
+        }
+      }
     },
     {
       "title": "Halo: Campaign Evolved",
@@ -1677,7 +2001,19 @@
         "mgsgroundzeroes.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/WujekFoliarz/MGSV-Ground-Zeros-DualSenseMOD"
+            }
+          ],
+          "tools": []
+        }
+      }
     },
     {
       "title": "Metal Gear Solid V: The Phantom Pain",
@@ -1695,7 +2031,22 @@
         "mgsvtpp.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires tpp-mod and DSX or DSY",
+          "links": [
+            {
+              "label": "tpp-mod",
+              "url": "https://github.com/alicealys/tpp-mod/"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DSY"
+          ]
+        }
+      }
     },
     {
       "title": "Metal Gear Solid Δ: Snake Eater",
@@ -1895,7 +2246,29 @@
         "onimushawots_demo.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-11"
+      "addedAt": "2026-09-11",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use the Onimusha DualSense mod.",
+          "links": [
+            {
+              "label": "Onimusha DualSense",
+              "url": "https://github.com/AInine9/Onimusha-DualSense"
+            }
+          ],
+          "tools": []
+        },
+        "hapticFeedback": {
+          "note": "Use the Onimusha DualSense mod.",
+          "links": [
+            {
+              "label": "Onimusha DualSense",
+              "url": "https://github.com/AInine9/Onimusha-DualSense"
+            }
+          ],
+          "tools": []
+        }
+      }
     },
     {
       "title": "Overwatch 2",
@@ -2026,7 +2399,25 @@
         "rdr2.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/reddeadredemption2/mods/2187"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ]
+        }
+      }
     },
     {
       "title": "Resident Evil 5",
@@ -2043,7 +2434,26 @@
         "re5dx9.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX and Steam).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ]
+        }
+      }
     },
     {
       "title": "Resident Evil Requiem",
@@ -2132,7 +2542,26 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ]
+        }
+      }
     },
     {
       "title": "S.T.A.L.K.E.R. 2: Heart of Chornobyl",
@@ -2592,7 +3021,25 @@
         "skyrimse.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for weapons.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/skyrimspecialedition/mods/66165/"
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ]
+        }
+      }
     },
     {
       "title": "The First Berserker: Khazan",
@@ -2738,7 +3185,29 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use Tomb Raider DualSense Mod",
+          "links": [
+            {
+              "label": "Tomb Raider DualSense Mod",
+              "url": "https://www.nexusmods.com/tombraider2013/mods/125"
+            }
+          ],
+          "tools": []
+        },
+        "hapticFeedback": {
+          "note": "Use Tomb Raider DualSense Mod",
+          "links": [
+            {
+              "label": "Tomb Raider DualSense Mod",
+              "url": "https://www.nexusmods.com/tombraider2013/mods/125"
+            }
+          ],
+          "tools": []
+        }
+      }
     },
     {
       "title": "Tony Hawk's Pro Skater 3 + 4",
@@ -2961,7 +3430,14 @@
         "zenlesszonezero.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01"
+      "addedAt": "2026-09-01",
+      "manualFixDetails": {
+        "hapticFeedback": {
+          "note": "Wired only. Requires manual configuration on the controller's audio device.",
+          "links": [],
+          "tools": []
+        }
+      }
     }
   ]
 }

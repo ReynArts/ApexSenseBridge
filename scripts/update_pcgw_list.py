@@ -439,6 +439,177 @@ def fetch_pcgw_titles(page_titles: list) -> list:
     return list(fetch_pcgw_support(page_titles))
 
 
+MANUAL_FIX_FEATURES = {
+    "adaptiveTriggers": "dualsense adaptive trigger support notes",
+    "hapticFeedback": "dualsense haptics support notes",
+}
+MANUAL_FIX_NOTE_LIMIT = 600
+MANUAL_FIX_LINK_LIMIT = 6
+MANUAL_FIX_TOOLS = (
+    ("DSX", re.compile(r"\bDSX\b")),
+    ("DSY", re.compile(r"\bDSY\b")),
+    ("RacingDSX", re.compile(r"RacingDSX", re.IGNORECASE)),
+    ("DualSenseAT", re.compile(r"DualSense\s?AT\b")),
+    ("Special K", re.compile(r"Special\s?K\b", re.IGNORECASE)),
+    ("SimHub", re.compile(r"Sim\s?Hub", re.IGNORECASE)),
+)
+
+_REF_PATTERN = re.compile(r"<ref\b[^>]*/>|<ref\b[^>]*>.*?</ref>", re.IGNORECASE | re.DOTALL)
+_BREAK_PATTERN = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_TAG_PATTERN = re.compile(r"<[^>]+>")
+_CODE_TEMPLATE_PATTERN = re.compile(r"\{\{\s*(?:code|c)\s*\|([^{}]*)\}\}", re.IGNORECASE)
+_TEMPLATE_PATTERN = re.compile(r"\{\{[^{}]*\}\}")
+_LINK_PATTERN = re.compile(
+    r"\[\[([^\[\]|]+)(?:\|([^\[\]]*))?\]\]|\[(https?://[^\s\]]+)(?:[ \t]+([^\]]*))?\]"
+)
+_EMPHASIS_PATTERN = re.compile(r"'{2,}")
+
+
+def extract_wikitext_field(wikitext: str, field: str) -> str:
+    wanted = field.casefold()
+    collected = None
+    for line in (wikitext or "").splitlines():
+        if collected is None:
+            match = re.match(r"^\|\s*([^=|]+?)\s*=(.*)$", line)
+            if match and match.group(1).casefold() == wanted:
+                collected = [match.group(2)]
+            continue
+        if line.startswith("|") or line.startswith("}}"):
+            break
+        collected.append(line)
+    return "\n".join(collected).strip() if collected is not None else ""
+
+
+def clean_wikitext(raw: str) -> tuple:
+    links = []
+
+    def replace_link(match):
+        if match.group(1) is not None:
+            target = html.unescape(match.group(1)).strip()
+            label = html.unescape(match.group(2) or target).strip()
+            if ":" in target and not target.casefold().startswith(("file:", "image:", "category:")):
+                url = "https://www.pcgamingwiki.com/wiki/" + urllib.parse.quote(
+                    target.replace(" ", "_"), safe=":#_(),'!-."
+                )
+                links.append({"label": label, "url": url})
+            return label
+        url = html.unescape(match.group(3)).strip()
+        label = html.unescape(match.group(4) or "").strip()
+        if not label:
+            label = urllib.parse.urlparse(url).netloc
+        links.append({"label": label, "url": url})
+        return label
+
+    text = _REF_PATTERN.sub("", raw or "")
+    text = _BREAK_PATTERN.sub(" ", text)
+    text = _CODE_TEMPLATE_PATTERN.sub(lambda m: m.group(1), text)
+    text = _LINK_PATTERN.sub(replace_link, text)
+    previous = None
+    while previous != text:
+        previous = text
+        text = _TEMPLATE_PATTERN.sub("", text)
+    text = _TAG_PATTERN.sub("", text)
+    text = _EMPHASIS_PATTERN.sub("", html.unescape(text))
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text) > MANUAL_FIX_NOTE_LIMIT:
+        text = text[:MANUAL_FIX_NOTE_LIMIT].rsplit(" ", 1)[0].rstrip(" ,;:.") + "…"
+
+    unique_links = []
+    seen_urls = set()
+    for link in links:
+        if link["url"] in seen_urls:
+            continue
+        seen_urls.add(link["url"])
+        unique_links.append(link)
+    return text, unique_links[:MANUAL_FIX_LINK_LIMIT]
+
+
+def detect_manual_fix_tools(note: str, links: list) -> list:
+    haystack = " ".join([note] + [f"{l['label']} {l['url']}" for l in links])
+    return [name for name, pattern in MANUAL_FIX_TOOLS if pattern.search(haystack)]
+
+
+def parse_manual_fix_details(wikitext: str, features: list) -> dict:
+    details = {}
+    for feature in features:
+        field = MANUAL_FIX_FEATURES.get(feature)
+        if not field:
+            continue
+        note, links = clean_wikitext(extract_wikitext_field(wikitext, field))
+        if not note and not links:
+            continue
+        details[feature] = {
+            "note": note,
+            "links": links,
+            "tools": detect_manual_fix_tools(note, links),
+        }
+    return details
+
+
+def pcgw_page_title(url: str) -> str:
+    path = urllib.parse.urlparse(url or "").path
+    prefix = "/wiki/"
+    if not path.startswith(prefix):
+        return ""
+    return urllib.parse.unquote(path[len(prefix):]).replace("_", " ")
+
+
+def fetch_pcgw_wikitext(page_title: str):
+    params = {
+        "action": "parse",
+        "page": page_title,
+        "prop": "wikitext",
+        "redirects": 1,
+        "format": "json",
+    }
+    url = f"{PCGW_API}?{urllib.parse.urlencode(params)}"
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as err:
+        print(f"[WARN] Failed to fetch wikitext of {page_title}: {err}", file=sys.stderr)
+        return None
+    if data.get("error"):
+        print(f"[INFO] PCGW page '{page_title}' not found: {data['error'].get('info', '')}", file=sys.stderr)
+        return None
+    return data.get("parse", {}).get("wikitext", {}).get("*") or None
+
+
+def manual_fix_features(game: dict) -> list:
+    return [feature for feature in MANUAL_FIX_FEATURES if game.get(f"{feature}ManualFix")]
+
+
+def enrich_with_manual_fix_details(games: list, cache: dict, fetch=fetch_pcgw_wikitext, pause: float = 0.4) -> dict:
+    stats = {"fetched": 0, "cached": 0, "empty": 0}
+    for game in games:
+        features = manual_fix_features(game)
+        if not features:
+            game.pop("manualFixDetails", None)
+            continue
+
+        page_title = pcgw_page_title(game.get("manualFixUrl", ""))
+        wikitext = fetch(page_title) if page_title else None
+        if wikitext is None:
+            previous = cache.get(game.get("normalized"), {}).get("manualFixDetails", {})
+            details = {f: previous[f] for f in features if f in previous}
+            if details:
+                stats["cached"] += 1
+        else:
+            details = parse_manual_fix_details(wikitext, features)
+            stats["fetched"] += 1
+            if pause:
+                time.sleep(pause)
+
+        if details:
+            game["manualFixDetails"] = details
+        else:
+            game.pop("manualFixDetails", None)
+            stats["empty"] += 1
+    return stats
+
+
 def fetch_steam_icon_url(app_id: int) -> str:
     """Fetches the correct Steam library_capsule_2x icon URL via IStoreBrowseService API."""
     try:
@@ -635,6 +806,14 @@ def main():
         else:
             game.pop("requiresManualFix", None)
             game.pop("manualFixUrl", None)
+
+    print("[*] Fetching manual-fix notes from PCGamingWiki game pages...")
+    fix_stats = enrich_with_manual_fix_details(list(games_dict.values()), existing_cache)
+    print(
+        "[+] Manual-fix notes: "
+        f"{fix_stats['fetched']} pages read, {fix_stats['cached']} kept from cache, "
+        f"{fix_stats['empty']} without usable note."
+    )
 
     # Audit every legacy/unverified AppID once. Future runs reuse verified identities.
     need_resolve = [

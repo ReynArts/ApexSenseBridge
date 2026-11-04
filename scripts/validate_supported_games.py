@@ -12,6 +12,44 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import update_pcgw_list as updater
 
 
+def validate_manual_fix_details(game: dict) -> None:
+    title = game.get("title", "<untitled>")
+    details = game.get("manualFixDetails")
+    if details is None:
+        return
+    if not game.get("requiresManualFix"):
+        raise ValueError(f"{title}: manualFixDetails requires a manual-fix game")
+    if not isinstance(details, dict) or not details:
+        raise ValueError(f"{title}: manualFixDetails must be a non-empty object")
+
+    known_tools = {name for name, _ in updater.MANUAL_FIX_TOOLS}
+    for feature, entry in details.items():
+        if feature not in updater.MANUAL_FIX_FEATURES or not game.get(f"{feature}ManualFix"):
+            raise ValueError(f"{title}: manualFixDetails.{feature} has no matching manual fix")
+        if not isinstance(entry, dict):
+            raise ValueError(f"{title}: manualFixDetails.{feature} must be an object")
+        note = entry.get("note")
+        links = entry.get("links")
+        tools = entry.get("tools")
+        if not isinstance(note, str) or len(note) > updater.MANUAL_FIX_NOTE_LIMIT + 1:
+            raise ValueError(f"{title}: manualFixDetails.{feature}.note is invalid")
+        if not isinstance(links, list) or len(links) > updater.MANUAL_FIX_LINK_LIMIT:
+            raise ValueError(f"{title}: manualFixDetails.{feature}.links is invalid")
+        for link in links:
+            if (
+                not isinstance(link, dict)
+                or not isinstance(link.get("label"), str)
+                or not link["label"]
+                or not isinstance(link.get("url"), str)
+                or not link["url"].startswith("https://")
+            ):
+                raise ValueError(f"{title}: manualFixDetails.{feature} has an invalid link {link!r}")
+        if not isinstance(tools, list) or any(tool not in known_tools for tool in tools):
+            raise ValueError(f"{title}: manualFixDetails.{feature}.tools is invalid")
+        if not note and not links:
+            raise ValueError(f"{title}: manualFixDetails.{feature} is empty")
+
+
 def main() -> int:
     database_path = ROOT / "data" / "supported_games.json"
     with database_path.open("r", encoding="utf-8") as stream:
@@ -49,6 +87,8 @@ def main() -> int:
         added_at = game.get("addedAt")
         if added_at is not None and not updater.is_valid_added_date(added_at):
             raise ValueError(f"{title}: addedAt must be an ISO date (YYYY-MM-DD), got {added_at!r}")
+
+        validate_manual_fix_details(game)
 
         if executables:
             games_with_executables += 1
