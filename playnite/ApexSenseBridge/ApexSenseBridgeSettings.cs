@@ -18,7 +18,8 @@ namespace ApexSenseBridge
         GhostOfTsushima,
         Warframe,
         Disabled,
-        DeathStranding2
+        DeathStranding2,
+        AlanWake2
     }
 
     public enum BridgeActivationMode
@@ -36,7 +37,8 @@ namespace ApexSenseBridge
         MilesMorales,
         GhostOfTsushima,
         Warframe,
-        DeathStranding2
+        DeathStranding2,
+        AlanWake2
     }
 
     public class GameBridgeProfile : ObservableObject
@@ -120,6 +122,8 @@ namespace ApexSenseBridge
                     return "Warframe (layout Xbox par défaut)";
                 case BridgeProfileType.DeathStranding2:
                     return "Death Stranding 2: On the Beach";
+                case BridgeProfileType.AlanWake2:
+                    return "Alan Wake 2";
                 case BridgeProfileType.Disabled:
                     return "Désactivé (override manuel)";
                 default:
@@ -156,6 +160,8 @@ namespace ApexSenseBridge
                     return "Warframe";
                 case TouchpadRemappingMode.DeathStranding2:
                     return "Death Stranding 2: On the Beach";
+                case TouchpadRemappingMode.AlanWake2:
+                    return "Alan Wake 2";
                 default:
                     return "Automatique";
             }
@@ -167,6 +173,7 @@ namespace ApexSenseBridge
         private string bridgeExecutablePath = string.Empty;
         private bool enableRumble = true;
         private bool syncLightbar = false;
+        private int lightbarBrightnessPercent = 100;
         private bool zoneEmulation = true;
         private int hapticThresholdPercent = 12;
         private int vibrationStrengthPercent = 100;
@@ -184,6 +191,7 @@ namespace ApexSenseBridge
         public string BridgeExecutablePath { get => bridgeExecutablePath; set => SetValue(ref bridgeExecutablePath, value); }
         public bool EnableRumble { get => enableRumble; set => SetValue(ref enableRumble, value); }
         public bool SyncLightbar { get => syncLightbar; set => SetValue(ref syncLightbar, value); }
+        public int LightbarBrightnessPercent { get => lightbarBrightnessPercent; set => SetValue(ref lightbarBrightnessPercent, value); }
         public bool ZoneEmulation { get => zoneEmulation; set => SetValue(ref zoneEmulation, value); }
         public int HapticThresholdPercent { get => hapticThresholdPercent; set => SetValue(ref hapticThresholdPercent, value); }
         public int VibrationStrengthPercent { get => vibrationStrengthPercent; set => SetValue(ref vibrationStrengthPercent, value); }
@@ -350,6 +358,8 @@ namespace ApexSenseBridge
                     return TouchpadRemappingMode.Warframe;
                 case BridgeProfileType.DeathStranding2:
                     return TouchpadRemappingMode.DeathStranding2;
+                case BridgeProfileType.AlanWake2:
+                    return TouchpadRemappingMode.AlanWake2;
                 default:
                     // Standard already auto-detected special remappings in 0.6.1.
                     return TouchpadRemappingMode.Automatic;
@@ -370,6 +380,8 @@ namespace ApexSenseBridge
                     return BridgeProfileType.Warframe;
                 case TouchpadRemappingMode.DeathStranding2:
                     return BridgeProfileType.DeathStranding2;
+                case TouchpadRemappingMode.AlanWake2:
+                    return BridgeProfileType.AlanWake2;
                 default:
                     return BridgeProfileType.StandardDualSense;
             }
@@ -611,6 +623,10 @@ namespace ApexSenseBridge
             if (Settings.VibrationStrengthPercent < 0 || Settings.VibrationStrengthPercent > 200)
             {
                 errors.Add("La force des vibrations doit être comprise entre 0 et 200 (APEX 6 limité à 100).");
+            }
+            if (Settings.LightbarBrightnessPercent < 0 || Settings.LightbarBrightnessPercent > 100)
+            {
+                errors.Add("La luminosité maximale de la barre lumineuse doit être comprise entre 0 et 100.");
             }
             if (Settings.Apex4GyroStrengthPercent < 25 ||
                 Settings.Apex4GyroStrengthPercent > 400)

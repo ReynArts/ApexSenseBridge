@@ -65,6 +65,8 @@ public:
     [[nodiscard]] static std::optional<Apex5Device> open(const HidDeviceInfo& info, std::string& error);
 
     [[nodiscard]] bool isOpen() const noexcept;
+    bool reopen(const HidDeviceInfo& info, std::string& error);
+    void closeTransport() noexcept;
     [[nodiscard]] const HidDeviceInfo& info() const;
     [[nodiscard]] const std::optional<Apex5Identity>& identity() const noexcept;
 
@@ -149,6 +151,7 @@ private:
     void writerLoop();
 
     TransportPtr transport_{};
+    HidDeviceInfo lastInfo_{};
     std::optional<Apex5Identity> identity_{};
     bool identityUnanswered_ = false;
     mutable std::unique_ptr<std::recursive_mutex> writeMutex_{std::make_unique<std::recursive_mutex>()};

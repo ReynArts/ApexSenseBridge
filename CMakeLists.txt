@@ -439,6 +439,27 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME device_open_retry COMMAND ApexSenseBridgeDeviceOpenRetryTests)
 
+    add_executable(ApexSenseBridgePhysicalReattachTests tests/test_physical_reattach.cpp)
+    target_include_directories(ApexSenseBridgePhysicalReattachTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgePhysicalReattachTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgePhysicalReattachTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME physical_reattach COMMAND ApexSenseBridgePhysicalReattachTests)
+
+    add_executable(ApexSenseBridgeFeedbackRouterTests
+        tests/test_feedback_router.cpp
+        src/dualsense/DualSenseFeedback.cpp
+    )
+    target_include_directories(ApexSenseBridgeFeedbackRouterTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeFeedbackRouterTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeFeedbackRouterTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME feedback_router COMMAND ApexSenseBridgeFeedbackRouterTests)
+
     add_executable(ApexSenseBridgeBridgeTelemetryTests
         tests/test_bridge_telemetry.cpp
         src/cli/BridgeTelemetry.cpp

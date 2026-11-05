@@ -26,6 +26,8 @@ struct BridgeTelemetry {
     std::string inputBackend;
     unsigned int independentTriggerStartupRecoveries = 0;
     unsigned int independentTriggerRuntimeRecoveries = 0;
+    unsigned int physicalReattaches = 0;
+    std::int64_t physicalLostMilliseconds = 0;
     bool virtualInputMonitorEnabled = false;
     std::size_t startupAttempts = 0;
     std::vector<asb::dualsense::VirtualDualSenseProbeReport> virtualStartupProbes;

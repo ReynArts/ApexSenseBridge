@@ -53,11 +53,13 @@ internal static class TrayLearningTests
             TestCatalogAddedDates();
             TestActivationPolicyStillAppliesAfterLearning();
             TestManualFixGamesPreservePhysicalInput();
+            TestManualFixGuideEntries();
             TestPerGameApexProfileSettings();
             TestOnboardProfileSelectorLock();
             TestManualBridgeModeIsNotPersisted();
             TestSharedBridgeArguments();
             TestControllerCalibrations();
+            TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
             TestGameExecutableSettings();
@@ -66,6 +68,10 @@ internal static class TrayLearningTests
             TestHidHideBusyDetection();
             TestInterruptedSessionRecovery();
             TestExternalRecoveryOwnership();
+            TestControllerLostStatusMapping();
+            TestControllerLostLocalization();
+            TestControllerLostIsNotAFailure();
+            TestControllerLostOnExternalSession();
             TestRecoveryCancelledDuringStartup();
             TestRecoveryGameLifetimeTracking();
             TestStartRetryPolicy();
@@ -671,6 +677,117 @@ internal static class TrayLearningTests
             "A game with a ready selected feature was incorrectly reported as fully blocked.");
     }
 
+    private static void TestManualFixGuideEntries()
+    {
+        const string json = "{\"games\":[" +
+            "{\"title\":\"Forza Horizon 5\",\"normalized\":\"forzahorizon5\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"https://www.pcgamingwiki.com/wiki/Forza_Horizon_5\"," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Requires DSX and RacingDSX.\"," +
+            "\"links\":[{\"label\":\"RacingDSX\",\"url\":\"https://github.com/cosmii02/RacingDSX\"}," +
+            "{\"label\":\"Local\",\"url\":\"file:///C:/Windows/System32/calc.exe\"}," +
+            "{\"label\":\"Plain\",\"url\":\"http://example.com/fix\"}," +
+            "{\"label\":\"Broken\"},\"text\"]," +
+            "\"tools\":[\"DSX\",\"RacingDSX\"]}}}," +
+            "{\"title\":\"Onimusha\",\"normalized\":\"onimusha\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true," +
+            "\"hapticFeedback\":true,\"hapticFeedbackManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"https://www.pcgamingwiki.com/wiki/Onimusha\"," +
+            "\"manualFixDetails\":{" +
+            "\"adaptiveTriggers\":{\"note\":\"Use the mod.\",\"links\":[],\"tools\":[]}," +
+            "\"hapticFeedback\":{\"note\":\"Use the mod.\",\"links\":[],\"tools\":[]}}}," +
+            "{\"title\":\"Dying Light\",\"normalized\":\"dyinglight\"," +
+            "\"hapticFeedback\":true,\"hapticFeedbackManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"javascript:alert(1)\"," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Stale entry.\",\"links\":[],\"tools\":[]}}}," +
+            "{\"title\":\"Native\",\"normalized\":\"native\",\"adaptiveTriggers\":true,\"manualFixDetails\":\"oops\"}" +
+            "]}";
+        var list = CreateGameList(json);
+
+        var forza = FindGame(list, "Forza Horizon 5");
+        Assert(forza.AdaptiveTriggersFix != null && forza.HapticFeedbackFix == null &&
+               forza.AdaptiveTriggersFix.Links.Length == 3 &&
+               forza.AdaptiveTriggersFix.Tools.SequenceEqual(new[] { "DSX", "RacingDSX" }),
+            "The manual-fix notes of the catalogue were not loaded.");
+        var forzaEntries = ManualFixGuide.BuildEntries(forza);
+        Assert(forzaEntries.Count == 1 &&
+               forzaEntries[0].Note == "Requires DSX and RacingDSX." &&
+               forzaEntries[0].Links.Length == 1 &&
+               forzaEntries[0].Links[0].Url == "https://github.com/cosmii02/RacingDSX" &&
+               forzaEntries[0].FeatureKeys.SequenceEqual(new[] { "Loc_PillTriggers" }),
+            "The guide kept a link that is not a plain HTTPS address.");
+        Assert(ManualFixGuide.PageUrl(forza) == "https://www.pcgamingwiki.com/wiki/Forza_Horizon_5",
+            "The PCGamingWiki page address was not exposed to the guide.");
+
+        var onimusha = ManualFixGuide.BuildEntries(FindGame(list, "Onimusha"));
+        Assert(onimusha.Count == 1 &&
+               onimusha[0].FeatureKeys.SequenceEqual(new[] { "Loc_PillTriggers", "Loc_PillHaptics" }),
+            "Identical notes for both features were not merged into one guide entry.");
+
+        var dyingLight = FindGame(list, "Dying Light");
+        Assert(ManualFixGuide.BuildEntries(dyingLight).All(entry =>
+                   entry.Note != "Stale entry." && !entry.FeatureKeys.Contains("Loc_PillTriggers")),
+            "A note of a feature that needs no manual fix reached the guide.");
+        Assert(ManualFixGuide.PageUrl(dyingLight).Length == 0,
+            "A non-HTTPS page address was exposed to the guide.");
+
+        var staleCloud = CreateGameList("{\"games\":[" +
+            "{\"title\":\"Forza Horizon 5\",\"normalized\":\"forzahorizon5\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixUrl\":\"https://www.pcgamingwiki.com/wiki/Forza_Horizon_5\"}," +
+            "{\"title\":\"Forza Motorsport 7\",\"normalized\":\"forzamotorsport7\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Cloud note.\",\"links\":[],\"tools\":[]}}}," +
+            "{\"title\":\"Forza Horizon 4\",\"normalized\":\"forzahorizon4\",\"adaptiveTriggers\":true}" +
+            "]}");
+        var filledFromEmbedded = ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Horizon 5"));
+        Assert(filledFromEmbedded.Count == 1 && filledFromEmbedded[0].Note.Length > 0,
+            "A catalogue without manual-fix notes did not fall back to the notes embedded in the Tray.");
+        var cloudWins = ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Motorsport 7"));
+        Assert(cloudWins.Count == 1 && cloudWins[0].Note == "Cloud note.",
+            "The embedded notes replaced the notes of the up-to-date catalogue.");
+        Assert(ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Horizon 4")).Count == 0,
+            "A game that needs no manual fix received the embedded notes.");
+
+        var translated = CreateGameList("{\"games\":[" +
+            "{\"title\":\"Forza Horizon 5\",\"normalized\":\"forzahorizon5\"," +
+            "\"adaptiveTriggers\":true,\"adaptiveTriggersManualFix\":true,\"requiresManualFix\":true," +
+            "\"manualFixDetails\":{\"adaptiveTriggers\":{\"note\":\"Requires DSX.\"," +
+            "\"links\":[{\"label\":\"Custom config\",\"url\":\"https://example.com/a\"," +
+            "\"translations\":{\"fr\":\"Configuration personnalisée\"}}]," +
+            "\"tools\":[\"DSX\"],\"translations\":{\"fr\":\"Nécessite DSX.\",\"ja\":\"\",\"es\":5}}}}" +
+            "]}");
+        var translatedGame = FindGame(translated, "Forza Horizon 5");
+        var french = ManualFixGuide.BuildEntries(translatedGame, "fr")[0];
+        Assert(french.Note == "Nécessite DSX." && french.Links[0].Label == "Configuration personnalisée",
+            "The note and link label were not shown in the selected language.");
+        foreach (var language in new[] { "en", "ja", "es", "xx", "", null })
+        {
+            var fallback = ManualFixGuide.BuildEntries(translatedGame, language)[0];
+            Assert(fallback.Note == "Requires DSX." && fallback.Links[0].Label == "Custom config",
+                "A missing or empty translation did not fall back to the English text: " + language);
+        }
+        Assert(translatedGame.AdaptiveTriggersFix.Links[0].Translations["FR"] == "Configuration personnalisée",
+            "Translation languages are not matched case-insensitively.");
+        Assert(translatedGame.AdaptiveTriggersFix.Translations.Count == 1,
+            "Empty or non-text translations were kept.");
+
+        Assert(ManualFixGuide.BuildEntries(FindGame(staleCloud, "Forza Horizon 5"), "fr")[0].Note
+                   .StartsWith("Nécessite DSX et RacingDSX", StringComparison.Ordinal),
+            "The embedded fallback lost the translations of the notes.");
+
+        var native = FindGame(list, "Native");
+        Assert(native.AdaptiveTriggersFix == null && ManualFixGuide.BuildEntries(native).Count == 0,
+            "A malformed manualFixDetails value produced guide entries.");
+        Assert(ManualFixGuide.BuildEntries(null).Count == 0, "A missing game produced guide entries.");
+
+        foreach (var url in new[] { "", "   ", "ftp://example.com/a", "http://example.com/a", "file:///C:/a.exe",
+                     "javascript:alert(1)", "https://user:secret@example.com/a", "https://", "not a url" })
+            Assert(!ManualFixGuide.IsOpenableUrl(url), "An unsafe address was accepted: " + url);
+        Assert(ManualFixGuide.IsOpenableUrl("https://github.com/cosmii02/RacingDSX"),
+            "A plain HTTPS address was rejected.");
+    }
+
     private static void TestPerGameApexProfileSettings()
     {
         var settings = new TraySettings();
@@ -739,6 +856,22 @@ internal static class TrayLearningTests
             Assert(FindGame(explicitGames, "Death Stranding 2: On the Beach").Profile == explicitProfile,
                 "An explicit cloud profile was overwritten by the embedded fallback.");
         }
+        var cachedAlanWake = CreateGameList("{\"games\":[{\"title\":\"Alan Wake II\",\"profile\":\"standard\"}]}");
+        Assert(FindGame(cachedAlanWake, "Alan Wake II").Profile == "alan-wake-2",
+            "An older cached catalogue lost the embedded Alan Wake 2 remapping.");
+        Assert(BridgeArguments.Build("alan-wake-2", false, 12, false, 0).Contains(
+            "--touchpad-profile alan-wake-2"),
+            "The shared launcher dropped the Alan Wake 2 touchpad profile.");
+        foreach (var profile in new[] { "spider-man-2", "miles-morales", "ghost-of-tsushima", "warframe", "death-stranding-2", "alan-wake-2" })
+        {
+            var entries = TouchpadRemapGuide.BuildEntries(profile);
+            Assert(entries.Count > 0 && entries.All(entry =>
+                    !string.IsNullOrEmpty(entry.ApexKey) && entry.ApexArguments.Length > 0 &&
+                    !string.IsNullOrEmpty(entry.DualSenseKey)),
+                "The touchpad remapping guide is incomplete for " + profile + ".");
+        }
+        Assert(TouchpadRemapGuide.BuildEntries("standard").Count == 0 && TouchpadRemapGuide.BuildEntries(null).Count == 0,
+            "The touchpad remapping guide invented entries for a standard game.");
         var originalDeathStranding = CreateGameList("{\"games\":[{\"title\":\"Death Stranding Director's Cut\",\"profile\":\"standard\"}]}");
         Assert(FindGame(originalDeathStranding, "Death Stranding Director's Cut").Profile == "standard",
             "The Death Stranding 2 profile leaked into the original game.");
@@ -794,9 +927,85 @@ internal static class TrayLearningTests
             "Default arguments disabled the trigger emulation.");
         Assert(BridgeArguments.Build("none", true, 12, false, 0, zoneEmulation: false).Contains("--no-zone-emulation"),
             "Disabling the trigger emulation did not reach the engine.");
+        Assert(BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: 40).Contains("--sync-lightbar --lightbar-brightness 40"),
+            "The lightbar brightness limit did not reach the engine.");
+        Assert(!BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: 100).Contains("--lightbar-brightness"),
+            "The default lightbar brightness limit changed the launch arguments.");
+        Assert(!BridgeArguments.Build("none", false, 12, false, 0, lightbarBrightnessPercent: 40).Contains("--lightbar-brightness"),
+            "The lightbar brightness limit was passed without the lightbar sync.");
+        Assert(BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: -5).Contains("--lightbar-brightness 0") &&
+            !BridgeArguments.Build("none", false, 12, true, 0, lightbarBrightnessPercent: 999).Contains("--lightbar-brightness"),
+            "The lightbar brightness limit was not bounded.");
         settings.ZoneEmulation = false;
         var disabledEmulation = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
         Assert(!disabledEmulation.ZoneEmulation, "Disabled trigger emulation did not survive serialization.");
+    }
+
+    private static void TestReportRelayClient()
+    {
+        var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        probe.Start();
+        int port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        string endpoint = "http://localhost:" + port + "/v1/report";
+
+        string bigImage = Path.Combine(Path.GetTempPath(), "asb-relay-big-" + Guid.NewGuid().ToString("N") + ".png");
+        string smallImage = Path.Combine(Path.GetTempPath(), "asb-relay-shot-" + Guid.NewGuid().ToString("N") + ".png");
+        File.WriteAllBytes(bigImage, new byte[9 * 1024 * 1024]);
+        File.WriteAllBytes(smallImage, new byte[] { 0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4 });
+
+        var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add("http://localhost:" + port + "/");
+        listener.Start();
+        string clientHeader = null;
+        string firstBody = null;
+        var server = System.Threading.Tasks.Task.Run(() =>
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                var context = listener.GetContext();
+                string body;
+                using (var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8))
+                    body = reader.ReadToEnd();
+                if (i == 0) { clientHeader = context.Request.Headers["X-ASB-Client"]; firstBody = body; }
+                byte[] payload = Encoding.UTF8.GetBytes(i == 0
+                    ? "{\"ok\":true,\"number\":7,\"url\":\"https://github.com/ReynArts/ApexSenseBridge/issues/7\"}"
+                    : "{\"ok\":false,\"error\":\"rate_limited\"}");
+                context.Response.StatusCode = i == 0 ? 200 : 429;
+                context.Response.ContentType = "application/json";
+                context.Response.OutputStream.Write(payload, 0, payload.Length);
+                context.Response.Close();
+            }
+        });
+
+        try
+        {
+            var sent = ReportRelayClient.Send(endpoint, "feature", "Per-game profiles", "A profile per game.",
+                null, null, "ASB-TEST", null, new[] { smallImage, bigImage });
+            Assert(sent.Success && sent.Url == "https://github.com/ReynArts/ApexSenseBridge/issues/7",
+                "The relay answer was not turned into an issue address: " + sent.Error);
+            Assert(sent.SkippedAttachments, "An image over the relay limit was not reported as skipped.");
+            Assert(clientHeader != null && clientHeader.StartsWith("tray/", StringComparison.Ordinal),
+                "The relay request did not identify the Tray.");
+            Assert(firstBody.Contains("name=category") && firstBody.Contains("feature") &&
+                   firstBody.Contains("Per-game profiles") && firstBody.Contains("name=screenshots"),
+                "The relay request lost its report fields.");
+            Assert(!firstBody.Contains(Path.GetFileName(bigImage)), "An image over the relay limit was uploaded.");
+
+            var refused = ReportRelayClient.Send(endpoint, "bug", "Title", "Text", null, null, "ASB-TEST", null, null);
+            Assert(!refused.Success && refused.Error == "rate_limited", "A refused report was reported as sent.");
+            server.Wait(5000);
+        }
+        finally
+        {
+            listener.Close();
+            File.Delete(bigImage);
+            File.Delete(smallImage);
+        }
+
+        var unreachable = ReportRelayClient.Send(endpoint, "bug", "Title", "Text", null, null, "ASB-TEST", null, null);
+        Assert(!unreachable.Success && !string.IsNullOrEmpty(unreachable.Error),
+            "An unreachable relay was reported as sent.");
     }
 
     private static void TestControllerCalibrations()
@@ -830,11 +1039,29 @@ internal static class TrayLearningTests
         a4.GyroStrengthPercent = 900;
         a5.VibrationStrengthPercent = 999;
         a6.HapticThresholdPercent = 95;
+        Assert(a4.LightbarBrightnessPercent == 100 && a5.LightbarBrightnessPercent == 100 && a6.LightbarBrightnessPercent == 100,
+            "The lightbar brightness limit did not default to 100.");
+        a4.LightbarBrightnessPercent = 40;
+        a5.LightbarBrightnessPercent = 40;
+        a6.LightbarBrightnessPercent = 999;
         var arguments = settings.BuildControllerCalibrationArguments();
-        Assert(arguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225") &&
-            arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100") &&
-            arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100"),
+        Assert(arguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225:100") &&
+            arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100:40") &&
+            arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100:100"),
             "Controller profiles were not bounded/serialized to the native protocol.");
+        Assert(a4.LightbarBrightnessPercent == 100 && a5.LightbarBrightnessPercent == 40 && a6.LightbarBrightnessPercent == 100,
+            "The lightbar brightness limit crossed the APEX 5 boundary.");
+        a5.LightbarBrightnessPercent = -5;
+        settings.BuildControllerCalibrationArguments();
+        Assert(a5.LightbarBrightnessPercent == 0, "The lightbar brightness limit was not bounded.");
+        a5.LightbarBrightnessPercent = 40;
+        Assert(serializer.Deserialize<TraySettings>(serializer.Serialize(settings))
+                .GetControllerCalibration("apex5").LightbarBrightnessPercent == 40,
+            "The lightbar brightness limit did not survive serialization.");
+        Assert(serializer.Deserialize<TraySettings>(
+                "{\"ControllerCalibrations\":{\"apex5\":{\"SyncLightbar\":true}}}")
+                .GetControllerCalibration("apex5").LightbarBrightnessPercent == 100,
+            "A settings file without the brightness limit did not keep the full brightness.");
         a4.VibrationStrengthPercent = 150;
         a5.VibrationStrengthPercent = 175;
         a6.VibrationStrengthPercent = 200;
@@ -847,10 +1074,40 @@ internal static class TrayLearningTests
             "Model-specific amplification did not survive persistence.");
         arguments = settings.BuildControllerCalibrationArguments();
         var builder = typeof(EngineSessionManager).GetMethod("BuildArguments", BindingFlags.Static | BindingFlags.NonPublic);
-        var sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3 });
+        var sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Alpha" });
         Assert(sessionArguments.EndsWith(arguments, StringComparison.Ordinal) &&
             !sessionArguments.Contains("--sync-lightbar") && !sessionArguments.Contains("--haptic-threshold"),
             "Session launch used legacy global tuning instead of verified-model selection.");
+        Assert(settings.GetGameTuning("alpha") == null, "A game had tuning it was never given.");
+        settings.SetGameTuning("alpha", "Alpha", new GameTuning
+        {
+            TriggerStrengthPercent = 55, VibrationStrengthPercent = 160, HapticThresholdPercent = 40
+        });
+        var stored = settings.GetGameTuning("ALPHA");
+        Assert(stored != null && stored.TriggerStrengthPercent == 55 && stored.VibrationStrengthPercent == 160 &&
+            stored.HapticThresholdPercent == 40 && settings.GetGameTuning("Alpha") != null,
+            "The per-game tuning was not stored under both the normalized name and the title.");
+        sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Alpha" });
+        Assert(sessionArguments.Contains("--controller-calibration apex4:55:160:40:0:0:400:225") &&
+            sessionArguments.Contains("--controller-calibration apex5:55:160:40:0:1:100:100") &&
+            sessionArguments.Contains("--controller-calibration apex6:55:100:0:1:0:100:100"),
+            "The per-game tuning did not replace the three settings within each model's limits.");
+        sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Beta" });
+        Assert(sessionArguments.EndsWith(arguments, StringComparison.Ordinal),
+            "A per-game tuning leaked to another game.");
+        restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(restored.GetGameTuning("alpha") != null && restored.GetGameTuning("alpha").HapticThresholdPercent == 40,
+            "The per-game tuning did not survive serialization.");
+        settings.SetGameTuning("alpha", "Alpha", new GameTuning
+        {
+            TriggerStrengthPercent = 500, VibrationStrengthPercent = 500, HapticThresholdPercent = 500
+        });
+        stored = settings.GetGameTuning("alpha");
+        Assert(stored.TriggerStrengthPercent == 100 && stored.VibrationStrengthPercent == 200 && stored.HapticThresholdPercent == 95,
+            "The per-game tuning was not bounded.");
+        settings.SetGameTuning("alpha", "Alpha", null);
+        Assert(settings.GetGameTuning("alpha") == null && settings.GetGameTuning("Alpha") == null &&
+            settings.GameTunings.Count == 0, "Clearing the per-game tuning left an override behind.");
         Assert(ControllerDetectionService.ParseVerifiedModel("Verified: Apex 4 (k4)") == "apex4" &&
             ControllerDetectionService.ParseVerifiedModel("Verified: Apex 5 (k5)") == "apex5" &&
             ControllerDetectionService.ParseVerifiedModel("Verified: Apex 6 Pro (k6)") == "apex6",
@@ -1135,6 +1392,18 @@ internal static class TrayLearningTests
                 view.WriteArray(16, failure, 0, failure.Length);
                 return 11;
             }
+            var lossEvent = Environment.GetEnvironmentVariable("ASB_TEST_LOSS_EVENT");
+            if (!string.IsNullOrEmpty(lossEvent))
+            {
+                using (var loss = EventWaitHandle.OpenExisting(lossEvent))
+                {
+                    var guard = Stopwatch.StartNew();
+                    while (guard.Elapsed < TimeSpan.FromSeconds(30) && !stop.WaitOne(25))
+                        progress.Write(8, loss.WaitOne(0) ? 31u : 15u);
+                }
+                view.Write(6, (ushort)4);
+                return 0;
+            }
             if (Array.IndexOf(args, "--disconnect") < 0) stop.WaitOne(10000);
             view.Write(6, (ushort)4);
             return 0;
@@ -1308,6 +1577,186 @@ internal static class TrayLearningTests
                 Assert(manager.AutomaticActivationBlocked, "Automatic Tray activation took over an interrupted external session.");
             }
             finally { manager.Dispose(); }
+        }
+    }
+
+    private static void TestControllerLostStatusMapping()
+    {
+        var lost = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Stages = 31 };
+        var steady = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Stages = 15 };
+        Assert(lost.ControllerLost && !steady.ControllerLost && !new BridgeSession.SessionInfo().ControllerLost,
+            "The physical-lost progress bit was not exposed as ControllerLost.");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var json = serializer.Serialize(lost);
+        Assert(!json.Contains("ControllerLost") && serializer.Deserialize<BridgeSession.SessionInfo>(json).ControllerLost,
+            "ControllerLost leaked into the discovery JSON or the stages no longer round-trip.");
+        Assert(EngineSessionManager.SessionStatusKey("Ready", true, false) == "Loc_SessionControllerLost",
+            "A ready session with a lost controller did not map to the waiting status.");
+        Assert(EngineSessionManager.SessionStatusKey("Ready", false, false) == "Loc_SessionReady",
+            "A ready session with its controller did not return to the normal status.");
+        Assert(EngineSessionManager.SessionStatusKey("Stopping", true, false) == "Loc_SessionStopping" &&
+               EngineSessionManager.SessionStatusKey("Failed", true, false) == "Loc_SessionFailed",
+            "A stale lost bit overrode a session that is no longer ready.");
+        Assert(EngineSessionManager.SessionStatusKey("Ready", true, true) == "Loc_SessionInterrupted",
+            "A pending recovery was hidden by the waiting status.");
+        Assert(EngineSessionManager.IsWaitingForController("Ready", true) && !EngineSessionManager.IsWaitingForController("Starting", true) &&
+               !EngineSessionManager.IsWaitingForController("Ready", false),
+            "The waiting-for-controller predicate is wrong.");
+
+        var recovery = new SessionRecoveryState();
+        Assert(recovery.Offer("Alpha", "standard", 2, 1, 31), "The lost bit changed which interruptions offer recovery.");
+        Assert(recovery.Begin(), "Recovery could not begin.");
+        recovery.Observe(16);
+        Assert(recovery.Stages == 0, "Recovery observed the physical-lost bit as a verification stage.");
+        recovery.Observe(31);
+        Assert(recovery.Stages == 15, "Recovery stages no longer mask the physical-lost bit.");
+        recovery.Clear();
+        Assert(!recovery.Offer("Alpha", "standard", 2, 1, 23), "The lost bit stood in for the runtime-ready stage.");
+    }
+
+    private static void TestControllerLostLocalization()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", ".."));
+        var directory = Path.Combine(root, "ApexSenseBridgeTray", "Resources", "Languages");
+        Assert(Directory.Exists(directory), "The language resources were not found.");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        var english = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(directory, "en.json"), Encoding.UTF8));
+        var languages = new[] { "en", "es", "fr", "ja", "ko", "pt", "ru", "vi", "zh" };
+        foreach (var language in languages)
+        {
+            var path = Path.Combine(directory, language + ".json");
+            Assert(File.Exists(path), language + ".json is missing.");
+            var entries = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(path, Encoding.UTF8));
+            Assert(entries.Count == english.Count && english.Keys.All(entries.ContainsKey),
+                language + ".json does not define exactly the English key set.");
+            foreach (var key in new[] { "Loc_SessionControllerLost", "Loc_SessionControllerLostHint" })
+            {
+                var text = entries[key] as string;
+                Assert(!string.IsNullOrWhiteSpace(text), language + " has an empty " + key + ".");
+                Assert(language == "en" || text != (string)english[key], language + " reuses the English text for " + key + ".");
+            }
+        }
+    }
+
+    private static void TestControllerLostIsNotAFailure()
+    {
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ControllerLostTest." + Guid.NewGuid().ToString("N");
+        var signalName = "Local\\ASB.ControllerLostSignal." + Guid.NewGuid().ToString("N");
+        using (var signal = new EventWaitHandle(false, EventResetMode.ManualReset, signalName))
+        {
+            Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", signalName);
+            var manager = new EngineSessionManager(() => executable, discovery, () => false);
+            try
+            {
+                int changes = 0, stops = 0, errors = 0;
+                manager.StateChanged += () => Interlocked.Increment(ref changes);
+                manager.SessionStopped += reason => Interlocked.Increment(ref stops);
+                manager.SessionError += error => Interlocked.Increment(ref errors);
+                string startError;
+                Assert(manager.StartSession("Alpha", "standard", new TraySettings(), out startError), "Fake bridge session did not start: " + startError);
+                Thread.Sleep(1200);
+                Assert(manager.IsSessionActive && !manager.ControllerLost &&
+                       EngineSessionManager.SessionStatusKey(manager.StateName, manager.ControllerLost, false) == "Loc_SessionReady",
+                    "A healthy Tray-owned session was reported as waiting for its controller.");
+                int baseline = Volatile.Read(ref changes);
+
+                signal.Set();
+                WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "The Tray-owned session never reported the lost controller.");
+                Thread.Sleep(1200);
+                Assert(manager.IsSessionActive && manager.IsSessionHealthy && manager.StateName == "Ready",
+                    "Losing the controller ended or degraded the still-running session.");
+                Assert(EngineSessionManager.SessionStatusKey(manager.StateName, manager.ControllerLost, manager.Recovery.Pending && !manager.Recovery.Resuming) == "Loc_SessionControllerLost",
+                    "The dashboard status for a lost controller is not the waiting status.");
+                int unexpectedCode;
+                string unexpectedReason;
+                Assert(!manager.Recovery.Pending && !manager.AutomaticActivationBlocked && !manager.TryTakeUnexpectedExit(out unexpectedCode, out unexpectedReason),
+                    "A lost controller was handled as a failure or offered recovery.");
+                Assert(stops == 0 && errors == 0, "A lost controller raised a stop or error notification.");
+                Assert(Volatile.Read(ref changes) == baseline + 1, "StateChanged did not fire exactly once when the flag was set.");
+
+                signal.Reset();
+                WaitUntil(() => !manager.ControllerLost, TimeSpan.FromSeconds(3), "The Tray-owned session never recovered from the lost controller.");
+                Thread.Sleep(1200);
+                Assert(EngineSessionManager.SessionStatusKey(manager.StateName, manager.ControllerLost, false) == "Loc_SessionReady" &&
+                       manager.IsSessionActive && !manager.Recovery.Pending,
+                    "The dashboard status did not return to normal when the controller came back.");
+                Assert(Volatile.Read(ref changes) == baseline + 2, "StateChanged did not fire exactly once when the flag cleared.");
+                Assert(stops == 0 && errors == 0, "Recovering the controller raised a stop or error notification.");
+
+                signal.Set();
+                WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "A second loss was not reported.");
+                manager.StopSession("Controller loss test stopped");
+                Assert(!manager.ControllerLost && !manager.IsSessionActive, "Stopping a waiting session left the flag set.");
+            }
+            finally
+            {
+                manager.Dispose();
+                Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", null);
+            }
+        }
+    }
+
+    private static void TestControllerLostOnExternalSession()
+    {
+        string error;
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var discovery = "Local\\ASB.ExternalControllerLostTest." + Guid.NewGuid().ToString("N");
+        var signalName = "Local\\ASB.ExternalControllerLostSignal." + Guid.NewGuid().ToString("N");
+        using (var signal = new EventWaitHandle(false, EventResetMode.ManualReset, signalName))
+        {
+            Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", signalName);
+            try
+            {
+                using (var session = BridgeSession.TryStart(executable, "--fake-session", TimeSpan.FromSeconds(3), null, null, out error, "Alpha", "standard", discovery))
+                {
+                    Assert(session != null, "Fake external session did not start: " + error);
+                    var info = BridgeSession.ReadActiveSession(discovery);
+                    info.Owner = "Playnite";
+                    using (var mapping = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(discovery))
+                    using (var view = mapping.CreateViewAccessor())
+                    {
+                        var bytes = Encoding.UTF8.GetBytes(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(info));
+                        view.Write(0, 0); view.WriteArray(4, bytes, 0, bytes.Length); view.Write(0, bytes.Length);
+                    }
+                    var manager = new EngineSessionManager(() => executable, discovery, () => false);
+                    try
+                    {
+                        int changes = 0, stops = 0, errors = 0;
+                        manager.StateChanged += () => Interlocked.Increment(ref changes);
+                        manager.SessionStopped += reason => Interlocked.Increment(ref stops);
+                        manager.SessionError += err => Interlocked.Increment(ref errors);
+                        Thread.Sleep(1200);
+                        Assert(!manager.ControllerLost && BridgeSession.ReadActiveSession(discovery).ControllerLost == false,
+                            "A healthy external session was reported as waiting for its controller.");
+                        int baseline = Volatile.Read(ref changes);
+
+                        signal.Set();
+                        WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "The external session never reported the lost controller.");
+                        var read = BridgeSession.ReadActiveSession(discovery);
+                        Assert(read != null && read.Phase == SessionPhase.Ready && read.ControllerLost && read.Interruption == 0,
+                            "The external lost-controller state was not read from the shared progress block.");
+                        Thread.Sleep(1200);
+                        Assert(!manager.Recovery.Pending && !manager.AutomaticActivationBlocked && !manager.IsSessionActive && stops == 0 && errors == 0,
+                            "A lost controller on an external session was handled as a failure or offered recovery.");
+                        Assert(Volatile.Read(ref changes) == baseline + 1, "StateChanged did not fire exactly once for the external flag.");
+
+                        signal.Reset();
+                        WaitUntil(() => !manager.ControllerLost, TimeSpan.FromSeconds(3), "The external session never recovered from the lost controller.");
+                        Thread.Sleep(1200);
+                        Assert(Volatile.Read(ref changes) == baseline + 2 && !manager.Recovery.Pending && stops == 0 && errors == 0,
+                            "The external flag clearing was not reported exactly once or raised a failure.");
+
+                        signal.Set();
+                        WaitUntil(() => manager.ControllerLost, TimeSpan.FromSeconds(3), "A second external loss was not reported.");
+                        Assert(session.StopAndWait(TimeSpan.FromSeconds(3)), "The fake external session did not stop.");
+                        WaitUntil(() => !manager.ControllerLost, TimeSpan.FromSeconds(3), "A finished external session kept the waiting flag.");
+                        Assert(!manager.Recovery.Pending && stops == 0, "A cleanly stopped external session offered recovery.");
+                    }
+                    finally { manager.Dispose(); }
+                }
+            }
+            finally { Environment.SetEnvironmentVariable("ASB_TEST_LOSS_EVENT", null); }
         }
     }
 
@@ -2257,6 +2706,13 @@ internal static class TrayLearningTests
             "The generated database lost the PCGamingWiki RequireManualFix metadata.");
         Assert(manualFixGames.All(game => !string.IsNullOrWhiteSpace(game.ManualFixUrl)),
             "A manual-fix game has no PCGamingWiki guidance URL.");
+        Assert(manualFixGames.Count(game => ManualFixGuide.BuildEntries(game).Count > 0) >= 20,
+            "The generated database lost the PCGamingWiki manual-fix notes.");
+        var translatableGames = manualFixGames.Where(game => ManualFixGuide.BuildEntries(game, "fr")
+            .Any(entry => entry.Note.Length > 3 && !ManualFixGuide.BuildEntries(game, "en")
+                .Any(english => english.Note == entry.Note))).Count();
+        Assert(translatableGames >= 25,
+            "The generated database lost the translations of the manual-fix notes.");
 
         SupportedGame resolved;
         Assert(gameList.TryFindByExecutable(@"C:\Games\Apex\r5apex.exe", out resolved) &&

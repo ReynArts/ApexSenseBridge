@@ -68,6 +68,15 @@
     <Compile Include="..\ApexSenseBridgeTray\Services\GameActivationPolicy.cs">
       <Link>Production\GameActivationPolicy.cs</Link>
     </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\ManualFixGuide.cs">
+      <Link>Production\ManualFixGuide.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\TouchpadRemapGuide.cs">
+      <Link>Production\TouchpadRemapGuide.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\ReportRelayClient.cs">
+      <Link>Production\ReportRelayClient.cs</Link>
+    </Compile>
     <Compile Include="..\ApexSenseBridgeTray\Services\PlatformClientProcessFilter.cs">
       <Link>Production\PlatformClientProcessFilter.cs</Link>
     </Compile>

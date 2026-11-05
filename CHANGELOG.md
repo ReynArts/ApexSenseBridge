@@ -14,6 +14,203 @@
 - Adds a UDP listener on `127.0.0.1` (`--udp-bind`, `--udp-port`, default `10026` in the Tray) that accepts JSON trigger commands. 
 To custom JSON trigger you can check the MHWilds Haptic Pack mod: [Nexus Mods - MHWilds Haptic Pack (Mod #5079)](https://www.nexusmods.com/monsterhunterwilds/mods/5079?tab=description)
 - If the port is busy or cannot be bound, the session continues without UDP. The Tray shows a warning under "Bridge ready" and turns the UDP option off automatically.
+### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
+
+- New `alan-wake-2` touchpad profile. On the Xbox layout, `View` opens the Mind
+  Place / Writer's Room and holding it goes straight to the map; the DualSense
+  version expects the right and left sides of the touchpad instead. A `View` tap
+  is now sent as a right-side click and a hold (400 ms) as a left-side click kept
+  down until release. Previously `View` was a centre click, which the game ignores.
+  (Issue #73)
+- The **Touchpad remapping** pill in the Tray game details now opens a panel,
+  like the manual-fix one, that lists for each profile the APEX control (Xbox
+  layout) and the DualSense input it becomes, with what it does in the game.
+  Available in all nine languages.
+
+### APEX 6 Pro: trigger vibration no longer rings after release on newer firmware
+
+- Newer controller firmware keeps playing the last trigger waveform when the
+  trigger channel is simply switched off. When a trigger effect ends, the bridge
+  now sends a few explicit zero-amplitude trigger frames (trigger channel still
+  enabled) before muting it, so the trigger and grip "hum" stops at release.
+  (Issue #74)
+
+### Report window: categories, full logs and saving without a GitHub account
+
+- **Settings → Send a report** opens a choice with an icon and a title for each
+  entry: **Bug**, **Feature or improvement**, **Unsupported game** and
+  **Download the logs**. The first three open the form for that category (matching
+  the GitHub automation; an unsupported game asks for the game name and an
+  optional executable or store link; feature requests carry no diagnostics). The
+  last one saves the logs as a ZIP straight away.
+- The report can attach the **full logs** as a ZIP (user name and personal
+  folders removed, last 8 MB of each log). The ZIP is copied like the screenshots
+  so it can be pasted into the issue with Ctrl+V.
+- Without a GitHub account, a small link next to the main button sends the report
+  anonymously: a relay (Cloudflare Worker, `tools/report-relay`) opens the issue
+  through the `apexsensebridge-reports` GitHub App, so the issue is public and
+  authored by the bot, without the reporter's name. Images are served through
+  unguessable links; attached full logs are readable only by the maintainer. If
+  the relay cannot be reached, the Tray offers to save the report, diagnostics,
+  logs and images as one file instead.
+- New `game-request` label and `[Unsupported game]` title rule for the issue
+  automation.
+
+### Catalogue: workaround notes for manual-fix games
+
+- The nightly catalogue update now reads each manual-fix game's PCGamingWiki
+  page and stores, per feature (adaptive triggers, haptic feedback), the
+  workaround note in `manualFixDetails`: a cleaned plain-text note (at most 600
+  characters), up to 6 links (external links and namespaced wiki pages such as
+  the DSX section) and the well-known helper tools it names (DSX, DSY,
+  RacingDSX, DualSenseAT, Special K, SimHub).
+- When a page cannot be read, the previous notes are kept, so a PCGamingWiki
+  outage never empties the catalogue. Games that no longer need a manual fix
+  lose the field.
+- `validate_supported_games.py` checks the new field (matching manual-fix
+  flag, HTTPS links, known tool names). The compatibility of each workaround
+  with the virtual DualSense is not known and is not inferred by the update.
+- The Tray shows these notes without adding permanent clutter: the **Manual
+  fix** badge of a game's detail pane (also **Manual fix applied**) is now
+  clickable and unfolds a panel right below the badges, collapsed by default and
+  closed again when another game is selected. The panel lists, per feature, the
+  PCGamingWiki note, the tools it names and its links (plain HTTPS addresses
+  only, opened in the default browser), a button to the game's PCGamingWiki page
+  and a warning that the workaround was not tested with the virtual DualSense.
+  The "Allow automatic activation" switch and its explanation moved into this
+  panel, so the pane keeps its former layout when it is folded. The panel is
+  mouse-only, like the per-game tuning controls.
+- The notes and the generic link labels ("Custom config", "Mod") are shown in
+  the interface language. The translations live in
+  `data/manual_fix_translations.json`, keyed by a hash of the English note, in
+  the 8 non-English languages; the nightly update attaches them to the
+  catalogue (`translations`). Nothing needs reviewing day to day: when
+  PCGamingWiki adds or rewrites a note its hash changes, the old translation is
+  dropped and the nightly update translates the new text with the free
+  MyMemory web service (no account, no key, nothing to install) and commits it
+  to `data/manual_fix_translations.json` together with the catalogue. The tool
+  names (DSX, RacingDSX, Special K…) are hidden from the service behind neutral
+  tokens and put back afterwards. Each language is checked on its own (one
+  line, no added web address, a reasonable length, every tool name of the
+  source) and only the good ones are kept; a rejected language, a service
+  failure or the daily free quota (about 5000 characters) just leaves the
+  English text in the Tray, and the note is retried the next night. The
+  validator enforces the same rules on the stored file. Optionally, the
+  environment variable `MANUAL_FIX_TRANSLATION_EMAIL` raises the free quota
+  tenfold. Machine translation is less polished than the hand-written one the
+  25 current notes have, and generic link labels are not translated
+  automatically.
+- The Tray downloaded its catalogue from a `main` branch that the repository
+  does not have; it now reads `stable`, the branch the nightly update keeps
+  current. That copy has no manual-fix notes until the updated script and data
+  reach `stable`. A manual-fix game whose downloaded entry carries no note now falls back
+  to the note embedded in the Tray's own catalogue (as already done for
+  profiles); notes present in the downloaded catalogue always win.
+
+### Reset buttons for controller tuning, per-game tuning and a lighter executable control
+
+- Each tuning slider (trigger strength, vibration strength, APEX 4 gyro and
+  haptic activation threshold) has a reset button that restores the default.
+- A game's detail pane has one "Customize settings for this game" button. It
+  reveals trigger strength, vibration strength and (APEX 4 and 5) the haptic
+  threshold for that game only; "Default settings" returns all three to the
+  global values. Applied when the game's session starts. The APEX 6 Pro keeps
+  its fixed threshold of 0 and its 100 % vibration limit.
+- The game executable is a single button: choose an .exe, then the same button
+  returns to automatic detection. The dropdown of learned executables is gone;
+  learned executables are still used automatically and managed in the learned
+  executables tab.
+- The Support button no longer has a white outline.
+
+### The virtual DualSense survives a controller power cycle (APEX 4 and APEX 5)
+
+- Switching the APEX off, letting it sleep (the 2.4 GHz receiver stays present
+  but goes silent for one second) or unplugging it during a session no longer
+  ends the engine. It keeps the virtual DualSense connected with a neutral input
+  and waits for the same controller, so a game that was running does not have
+  to be restarted and its button prompts do not flip. The wait lasts 10 minutes
+  by default; `--reattach-seconds N` (0 to 3600) changes it and `0` restores the
+  previous behaviour (the engine stops and the Tray offers its voluntary
+  recovery).
+- When the controller answers again the bridge verifies its identity, accepts
+  only the same model and, with several APEX connected, only the interface it
+  was using (same path, then serial number, then container). It then refreshes
+  the HidHide device list so a controller that came back under new device
+  identifiers (other USB port, cable instead of receiver) is hidden again,
+  re-applies the requested APEX profile and the input routing when the power
+  cycle reset them, re-establishes the neutral trigger and rumble baseline,
+  reopens the physical input with three fresh reports and, on an APEX 5, the
+  independent LT/RT stream, then recreates the trigger and rumble bridges. The
+  game's last trigger effect and RGB colour are replayed; rumble is never
+  replayed.
+- More than six losses within 10 minutes, no return within the window, an APEX
+  6 Pro, a different model or an isolation refresh that keeps failing fall back
+  to the previous behaviour. Stopping a session while the controller is off now
+  ends cleanly: restoring the original profile and input routing is deferred to
+  the next time that controller is awake (the same record as
+  [#44](https://github.com/ReynArts/ApexSenseBridge/issues/44)/[#45](https://github.com/ReynArts/ApexSenseBridge/issues/45))
+  instead of failing the session.
+- The session progress block gains the bit `PhysicalLost` (16) while the engine
+  waits; the phase stays Ready. The Tray shows "Waiting for controller" with an
+  explanation, offers no recovery and records no failure. Telemetry reports
+  `physical_reattaches` and `physical_lost_ms`.
+- New tests cover the controller matching, the loss budget, the reattach plan,
+  the feedback router that remembers the last effects, the new option, the
+  progress bit, closing the device transport and the Tray status. Not yet
+  validated on hardware: power-cycling an APEX 4/5 during a game, and a
+  controller returning on another USB port.
+
+### Home no longer covered by the running game's cover art
+
+- With a game running, a portrait cover (such as a Steam capsule) could stretch
+  the home banner to several thousand pixels: the blurred image filled the whole
+  home tab and pushed the status, title and controller out of the window. The
+  cover is now painted as a background brush, so it no longer takes part in the
+  layout.
+
+### Game detection: Grand Theft Auto V Enhanced was matched to the original game
+
+- `GTA5_Enhanced.exe` carries the product name "Grand Theft Auto V", and the
+  detection kept the first exact match, so the process was attached to the
+  original "Grand Theft Auto V" entry (which needs a manual fix) and skipped: the
+  bridge never started for the real game. When several clues give an exact match,
+  the most specific game now wins, so the install folder "Grand Theft Auto V
+  Enhanced" beats the product name.
+
+### Why keeping the Xbox prompts with adaptive triggers is not offered
+
+- Tried and removed: delaying the start of the bridge after the game is detected,
+  hoping a game that chooses its prompts at launch would keep the Xbox ones. On
+  Grand Theft Auto V Enhanced (Steam), one session with the bridge attached 26 s
+  after the game process appeared kept the Xbox prompts but the game sent no
+  adaptive-trigger effect (5 distinct blocks, all off or zero force); another
+  attached after 20 s showed PlayStation prompts with weapon and vibration
+  effects, as did the sessions without delay. The game seems to choose its
+  controller type once, between roughly 20 and 26 s after it starts, and that same
+  choice enables or disables the DualSense effects. Xbox prompts and adaptive
+  triggers did not come together with this method; each result is a single
+  session.
+- Flydigi Space Station has no such delay: its decompiled code enables its
+  DualSense as soon as the game process is seen (about 0.5 s on Grand Theft Auto V
+  Enhanced in its own log), and on this machine it showed PlayStation prompts
+  there as well. An earlier session where it showed Xbox prompts remains
+  unexplained.
+
+### Lightbar sync keeps the Space Station brightness, with a limit (APEX 5)
+
+- "DualSense Lightbar sync (RGB)" no longer forces the LEDs to full
+  brightness. Each synchronized color is written with the brightness saved in
+  the controller profile by Flydigi Space Station, so a dimmed controller stays
+  dimmed while its color follows the game.
+- A "Lightbar max brightness" slider (0 to 100%, default 100%) next to the
+  sync switch in the Tray settings, APEX 5 only and translated in every
+  language, caps that brightness further. The Playnite extension has the same
+  field. The engine takes it as `--lightbar-brightness 0..100` on
+  `bridge-triggers`, or as an optional ninth field of
+  `--controller-calibration` (`MODEL:...:YAW:RGBBRIGHTNESS`); older launchers
+  that pass eight fields keep the full brightness. The startup banner and the
+  end-of-session summary report the brightness used, the Space Station value
+  and the limit.
 
 ### Per-zone and rhythmic trigger emulation (APEX 5, on by default)
 

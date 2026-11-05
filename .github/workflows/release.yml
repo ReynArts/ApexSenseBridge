@@ -121,3 +121,15 @@ jobs:
           generate_release_notes: false
           draft: false
           prerelease: ${{ github.ref_name == 'v1.0.2' || contains(github.ref_name, '-') }}
+
+  # Releases created with GITHUB_TOKEN do not trigger a separate release workflow.
+  # Call it explicitly after publication; manual publications use its release event.
+  issue-followup:
+    needs: build-and-release
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/release-issue-followup.yml
+    with:
+      release_tag: ${{ github.ref_name }}

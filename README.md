@@ -89,6 +89,8 @@ Hardware-tested titles include the following. Features depend on the game and co
 
 The catalogue tracks native PlayStation 5 DualSense support using PCGamingWiki. Catalogue detection does not certify every effect on every APEX model. The Standalone Tray App and Playnite extension automatically recognize and engage the bridge when any supported title launches.
 
+**[🎮 Browse the full game catalogue](GAMES.md)** — an alphabetical list with adaptive-trigger and haptic-feedback support, manual-fix links, and recent additions with cover art. Updated automatically with the daily catalogue refresh.
+
 ### What Does "Manual fix" Mean?
 
 A **Manual fix** badge in the game list means the game does not provide the listed DualSense feature by itself: PCGamingWiki classes it as "hackable", so it needs a third-party modification or setting that **you** apply. ApexSenseBridge does not install, run or check these fixes. By default the bridge therefore stays off for such games and leaves your physical controller available.
@@ -241,7 +243,9 @@ in the settings file; the engine selects the matching profile after
 verifying the actual hardware, not from the last model displayed in the UI.
 Gyro tuning is APEX 4-only (25–400% sensitivity and separate yaw correction);
 for APEX 4 gyro to work, the gyro must be enabled in the active Flydigi Space
-Station profile (Gyro tab). RGB is APEX 5-only, and the APEX 6 haptic
+Station profile (Gyro tab). RGB is APEX 5-only: the lightbar sync writes the
+game color with the brightness saved in Flydigi Space Station, and the
+"Lightbar max brightness" slider (0–100%) caps it further. The APEX 6 haptic
 threshold is fixed at 0. General Tray preferences remain editable without a
 controller. Existing strength/rumble preferences migrate without being reset;
 subsequent edits affect only the selected model. Playnite keeps its independent
@@ -249,7 +253,21 @@ settings.
 
 ### Disconnection Recovery
 
-After a confirmed runtime disconnection, Tray pauses automatic activation for
+**Switching the controller off and on.** On an APEX 4 or APEX 5, turning the
+controller off, letting it fall asleep or unplugging it during a session does
+not end the session. The virtual DualSense stays connected with neutral input,
+so the game never sees a controller disappear, does not need to be restarted
+and does not change its button prompts. The bridge waits up to 10 minutes (the
+`--reattach-seconds` option of `bridge-triggers`; `0` turns it off) for the same
+controller, then re-checks it, hides it again if Windows gave it new device
+identifiers (another USB port, cable instead of receiver), restores the profile
+and input routing the session needs, and replays the game's last trigger effect
+and RGB colour. Rumble is deliberately not replayed. The Tray shows
+"Waiting for controller" meanwhile. If the controller does not return in time,
+is lost more than six times within 10 minutes, or is an APEX 6 Pro, the bridge
+stops as before and the voluntary recovery below applies.
+
+After a confirmed runtime disconnection that the bridge cannot ride out, Tray pauses automatic activation for
 the interrupted session. The home page offers a voluntary **Resume bridge**
 action and shows real controller, virtual-device, isolation and runtime checks.
 Recovery retains the game/profile/APEX slot and never closes or relaunches the
@@ -275,6 +293,7 @@ For games that use DualSense touchpad regions or swipes, ApexSenseBridge transla
 | **Ghost of Tsushima** | Hold `D-pad Right` + Flick Right Stick | Directional Wind Swipe in flick direction |
 | **Warframe** | Hold `RB` + Press `A/B/X/Y` | Ability Swipes (Up / Down / Left / Right) |
 | **Death Stranding 2** | Press/hold `View/Back` / `LB + Menu` | Right-side Click/Hold (Likes, Communication, Like Icon) / Left-side Click (Photo Mode) |
+| **Alan Wake 2** | Press `View` / Hold `View` | Right-side Click (Mind Place / Writer's Room) / Left-side Click while held (Map) |
 | **Standard DualSense** | Press `View` | Touchpad Click (no directional swipe) |
 
 Death Stranding 2 uses the default Xbox layout: `View/Back` is forwarded without

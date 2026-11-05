@@ -227,7 +227,8 @@ namespace ApexSenseBridge
                 TouchpadRemappingMode.MilesMorales,
                 TouchpadRemappingMode.GhostOfTsushima,
                 TouchpadRemappingMode.Warframe,
-                TouchpadRemappingMode.DeathStranding2
+                TouchpadRemappingMode.DeathStranding2,
+                TouchpadRemappingMode.AlanWake2
             })
             {
                 var selectedChoice = choice;
@@ -358,6 +359,9 @@ namespace ApexSenseBridge
                 case BridgeProfileType.DeathStranding2:
                     gestureProfile = "death-stranding-2";
                     break;
+                case BridgeProfileType.AlanWake2:
+                    gestureProfile = "alan-wake-2";
+                    break;
                 default:
                     gestureProfile = "none";
                     break;
@@ -372,7 +376,8 @@ namespace ApexSenseBridge
                 settings.Settings.VibrationStrengthPercent,
                 settings.Settings.Apex4GyroStrengthPercent,
                 settings.Settings.Apex4GyroYawStrengthPercent,
-                settings.Settings.ZoneEmulation);
+                settings.Settings.ZoneEmulation,
+                settings.Settings.LightbarBrightnessPercent);
         }
 
         private static string Mark(bool selected)

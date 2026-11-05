@@ -12,6 +12,9 @@ namespace ApexSenseBridgeTray.Models
         public int HapticThresholdPercent { get; set; } = 12;
         public bool EnableRumble { get; set; } = true;
         public bool SyncLightbar { get; set; }
+        // Upper limit for the synchronized lightbar. The engine uses the lower
+        // of this and the brightness saved in Flydigi Space Station.
+        public int LightbarBrightnessPercent { get; set; } = 100;
         public int GyroStrengthPercent { get; set; } = 100;
         public int GyroYawStrengthPercent { get; set; } = 100;
 
@@ -21,8 +24,33 @@ namespace ApexSenseBridgeTray.Models
             VibrationStrengthPercent = Math.Max(0, Math.Min(model == "apex6" ? 100 : 200, VibrationStrengthPercent));
             HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
             SyncLightbar = model == "apex5" && SyncLightbar;
+            LightbarBrightnessPercent = model == "apex5" ? Math.Max(0, Math.Min(100, LightbarBrightnessPercent)) : 100;
             GyroStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroStrengthPercent)) : 100;
             GyroYawStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroYawStrengthPercent)) : 100;
+        }
+    }
+
+    public sealed class GameTuning
+    {
+        public int TriggerStrengthPercent { get; set; }
+        public int VibrationStrengthPercent { get; set; }
+        public int HapticThresholdPercent { get; set; }
+
+        public GameTuning()
+        {
+            TriggerStrengthPercent = 100;
+            VibrationStrengthPercent = 100;
+            HapticThresholdPercent = 12;
+        }
+
+        public GameTuning Clone()
+        {
+            return new GameTuning
+            {
+                TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent)),
+                VibrationStrengthPercent = Math.Max(0, Math.Min(200, VibrationStrengthPercent)),
+                HapticThresholdPercent = Math.Max(0, Math.Min(95, HapticThresholdPercent))
+            };
         }
     }
 
@@ -58,6 +86,7 @@ namespace ApexSenseBridgeTray.Models
         // Maps each Apex 5 rear button (M1, M2, M3, M4, LM, RM) to a user-chosen
         // action name. Keys are the button names as produced by RearButtonService.
         public Dictionary<string, string> RearButtonBindings { get; set; }
+        public Dictionary<string, GameTuning> GameTunings { get; set; }
         // Legacy scalar preferences remain for migration, not as an active
         // cross-model calibration. Never persist the last connected model.
         public Dictionary<string, ControllerCalibration> ControllerCalibrations { get; set; }
@@ -96,19 +125,29 @@ namespace ApexSenseBridgeTray.Models
             }
         }
 
-        internal string BuildControllerCalibrationArguments()
+        internal string BuildControllerCalibrationArguments(GameTuning gameTuning = null)
         {
             lock (this)
             {
                 var result = new System.Text.StringBuilder();
+                var tuning = gameTuning != null ? gameTuning.Clone() : null;
                 foreach (var model in new[] { "apex4", "apex5", "apex6" })
                 {
                     var c = GetControllerCalibration(model);
+                    int trigger = c.TriggerStrengthPercent;
+                    int vibration = c.VibrationStrengthPercent;
+                    int threshold = c.HapticThresholdPercent;
+                    if (tuning != null)
+                    {
+                        trigger = tuning.TriggerStrengthPercent;
+                        vibration = Math.Min(model == "apex6" ? 100 : 200, tuning.VibrationStrengthPercent);
+                        if (model != "apex6") threshold = tuning.HapticThresholdPercent;
+                    }
                     result.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
-                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}",
-                        model, c.TriggerStrengthPercent, c.VibrationStrengthPercent,
-                        c.HapticThresholdPercent, c.EnableRumble ? 1 : 0, c.SyncLightbar ? 1 : 0,
-                        c.GyroStrengthPercent, c.GyroYawStrengthPercent);
+                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}:{8}",
+                        model, trigger, vibration,
+                        threshold, c.EnableRumble ? 1 : 0, c.SyncLightbar ? 1 : 0,
+                        c.GyroStrengthPercent, c.GyroYawStrengthPercent, c.LightbarBrightnessPercent);
                 }
                 return result.ToString();
             }
@@ -138,6 +177,43 @@ namespace ApexSenseBridgeTray.Models
             ManualFixAllowedGames = new List<string>();
             ApexProfileSlots = new Dictionary<string, int>();
             RearButtonBindings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            GameTunings = new Dictionary<string, GameTuning>();
+        }
+
+        public GameTuning GetGameTuning(string normalizedOrTitle)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedOrTitle)) return null;
+            lock (this)
+            {
+                if (GameTunings == null) return null;
+                foreach (var item in GameTunings)
+                {
+                    if (item.Value != null &&
+                        string.Equals(item.Key, normalizedOrTitle.Trim(), StringComparison.OrdinalIgnoreCase))
+                        return item.Value.Clone();
+                }
+                return null;
+            }
+        }
+
+        public void SetGameTuning(string normalized, string title, GameTuning tuning)
+        {
+            lock (this)
+            {
+                if (GameTunings == null) GameTunings = new Dictionary<string, GameTuning>();
+                foreach (var key in new[] { normalized, title })
+                {
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    var trimmed = key.Trim();
+                    string existing = null;
+                    foreach (var current in GameTunings.Keys)
+                    {
+                        if (string.Equals(current, trimmed, StringComparison.OrdinalIgnoreCase)) { existing = current; break; }
+                    }
+                    if (existing != null) GameTunings.Remove(existing);
+                    if (tuning != null) GameTunings[trimmed] = tuning.Clone();
+                }
+            }
         }
 
         public bool IsGameExcluded(string normalizedOrTitle)
@@ -341,6 +417,7 @@ namespace ApexSenseBridgeTray.Models
                         {
                             settings.RearButtonBindings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                         }
+                        if (settings.GameTunings == null) settings.GameTunings = new Dictionary<string, GameTuning>();
                         return settings;
                     }
                 }

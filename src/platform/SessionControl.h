@@ -27,6 +27,7 @@ enum class SessionPhase : std::uint16_t {
 // Optional additive IPC: old launchers keep the original 512-byte status ABI.
 enum class SessionProgress : std::uint32_t {
     ControllerVerified = 1, VirtualReady = 2, IsolationVerified = 4, RuntimeReady = 8,
+    PhysicalLost = 16,
 };
 enum class SessionInterruption : std::uint32_t {
     None = 0, PhysicalDisconnected = 1, VirtualDisconnected = 2, InputStreamLost = 3,
@@ -58,6 +59,7 @@ static_assert(sizeof(SessionStatusBlock) == kSessionStatusSize);
 class SessionControl {
 public:
     virtual void markProgress(SessionProgress) noexcept {}
+    virtual void clearProgress(SessionProgress) noexcept {}
     virtual void markInterrupted(SessionInterruption) noexcept {}
     virtual ~SessionControl() = default;
 

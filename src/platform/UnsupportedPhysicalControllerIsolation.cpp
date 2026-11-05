@@ -23,7 +23,9 @@ bool TemporaryPhysicalControllerIsolation::armApexInputTransportRestore(
 
 bool TemporaryPhysicalControllerIsolation::confirmApexProfileRestored(
     std::string&) noexcept { return true; }
-bool TemporaryPhysicalControllerIsolation::restore(std::string&) noexcept { return true; }
+bool TemporaryPhysicalControllerIsolation::refreshTargets(
+    const HidDeviceInfo&, std::string&) noexcept { return true; }
+bool TemporaryPhysicalControllerIsolation::restore(std::string&, bool) noexcept { return true; }
 bool TemporaryPhysicalControllerIsolation::active() const noexcept { return false; }
 bool TemporaryPhysicalControllerIsolation::recoveredStaleIsolation() const noexcept { return false; }
 

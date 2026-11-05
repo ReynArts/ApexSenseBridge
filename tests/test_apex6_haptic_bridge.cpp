@@ -458,10 +458,56 @@ void testIdleSkipsFramesAndWakesImmediately() {
     assert(!bridge.failed());
 }
 
+void testTriggerReleaseSendsExplicitZeroFrames() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    assert(bridge.start(error));
+
+    DualSenseFeedback press{};
+    press.enableBits1 = 0x04;
+    press.rightTriggerEffect = {0x26, 0xFF, 0x03, 0xFF, 0xFF, 0xFF, 0x3F, 0, 0, 150, 0};
+    bridge.handle(press);
+    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+    DualSenseFeedback release{};
+    release.enableBits1 = 0x04;
+    bridge.handle(release);
+    std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    assert(bridge.stop(error));
+
+    constexpr std::uint8_t kTriggerEnable = 0x04;
+    constexpr std::size_t kFlags = 5;
+    std::size_t lastActive = transport->writes.size();
+    for (std::size_t index = 0; index < transport->writes.size(); ++index) {
+        const auto& report = transport->writes[index];
+        if (report.size() != 33 || report[3] != apex6::kCmdRealtimeMotor) continue;
+        bool nonZeroTrigger = false;
+        for (std::size_t sample = 0; sample < 8; ++sample) {
+            nonZeroTrigger = nonZeroTrigger || report[kFlags + 1 + sample * 3] != 0x80;
+        }
+        if ((report[kFlags] & kTriggerEnable) != 0 && nonZeroTrigger) lastActive = index;
+    }
+    assert(lastActive < transport->writes.size());
+    std::size_t zeroFrames = 0;
+    for (std::size_t index = lastActive + 1; index < transport->writes.size(); ++index) {
+        const auto& report = transport->writes[index];
+        if (report.size() != 33 || report[3] != apex6::kCmdRealtimeMotor) continue;
+        if ((report[kFlags] & kTriggerEnable) == 0) break;
+        ++zeroFrames;
+    }
+    assert(zeroFrames >= 3);
+}
+
 int main() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
 
+    testTriggerReleaseSendsExplicitZeroFrames();
     testIdleSkipsFramesAndWakesImmediately();
     testNativeTriggerEffects();
     testPcmGainCurve();

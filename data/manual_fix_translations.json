@@ -1,0 +1,302 @@
+{
+  "version": 1,
+  "notes": {
+    "f682bf811187fbc1": {
+      "source": "Custom config (requires DSX). Adaptive Triggers for tires slipping or locking.",
+      "es": "Configuración personalizada (requiere DSX). Gatillos adaptativos cuando los neumáticos patinan o se bloquean.",
+      "fr": "Configuration personnalisée (nécessite DSX). Gâchettes adaptatives lorsque les pneus patinent ou se bloquent.",
+      "ja": "カスタム設定（DSX が必要）。タイヤのスリップやロック時にアダプティブトリガーが作動します。",
+      "ko": "사용자 지정 설정(DSX 필요). 타이어가 미끄러지거나 잠길 때 적응형 트리거가 작동합니다.",
+      "pt": "Configuração personalizada (requer DSX). Gatilhos adaptativos quando os pneus derrapam ou travam.",
+      "ru": "Пользовательская конфигурация (требуется DSX). Адаптивные триггеры при пробуксовке или блокировке шин.",
+      "vi": "Cấu hình tùy chỉnh (cần DSX). Cò thích ứng khi lốp xe trượt hoặc bị khóa.",
+      "zh": "自定义配置（需要 DSX）。轮胎打滑或抱死时触发自适应扳机。"
+    },
+    "2fe83d132e3db243": {
+      "source": "Mod",
+      "es": "Mod",
+      "fr": "Mod",
+      "ja": "MOD",
+      "ko": "모드",
+      "pt": "Mod",
+      "ru": "Мод",
+      "vi": "Bản mod",
+      "zh": "MOD"
+    },
+    "67bee2e8e8870bdf": {
+      "source": "Custom config. Requires DSX.",
+      "es": "Configuración personalizada. Requiere DSX.",
+      "fr": "Configuration personnalisée. Nécessite DSX.",
+      "ja": "カスタム設定。DSX が必要です。",
+      "ko": "사용자 지정 설정. DSX가 필요합니다.",
+      "pt": "Configuração personalizada. Requer DSX.",
+      "ru": "Пользовательская конфигурация. Требуется DSX.",
+      "vi": "Cấu hình tùy chỉnh. Cần DSX.",
+      "zh": "自定义配置。需要 DSX。"
+    },
+    "c6ed452f33056901": {
+      "source": "Use RacingDSX, follow same steps in readme as DiRT Rally, then add dirt4 to Executables to match.",
+      "es": "Usa RacingDSX, sigue los mismos pasos del readme que para DiRT Rally y luego añade dirt4 a Executables para que coincida.",
+      "fr": "Utilisez RacingDSX, suivez les mêmes étapes du readme que pour DiRT Rally, puis ajoutez dirt4 à Executables pour qu’il corresponde.",
+      "ja": "RacingDSX を使用し、DiRT Rally と同じ readme の手順に従ってから、dirt4 を Executables に追加して一致させてください。",
+      "ko": "RacingDSX를 사용하고 DiRT Rally와 같은 readme 절차를 따른 다음, 일치하도록 dirt4를 Executables에 추가하세요.",
+      "pt": "Use o RacingDSX, siga os mesmos passos do readme do DiRT Rally e depois adicione dirt4 a Executables para corresponder.",
+      "ru": "Используйте RacingDSX, выполните те же шаги из readme, что и для DiRT Rally, затем добавьте dirt4 в Executables для соответствия.",
+      "vi": "Dùng RacingDSX, làm theo các bước trong readme như với DiRT Rally, rồi thêm dirt4 vào Executables để khớp.",
+      "zh": "使用 RacingDSX，按照与 DiRT Rally 相同的 readme 步骤操作，然后将 dirt4 添加到 Executables 以进行匹配。"
+    },
+    "e8c24026aadd88aa": {
+      "source": "Use RacingDSX",
+      "es": "Usa RacingDSX",
+      "fr": "Utilisez RacingDSX",
+      "ja": "RacingDSX を使用してください",
+      "ko": "RacingDSX를 사용하세요",
+      "pt": "Use o RacingDSX",
+      "ru": "Используйте RacingDSX",
+      "vi": "Dùng RacingDSX",
+      "zh": "使用 RacingDSX"
+    },
+    "6fb6e7dc45039ed6": {
+      "source": "Custom config (requires DSX). Adaptive Triggers for guns.",
+      "es": "Configuración personalizada (requiere DSX). Gatillos adaptativos para las armas de fuego.",
+      "fr": "Configuration personnalisée (nécessite DSX). Gâchettes adaptatives pour les armes à feu.",
+      "ja": "カスタム設定（DSX が必要）。銃にアダプティブトリガーを適用します。",
+      "ko": "사용자 지정 설정(DSX 필요). 총기에 적응형 트리거를 적용합니다.",
+      "pt": "Configuração personalizada (requer DSX). Gatilhos adaptativos para as armas.",
+      "ru": "Пользовательская конфигурация (требуется DSX). Адаптивные триггеры для огнестрельного оружия.",
+      "vi": "Cấu hình tùy chỉnh (cần DSX). Cò thích ứng cho súng.",
+      "zh": "自定义配置（需要 DSX）。为枪械提供自适应扳机。"
+    },
+    "394fc4131aebdd5e": {
+      "source": "Adaptive triggers for guns and melee weapons",
+      "es": "Gatillos adaptativos para armas de fuego y armas cuerpo a cuerpo",
+      "fr": "Gâchettes adaptatives pour les armes à feu et les armes de mêlée",
+      "ja": "銃と近接武器のアダプティブトリガー",
+      "ko": "총기와 근접 무기용 적응형 트리거",
+      "pt": "Gatilhos adaptativos para armas de fogo e armas corpo a corpo",
+      "ru": "Адаптивные триггеры для огнестрельного и холодного оружия",
+      "vi": "Cò thích ứng cho súng và vũ khí cận chiến",
+      "zh": "枪械和近战武器的自适应扳机"
+    },
+    "164fe55377f092e0": {
+      "source": "Haptic feedback for weapon swinging, climbing, flashlight, trap remote etc.",
+      "es": "Respuesta háptica al blandir armas, escalar, usar la linterna, el mando de trampas, etc.",
+      "fr": "Retour haptique pour les coups d’arme, l’escalade, la lampe torche, la télécommande de piège, etc.",
+      "ja": "武器を振る、登る、懐中電灯、トラップのリモコンなどでのハプティックフィードバック。",
+      "ko": "무기 휘두르기, 오르기, 손전등, 함정 리모컨 등에 대한 햅틱 피드백.",
+      "pt": "Retorno háptico ao balançar armas, escalar, usar a lanterna, o controle de armadilhas etc.",
+      "ru": "Тактильная отдача при взмахах оружием, лазании, использовании фонарика, пульта ловушек и т. д.",
+      "vi": "Phản hồi xúc giác khi vung vũ khí, leo trèo, dùng đèn pin, điều khiển bẫy, v.v.",
+      "zh": "挥动武器、攀爬、手电筒、陷阱遥控器等动作的触觉反馈。"
+    },
+    "4204acd1e467382b": {
+      "source": "Use the Shake-It Bass Shaker function of Simhub to emulate haptic feedback from the controller's VCA motors.",
+      "es": "Usa la función Shake-It Bass Shaker de Simhub para emular la respuesta háptica de los motores VCA del mando.",
+      "fr": "Utilisez la fonction Shake-It Bass Shaker de Simhub pour émuler le retour haptique des moteurs VCA de la manette.",
+      "ja": "Simhub の Shake-It Bass Shaker 機能を使って、コントローラーの VCA モーターのハプティックフィードバックをエミュレートします。",
+      "ko": "Simhub의 Shake-It Bass Shaker 기능으로 컨트롤러 VCA 모터의 햅틱 피드백을 에뮬레이션하세요.",
+      "pt": "Use a função Shake-It Bass Shaker do Simhub para emular o retorno háptico dos motores VCA do controle.",
+      "ru": "Используйте функцию Shake-It Bass Shaker в Simhub, чтобы имитировать тактильную отдачу VCA-моторов контроллера.",
+      "vi": "Dùng chức năng Shake-It Bass Shaker của Simhub để mô phỏng phản hồi xúc giác từ động cơ VCA của tay cầm.",
+      "zh": "使用 Simhub 的 Shake-It Bass Shaker 功能来模拟手柄 VCA 马达的触觉反馈。"
+    },
+    "71943e8c4733fd00": {
+      "source": "Custom config (requires DSX and Steam).",
+      "es": "Configuración personalizada (requiere DSX y Steam).",
+      "fr": "Configuration personnalisée (nécessite DSX et Steam).",
+      "ja": "カスタム設定（DSX と Steam が必要）。",
+      "ko": "사용자 지정 설정(DSX와 Steam 필요).",
+      "pt": "Configuração personalizada (requer DSX e Steam).",
+      "ru": "Пользовательская конфигурация (требуются DSX и Steam).",
+      "vi": "Cấu hình tùy chỉnh (cần DSX và Steam).",
+      "zh": "自定义配置（需要 DSX 和 Steam）。"
+    },
+    "e969bb3643427774": {
+      "source": "Custom config (requires DSX). The author includes tutorial to configure the behavior of triggers.",
+      "es": "Configuración personalizada (requiere DSX). El autor incluye un tutorial para configurar el comportamiento de los gatillos.",
+      "fr": "Configuration personnalisée (nécessite DSX). L’auteur fournit un tutoriel pour configurer le comportement des gâchettes.",
+      "ja": "カスタム設定（DSX が必要）。作者がトリガーの動作を設定するためのチュートリアルを用意しています。",
+      "ko": "사용자 지정 설정(DSX 필요). 제작자가 트리거 동작을 설정하는 튜토리얼을 제공합니다.",
+      "pt": "Configuração personalizada (requer DSX). O autor inclui um tutorial para configurar o comportamento dos gatilhos.",
+      "ru": "Пользовательская конфигурация (требуется DSX). Автор приложил руководство по настройке поведения триггеров.",
+      "vi": "Cấu hình tùy chỉnh (cần DSX). Tác giả có kèm hướng dẫn cấu hình hành vi của cò.",
+      "zh": "自定义配置（需要 DSX）。作者附带了配置扳机行为的教程。"
+    },
+    "1fb174826579b9f2": {
+      "source": "Requires DSX and RacingDSX. Alternatively, use of Special K can emulate support for Xbox Impulse Triggers.",
+      "es": "Requiere DSX y RacingDSX. Como alternativa, Special K puede emular la compatibilidad con los Impulse Triggers de Xbox.",
+      "fr": "Nécessite DSX et RacingDSX. Sinon, Special K peut émuler la prise en charge des Impulse Triggers de la Xbox.",
+      "ja": "DSX と RacingDSX が必要です。代わりに Special K を使うと、Xbox の Impulse Triggers への対応をエミュレートできます。",
+      "ko": "DSX와 RacingDSX가 필요합니다. 대안으로 Special K를 사용하면 Xbox Impulse Triggers 지원을 에뮬레이션할 수 있습니다.",
+      "pt": "Requer DSX e RacingDSX. Como alternativa, o Special K pode emular o suporte aos Impulse Triggers do Xbox.",
+      "ru": "Требуются DSX и RacingDSX. В качестве альтернативы Special K может эмулировать поддержку Xbox Impulse Triggers.",
+      "vi": "Cần DSX và RacingDSX. Ngoài ra, có thể dùng Special K để mô phỏng hỗ trợ Impulse Triggers của Xbox.",
+      "zh": "需要 DSX 和 RacingDSX。或者使用 Special K 来模拟对 Xbox Impulse Triggers 的支持。"
+    },
+    "4745c12a0715e564": {
+      "source": "Requires DSX and RacingDSX.",
+      "es": "Requiere DSX y RacingDSX.",
+      "fr": "Nécessite DSX et RacingDSX.",
+      "ja": "DSX と RacingDSX が必要です。",
+      "ko": "DSX와 RacingDSX가 필요합니다.",
+      "pt": "Requer DSX e RacingDSX.",
+      "ru": "Требуются DSX и RacingDSX.",
+      "vi": "Cần DSX và RacingDSX.",
+      "zh": "需要 DSX 和 RacingDSX。"
+    },
+    "6b0df23e1098e44c": {
+      "source": "Requires DSX and RacingDSX, or use Special K to translate Xbox Impulse Triggers signals to their DualSense equivalence.",
+      "es": "Requiere DSX y RacingDSX, o usa Special K para traducir las señales de los Impulse Triggers de Xbox a su equivalente en DualSense.",
+      "fr": "Nécessite DSX et RacingDSX, ou utilisez Special K pour traduire les signaux des Impulse Triggers de la Xbox en leur équivalent DualSense.",
+      "ja": "DSX と RacingDSX が必要です。または Special K を使って、Xbox の Impulse Triggers の信号を DualSense 相当に変換してください。",
+      "ko": "DSX와 RacingDSX가 필요합니다. 또는 Special K로 Xbox Impulse Triggers 신호를 DualSense 대응 신호로 변환하세요.",
+      "pt": "Requer DSX e RacingDSX, ou use o Special K para traduzir os sinais dos Impulse Triggers do Xbox para o equivalente no DualSense.",
+      "ru": "Требуются DSX и RacingDSX, либо используйте Special K, чтобы преобразовывать сигналы Xbox Impulse Triggers в их эквивалент для DualSense.",
+      "vi": "Cần DSX và RacingDSX, hoặc dùng Special K để chuyển tín hiệu Impulse Triggers của Xbox sang tín hiệu tương đương của DualSense.",
+      "zh": "需要 DSX 和 RacingDSX，或使用 Special K 将 Xbox Impulse Triggers 信号转换为对应的 DualSense 信号。"
+    },
+    "150c9bc0056918bc": {
+      "source": "Requires manual configuration on the controller's audio device. Wired only.",
+      "es": "Requiere configuración manual en el dispositivo de audio del mando. Solo con cable.",
+      "fr": "Nécessite une configuration manuelle du périphérique audio de la manette. Filaire uniquement.",
+      "ja": "コントローラーのオーディオデバイスの手動設定が必要です。有線接続のみ。",
+      "ko": "컨트롤러의 오디오 장치를 수동으로 설정해야 합니다. 유선 연결만 지원합니다.",
+      "pt": "Requer configuração manual no dispositivo de áudio do controle. Somente com fio.",
+      "ru": "Требуется ручная настройка аудиоустройства контроллера. Только по проводу.",
+      "vi": "Cần cấu hình thủ công thiết bị âm thanh của tay cầm. Chỉ hỗ trợ có dây.",
+      "zh": "需要手动配置手柄的音频设备。仅支持有线连接。"
+    },
+    "b44eb225520768c9": {
+      "source": "Custom config. Requires DSX and DualSense AT (see Custom config).",
+      "es": "Configuración personalizada. Requiere DSX y DualSense AT (consulta Configuración personalizada).",
+      "fr": "Configuration personnalisée. Nécessite DSX et DualSense AT (voir Configuration personnalisée).",
+      "ja": "カスタム設定。DSX と DualSense AT が必要です（カスタム設定を参照）。",
+      "ko": "사용자 지정 설정. DSX와 DualSense AT가 필요합니다(사용자 지정 설정 참조).",
+      "pt": "Configuração personalizada. Requer DSX e DualSense AT (veja Configuração personalizada).",
+      "ru": "Пользовательская конфигурация. Требуются DSX и DualSense AT (см. «Пользовательская конфигурация»).",
+      "vi": "Cấu hình tùy chỉnh. Cần DSX và DualSense AT (xem Cấu hình tùy chỉnh).",
+      "zh": "自定义配置。需要 DSX 和 DualSense AT（参见“自定义配置”）。"
+    },
+    "04de8277170613b5": {
+      "source": "Custom config (requires DSX). Adaptive Triggers for weapons.",
+      "es": "Configuración personalizada (requiere DSX). Gatillos adaptativos para las armas.",
+      "fr": "Configuration personnalisée (nécessite DSX). Gâchettes adaptatives pour les armes.",
+      "ja": "カスタム設定（DSX が必要）。武器にアダプティブトリガーを適用します。",
+      "ko": "사용자 지정 설정(DSX 필요). 무기에 적응형 트리거를 적용합니다.",
+      "pt": "Configuração personalizada (requer DSX). Gatilhos adaptativos para as armas.",
+      "ru": "Пользовательская конфигурация (требуется DSX). Адаптивные триггеры для оружия.",
+      "vi": "Cấu hình tùy chỉnh (cần DSX). Cò thích ứng cho vũ khí.",
+      "zh": "自定义配置（需要 DSX）。为武器提供自适应扳机。"
+    },
+    "b2f9d50d2e798f23": {
+      "source": "Use GTASense and DSX.",
+      "es": "Usa GTASense y DSX.",
+      "fr": "Utilisez GTASense et DSX.",
+      "ja": "GTASense と DSX を使用してください。",
+      "ko": "GTASense와 DSX를 사용하세요.",
+      "pt": "Use o GTASense e o DSX.",
+      "ru": "Используйте GTASense и DSX.",
+      "vi": "Dùng GTASense và DSX.",
+      "zh": "使用 GTASense 和 DSX。"
+    },
+    "a4c51ec5091fc7f2": {
+      "source": "Custom config. Can only be used with HLA-NoVr MOD.",
+      "es": "Configuración personalizada. Solo se puede usar con el mod HLA-NoVr.",
+      "fr": "Configuration personnalisée. Utilisable uniquement avec le mod HLA-NoVr.",
+      "ja": "カスタム設定。HLA-NoVr MOD でのみ使用できます。",
+      "ko": "사용자 지정 설정. HLA-NoVr 모드에서만 사용할 수 있습니다.",
+      "pt": "Configuração personalizada. Só pode ser usada com o mod HLA-NoVr.",
+      "ru": "Пользовательская конфигурация. Работает только с модом HLA-NoVr.",
+      "vi": "Cấu hình tùy chỉnh. Chỉ dùng được với bản mod HLA-NoVr.",
+      "zh": "自定义配置。只能与 HLA-NoVr MOD 配合使用。"
+    },
+    "643aaa7ed37abd6b": {
+      "source": "Custom config",
+      "es": "Configuración personalizada",
+      "fr": "Configuration personnalisée",
+      "ja": "カスタム設定",
+      "ko": "사용자 지정 설정",
+      "pt": "Configuração personalizada",
+      "ru": "Пользовательская конфигурация",
+      "vi": "Cấu hình tùy chỉnh",
+      "zh": "自定义配置"
+    },
+    "8518ffc903b0b4cf": {
+      "source": "Requires tpp-mod and DSX or DSY",
+      "es": "Requiere tpp-mod y DSX o DSY",
+      "fr": "Nécessite tpp-mod et DSX ou DSY",
+      "ja": "tpp-mod と、DSX または DSY が必要です",
+      "ko": "tpp-mod와 DSX 또는 DSY가 필요합니다",
+      "pt": "Requer tpp-mod e DSX ou DSY",
+      "ru": "Требуются tpp-mod и DSX или DSY",
+      "vi": "Cần tpp-mod và DSX hoặc DSY",
+      "zh": "需要 tpp-mod 以及 DSX 或 DSY"
+    },
+    "980d3357ec3eaa1b": {
+      "source": "Use the Onimusha DualSense mod.",
+      "es": "Usa el mod Onimusha DualSense.",
+      "fr": "Utilisez le mod Onimusha DualSense.",
+      "ja": "Onimusha DualSense MOD を使用してください。",
+      "ko": "Onimusha DualSense 모드를 사용하세요.",
+      "pt": "Use o mod Onimusha DualSense.",
+      "ru": "Используйте мод Onimusha DualSense.",
+      "vi": "Dùng bản mod Onimusha DualSense.",
+      "zh": "使用 Onimusha DualSense MOD。"
+    },
+    "66df11914e6be15a": {
+      "source": "Custom config (requires DSX).",
+      "es": "Configuración personalizada (requiere DSX).",
+      "fr": "Configuration personnalisée (nécessite DSX).",
+      "ja": "カスタム設定（DSX が必要）。",
+      "ko": "사용자 지정 설정(DSX 필요).",
+      "pt": "Configuração personalizada (requer DSX).",
+      "ru": "Пользовательская конфигурация (требуется DSX).",
+      "vi": "Cấu hình tùy chỉnh (cần DSX).",
+      "zh": "自定义配置（需要 DSX）。"
+    },
+    "838576754c410f1a": {
+      "source": "Use Tomb Raider DualSense Mod",
+      "es": "Usa el mod Tomb Raider DualSense",
+      "fr": "Utilisez le mod Tomb Raider DualSense",
+      "ja": "Tomb Raider DualSense MOD を使用してください",
+      "ko": "Tomb Raider DualSense 모드를 사용하세요",
+      "pt": "Use o mod Tomb Raider DualSense",
+      "ru": "Используйте мод Tomb Raider DualSense",
+      "vi": "Dùng bản mod Tomb Raider DualSense",
+      "zh": "使用 Tomb Raider DualSense MOD"
+    },
+    "75df46dcf7cc3966": {
+      "source": "Wired only. Requires manual configuration on the controller's audio device.",
+      "es": "Solo con cable. Requiere configuración manual en el dispositivo de audio del mando.",
+      "fr": "Filaire uniquement. Nécessite une configuration manuelle du périphérique audio de la manette.",
+      "ja": "有線接続のみ。コントローラーのオーディオデバイスの手動設定が必要です。",
+      "ko": "유선 연결만 지원합니다. 컨트롤러의 오디오 장치를 수동으로 설정해야 합니다.",
+      "pt": "Somente com fio. Requer configuração manual no dispositivo de áudio do controle.",
+      "ru": "Только по проводу. Требуется ручная настройка аудиоустройства контроллера.",
+      "vi": "Chỉ hỗ trợ có dây. Cần cấu hình thủ công thiết bị âm thanh của tay cầm.",
+      "zh": "仅支持有线连接。需要手动配置手柄的音频设备。"
+    }
+  },
+  "labels": {
+    "Custom config": {
+      "es": "Configuración personalizada",
+      "fr": "Configuration personnalisée",
+      "ja": "カスタム設定",
+      "ko": "사용자 지정 설정",
+      "pt": "Configuração personalizada",
+      "ru": "Пользовательская конфигурация",
+      "vi": "Cấu hình tùy chỉnh",
+      "zh": "自定义配置"
+    },
+    "Mod": {
+      "es": "Mod",
+      "fr": "Mod",
+      "ja": "MOD",
+      "ko": "모드",
+      "pt": "Mod",
+      "ru": "Мод",
+      "vi": "Bản mod",
+      "zh": "MOD"
+    }
+  }
+}

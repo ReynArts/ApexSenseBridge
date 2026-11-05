@@ -54,6 +54,7 @@
     <Reference Include="PresentationFramework" />
     <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Management" />
+    <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
@@ -73,6 +74,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="BugReportWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="ReportChooserWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -100,6 +105,10 @@
       <DependentUpon>BugReportWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="ReportChooserWindow.xaml.cs">
+      <DependentUpon>ReportChooserWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="LearnedExecutablesWindow.xaml.cs">
       <DependentUpon>LearnedExecutablesWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -119,7 +128,10 @@
     <Compile Include="Services\ExecutableLearningService.cs" />
     <Compile Include="Services\GameProcessSessionTracker.cs" />
     <Compile Include="Services\GameActivationPolicy.cs" />
+    <Compile Include="Services\ManualFixGuide.cs" />
+    <Compile Include="Services\TouchpadRemapGuide.cs" />
     <Compile Include="Services\PlatformClientProcessFilter.cs" />
+    <Compile Include="Services\ReportRelayClient.cs" />
     <Compile Include="Services\ProcessMonitorService.cs" />
     <Compile Include="Services\EngineSessionManager.cs" />
     <Compile Include="Services\SessionRecoveryState.cs" />

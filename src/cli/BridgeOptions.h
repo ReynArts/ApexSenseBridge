@@ -14,6 +14,9 @@
 
 namespace asb::cli {
 
+inline constexpr std::chrono::seconds kDefaultReattachWindow{600};
+inline constexpr std::chrono::seconds kMaximumReattachWindow{3600};
+
 struct ControllerCalibration {
     unsigned triggerStrength = 100;
     unsigned vibrationStrength = 100;
@@ -22,16 +25,21 @@ struct ControllerCalibration {
     bool rgb = false;
     unsigned gyro = 100;
     unsigned gyroYaw = 100;
+    unsigned rgbBrightness = 100;
 };
 
 struct BridgeCommandOptions {
     std::optional<std::size_t> deviceIndex;
     std::optional<std::chrono::seconds> duration;
+    std::chrono::seconds reattachWindow = kDefaultReattachWindow;
     std::filesystem::path viiperExecutable;
     asb::dualsense::VirtualDualSenseBackend virtualBackend =
         asb::dualsense::VirtualDualSenseBackend::Auto;
     bool routeRumble = false;
     bool syncLightbar = false;
+    // Upper limit for the synchronized lightbar; the saved profile brightness
+    // is kept when lower.
+    unsigned int lightbarBrightnessPercent = 100;
     bool zoneEmulation = true;
     bool verifyVirtualInput = false;
     asb::dualsense::TouchpadGestureProfile touchpadProfile =

@@ -19,7 +19,8 @@ namespace ApexSenseBridge.Common
             bool zoneEmulation = true,
             bool enableUdpTriggers = false,
             int udpPort = 10026,
-            IDictionary<string, string> rearButtonBindings = null)
+            IDictionary<string, string> rearButtonBindings = null,
+            int lightbarBrightnessPercent = 100)
         {
             var arguments = new List<string>
             {
@@ -48,6 +49,12 @@ namespace ApexSenseBridge.Common
             if (syncLightbar)
             {
                 arguments.Add("--sync-lightbar");
+                var brightness = Math.Max(0, Math.Min(100, lightbarBrightnessPercent));
+                if (brightness < 100)
+                {
+                    arguments.Add("--lightbar-brightness");
+                    arguments.Add(brightness.ToString(CultureInfo.InvariantCulture));
+                }
             }
 
             if (!zoneEmulation)
@@ -101,6 +108,7 @@ namespace ApexSenseBridge.Common
                 case "ghost-of-tsushima":
                 case "warframe":
                 case "death-stranding-2":
+                case "alan-wake-2":
                     return profile.Trim().ToLowerInvariant();
                 default:
                     return "none";

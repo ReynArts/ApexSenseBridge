@@ -1,0 +1,42 @@
+{
+  "skipLabel": "automation:skip",
+  "pendingTestingLabel": "pending testing",
+  "supersededStatusLabels": ["needs-info", "needs-triage", "in-progress", "needs-testing", "working on it", "pending-testing"],
+  "excludedReleaseLabels": ["duplicate", "invalid", "wontfix"],
+  "labels": {
+    "bug": { "color": "d73a4a", "description": "Something is not working" },
+    "enhancement": { "color": "a2eeef", "description": "New feature or improvement" },
+    "question": { "color": "d876e3", "description": "Help or clarification requested" },
+    "apex4": { "color": "1d76db", "description": "Flydigi APEX 4" },
+    "apex5": { "color": "1d76db", "description": "Flydigi APEX 5" },
+    "apex6": { "color": "1d76db", "description": "Flydigi APEX 6 Pro" },
+    "triggers": { "color": "c5def5", "description": "Adaptive trigger feedback" },
+    "haptics": { "color": "c5def5", "description": "Haptic audio, vibration or rumble" },
+    "detection": { "color": "c5def5", "description": "Game detection and automatic activation" },
+    "game-request": { "color": "fbca04", "description": "Game missing from the supported list" },
+    "installer": { "color": "c5def5", "description": "Installation, updates or driver setup" },
+    "playnite": { "color": "c5def5", "description": "Playnite extension" },
+    "hidhide": { "color": "c5def5", "description": "Physical controller isolation and HidHide" },
+    "touchpad": { "color": "c5def5", "description": "DualSense touchpad clicks and swipe gestures" },
+    "gyro": { "color": "c5def5", "description": "Gyroscope and motion controls" },
+    "pending testing": { "color": "2b816c", "description": "A published release is ready for reporter testing" },
+    "automation:skip": { "color": "ededed", "description": "Disable automatic issue labeling and release follow-up" }
+  },
+  "rules": [
+    { "label": "bug", "pattern": "\\b(bug|bugs|crash|crashes|crashing|regression|broken|erreur|plantage|plante)\\b" },
+    { "label": "enhancement", "pattern": "\\b(feature request|enhancement|suggestion|amelioration|nouvelle fonctionnalite)\\b" },
+    { "label": "question", "pattern": "\\b(question|help wanted|support request|demande d'aide)\\b" },
+    { "label": "game-request", "pattern": "\\b(unsupported game|game request|jeu non supporte|demande d'ajout de jeu)\\b" },
+    { "label": "apex4", "category": "controller", "pattern": "\\bapex[ -]*4\\b" },
+    { "label": "apex5", "category": "controller", "pattern": "\\bapex[ -]*5\\b" },
+    { "label": "apex6", "category": "controller", "pattern": "\\bapex[ -]*6(?:[ -]*pro)?\\b" },
+    { "label": "triggers", "pattern": "\\b(trigger|triggers|gachette|gachettes|forceadapt)\\b" },
+    { "label": "haptics", "pattern": "\\b(haptic|haptics|haptique|haptiques|vibration|vibrations|rumble)\\b" },
+    { "label": "detection", "pattern": "\\b(game detection|automatic detection|auto[ -]?detect(?:ion)?|detection automatique|detection (?:du |des )?jeu[x]?|jeu[x]? non detecte[s]?|process inaccessible|bridge loops?|activation and deactivation|bridge activat\\w*[^\\n]*loop)\\b" },
+    { "label": "installer", "pattern": "\\b(installer|uninstall|uninstallation|desinstallation|mise a jour|updater|installation (?:error|failed|failure|hang|problem)|install (?:error|failed|failure)|driver install(?:ation)?)\\b" },
+    { "label": "playnite", "pattern": "\\bplaynite\\b" },
+    { "label": "hidhide", "pattern": "\\b(hidhide|physical controller isolation|double input|double entree|every input will be doubled)\\b" },
+    { "label": "touchpad", "pattern": "\\b(touchpad|swipe|swipes|pave tactile)\\b" },
+    { "label": "gyro", "pattern": "\\b(gyro|gyroscope|gyroscopic|motion controls)\\b" }
+  ]
+}
