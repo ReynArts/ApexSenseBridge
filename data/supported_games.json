@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-05T11:55:32.133876+00:00",
+  "updatedAt": "2026-11-05T11:55:56.911006+00:00",
   "totalGames": 224,
   "discordExecutableGames": 136,
   "games": [
@@ -203,7 +203,6 @@
         "jsgme.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX). Adaptive Triggers for tires slipping or locking.",
@@ -241,7 +240,8 @@
             "zh": "自定义配置（需要 DSX）。轮胎打滑或抱死时触发自适应扳机。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Avatar: Frontiers of Pandora",
@@ -550,7 +550,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Mod",
@@ -582,7 +581,8 @@
             "zh": "MOD"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Control Resonant",
@@ -724,7 +724,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config. Requires DSX.",
@@ -763,7 +762,8 @@
             "zh": "自定义配置。需要 DSX。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Death Stranding 2: On the Beach",
@@ -838,7 +838,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Use RacingDSX, follow same steps in readme as DiRT Rally, then add dirt4 to Executables to match.",
@@ -862,7 +861,8 @@
             "zh": "使用 RacingDSX，按照与 DiRT Rally 相同的 readme 步骤操作，然后将 dirt4 添加到 Executables 以进行匹配。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "DiRT Rally",
@@ -876,7 +876,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Use RacingDSX",
@@ -900,7 +899,8 @@
             "zh": "使用 RacingDSX"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "DiRT Rally 2.0",
@@ -917,7 +917,6 @@
         "dirtrally2.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Use RacingDSX",
@@ -941,7 +940,8 @@
             "zh": "使用 RacingDSX"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Dolmen",
@@ -983,7 +983,6 @@
         "duckgame.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX). Adaptive Triggers for guns.",
@@ -1021,7 +1020,8 @@
             "zh": "自定义配置（需要 DSX）。为枪械提供自适应扳机。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Dying Light",
@@ -1039,7 +1039,6 @@
         "dyinglightgame.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Adaptive triggers for guns and melee weapons",
@@ -1071,7 +1070,8 @@
             "zh": "挥动武器、攀爬、手电筒、陷阱遥控器等动作的触觉反馈。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Dying Light 2 Stay Human",
@@ -1113,7 +1113,6 @@
         "wrc.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "hapticFeedback": {
           "note": "Use the Shake-It Bass Shaker function of Simhub to emulate haptic feedback from the controller's VCA motors.",
@@ -1137,7 +1136,8 @@
             "zh": "使用 Simhub 的 Shake-It Bass Shaker 功能来模拟手柄 VCA 马达的触觉反馈。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Eriksholm: The Stolen Dream",
@@ -1165,7 +1165,6 @@
         "eurotrucks2.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX and Steam).",
@@ -1204,7 +1203,8 @@
             "zh": "自定义配置（需要 DSX 和 Steam）。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Everspace 2",
@@ -1293,7 +1293,6 @@
         "fallout4.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX). The author includes tutorial to configure the behavior of triggers.",
@@ -1331,7 +1330,8 @@
             "zh": "自定义配置（需要 DSX）。作者附带了配置扳机行为的教程。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Fantasian Neo Dimension",
@@ -1466,7 +1466,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-12",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Requires DSX and RacingDSX. Alternatively, use of Special K can emulate support for Xbox Impulse Triggers.",
@@ -1496,7 +1495,8 @@
             "zh": "需要 DSX 和 RacingDSX。或者使用 Special K 来模拟对 Xbox Impulse Triggers 的支持。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-12"
     },
     {
       "title": "Forza Horizon 5",
@@ -1513,7 +1513,6 @@
         "forzahorizon5.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Requires DSX and RacingDSX.",
@@ -1542,7 +1541,8 @@
             "zh": "需要 DSX 和 RacingDSX。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Forza Horizon 6",
@@ -1556,7 +1556,6 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2483190/711e39803402def82a90e1f31578c64744f952f3/library_capsule_2x.jpg?t=1791312088",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Requires DSX and RacingDSX, or use Special K to translate Xbox Impulse Triggers signals to their DualSense equivalence.",
@@ -1586,7 +1585,8 @@
             "zh": "需要 DSX 和 RacingDSX，或使用 Special K 将 Xbox Impulse Triggers 信号转换为对应的 DualSense 信号。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Forza Motorsport 7",
@@ -1600,7 +1600,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Requires DSX and RacingDSX.",
@@ -1629,7 +1628,8 @@
             "zh": "需要 DSX 和 RacingDSX。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Gears of War: E-Day",
@@ -1654,7 +1654,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "hapticFeedback": {
           "note": "Requires manual configuration on the controller's audio device. Wired only.",
@@ -1671,7 +1670,8 @@
             "zh": "需要手动配置手柄的音频设备。仅支持有线连接。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Ghost of Tsushima Director's Cut",
@@ -1716,7 +1716,6 @@
         "gow.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config. Requires DSX and DualSense AT (see Custom config).",
@@ -1755,7 +1754,8 @@
             "zh": "自定义配置。需要 DSX 和 DualSense AT（参见“自定义配置”）。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "God of War Ragnarök",
@@ -1797,7 +1797,6 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900_2x.jpg?t=1765387725",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX). Adaptive Triggers for weapons.",
@@ -1835,7 +1834,8 @@
             "zh": "自定义配置（需要 DSX）。为武器提供自适应扳机。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Grand Theft Auto V Enhanced",
@@ -1860,7 +1860,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Use GTASense and DSX.",
@@ -1884,7 +1883,8 @@
             "zh": "使用 GTASense 和 DSX。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Gravity Circuit",
@@ -1915,7 +1915,6 @@
         "hlvr.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config. Can only be used with HLA-NoVr MOD.",
@@ -1951,7 +1950,8 @@
             "zh": "自定义配置。只能与 HLA-NoVr MOD 配合使用。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Halo: Campaign Evolved",
@@ -2318,7 +2318,6 @@
         "mgsgroundzeroes.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config",
@@ -2350,7 +2349,8 @@
             "zh": "自定义配置"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Metal Gear Solid V: The Phantom Pain",
@@ -2368,7 +2368,6 @@
         "mgsvtpp.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Requires tpp-mod and DSX or DSY",
@@ -2393,7 +2392,8 @@
             "zh": "需要 tpp-mod 以及 DSX 或 DSY"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Metal Gear Solid Δ: Snake Eater",
@@ -2593,7 +2593,6 @@
         "onimushawots_demo.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-11",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Use the Onimusha DualSense mod.",
@@ -2635,7 +2634,8 @@
             "zh": "使用 Onimusha DualSense MOD。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-11"
     },
     {
       "title": "Overwatch 2",
@@ -2777,7 +2777,6 @@
         "rdr2.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX).",
@@ -2815,7 +2814,8 @@
             "zh": "自定义配置（需要 DSX）。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Resident Evil 5",
@@ -2832,7 +2832,6 @@
         "re5dx9.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX and Steam).",
@@ -2871,7 +2870,8 @@
             "zh": "自定义配置（需要 DSX 和 Steam）。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Resident Evil Requiem",
@@ -2960,7 +2960,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX).",
@@ -2999,7 +2998,8 @@
             "zh": "自定义配置（需要 DSX）。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "S.T.A.L.K.E.R. 2: Heart of Chornobyl",
@@ -3459,7 +3459,6 @@
         "skyrimse.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Custom config (requires DSX). Adaptive Triggers for weapons.",
@@ -3497,7 +3496,8 @@
             "zh": "自定义配置（需要 DSX）。为武器提供自适应扳机。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "The First Berserker: Khazan",
@@ -3643,7 +3643,6 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "adaptiveTriggers": {
           "note": "Use Tomb Raider DualSense Mod",
@@ -3685,7 +3684,8 @@
             "zh": "使用 Tomb Raider DualSense MOD"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     },
     {
       "title": "Tony Hawk's Pro Skater 3 + 4",
@@ -3908,7 +3908,6 @@
         "zenlesszonezero.exe"
       ],
       "requiresManualFix": true,
-      "addedAt": "2026-09-01",
       "manualFixDetails": {
         "hapticFeedback": {
           "note": "Wired only. Requires manual configuration on the controller's audio device.",
@@ -3925,7 +3924,8 @@
             "zh": "仅支持有线连接。需要手动配置手柄的音频设备。"
           }
         }
-      }
+      },
+      "addedAt": "2026-09-01"
     }
   ]
 }
