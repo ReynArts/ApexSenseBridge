@@ -14,6 +14,7 @@
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Input.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex5RearButtons.h"
 #include "flydigi/Apex6Protocol.h"
 #include "platform/Apex6InputFusion.h"
 #include "platform/HidTransport.h"
@@ -953,6 +954,9 @@ public:
         currentChargeState_.store(chargeState, std::memory_order_relaxed);
         mappedGamepad_->setBatteryState(batteryPercent, chargeState);
     }
+    void setRearButtonBindings(const std::array<std::uint16_t, 6>& bits) noexcept override {
+        rearBindings_ = bits;
+    }
 
 private:
     Apex5DualHidPhysicalInputSource(
@@ -1028,6 +1032,9 @@ private:
         const auto decodedAt = std::chrono::steady_clock::now();
         lastVendorState_ = *decoded;
         lastVendorStateAt_ = decodedAt;
+        lastRearButtons_ = flydigi::apex5::rearButtonBits(
+            std::span<const std::uint8_t>(report_.data(), bytesRead));
+
         independentTriggerFreshness_.observe(decodedAt);
         vendorGaps_.observe(decodedAt);
         ++vendorStates_;
@@ -1082,6 +1089,18 @@ private:
             state.accelY = lastVendorState_->accelY;
             state.accelZ = lastVendorState_->accelZ;
         }
+        if (vendorReady) {
+            using flydigi::apex5::RearButton;
+            const std::array<RearButton, 6> rearOrder{
+                RearButton::M1, RearButton::M2, RearButton::M3,
+                RearButton::M4, RearButton::LM, RearButton::RM};
+            for (std::size_t i = 0; i < rearOrder.size(); ++i) {
+                if (rearBindings_[i] != 0 &&
+                    (lastRearButtons_ & flydigi::apex5::rearButtonMask(rearOrder[i])) != 0) {
+                    state.buttons |= rearBindings_[i];
+                }
+            }
+        }
         activity_.observe(state, now);
     }
 
@@ -1109,6 +1128,8 @@ private:
     std::vector<std::uint8_t>& report_;
     std::optional<dualsense::DualSenseInputState> lastVendorState_;
     std::optional<std::chrono::steady_clock::time_point> lastVendorStateAt_;
+    std::uint8_t lastRearButtons_ = 0;
+    std::array<std::uint16_t, 6> rearBindings_{};
     IndependentTriggerStreamFreshness independentTriggerFreshness_;
     flydigi::Apex5InputComposer composer_;
     PhysicalInputActivityTracker activity_;

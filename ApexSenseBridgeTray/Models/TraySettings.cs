@@ -68,6 +68,8 @@ namespace ApexSenseBridgeTray.Models
         public int VibrationStrengthPercent { get; set; }
         public int Apex4GyroStrengthPercent { get; set; }
         public int Apex4GyroYawStrengthPercent { get; set; }
+        public bool EnableUdpTriggers { get; set; }
+        public int UdpPort { get; set; }
         public Dictionary<string, string> GameExecutables { get; set; }
         public int InitializationTimeoutSeconds { get; set; }
         // Manual bridge mode describes the current process session, not a
@@ -81,6 +83,9 @@ namespace ApexSenseBridgeTray.Models
         public List<string> ExcludedGames { get; set; }
         public List<string> ManualFixAllowedGames { get; set; }
         public Dictionary<string, int> ApexProfileSlots { get; set; }
+        // Maps each Apex 5 rear button (M1, M2, M3, M4, LM, RM) to a user-chosen
+        // action name. Keys are the button names as produced by RearButtonService.
+        public Dictionary<string, string> RearButtonBindings { get; set; }
         public Dictionary<string, GameTuning> GameTunings { get; set; }
         // Legacy scalar preferences remain for migration, not as an active
         // cross-model calibration. Never persist the last connected model.
@@ -162,6 +167,8 @@ namespace ApexSenseBridgeTray.Models
             VibrationStrengthPercent = 100;
             Apex4GyroStrengthPercent = 100;
             Apex4GyroYawStrengthPercent = 100;
+            EnableUdpTriggers = false;
+            UdpPort = 10026;
             GameExecutables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";
@@ -169,6 +176,7 @@ namespace ApexSenseBridgeTray.Models
             ExcludedGames = new List<string>();
             ManualFixAllowedGames = new List<string>();
             ApexProfileSlots = new Dictionary<string, int>();
+            RearButtonBindings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             GameTunings = new Dictionary<string, GameTuning>();
         }
 
@@ -396,12 +404,18 @@ namespace ApexSenseBridgeTray.Models
                         settings.Apex4GyroStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroStrengthPercent));
                         settings.Apex4GyroYawStrengthPercent = Math.Max(25, Math.Min(400, settings.Apex4GyroYawStrengthPercent));
                         settings.HapticThresholdPercent = Math.Max(0, Math.Min(95, settings.HapticThresholdPercent));
+                        settings.UdpPort = Math.Max(1, Math.Min(65535,
+                            settings.UdpPort == 0 ? 10026 : settings.UdpPort));
                         if (settings.GameExecutables == null) settings.GameExecutables = new Dictionary<string, string>();
                         if (settings.ExcludedGames == null) settings.ExcludedGames = new List<string>();
                         if (settings.ManualFixAllowedGames == null) settings.ManualFixAllowedGames = new List<string>();
                         if (settings.ApexProfileSlots == null)
                         {
                             settings.ApexProfileSlots = new Dictionary<string, int>();
+                        }
+                        if (settings.RearButtonBindings == null)
+                        {
+                            settings.RearButtonBindings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                         }
                         if (settings.GameTunings == null) settings.GameTunings = new Dictionary<string, GameTuning>();
                         return settings;

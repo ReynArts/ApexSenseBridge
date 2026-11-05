@@ -16,6 +16,7 @@
 #include "flydigi/Apex5Device.h"
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex5RearButtons.h"
 #include "platform/HidTransport.h"
 #include "platform/AudioEndpointProtection.h"
 #include "platform/PhysicalControllerIsolation.h"
@@ -1695,6 +1696,232 @@ int commandTestGyro(int argc, char** argv) {
     }
 
     return received ? 0 : 5;
+}
+
+int commandTestRear(int argc, char** argv) {
+    std::optional<std::size_t> deviceIndex;
+    unsigned long seconds = 10;
+    bool secondsGiven = false;
+    bool stream = false;
+    std::string sessionToken;
+    std::optional<std::uint32_t> ownerPid;
+
+    for (int index = 2; index < argc; ++index) {
+        const std::string_view option = argv[index];
+        if (option == "--stream") {
+            stream = true;
+        } else if (option == "--session-token") {
+            if (++index >= argc || !asb::platform::isValidSessionToken(argv[index])) {
+                std::cerr << "--session-token requires 32 hexadecimal characters.\n";
+                return 1;
+            }
+            sessionToken = argv[index];
+        } else if (option == "--session-owner-pid") {
+            if (++index >= argc) return 1;
+            try {
+                std::size_t consumed = 0;
+                const auto pid = std::stoul(argv[index], &consumed);
+                if (!pid || consumed != std::string_view(argv[index]).size() ||
+                    pid > (std::numeric_limits<std::uint32_t>::max)()) {
+                    throw std::out_of_range("pid");
+                }
+                ownerPid = static_cast<std::uint32_t>(pid);
+            } catch (...) {
+                std::cerr << "--session-owner-pid requires a non-zero process ID.\n";
+                return 1;
+            }
+        } else if (option == "--seconds") {
+            if (++index >= argc) {
+                std::cerr << "--seconds requires an integer from 1 to 300.\n";
+                return 1;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                seconds = std::stoul(argv[index], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[index]).size() ||
+                    seconds == 0 || seconds > 300) {
+                    throw std::out_of_range("seconds");
+                }
+                secondsGiven = true;
+            } catch (...) {
+                std::cerr << "--seconds requires an integer from 1 to 300.\n";
+                return 1;
+            }
+        } else if (option.rfind("--", 0) == 0) {
+            std::cerr << "Unknown option: " << option << '\n';
+            return 1;
+        } else if (!deviceIndex) {
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto parsed = std::stoul(std::string(option), &parsedCharacters);
+                if (parsedCharacters != option.size()) {
+                    throw std::invalid_argument("trailing characters");
+                }
+                deviceIndex = parsed;
+            } catch (...) {
+                std::cerr << "Invalid device index: " << option << '\n';
+                return 1;
+            }
+        } else {
+            std::cerr << "Unknown test-rear option: " << option << "\n"
+                      << "Usage: ApexSenseBridge test-rear [index] [--seconds N] [--stream]\n";
+            return 1;
+        }
+    }
+
+    std::string error;
+    std::unique_ptr<asb::platform::SessionControl> session;
+    if (!sessionToken.empty()) {
+        session = asb::platform::connectSessionControl(sessionToken, ownerPid, error);
+        if (!session) {
+            std::cerr << error << '\n';
+            return 1;
+        }
+    } else if (ownerPid) {
+        std::cerr << "--session-owner-pid requires --session-token.\n";
+        return 1;
+    }
+    const auto fail = [&](int code, const std::string& message) {
+        std::cerr << message << '\n';
+        if (session) {
+            std::string ignored;
+            (void)session->publish(asb::platform::SessionPhase::Failed, code, message, ignored);
+            (void)session->signalReady(ignored);
+        }
+        return code;
+    };
+    auto sessionOwner = asb::platform::createGlobalSessionStop(error);
+    if (!sessionOwner) return fail(6, error);
+    auto device = openSelectedIndex(deviceIndex, error);
+    if (!device) {
+        return fail(2, "APEX identity verification failed: " + error);
+    }
+
+    // Raw vendor reports (byte 14 = M1-M4, LM, RM) are only emitted while raw
+    // routing is enabled. Snapshot the current routing and restore it on every
+    // exit path, including timeouts, read errors and stop requests.
+    asb::flydigi::InputTransportStatus savedTransport{};
+    if (!device->readInputTransportStatus(savedTransport, error)) {
+        return fail(3, "Could not read APEX input transport: " + error);
+    }
+    if (!device->setInputTransport(true, true, error)) {
+        return fail(3, "Could not enable raw APEX input routing: " + error);
+    }
+    struct TransportRestore {
+        TransportRestore(asb::flydigi::Apex5Device& target,
+                         const asb::flydigi::InputTransportStatus& previous)
+            : device(target), saved(previous) {}
+        ~TransportRestore() {
+            std::string ignored;
+            (void)restore(ignored);
+        }
+        // Idempotent: the explicit call on the normal path reports errors; the
+        // destructor only covers paths that were not already restored.
+        bool restore(std::string& restoreError) {
+            if (done) return true;
+            done = true;
+            return device.setInputTransport(saved.controllerData, saved.rawData, restoreError);
+        }
+        TransportRestore(const TransportRestore&) = delete;
+        TransportRestore& operator=(const TransportRestore&) = delete;
+        asb::flydigi::Apex5Device& device;
+        asb::flydigi::InputTransportStatus saved;
+        bool done = false;
+    } transportRestore(*device, savedTransport);
+
+    // Failures after routing was changed must restore it before reporting.
+    const auto finishFailure = [&](int code, const std::string& message) {
+        std::string restoreError;
+        if (!transportRestore.restore(restoreError)) {
+            std::cerr << "Warning: could not restore APEX input routing: " << restoreError << '\n';
+        }
+        return fail(code, message);
+    };
+
+    if (session && (!session->publish(asb::platform::SessionPhase::Ready, 0,
+                                      "Rear-button stream ready", error) ||
+                    !session->signalReady(error))) {
+        return finishFailure(1, error);
+    }
+
+    std::array<std::uint8_t, 64> report{};
+    std::uint8_t lastBits = 0;
+    bool haveBits = false;
+    std::uint64_t sampleCount = 0;
+
+    // An explicit --seconds always bounds the run, even with --stream. Without
+    // it, --stream runs until the caller terminates the process.
+    const auto deadline = (stream && !secondsGiven)
+        ? (std::chrono::steady_clock::now() + std::chrono::hours(24))
+        : (std::chrono::steady_clock::now() + std::chrono::seconds(seconds));
+
+    while (std::chrono::steady_clock::now() < deadline &&
+           !g_stopRequested.load(std::memory_order_relaxed) &&
+           !sessionOwner->stopRequested() && !(session && session->stopRequested())) {
+        std::size_t bytesRead = 0;
+        error.clear();
+        const auto status = device->readRawInputReport(
+            std::span<std::uint8_t>(report), std::chrono::milliseconds(200), bytesRead, error);
+        if (status == asb::platform::HidReadStatus::Error) {
+            return finishFailure(4, "APEX input stream error: " + error);
+        }
+        if (status != asb::platform::HidReadStatus::Data || bytesRead == 0) {
+            continue;
+        }
+
+        ++sampleCount;
+        const auto bits = asb::flydigi::apex5::rearButtonBits(
+            std::span<const std::uint8_t>(report.data(), bytesRead));
+        // The first sample is always emitted in stream mode so a button that is
+        // already held when the stream starts still produces a PRESS edge.
+        const bool first = !haveBits;
+        haveBits = true;
+        if (!first && bits == lastBits) {
+            continue;
+        }
+
+        if (stream) {
+            std::cout << "REAR: RM=" << (asb::flydigi::apex5::isRearButtonPressed(
+                                            std::span<const std::uint8_t>(report.data(), bytesRead),
+                                            asb::flydigi::apex5::RearButton::RM) ? 1 : 0)
+                      << " LM=" << (asb::flydigi::apex5::isRearButtonPressed(
+                                       std::span<const std::uint8_t>(report.data(), bytesRead),
+                                       asb::flydigi::apex5::RearButton::LM) ? 1 : 0)
+                      << " M1=" << (asb::flydigi::apex5::isRearButtonPressed(
+                                       std::span<const std::uint8_t>(report.data(), bytesRead),
+                                       asb::flydigi::apex5::RearButton::M1) ? 1 : 0)
+                      << " M2=" << (asb::flydigi::apex5::isRearButtonPressed(
+                                       std::span<const std::uint8_t>(report.data(), bytesRead),
+                                       asb::flydigi::apex5::RearButton::M2) ? 1 : 0)
+                      << " M3=" << (asb::flydigi::apex5::isRearButtonPressed(
+                                       std::span<const std::uint8_t>(report.data(), bytesRead),
+                                       asb::flydigi::apex5::RearButton::M3) ? 1 : 0)
+                      << " M4=" << (asb::flydigi::apex5::isRearButtonPressed(
+                                       std::span<const std::uint8_t>(report.data(), bytesRead),
+                                       asb::flydigi::apex5::RearButton::M4) ? 1 : 0)
+                      << std::endl;
+        }
+        lastBits = bits;
+    }
+
+    // Restore routing before announcing Stopped, so a successor engine never
+    // starts while this one still owns a modified transport.
+    std::string restoreError;
+    if (!transportRestore.restore(restoreError)) {
+        return fail(8, "Could not restore APEX input routing: " + restoreError);
+    }
+    if (!stream) {
+        std::cout << "Samples read: " << sampleCount << ", final byte14=0x" << std::hex
+                  << static_cast<unsigned>(lastBits) << std::dec << '\n';
+        if (sampleCount == 0) {
+            return fail(5, "No APEX input reports were received. Check that the controller is awake and not held by another process.");
+        }
+    }
+    if (session) {
+        (void)session->publish(asb::platform::SessionPhase::Stopped, 0,
+                               "Rear-button stream stopped; routing restored", error);
+    }
+    return 0;
 }
 
 } // namespace asb::cli

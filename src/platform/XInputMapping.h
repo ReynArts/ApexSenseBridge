@@ -14,6 +14,9 @@ struct XInputSnapshot {
     std::uint8_t leftTrigger = 0;
     std::uint8_t rightTrigger = 0;
     std::uint16_t buttons = 0;
+    // Raw APEX 5 rear/side button bits (byte 14 of the vendor report).
+    // Not part of the XInput button mask; mapped separately.
+    std::uint8_t rearButtons = 0;
 };
 
 namespace xinputButton {

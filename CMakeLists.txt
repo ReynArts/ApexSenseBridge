@@ -83,6 +83,7 @@ add_executable(ApexSenseBridge
     src/cli/BridgeOptions.cpp
     src/cli/BridgeRuntimeSupport.cpp
     src/cli/BridgeTelemetry.cpp
+    src/cli/UdpTriggerServer.cpp
     src/cli/CliApplication.cpp
     src/cli/CommandSupport.cpp
     src/cli/JsonSupport.cpp
@@ -111,6 +112,12 @@ if(WIN32)
         ASB_VERSION_PATCH=${PROJECT_VERSION_PATCH}
         ASB_VERSION_STRING=\"${PROJECT_VERSION}\"
     )
+
+    # Read-only Flydigi HID input probe. Build explicitly with
+    # --target ApexInputProbe; excluded from normal/release builds.
+    add_executable(ApexInputProbe EXCLUDE_FROM_ALL
+        src/tools/ApexInputProbe.cpp)
+    target_link_libraries(ApexInputProbe PRIVATE asb_core)
 
     # Support-only diagnostic: build explicitly with
     # --target Apex5IsolationProbe. Never include it in normal/release builds.
@@ -181,6 +188,17 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeApex6ProtocolTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME apex6_protocol COMMAND ApexSenseBridgeApex6ProtocolTests)
+
+    add_executable(ApexSenseBridgeApex5RearButtonTests
+        tests/test_apex5_rear_buttons.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex5RearButtonTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex5RearButtonTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex5RearButtonTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex5_rear_buttons COMMAND ApexSenseBridgeApex5RearButtonTests)
 
     add_executable(ApexSenseBridgeDiagnosticTests
         tests/test_hid_diagnostics.cpp

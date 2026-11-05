@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Rear button mapping (M1–M4, LM, RM) for APEX 5
+
+- Adds the **Rear Button Mapping** window in the Tray (`RearButtonMappingWindow`) and the `RearButtonService` service to assign M1–M4, LM and RM.
+- Adds mapping settings to the Tray settings (`TraySettings`) and passes them to the engine through `--rear-map`.
+- Engine: handles rear-button input at the APEX 5 layer (`Apex5RearButtons.h`, `RearButtonBindings.h`, `WindowsPhysicalInputSource`) and has unit tests (`test_apex5_rear_buttons`).
+- Adds `scripts/test-apex5-rear.ps1` to check the rear buttons on hardware.
+
+### UDP trigger for REFramework
+
+- Adds a UDP listener on `127.0.0.1` (`--udp-bind`, `--udp-port`, default `10026` in the Tray) that accepts JSON trigger commands. 
+To custom JSON trigger you can check the MHWilds Haptic Pack mod: [Nexus Mods - MHWilds Haptic Pack (Mod #5079)](https://www.nexusmods.com/monsterhunterwilds/mods/5079?tab=description)
+- If the port is busy or cannot be bound, the session continues without UDP. The Tray shows a warning under "Bridge ready" and turns the UDP option off automatically.
 ### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
 
 - New `alan-wake-2` touchpad profile. On the Xbox layout, `View` opens the Mind

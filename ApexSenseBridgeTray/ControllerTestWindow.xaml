@@ -20,6 +20,8 @@
             <Style x:Key="TestTabButton" TargetType="RadioButton" BasedOn="{StaticResource NavSegmentButton}">
                 <Setter Property="FontSize" Value="14"/>
                 <Setter Property="Margin" Value="0,0,22,0"/>
+                <!-- The default WPF focus rectangle draws a white outline around the tab; the underline already marks the selected tab. -->
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             </Style>
             <Style x:Key="SegmentButton" TargetType="RadioButton" BasedOn="{StaticResource FilterTabButton}"/>
 
@@ -498,6 +500,8 @@
                                     <StackPanel Orientation="Horizontal">
                                         <Button x:Name="BtnVerifyPersistence" Content="{DynamicResource Loc_BtnCheckPersistence}" Style="{StaticResource BtnPrimary}"
                                                 Click="OnVerifyPersistenceClick"/>
+                                        <Button x:Name="BtnOpenRearButtons" Content="Rear buttons" Style="{StaticResource BtnSecondary}"
+                                                Margin="10,0,0,0" Click="OnOpenRearButtonMappingClick"/>
                                     </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
