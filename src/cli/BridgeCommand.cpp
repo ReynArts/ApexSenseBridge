@@ -74,7 +74,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     asb::platform::ControllerRecoveryReport previousIsolation;
     std::string previousIsolationError;
     if (!asb::platform::TemporaryPhysicalControllerIsolation::recoverPending(
-            previousIsolation, previousIsolationError)) {
+            previousIsolation, previousIsolationError, true)) {
         std::cerr << "Warning: pending controller recovery is incomplete: "
                   << previousIsolationError << '\n';
     }
@@ -198,7 +198,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     startup.enter("controller-snapshot");
     std::string deferredApexNotice;
     if (!asb::platform::TemporaryPhysicalControllerIsolation::applyDeferredApexRestore(
-            *device, deferredApexNotice, error)) {
+            *device, deferredApexNotice, error, true)) {
         std::cerr << error << '\n';
         return failSession(11, error);
     }

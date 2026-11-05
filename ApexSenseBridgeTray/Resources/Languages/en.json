@@ -1,4 +1,6 @@
 {
+  "Loc_RecoveryAutomaticTitle": "Waiting to reconnect the manual bridge",
+  "Loc_RecoveryAutomaticHint": "Wake or reconnect the controller. Continuous activation will resume the bridge automatically. Turn off the manual bridge toggle to stop it.",
   "Loc_SessionInterrupted": "Session interrupted",
   "Loc_RecoveryResume": "Resume bridge",
   "Loc_RecoveryDismiss": "Dismiss",

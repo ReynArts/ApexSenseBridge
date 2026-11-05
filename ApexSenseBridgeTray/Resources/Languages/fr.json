@@ -1,4 +1,6 @@
 {
+  "Loc_RecoveryAutomaticTitle": "En attente de reconnexion du bridge manuel",
+  "Loc_RecoveryAutomaticHint": "Réveillez ou reconnectez la manette. L’activation continue relancera automatiquement le bridge. Désactivez le bridge manuel pour l’arrêter.",
   "Loc_SessionInterrupted": "Session interrompue",
   "Loc_RecoveryResume": "Reprendre le bridge",
   "Loc_RecoveryDismiss": "Masquer",

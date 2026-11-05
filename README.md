@@ -175,6 +175,8 @@ a command also opens the Tray app.
 - **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 215+ supported games start.
 - **Dynamic Executable Learning:** Detects renamed, modded, elevated or multi-process game executables after 30 seconds of a stable automatically detected session while filtering out game launchers (Steam, Epic, EA, Ubisoft). Force Continuous Activation alone cannot identify which game should own an executable.
 - **Dashboard & Per-Game Profiles:** Right-click the Tray icon to open the game list, force a specific profile, or assign a dedicated APEX 5 hardware slot (1–4) for each game.
+- **Learned executable settings:** Select a learned executable to access the same game cover, feature badges, exclusions and APEX profile selector as in Certified games. Both views share the game's settings.
+- **Continuous activation after sleep:** While the manual bridge toggle remains enabled, Tray automatically retries interrupted sessions when the controller becomes available, even with automatic game detection disabled or the Dashboard closed. Disabling the toggle cancels recovery.
 
 ### 2. Playnite Integration
 
@@ -238,9 +240,10 @@ settings.
 
 ### Disconnection Recovery
 
-After a confirmed runtime disconnection, Tray pauses automatic activation for
-the interrupted session. The home page offers a voluntary **Resume bridge**
-action and shows real controller, virtual-device, isolation and runtime checks.
+After a confirmed runtime disconnection, a continuously forced manual bridge
+automatically retries when the controller is available. Other sessions pause
+automatic activation and offer a voluntary **Resume bridge** action. The home
+page shows real controller, virtual-device, isolation and runtime checks.
 Recovery retains the game/profile/APEX slot and never closes or relaunches the
 game. A game that cannot reacquire the recreated DualSense must be restarted.
 Playnite-owned sessions show guidance to resume from Playnite; Tray does not

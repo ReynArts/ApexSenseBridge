@@ -156,6 +156,9 @@ namespace ApexSenseBridgeTray.Services
                             lastReason = "Le moteur s'est arrêté de façon inattendue.";
                         exitReason = lastReason;
                         if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages)) recovery.Clear();
+                        // The engine has exited, but its recovery watchdog may
+                        // still hold the session's unsignalled stop event.
+                        activeSession.StopAndWait(TimeSpan.Zero);
                         activeSession.Dispose();
                         activeSession = null;
                     }

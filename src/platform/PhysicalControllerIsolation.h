@@ -49,11 +49,15 @@ public:
 
     // Internal recovery entry points used by the same executable from RunOnce
     // and from the crash watchdog.
+    // New sessions recover visibility first and defer controller writes so a
+    // saved profile cannot override their Keep current / explicit slot choice.
     static bool recoverPending(ControllerRecoveryReport& report,
-                               std::string& error) noexcept;
+                               std::string& error,
+                               bool startingSession = false) noexcept;
     static bool applyDeferredApexRestore(flydigi::Apex5Device& device,
                                          std::string& notice,
-                                         std::string& error) noexcept;
+                                         std::string& error,
+                                         bool keepCurrentProfile = false) noexcept;
     static int watchAndRecover(std::uint32_t ownerProcessId,
                                std::string_view sessionToken,
                                std::string& error) noexcept;

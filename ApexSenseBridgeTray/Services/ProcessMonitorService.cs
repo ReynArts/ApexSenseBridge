@@ -20,6 +20,8 @@ namespace ApexSenseBridgeTray.Services
         private readonly TraySettings settings;
         private readonly Timer pollTimer;
         private readonly bool monitoringEnabled;
+        internal ControllerDetectionService ControllerDetection { get; private set; }
+        internal string ControllerStatus { get { return controllerStatus; } }
         private readonly Dictionary<uint, DateTime> retryCooldowns = new Dictionary<uint, DateTime>();
         private readonly Dictionary<uint, long> evaluatedProcesses = new Dictionary<uint, long>();
         private readonly HashSet<uint> manualFixWarningProcesses = new HashSet<uint>();
@@ -35,6 +37,8 @@ namespace ApexSenseBridgeTray.Services
         private bool isStoppingDetectedSession;
         private int isPolling;
         private bool recoveryWasBlocked;
+        private string controllerStatus;
+        private DateTime nextManualRecoveryUtc;
         private DateTime nextProcessSweepUtc;
         private DateTime nextForegroundCheckUtc;
 
@@ -60,6 +64,7 @@ namespace ApexSenseBridgeTray.Services
 
         public void ReportControllerStatus(string status)
         {
+            controllerStatus = status;
             bool sessionInProgress = SessionOwnedElsewhere();
             bool changed;
             lock (retryCooldowns) changed = startRetries.ObserveController(status, sessionInProgress);
@@ -90,6 +95,8 @@ namespace ApexSenseBridgeTray.Services
 
             if (monitoringEnabled)
             {
+                ControllerDetection = new ControllerDetectionService();
+                ControllerDetection.StatusChanged += ReportControllerStatus;
                 InitializeWmiWatchers();
                 pollTimer = new Timer(OnPollTick, null, 100, 250);
             }
@@ -221,6 +228,18 @@ namespace ApexSenseBridgeTray.Services
             {
                 PruneExitedTrackedProcesses();
                 PruneStartRetries();
+
+                // Continuous activation survives sleep, independently of game detection.
+                var recovery = sessionManager.Recovery;
+                bool controllerAvailable = controllerStatus == "apex4" || controllerStatus == "apex5" || controllerStatus == "apex6";
+                if (IsManualBridgeMode() && recovery.Pending && !recovery.Resuming &&
+                    recovery.Owner == "Tray" && controllerAvailable && !SessionOwnedElsewhere() &&
+                    DateTime.UtcNow >= nextManualRecoveryUtc)
+                {
+                    nextManualRecoveryUtc = DateTime.UtcNow.AddSeconds(5);
+                    string recoveryError;
+                    sessionManager.ResumeSession(settings, out recoveryError);
+                }
 
                 if (settings == null || !settings.AutoDetectGames)
                 {
@@ -1185,6 +1204,7 @@ namespace ApexSenseBridgeTray.Services
         {
             if (isDisposed) return;
             isDisposed = true;
+            ControllerDetection?.Dispose();
 
             try
             {

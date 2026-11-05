@@ -494,6 +494,12 @@ if(BUILD_TESTING)
                  COMMAND powershell -NoProfile -NonInteractive
                          -ExecutionPolicy Bypass
                          -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_installer_registry_contract.ps1)
+        add_test(NAME recovery_watchdog_lifecycle
+                 COMMAND powershell -NoProfile -NonInteractive
+                         -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-watchdog-lifecycle.ps1
+                         -Engine $<TARGET_FILE:ApexSenseBridge>)
+        set_tests_properties(recovery_watchdog_lifecycle PROPERTIES TIMEOUT 45)
         add_test(NAME release_version_contract
                  COMMAND powershell -NoProfile -NonInteractive
                          -ExecutionPolicy Bypass
