@@ -39,6 +39,12 @@
   default 100 %, plus `battery_refresh_slow_calls`, `battery_refresh_max_call_us`
   and `battery_refresh_disabled` to see what the refresh costs.
 
+### Warning when Flydigi X-Haptics is running
+
+- The bridge now prints a warning at startup when `XHaptics.exe` or
+  `x-haptic-engine-fusion.exe` is running, because that engine can send haptic
+  frames to the same controller. Nothing is stopped or blocked.
+
 ### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
 
 - New `alan-wake-2` touchpad profile. On the Xbox layout, `View` opens the Mind

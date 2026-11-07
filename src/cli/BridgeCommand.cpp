@@ -27,9 +27,11 @@
 #include "platform/HidTransport.h"
 #include "flydigi/Apex6BatteryRefresher.h"
 #include "platform/AudioEndpointProtection.h"
+#include "platform/CompetingHapticsEngines.h"
 #include "platform/PhysicalControllerIsolation.h"
 #include "platform/PhysicalInputFreshnessWatchdog.h"
 #include "platform/PhysicalInputSource.h"
+#include "platform/RunningProcesses.h"
 #include "platform/SessionControl.h"
 #include "platform/XInputGamepad.h"
 
@@ -158,6 +160,11 @@ int commandBridgeTriggers(int argc, char** argv) {
             "--apex6-haptic-gain requires a verified Apex 6 Pro.";
         std::cerr << message << '\n';
         return failSession(2, message);
+    }
+    const auto competingEngines = asb::platform::findCompetingHapticsEngines(
+        asb::platform::runningExecutableNames());
+    if (!competingEngines.empty()) {
+        std::cerr << asb::platform::competingHapticsEnginesWarning(competingEngines) << '\n';
     }
     if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::ControllerVerified);
     startup.enter("calibration");

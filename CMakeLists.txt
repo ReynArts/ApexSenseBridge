@@ -35,6 +35,7 @@ add_library(asb_core STATIC
     src/haptics/HapticProcessor.cpp
     src/platform/Apex6InputFusion.cpp
     src/platform/AudioEndpointProtection.cpp
+    src/platform/CompetingHapticsEngines.cpp
     src/platform/HidTransport.cpp
     src/platform/PhysicalInputSource.h
     src/platform/SessionControl.cpp
@@ -61,6 +62,7 @@ if(WIN32)
         src/platform/windows/WindowsXInputGamepad.cpp
         src/platform/windows/WindowsPhysicalControllerIsolation.cpp
         src/platform/windows/WindowsPhysicalInputSource.cpp
+        src/platform/windows/WindowsRunningProcesses.cpp
         src/platform/windows/WindowsSessionControl.cpp
     )
     target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput ole32)
@@ -72,6 +74,7 @@ else()
         src/platform/UnsupportedXInputGamepad.cpp
         src/platform/UnsupportedPhysicalControllerIsolation.cpp
         src/platform/UnsupportedPhysicalInputSource.cpp
+        src/platform/UnsupportedRunningProcesses.cpp
         src/platform/UnsupportedSessionControl.cpp
     )
 endif()
@@ -207,6 +210,18 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeMotionTiltTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME motion_tilt COMMAND ApexSenseBridgeMotionTiltTests)
+
+    add_executable(ApexSenseBridgeCompetingHapticsEnginesTests
+        tests/test_competing_haptics_engines.cpp
+        src/platform/CompetingHapticsEngines.cpp
+    )
+    target_include_directories(ApexSenseBridgeCompetingHapticsEnginesTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeCompetingHapticsEnginesTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeCompetingHapticsEnginesTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME competing_haptics_engines COMMAND ApexSenseBridgeCompetingHapticsEnginesTests)
 
     add_executable(ApexSenseBridgeDiagnosticTests
         tests/test_hid_diagnostics.cpp
