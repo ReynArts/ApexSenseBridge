@@ -299,6 +299,33 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeApex6HapticTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME apex6_haptic_bridge COMMAND ApexSenseBridgeApex6HapticTests)
+    add_executable(ApexSenseBridgeApex6AudioTranslatorTests
+        tests/test_apex6_audio_translator.cpp
+        src/dualsense/Apex6AudioTranslator.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex6AudioTranslatorTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6AudioTranslatorTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6AudioTranslatorTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_audio_translator COMMAND ApexSenseBridgeApex6AudioTranslatorTests)
+
+    if(WIN32)
+        set(ASB_VOICE_GATE_DIR "" CACHE PATH "Directory holding voice_gate.h for the offline haptic bench (optional)")
+        add_executable(ApexSenseBridgeHapticTranslateBench EXCLUDE_FROM_ALL
+            tools/haptic-translate-bench/main.cpp
+            src/dualsense/Apex6AudioTranslator.cpp
+        )
+        target_include_directories(ApexSenseBridgeHapticTranslateBench PRIVATE src)
+        if(ASB_VOICE_GATE_DIR)
+            target_include_directories(ApexSenseBridgeHapticTranslateBench PRIVATE "${ASB_VOICE_GATE_DIR}")
+            target_compile_definitions(ApexSenseBridgeHapticTranslateBench PRIVATE ASB_BENCH_VOICE_GATE=1)
+        endif()
+        if(MSVC)
+            target_compile_options(ApexSenseBridgeHapticTranslateBench PRIVATE /W4 /permissive- /EHsc)
+        endif()
+    endif()
 
     add_executable(ApexSenseBridgeHapticProcessorTests
         tests/test_haptic_processor.cpp
