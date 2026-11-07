@@ -77,6 +77,9 @@
   bridge renderer and follows your trigger (press and release it during the
   test), or a scripted travel with `--sweep`. It prints a short summary of the
   frames and bursts it played. APEX 4/5 behaviour is unchanged.
+- In the Tray trigger test, the weapon and bow descriptions explain the new
+  behaviour in all nine languages, a status line asks you to press the trigger,
+  the test runs for 5 seconds, and the twelve presets are selectable.
 
 ### APEX 6 Pro: grip motors left alone when only the triggers are driven
 

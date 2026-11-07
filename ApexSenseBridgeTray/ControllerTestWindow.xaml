@@ -362,14 +362,30 @@
 
                                     <TextBlock Text="{DynamicResource Loc_TriggerEffectMode}" Style="{StaticResource FieldLabel}"/>
                                     <WrapPanel Margin="0,0,0,10">
-                                        <RadioButton x:Name="RadModeResistance" Content="{DynamicResource Loc_TriggerModeResistance}" Style="{StaticResource SegmentButton}" IsChecked="True"
+                                        <RadioButton x:Name="RadModeResistance" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerModeResistance}" Style="{StaticResource SegmentButton}" IsChecked="True"
                                                      ToolTip="{DynamicResource Loc_TriggerExplResistance}"/>
-                                        <RadioButton x:Name="RadModeWeapon" Content="{DynamicResource Loc_TriggerModeWeapon}" Style="{StaticResource SegmentButton}"
+                                        <RadioButton x:Name="RadModeWeapon" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerModeWeapon}" Style="{StaticResource SegmentButton}"
                                                      ToolTip="{DynamicResource Loc_TriggerExplWeapon}"/>
-                                        <RadioButton x:Name="RadModeVibration" Content="{DynamicResource Loc_TriggerModeVibration}" Style="{StaticResource SegmentButton}"
+                                        <RadioButton x:Name="RadModeVibration" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerModeVibration}" Style="{StaticResource SegmentButton}"
                                                      ToolTip="{DynamicResource Loc_TriggerExplVibration}"/>
-                                        <RadioButton x:Name="RadModeBow" Content="{DynamicResource Loc_TriggerModeBow}" Style="{StaticResource SegmentButton}"
+                                        <RadioButton x:Name="RadModeBow" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerModeBow}" Style="{StaticResource SegmentButton}"
                                                      ToolTip="{DynamicResource Loc_TriggerExplBow}"/>
+                                    </WrapPanel>
+
+                                    <TextBlock Text="{DynamicResource Loc_TriggerPresetsHeader}" Style="{StaticResource FieldLabel}"/>
+                                    <WrapPanel x:Name="PanelTriggerPresets" Margin="0,0,0,10">
+                                        <RadioButton Tag="machinegun" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetMachineGun}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="rifle" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetRifle}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="smg" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetSubmachineGun}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="lmg" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetLightMachineGun}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="pistol" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetPistol}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="shotgun" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetShotgun}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="sniperrifle" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetSniperRifle}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="sword" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetSword}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="blade" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetBlade}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="dagger" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetDagger}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="axe" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetAxe}" Style="{StaticResource SegmentButton}"/>
+                                        <RadioButton Tag="club" GroupName="TriggerEffectMode" Content="{DynamicResource Loc_TriggerPresetClub}" Style="{StaticResource SegmentButton}"/>
                                     </WrapPanel>
 
                                     <TextBlock Text="{DynamicResource Loc_TriggerIntensityLevel}" Style="{StaticResource FieldLabel}"/>

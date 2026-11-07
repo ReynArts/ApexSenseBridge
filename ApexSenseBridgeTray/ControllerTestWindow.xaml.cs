@@ -407,6 +407,14 @@ namespace ApexSenseBridgeTray
             if (RadModeWeapon.IsChecked == true) mode = "weapon";
             else if (RadModeVibration.IsChecked == true) mode = "vibration";
             else if (RadModeBow.IsChecked == true) mode = "bow";
+            else
+            {
+                foreach (var child in PanelTriggerPresets.Children)
+                {
+                    var preset = child as RadioButton;
+                    if (preset != null && preset.IsChecked == true) mode = (string)preset.Tag;
+                }
+            }
 
             int level = 2;
             if (RadLevel1.IsChecked == true) level = 1;
@@ -418,7 +426,7 @@ namespace ApexSenseBridgeTray
 
             try
             {
-                bool ok = await testService.TestTriggerAsync(side, mode, level, 3);
+                bool ok = await testService.TestTriggerAsync(side, mode, level, 5);
                 TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_TriggerTestSuccess") : FailureText("Loc_TriggerTestFailed");
             }
             catch (Exception ex)
