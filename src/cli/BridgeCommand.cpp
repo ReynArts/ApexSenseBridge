@@ -3,6 +3,7 @@
 #include "cli/BridgeRuntimeSupport.h"
 #include "cli/BridgeTelemetry.h"
 #include "cli/CommandSupport.h"
+#include "core/ApexMotionDiagnosticGuard.h"
 #include "core/ApexProfileRestoreGuard.h"
 #include "core/Apex4GyroValidation.h"
 #include "core/TriggerResetGuard.h"
@@ -321,6 +322,16 @@ int commandBridgeTriggers(int argc, char** argv) {
 
     if (stopRequested()) return cancelStartup();
     startup.enter("physical-input");
+    constexpr bool kApex6MotionRouting = true;
+    std::unique_ptr<asb::ApexMotionDiagnosticGuard> apex6MotionRouting;
+    if (apex6Pro && kApex6MotionRouting) {
+        apex6MotionRouting = std::make_unique<asb::ApexMotionDiagnosticGuard>(*device);
+        std::string motionError;
+        if (!apex6MotionRouting->enable(motionError)) {
+            std::cerr << "Warning: Apex 6 motion input is unavailable: "
+                      << motionError << '\n';
+        }
+    }
     auto inputSource = asb::platform::openPhysicalInputSource(
         device->info(), options.xinputIndex, error);
     if (!inputSource) {

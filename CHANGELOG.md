@@ -2,6 +2,25 @@
 
 ## 1.1.0
 
+### APEX 6 Pro: gyroscope and accelerometer
+
+- A bridge session now forwards the APEX 6 Pro motion sensors to the virtual
+  DualSense. The controller only streams them after the vendor routing command
+  `0x11` is written, so the session enables the raw-data routing at start, waits
+  for a first motion report (1.5 s at most) and restores the routing when the
+  session ends. If another application owns the input transport, if the
+  controller does not advertise a motion sensor, or if no report arrives, the
+  session starts without motion input and prints a warning.
+- Checked on a real APEX 6 Pro over the dongle: about 170 reports per second, a
+  full turn flat on a table gives 16.4 to 16.7 units per degree per second, and
+  gravity reads 10 000 per g. The gyroscope words are stored in a different order
+  from the accelerometer words on this model: the axes and signs were fitted
+  against the accelerometer and confirmed with a full turn and two tilt poses
+  (front edge up, right side down). The scale comes from one controller.
+- `test-gyro` works on the APEX 6 Pro and prints the vendor motion report count.
+  `test-gyro --stream --seconds N` now stops after N seconds and restores the
+  routing, instead of running until it is interrupted.
+
 ### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
 
 - New `alan-wake-2` touchpad profile. On the Xbox layout, `View` opens the Mind

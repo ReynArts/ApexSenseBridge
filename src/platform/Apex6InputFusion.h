@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dualsense/DualSenseInput.h"
+#include "flydigi/Apex6Imu.h"
 
 #include <chrono>
 #include <cstdint>
@@ -22,6 +23,12 @@ public:
     [[nodiscard]] std::optional<dualsense::DualSenseInputState> observe(
         const std::optional<dualsense::DualSenseInputState>& mappedState,
         const dualsense::DualSenseInputState& xinputState,
+        Clock::time_point now) noexcept;
+
+    [[nodiscard]] std::optional<dualsense::DualSenseInputState> observe(
+        const std::optional<dualsense::DualSenseInputState>& mappedState,
+        const dualsense::DualSenseInputState& xinputState,
+        const std::optional<flydigi::apex6::MotionSample>& motion,
         Clock::time_point now) noexcept;
 
 private:

@@ -4,6 +4,7 @@
 #include "core/TriggerEffect.h"
 #include "flydigi/Apex4WritePacing.h"
 #include "flydigi/Apex5Identity.h"
+#include "flydigi/Apex6Imu.h"
 #include "flydigi/Apex6Protocol.h"
 #include "platform/HidTransport.h"
 
@@ -106,6 +107,11 @@ public:
                                   std::string& error);
     bool setInputTransport(bool controllerData, bool rawData,
                            std::string& error);
+    bool readApex6TransportStatus(apex6::TransportStatus& status,
+                                  std::string& error);
+    bool setApex6RawDataRouting(bool enable, std::string& error);
+    bool apex6OperatorStreamActive(std::chrono::milliseconds window,
+                                   std::string& error);
     bool requestBatteryRefresh(std::string& error);
 
     // Support diagnostic only. Reads the verified vendor HID stream without

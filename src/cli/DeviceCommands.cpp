@@ -3,6 +3,7 @@
 #include "core/TriggerResetGuard.h"
 #include "core/RumbleResetGuard.h"
 #include "core/ApexMotionDiagnosticGuard.h"
+#include "core/MotionTilt.h"
 #include "diagnostics/Apex4GyroCapture.h"
 #include "diagnostics/HidDiagnostics.h"
 #include "dualsense/DualSenseFirmware.h"
@@ -1591,7 +1592,10 @@ int commandTestGyro(int argc, char** argv) {
         return fail(1, error);
     }
 
-    const auto deadline = stream
+    const bool secondsGiven = std::any_of(
+        argv + 2, argv + argc,
+        [](const char* argument) { return std::string_view(argument) == "--seconds"; });
+    const auto deadline = stream && !secondsGiven
         ? (std::chrono::steady_clock::now() + std::chrono::hours(24))
         : (std::chrono::steady_clock::now() + std::chrono::seconds(seconds));
 
@@ -1605,8 +1609,9 @@ int commandTestGyro(int argc, char** argv) {
 
     asb::dualsense::DualSenseInputState lastState{};
     bool received = false;
+    const bool sonyFrame = std::string_view(input->backendName()).substr(0, 5) == "apex6";
 
-    while ((stream || std::chrono::steady_clock::now() < deadline) &&
+    while (std::chrono::steady_clock::now() < deadline &&
            !g_stopRequested.load(std::memory_order_relaxed) &&
            !sessionOwner->stopRequested() && !(session && session->stopRequested())) {
         asb::dualsense::DualSenseInputState state{};
@@ -1627,8 +1632,9 @@ int commandTestGyro(int argc, char** argv) {
                 const double ax = state.accelX / 10000.0;
                 const double ay = state.accelY / 10000.0;
                 const double az = state.accelZ / 10000.0;
-                const double pitchDeg = std::atan2(-ay, std::sqrt(ax * ax + az * az)) * (180.0 / 3.141592653589793);
-                const double rollDeg = std::atan2(ax, az) * (180.0 / 3.141592653589793);
+                const auto tilt = asb::motionTilt(sonyFrame, ax, ay, az);
+                const double pitchDeg = tilt.pitchDegrees;
+                const double rollDeg = tilt.rollDegrees;
 
                 std::cout << "GYRO:" << state.gyroX << ',' << state.gyroY << ',' << state.gyroZ
                           << " ACCEL:" << state.accelX << ',' << state.accelY << ',' << state.accelZ
@@ -1645,6 +1651,7 @@ int commandTestGyro(int argc, char** argv) {
 
     // Close the secondary reader before exchanging the restoration command.
     const std::string backend(input->backendName());
+    const auto motionStats = input->stats();
     input.reset();
     if (!motionRouting.restore(error)) {
         return fail(8, "Could not restore APEX motion input: " + error);
@@ -1660,8 +1667,9 @@ int commandTestGyro(int argc, char** argv) {
     const double ax = lastState.accelX / 10000.0;
     const double ay = lastState.accelY / 10000.0;
     const double az = lastState.accelZ / 10000.0;
-    const double pitchDeg = std::atan2(-ay, std::sqrt(ax * ax + az * az)) * (180.0 / 3.141592653589793);
-    const double rollDeg = std::atan2(ax, az) * (180.0 / 3.141592653589793);
+    const auto tilt = asb::motionTilt(sonyFrame, ax, ay, az);
+    const double pitchDeg = tilt.pitchDegrees;
+    const double rollDeg = tilt.rollDegrees;
 
     const bool motionDetected = (maxGyroX - minGyroX > 15) ||
                                 (maxGyroY - minGyroY > 15) ||
@@ -1672,6 +1680,8 @@ int commandTestGyro(int argc, char** argv) {
                   << "  \"backend\": \"" << jsonEscape(backend) << "\",\n"
                   << "  \"received\": " << (received ? "true" : "false") << ",\n"
                   << "  \"samples\": " << sampleCount << ",\n"
+                  << "  \"vendor_reports\": " << motionStats.vendorReports << ",\n"
+                  << "  \"vendor_states\": " << motionStats.vendorStates << ",\n"
                   << "  \"motion_detected\": " << (motionDetected ? "true" : "false") << ",\n"
                   << "  \"gyro_x\": " << lastState.gyroX << ",\n"
                   << "  \"gyro_y\": " << lastState.gyroY << ",\n"
@@ -1688,6 +1698,7 @@ int commandTestGyro(int argc, char** argv) {
         std::cout << "--- 6-Axis Motion Sensor Diagnostic ---\n"
                   << "Backend: " << backend << '\n'
                   << "Samples collected: " << sampleCount << '\n'
+                  << "Vendor motion reports: " << motionStats.vendorStates << '\n'
                   << "Motion detected: " << (motionDetected ? "YES" : "NO (still)") << '\n'
                   << "Latest Gyro (deg/s units): X=" << lastState.gyroX << " Y=" << lastState.gyroY << " Z=" << lastState.gyroZ << '\n'
                   << "Latest Accel (10000=1G):   X=" << lastState.accelX << " Y=" << lastState.accelY << " Z=" << lastState.accelZ << '\n'

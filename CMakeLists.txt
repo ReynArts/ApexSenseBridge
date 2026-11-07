@@ -45,6 +45,7 @@ add_library(asb_core STATIC
     src/flydigi/Apex5Identity.cpp
     src/flydigi/Apex5Input.cpp
     src/flydigi/Apex5Protocol.cpp
+    src/flydigi/Apex6Imu.cpp
     src/flydigi/Apex6Protocol.cpp
     src/flydigi/Apex5Device.cpp
 )
@@ -182,6 +183,30 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME apex6_protocol COMMAND ApexSenseBridgeApex6ProtocolTests)
 
+    add_executable(ApexSenseBridgeApex6ImuTests
+        tests/test_apex6_imu.cpp
+        src/flydigi/Apex6Imu.cpp
+        src/flydigi/Apex6Protocol.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex6ImuTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6ImuTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6ImuTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_imu COMMAND ApexSenseBridgeApex6ImuTests)
+
+    add_executable(ApexSenseBridgeMotionTiltTests
+        tests/test_motion_tilt.cpp
+    )
+    target_include_directories(ApexSenseBridgeMotionTiltTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeMotionTiltTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeMotionTiltTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME motion_tilt COMMAND ApexSenseBridgeMotionTiltTests)
+
     add_executable(ApexSenseBridgeDiagnosticTests
         tests/test_hid_diagnostics.cpp
         src/diagnostics/HidDiagnostics.cpp
@@ -224,6 +249,15 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeIdentityTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME identity_guard COMMAND ApexSenseBridgeIdentityTests)
+
+    add_executable(ApexSenseBridgeApex6MotionGuardTests tests/test_apex6_motion_guard.cpp)
+    target_link_libraries(ApexSenseBridgeApex6MotionGuardTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6MotionGuardTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6MotionGuardTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_motion_guard COMMAND ApexSenseBridgeApex6MotionGuardTests)
 
     add_executable(ApexSenseBridgeVirtualDualSenseTests
         tests/test_virtual_dualsense.cpp
