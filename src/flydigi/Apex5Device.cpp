@@ -825,7 +825,10 @@ bool Apex5Device::setInputTransport(bool controllerData, bool rawData,
     if (!readInputTransportStatus(effective, error)) return false;
     if (effective.controllerData != controllerData ||
         effective.rawData != rawData) {
-        error = "The Apex 5 did not retain the requested physical-input routing";
+        error = "The Apex 5 did not retain the requested physical-input routing "
+                "(requested controller_data=" + std::to_string(controllerData ? 1 : 0) +
+                ", raw_data=" + std::to_string(rawData ? 1 : 0) +
+                "; controller reported " + describeInputTransport(effective) + ")";
         return false;
     }
     return true;

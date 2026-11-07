@@ -291,6 +291,9 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         rumbleHigh_ = routeGrips_ ? feedback.rumbleRight : 0;
         diagnosticGripCarrier_ = false;
         if (rumbleLow_ != 0 || rumbleHigh_ != 0) wakeLocked();
+    } else if (feedback.rumbleLeft != 0 || feedback.rumbleRight != 0) {
+        rumbleIgnoredReports_.fetch_add(1, std::memory_order_relaxed);
+        lastIgnoredRumbleEnableBits_.store(feedback.enableBits1, std::memory_order_relaxed);
     }
     if ((feedback.enableBits1 & kLeftTrigger) != 0) {
         handleTrigger(TriggerSide::Left, feedback);
@@ -511,6 +514,9 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
     if (routeGrips_ && (leftRumble || rightRumble)) {
         gripRumbleFrames_.fetch_add(1, std::memory_order_relaxed);
     }
+    if (routeGrips_ && ((rumbleLow != 0 && !leftRumble) || (rumbleHigh != 0 && !rightRumble))) {
+        gripRumbleMaskedFrames_.fetch_add(1, std::memory_order_relaxed);
+    }
     for (std::size_t index = 0; routeGrips_ && index < output.size(); ++index) {
         if (leftPcmActive) {
             output[index].leftGrip = scaleApex6Pcm(waveform->left[index], pcmGainPercent_);
@@ -722,6 +728,9 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
     result.lastRightTriggerType = lastRightTriggerType_.load(std::memory_order_relaxed);
     result.rumbleUpdates = rumbleUpdates_.load(std::memory_order_relaxed);
     result.rumbleActiveUpdates = rumbleActiveUpdates_.load(std::memory_order_relaxed);
+    result.rumbleIgnoredReports = rumbleIgnoredReports_.load(std::memory_order_relaxed);
+    result.lastIgnoredRumbleEnableBits =
+        lastIgnoredRumbleEnableBits_.load(std::memory_order_relaxed);
     result.audioEnvelopeReports = audioEnvelopeReports_.load(std::memory_order_relaxed);
     result.audioEnvelopeActive = audioEnvelopeActive_.load(std::memory_order_relaxed);
     result.waveformLeftActiveBlocks = waveformLeftActiveBlocks_.load(std::memory_order_relaxed);
@@ -786,6 +795,7 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
     result.pcmOutputRightPeak = pcmOutputRightPeak_.load(std::memory_order_relaxed);
     result.gripEnvelopeFrames = gripEnvelopeFrames_.load(std::memory_order_relaxed);
     result.gripRumbleFrames = gripRumbleFrames_.load(std::memory_order_relaxed);
+    result.gripRumbleMaskedFrames = gripRumbleMaskedFrames_.load(std::memory_order_relaxed);
     result.deadlineOverruns = deadlineOverruns_.load(std::memory_order_relaxed);
     result.idleFramesSkipped = idleFramesSkipped_.load(std::memory_order_relaxed);
     result.idleKeepalives = idleKeepalives_.load(std::memory_order_relaxed);

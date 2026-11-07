@@ -134,8 +134,10 @@ public:
             replies_.push_back(std::move(reply));
         } else if (!silent_ && !apex4_ && report.size() > 6 &&
                    report[3] == asb::flydigi::kCmdSetInputTransport) {
-            controllerData_ = report[5] != 0;
-            rawData_ = report[6] != 0;
+            if (retainInputTransport) {
+                controllerData_ = report[5] != 0;
+                rawData_ = report[6] != 0;
+            }
             std::vector<std::uint8_t> reply(32, 0);
             reply[0] = asb::flydigi::kReportIdIn;
             reply[1] = asb::flydigi::kMagic0;
@@ -182,6 +184,7 @@ public:
     std::vector<std::chrono::milliseconds> readTimeouts;
     std::chrono::milliseconds readDelay{0};
     std::uint8_t thirdPartyControlByte = 0;
+    bool retainInputTransport = true;
     bool corruptApex6Checksum = false;
     bool streamApex4State = false;
     std::chrono::milliseconds apex4QuietInterval{0};
@@ -615,6 +618,15 @@ int main() {
     assert(accepted.readInputTransportStatus(transportStatus, error));
     assert(transportStatus.thirdPartyControl.value() == true);
     assert(transportStatus.controllerData && !transportStatus.rawData);
+    acceptedTransport->retainInputTransport = false;
+    error.clear();
+    assert(!accepted.setInputTransport(true, true, error));
+    assert(error ==
+           "The Apex 5 did not retain the requested physical-input routing "
+           "(requested controller_data=1, raw_data=1; controller reported "
+           "controller_data=1, raw_data=0, keyboard_data=0, mouse_data=0, "
+           "third_party_control=1)");
+    acceptedTransport->retainInputTransport = true;
     acceptedTransport->thirdPartyControlByte = 0;
     error.clear();
 

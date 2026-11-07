@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 
 namespace asb::flydigi {
 
@@ -95,6 +96,7 @@ struct InputTransportStatus {
     std::span<const std::uint8_t> report) noexcept;
 [[nodiscard]] std::optional<InputTransportStatus> parseInputTransportStatus(
     std::span<const std::uint8_t> report) noexcept;
+[[nodiscard]] std::string describeInputTransport(const InputTransportStatus& status);
 [[nodiscard]] bool isControllerProduct(std::uint16_t productId) noexcept;
 
 } // namespace asb::flydigi

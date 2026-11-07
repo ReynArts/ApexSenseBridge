@@ -299,20 +299,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
     }
     if (originalInputTransport) {
-        const auto flagText = [](asb::flydigi::TransportFlag flag) {
-            if (const auto value = flag.value()) return std::string(*value ? "1" : "0");
-            std::ostringstream text;
-            text << "unknown(0x" << std::hex << std::uppercase << std::setw(2)
-                 << std::setfill('0') << static_cast<unsigned>(flag.raw) << ')';
-            return text.str();
-        };
-        std::cout << "Apex 5 input transport snapshot: controller_data="
-                  << originalInputTransport->controllerData
-                  << ", raw_data=" << originalInputTransport->rawData
-                  << ", keyboard_data=" << flagText(originalInputTransport->keyboardData)
-                  << ", mouse_data=" << flagText(originalInputTransport->mouseData)
-                  << ", third_party_control="
-                  << flagText(originalInputTransport->thirdPartyControl)
+        std::cout << "Apex 5 input transport snapshot: "
+                  << asb::flydigi::describeInputTransport(*originalInputTransport)
                   << std::endl;
     }
     std::unique_ptr<asb::TriggerResetGuard> resetOnExit;
@@ -2045,6 +2033,9 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_trigger_both_frames=" << apex6Stats.bothTriggerFrames << '\n'
               << "apex6_rumble_updates=" << apex6Stats.rumbleUpdates << '\n'
               << "apex6_rumble_active_updates=" << apex6Stats.rumbleActiveUpdates << '\n'
+              << "apex6_rumble_ignored_reports=" << apex6Stats.rumbleIgnoredReports << '\n'
+              << "apex6_rumble_ignored_last_flags="
+              << static_cast<unsigned>(apex6Stats.lastIgnoredRumbleEnableBits) << '\n'
               << "apex6_audio_envelope_reports=" << apex6Stats.audioEnvelopeReports << '\n'
               << "apex6_audio_envelope_active=" << apex6Stats.audioEnvelopeActive << '\n'
               << "apex6_waveform_left_active=" << apex6Stats.waveformLeftActiveBlocks << '\n'
@@ -2068,6 +2059,7 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_waveform_active_rendered=" << apex6Stats.waveformActiveRendered << '\n'
               << "apex6_grip_envelope_frames=" << apex6Stats.gripEnvelopeFrames << '\n'
               << "apex6_grip_rumble_frames=" << apex6Stats.gripRumbleFrames << '\n'
+              << "apex6_grip_rumble_masked_frames=" << apex6Stats.gripRumbleMaskedFrames << '\n'
               << "apex6_haptic_enables=" << apex6Stats.hapticEnables << '\n'
               << "apex6_haptic_disables=" << apex6Stats.hapticDisables << '\n'
               << "apex6_haptic_frames=" << apex6Stats.framesWritten << '\n'

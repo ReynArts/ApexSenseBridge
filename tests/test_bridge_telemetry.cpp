@@ -186,6 +186,12 @@ int main() {
     telemetry.apex6Stats->pcmOutputRightPeak = 47;
     telemetry.apex6Stats->hidReports = 17;
     telemetry.apex6Stats->waveformLeftActiveBlocks = 9;
+    telemetry.apex6Stats->rumbleActiveUpdates = 21;
+    telemetry.apex6Stats->rumbleIgnoredReports = 5;
+    telemetry.apex6Stats->lastIgnoredRumbleEnableBits = 0x02;
+    telemetry.apex6Stats->gripRumbleFrames = 64;
+    telemetry.apex6Stats->gripRumbleMaskedFrames = 11;
+    telemetry.apex6Stats->gripEnvelopeFrames = 3;
     telemetry.apex6Stats->triggerMalformed = 2;
     telemetry.apex6Stats->rawAudioMeasuredBlocks = 1;
     telemetry.apex6Stats->rawAudioPeaks = {1234, 5678, 10000, 32768};
@@ -222,6 +228,12 @@ int main() {
     assert(apex6Output.str().find("\"pcm_gain_policy\": \"bounded-companding-opt-in\"") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_threshold_policy\": \"native-pcm-preserved\"") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_left_active\": 9") != std::string::npos);
+    assert(apex6Output.str().find("\"rumble_active_updates\": 21") != std::string::npos);
+    assert(apex6Output.str().find("\"rumble_ignored_reports\": 5") != std::string::npos);
+    assert(apex6Output.str().find("\"rumble_ignored_last_flags\": 2") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_rumble_frames\": 64") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_rumble_masked_frames\": 11") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_envelope_frames\": 3") != std::string::npos);
     assert(apex6Output.str().find("\"trigger_malformed\": 2") != std::string::npos);
     assert(apex6Output.str().find("\"raw_audio_measured_blocks\": 1") != std::string::npos);
     assert(apex6Output.str().find("\"raw_haptic_right_peak\": 32768") != std::string::npos);

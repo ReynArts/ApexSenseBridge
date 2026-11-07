@@ -215,6 +215,9 @@ int main() {
     assert(issue47->mouseData.value() == false);
     assert(!issue47->thirdPartyControl.value());
     assert(issue47->thirdPartyControl.raw == 0x16);
+    assert(describeInputTransport(*issue47) ==
+           "controller_data=1, raw_data=0, keyboard_data=0, mouse_data=0, "
+           "third_party_control=unknown(0x16)");
 
     auto issue47Readback = issue47Reply;
     issue47Readback[7] = 1;

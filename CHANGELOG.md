@@ -489,6 +489,33 @@
   "start the bridge first, then restart Steam" recipe, a USB or driver trouble
   note, a bug report checklist, and the executable-selection workaround for a
   bridge that turns on and off at game launch ([#63](https://github.com/ReynArts/ApexSenseBridge/issues/63), [#53](https://github.com/ReynArts/ApexSenseBridge/issues/53), [#55](https://github.com/ReynArts/ApexSenseBridge/issues/55), [#32](https://github.com/ReynArts/ApexSenseBridge/issues/32), [#21](https://github.com/ReynArts/ApexSenseBridge/issues/21), [#61](https://github.com/ReynArts/ApexSenseBridge/issues/61)).
+
+### APEX 5: clearer error when the controller keeps its old input routing ([#75](https://github.com/ReynArts/ApexSenseBridge/issues/75))
+
+- When an APEX 5 acknowledges the input-routing command but reads back the old
+  routing, the error now shows the requested values and the values the
+  controller reported (controller data, raw data, keyboard, mouse and
+  third-party control). The cause of this failure is not confirmed yet; a failed
+  start already closes the virtual DualSense, makes the physical controller
+  visible again and restores the original routing.
+- The transport snapshot line printed at startup now comes from the same
+  formatter as this error.
+
+### APEX 6 Pro: rumble diagnostics for missing cutscene vibration ([#78](https://github.com/ReynArts/ApexSenseBridge/issues/78))
+
+- The telemetry file now counts DualSense output reports whose motor bytes are
+  non-zero but carry no compatible-vibration bit (`rumble_ignored_reports`, with
+  the last flag byte in `rumble_ignored_last_flags`) and the frames where
+  requested rumble was replaced by haptic audio on the same grip
+  (`grip_rumble_masked_frames`). It also gains `rumble_active_updates`,
+  `grip_rumble_frames` and `grip_envelope_frames`. Behaviour is unchanged. A new
+  test shows that the reports of the Onimusha DualSense mod (zeroed motors, no
+  compatible-vibration bit, silent haptic audio) do not erase the game's own
+  rumble, so the cause of the missing cutscene vibration is still open.
+- The end-of-session summary prints the same counters
+  (`apex6_rumble_ignored_reports`, `apex6_rumble_ignored_last_flags`,
+  `apex6_grip_rumble_masked_frames`).
+
 ## 1.0.2
 
 ### Automatic activation for manual fixes ([#36](https://github.com/ReynArts/ApexSenseBridge/issues/36), [#46](https://github.com/ReynArts/ApexSenseBridge/pull/46))

@@ -1378,6 +1378,107 @@ void testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm() {
     assert(stats.pcmOutputLeftPeak == 0 && stats.pcmOutputRightPeak == 0);
 }
 
+void testCompanionReportsAndSilentAudioKeepGameRumble() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    assert(bridge.start(error));
+    DualSenseFeedback game{};
+    game.enableBits1 = 0x03;
+    game.rumbleLeft = 180;
+    game.rumbleRight = 90;
+    bridge.handle(game);
+    const auto writesBefore = transport->writes.size();
+    DualSenseFeedback companion{};
+    companion.leftTriggerEffect = {0x05};
+    companion.rightTriggerEffect = {0x05};
+    DualSenseFeedback silence{};
+    silence.kind = FeedbackKind::AudioHapticWaveform;
+    for (unsigned step = 1; step <= 25; ++step) {
+        companion.enableBits1 = (step % 2) != 0 ? 0x0E : 0x0C;
+        bridge.handle(companion);
+        silence.audioSequence = step;
+        bridge.handle(silence);
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+    assert(bridge.stop(error));
+    int leftGrip = 0;
+    int rightGrip = 0;
+    for (std::size_t index = writesBefore; index < transport->writes.size(); ++index) {
+        const auto& report = transport->writes[index];
+        if (report[3] != apex6::kCmdRealtimeMotor) continue;
+        for (std::size_t sample = 0; sample < 8; ++sample) {
+            leftGrip = (std::max)(leftGrip, std::abs(int(report[7 + sample * 3]) - 128));
+            rightGrip = (std::max)(rightGrip, std::abs(int(report[8 + sample * 3]) - 128));
+        }
+    }
+    assert(leftGrip > 0 && rightGrip > 0);
+    const auto stats = bridge.stats();
+    assert(stats.hidReports == 26 && stats.rumbleUpdates == 1);
+    assert(stats.rumbleIgnoredReports == 0);
+    assert(stats.waveformSilentBlocks == 25);
+    assert(stats.gripRumbleFrames >= 5);
+    assert(stats.gripRumbleMaskedFrames == 0);
+}
+
+void testIgnoredMotorBytesAreCounted() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    DualSenseFeedback zeroMotors{};
+    zeroMotors.enableBits1 = 0x0E;
+    bridge.handle(zeroMotors);
+    DualSenseFeedback hapticsSelectOnly{};
+    hapticsSelectOnly.enableBits1 = 0x02;
+    hapticsSelectOnly.rumbleLeft = 200;
+    bridge.handle(hapticsSelectOnly);
+    auto stats = bridge.stats();
+    assert(stats.rumbleUpdates == 0);
+    assert(stats.rumbleIgnoredReports == 1);
+    assert(stats.lastIgnoredRumbleEnableBits == 0x02);
+    DualSenseFeedback compatible = hapticsSelectOnly;
+    compatible.enableBits1 = 0x03;
+    bridge.handle(compatible);
+    stats = bridge.stats();
+    assert(stats.rumbleUpdates == 1 && stats.rumbleIgnoredReports == 1);
+}
+
+void testPcmOnSameSideCountsMaskedRumble() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    assert(bridge.start(error));
+    DualSenseFeedback rumble{};
+    rumble.enableBits1 = 0x01;
+    rumble.rumbleLeft = 150;
+    bridge.handle(rumble);
+    DualSenseFeedback waveform{};
+    waveform.kind = FeedbackKind::AudioHapticWaveform;
+    waveform.leftHapticSamples.fill(1);
+    for (unsigned sequence = 1; sequence <= 4; ++sequence) {
+        waveform.audioSequence = sequence;
+        bridge.handle(waveform);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(bridge.stop(error));
+    const auto stats = bridge.stats();
+    assert(stats.waveformLeftActiveBlocks == 4);
+    assert(stats.gripRumbleMaskedFrames > 0);
+    assert(stats.pcmOutputLeftPeak == 0);
+}
+
 void testIdleSkipsFramesAndWakesImmediately() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
@@ -1730,6 +1831,9 @@ int main() {
     testBridgeBurstTakesTheRouteFromASustainedTrigger();
     testTriggerDiagnostics();
     testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm();
+    testCompanionReportsAndSilentAudioKeepGameRumble();
+    testIgnoredMotorBytesAreCounted();
+    testPcmOnSameSideCountsMaskedRumble();
     testStrength(100, 0.0);
     testStrength(50, 0.0);
     testStrength(0, 0.0);

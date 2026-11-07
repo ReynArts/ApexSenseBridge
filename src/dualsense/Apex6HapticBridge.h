@@ -65,6 +65,8 @@ struct Apex6HapticBridgeStats {
     std::uint8_t lastRightTriggerType = 0;
     std::uint64_t rumbleUpdates = 0;
     std::uint64_t rumbleActiveUpdates = 0;
+    std::uint64_t rumbleIgnoredReports = 0;
+    std::uint8_t lastIgnoredRumbleEnableBits = 0;
     std::uint64_t audioEnvelopeReports = 0;
     std::uint64_t audioEnvelopeActive = 0;
     std::uint64_t waveformLeftActiveBlocks = 0;
@@ -105,6 +107,7 @@ struct Apex6HapticBridgeStats {
     std::uint64_t pcmOutputRightPeak = 0;
     std::uint64_t gripEnvelopeFrames = 0;
     std::uint64_t gripRumbleFrames = 0;
+    std::uint64_t gripRumbleMaskedFrames = 0;
     std::uint64_t deadlineOverruns = 0;
     std::uint64_t idleFramesSkipped = 0;
     std::uint64_t idleKeepalives = 0;
@@ -238,6 +241,8 @@ private:
     std::atomic_uint8_t lastRightTriggerType_{0};
     std::atomic_uint64_t rumbleUpdates_{0};
     std::atomic_uint64_t rumbleActiveUpdates_{0};
+    std::atomic_uint64_t rumbleIgnoredReports_{0};
+    std::atomic_uint8_t lastIgnoredRumbleEnableBits_{0};
     std::atomic_uint64_t audioEnvelopeReports_{0};
     std::atomic_uint64_t audioEnvelopeActive_{0};
     std::atomic_uint64_t waveformLeftActiveBlocks_{0};
@@ -275,6 +280,7 @@ private:
     std::atomic_uint64_t pcmOutputRightPeak_{0};
     std::atomic_uint64_t gripEnvelopeFrames_{0};
     std::atomic_uint64_t gripRumbleFrames_{0};
+    std::atomic_uint64_t gripRumbleMaskedFrames_{0};
     std::atomic_uint64_t deadlineOverruns_{0};
     std::atomic_uint64_t idleFramesSkipped_{0};
     std::atomic_uint64_t idleKeepalives_{0};
