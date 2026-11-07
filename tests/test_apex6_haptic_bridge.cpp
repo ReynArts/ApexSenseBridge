@@ -3,6 +3,7 @@
 #endif
 
 #include "dualsense/Apex6HapticBridge.h"
+#include "dualsense/Apex6HapticShaping.h"
 #include "dualsense/Apex6PcmGain.h"
 #include "dualsense/Apex6TriggerEffect.h"
 #include "flydigi/Apex6Protocol.h"
@@ -503,10 +504,129 @@ void testTriggerReleaseSendsExplicitZeroFrames() {
     assert(zeroFrames >= 3);
 }
 
+void testShapingHelpers() {
+    using namespace asb::dualsense;
+    for (int raw = -128; raw <= 127; ++raw) {
+        const auto sample = static_cast<std::int8_t>(raw);
+        assert(limitApex6TriggerSample(sample, 100) == sample);
+        assert(applyApex6GripDuck(sample, 1000) == sample);
+        assert(applyApex6GripDuck(sample, 0) == 0);
+    }
+    for (unsigned ceiling = 20; ceiling < 100; ceiling += 5) {
+        const int bound = static_cast<int>(127.0 * ceiling / 100.0 + 0.5);
+        const int knee = static_cast<int>(127.0 * ceiling / 200.0);
+        int previous = 0;
+        for (int magnitude = 0; magnitude <= 127; ++magnitude) {
+            const int positive = limitApex6TriggerSample(static_cast<std::int8_t>(magnitude), ceiling);
+            const int negative = limitApex6TriggerSample(static_cast<std::int8_t>(-magnitude), ceiling);
+            assert(positive == -negative);
+            assert(positive >= previous && positive <= bound);
+            if (magnitude <= knee) assert(positive == magnitude);
+            previous = positive;
+        }
+        assert(std::abs(int(limitApex6TriggerSample(-128, ceiling))) <= bound);
+    }
+    assert(limitApex6TriggerSample(100, 5) == limitApex6TriggerSample(100, 20));
+    assert(limitApex6TriggerSample(100, 999) == 100);
+
+    assert(apex6GripDuckGainPermille(255, 255, 0) == 1000);
+    assert(apex6GripDuckGainPermille(0, 0, 100) == 1000);
+    assert(apex6GripDuckGainPermille(20, 20, 100) == 1000);
+    assert(apex6GripDuckGainPermille(100, 0, 100) == 0);
+    assert(apex6GripDuckGainPermille(0, 255, 100) == 0);
+    assert(apex6GripDuckGainPermille(255, 255, 50) == 500);
+    assert(apex6GripDuckGainPermille(60, 0, 100) == 500);
+    assert(apex6GripDuckGainPermille(255, 255, 500) == 0);
+    unsigned previousGain = 1000;
+    for (unsigned position = 0; position <= 255; ++position) {
+        const auto gain = apex6GripDuckGainPermille(
+            static_cast<std::uint8_t>(position), 0, 80);
+        assert(gain <= previousGain);
+        previousGain = gain;
+    }
+    assert(applyApex6GripDuck(127, 500) == 63);
+    assert(applyApex6GripDuck(-127, 500) == -63);
+}
+
+struct ShapingRun {
+    int maximumGrip = 0;
+    int maximumTrigger = 0;
+    asb::dualsense::Apex6HapticBridgeStats stats;
+};
+
+ShapingRun runShaping(unsigned duck, unsigned ceiling, std::uint8_t position) {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true, 100, 100, 100, duck, ceiling);
+    bridge.updateTriggerPositions(position, position);
+    assert(bridge.start(error));
+    DualSenseFeedback trigger{};
+    trigger.enableBits1 = 0x0C;
+    trigger.leftTriggerEffect = {1, 0, 100};
+    trigger.rightTriggerEffect = trigger.leftTriggerEffect;
+    bridge.handle(trigger);
+    DualSenseFeedback waveform{};
+    waveform.kind = FeedbackKind::AudioHapticWaveform;
+    waveform.leftHapticSamples.fill(30000);
+    waveform.rightHapticSamples.fill(-30000);
+    for (unsigned sequence = 1; sequence <= 4; ++sequence) {
+        waveform.audioSequence = sequence;
+        bridge.handle(waveform);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(bridge.stop(error));
+    ShapingRun run;
+    for (const auto& report : transport->writes) {
+        if (report[3] != apex6::kCmdRealtimeMotor) continue;
+        for (std::size_t sample = 0; sample < 8; ++sample) {
+            run.maximumGrip = (std::max)(run.maximumGrip, std::abs(int(report[7 + sample * 3]) - 128));
+            run.maximumGrip = (std::max)(run.maximumGrip, std::abs(int(report[8 + sample * 3]) - 128));
+            run.maximumTrigger = (std::max)(run.maximumTrigger, std::abs(int(report[6 + sample * 3]) - 128));
+        }
+    }
+    run.stats = bridge.stats();
+    return run;
+}
+
+void testShapingBridge() {
+    const auto baseline = runShaping(0, 100, 200);
+    assert(baseline.maximumGrip > 0 && baseline.maximumTrigger > 0);
+    assert(baseline.stats.gripDuckPercent == 0 && baseline.stats.triggerCeilingPercent == 100);
+    assert(baseline.stats.gripDuckedBlocks == 0 && baseline.stats.triggerLimitedSamples == 0);
+
+    const auto pressed = runShaping(100, 100, 200);
+    assert(pressed.maximumGrip == 0);
+    assert(pressed.maximumTrigger == baseline.maximumTrigger);
+    assert(pressed.stats.gripDuckPercent == 100 && pressed.stats.gripDuckedBlocks > 0);
+
+    const auto released = runShaping(100, 100, 0);
+    assert(released.maximumGrip == baseline.maximumGrip);
+    assert(released.stats.gripDuckedBlocks == 0);
+
+    const auto half = runShaping(50, 100, 200);
+    assert(half.maximumGrip == baseline.maximumGrip * 500 / 1000);
+
+    const auto limited = runShaping(0, 50, 200);
+    assert(limited.maximumGrip == baseline.maximumGrip);
+    assert(limited.maximumTrigger > 0 && limited.maximumTrigger <= 64);
+    assert(limited.maximumTrigger <= baseline.maximumTrigger);
+    if (baseline.maximumTrigger > 32) assert(limited.stats.triggerLimitedSamples > 0);
+    assert(limited.stats.triggerCeilingPercent == 50);
+
+    const auto clamped = runShaping(500, 5, 0);
+    assert(clamped.stats.gripDuckPercent == 100 && clamped.stats.triggerCeilingPercent == 20);
+}
+
 int main() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
 
+    testShapingHelpers();
+    testShapingBridge();
     testTriggerReleaseSendsExplicitZeroFrames();
     testIdleSkipsFramesAndWakesImmediately();
     testNativeTriggerEffects();

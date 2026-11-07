@@ -166,6 +166,12 @@ int commandBridgeTriggers(int argc, char** argv) {
     if (!competingEngines.empty()) {
         std::cerr << asb::platform::competingHapticsEnginesWarning(competingEngines) << '\n';
     }
+    if ((options.apex6GripDuckExplicit || options.apex6TriggerCeilingExplicit) && !apex6Pro) {
+        constexpr std::string_view message =
+            "--apex6-grip-duck and --apex6-trigger-ceiling require a verified Apex 6 Pro.";
+        std::cerr << message << '\n';
+        return failSession(2, message);
+    }
     if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::ControllerVerified);
     startup.enter("calibration");
     const bool apex5 = device->identity() && device->identity()->isApex5();
@@ -403,7 +409,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     auto apex6Bridge = apex6Pro
         ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
               *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent,
-              options.vibrationStrengthPercent, options.apex6HapticGainPercent)
+              options.vibrationStrengthPercent, options.apex6HapticGainPercent,
+              options.apex6GripDuckPercent, options.apex6TriggerCeilingPercent)
         : std::unique_ptr<asb::dualsense::Apex6HapticBridge>{};
     if (apex6Bridge) {
         apex6Bridge->updateTriggerPositions(initialInput.l2, initialInput.r2);
@@ -864,6 +871,24 @@ int commandBridgeTriggers(int argc, char** argv) {
             std::cerr << "Experimental Apex 6 native PCM gain enabled: quiet amplitudes are "
                          "increased with bounded compression, not a linear multiplier. "
                          "Trigger effects and native frequencies are not retuned.\n";
+        }
+        if (kApex6ShapingOptionsEnabled) {
+            std::cout << "apex6_grip_duck_percent=" << options.apex6GripDuckPercent << std::endl;
+        }
+        if (options.apex6GripDuckPercent > 0) {
+            std::cerr << "Experimental Apex 6 grip duck enabled: grip haptics are reduced by up to "
+                      << options.apex6GripDuckPercent
+                      << "% as a trigger travels from 8% to 39% of its range.\n";
+        }
+    }
+    if (apex6Pro) {
+        if (kApex6ShapingOptionsEnabled) {
+            std::cout << "apex6_trigger_ceiling_percent=" << options.apex6TriggerCeilingPercent << std::endl;
+        }
+        if (options.apex6TriggerCeilingPercent < 100) {
+            std::cerr << "Experimental Apex 6 trigger ceiling enabled: trigger vibration is softly "
+                         "limited to "
+                      << options.apex6TriggerCeilingPercent << "% of full scale.\n";
         }
     }
     if (sessionControl) {

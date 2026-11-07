@@ -178,6 +178,10 @@ int main() {
         asb::platform::HapticAudioFormatStatus::Quadraphonic, 4, 0x33, 0x33};
     telemetry.apex6Stats->bowBreaks = 3;
     telemetry.apex6Stats->pcmGainPercent = 150;
+    telemetry.apex6Stats->gripDuckPercent = 35;
+    telemetry.apex6Stats->gripDuckedBlocks = 12;
+    telemetry.apex6Stats->triggerCeilingPercent = 80;
+    telemetry.apex6Stats->triggerLimitedSamples = 34;
     telemetry.apex6Stats->pcmOutputLeftPeak = 48;
     telemetry.apex6Stats->pcmOutputRightPeak = 47;
     telemetry.apex6Stats->hidReports = 17;
@@ -201,6 +205,10 @@ int main() {
     assert(apex6Output.str().find("\"audio_channel_mask\": 51") != std::string::npos);
     assert(apex6Output.str().find("\"bow_breaks\": 3") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_gain_percent\": 150") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_duck_percent\": 35") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_ducked_blocks\": 12") != std::string::npos);
+    assert(apex6Output.str().find("\"trigger_ceiling_percent\": 80") != std::string::npos);
+    assert(apex6Output.str().find("\"trigger_limited_samples\": 34") != std::string::npos);
     assert(apex6Output.str().find("\"battery_known\": true") != std::string::npos);
     assert(apex6Output.str().find("\"battery_source\": \"apex6\"") != std::string::npos);
     assert(apex6Output.str().find("\"battery_refreshes\": 7") != std::string::npos);

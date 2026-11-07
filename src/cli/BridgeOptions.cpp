@@ -20,6 +20,22 @@ std::optional<asb::dualsense::VirtualDualSenseBackend> parseBackend(
     return std::nullopt;
 }
 
+bool parseBoundedPercent(const char* text, unsigned minimum, unsigned maximum,
+                         unsigned& result) noexcept {
+    if (!text || text[0] == '\0' || text[0] == '-') return false;
+    try {
+        std::size_t consumed = 0;
+        const auto parsed = std::stoul(text, &consumed);
+        if (consumed != std::string_view(text).size() || parsed < minimum || parsed > maximum) {
+            return false;
+        }
+        result = static_cast<unsigned>(parsed);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 } // namespace
 
 bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
@@ -198,6 +214,18 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 error = "--apex6-haptic-gain requires an integer percentage from 100 to 200.";
                 return false;
             }
+        } else if (kApex6ShapingOptionsEnabled && value == "--apex6-grip-duck") {
+            if (++i >= argc || !parseBoundedPercent(argv[i], 0, 100, options.apex6GripDuckPercent)) {
+                error = "--apex6-grip-duck requires an integer percentage from 0 to 100.";
+                return false;
+            }
+            options.apex6GripDuckExplicit = true;
+        } else if (kApex6ShapingOptionsEnabled && value == "--apex6-trigger-ceiling") {
+            if (++i >= argc || !parseBoundedPercent(argv[i], 20, 100, options.apex6TriggerCeilingPercent)) {
+                error = "--apex6-trigger-ceiling requires an integer percentage from 20 to 100.";
+                return false;
+            }
+            options.apex6TriggerCeilingExplicit = true;
         } else if (value == "--apex4-gyro-strength" ||
                    value == "--apex4-gyro-yaw-strength") {
             if (++i >= argc) {
@@ -330,6 +358,10 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
         error = "--apex6-haptic-gain requires --rumble.";
         return false;
     }
+    if (options.apex6GripDuckExplicit && !options.routeRumble) {
+        error = "--apex6-grip-duck requires --rumble.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -378,6 +410,10 @@ bool applyControllerCalibration(BridgeCommandOptions& options,
     if (index != 1) options.apexProfileSlot.reset();
     if (options.apex6HapticGainExplicit && !options.routeRumble) {
         error = "--apex6-haptic-gain requires grip haptics in the selected calibration.";
+        return false;
+    }
+    if (options.apex6GripDuckExplicit && !options.routeRumble) {
+        error = "--apex6-grip-duck requires grip haptics in the selected calibration.";
         return false;
     }
     return true;

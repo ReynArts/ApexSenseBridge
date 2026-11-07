@@ -158,6 +158,35 @@ int main() {
     assert(!parse({"--rumble", "--apex6-haptic-gain"}).succeeded);
     assert(!parse({"--apex6-haptic-gain", "150"}).succeeded);
     assert(usage.find("--apex6-haptic-gain 100..200") != std::string_view::npos);
+    assert(defaults.options.apex6GripDuckPercent == 0 && !defaults.options.apex6GripDuckExplicit);
+    assert(defaults.options.apex6TriggerCeilingPercent == 100 &&
+           !defaults.options.apex6TriggerCeilingExplicit);
+    if (asb::cli::kApex6ShapingOptionsEnabled) {
+        for (const auto duck : {"0", "35", "100"}) {
+            const auto parsed = parse({"--rumble", "--apex6-grip-duck", duck});
+            assert(parsed.succeeded && parsed.options.apex6GripDuckExplicit);
+            assert(parsed.options.apex6GripDuckPercent == std::stoul(duck));
+        }
+        for (const auto duck : {"101", "-1", "10junk", "10.5", "", "999999999999999999999999999"}) {
+            assert(!parse({"--rumble", "--apex6-grip-duck", duck}).succeeded);
+        }
+        assert(!parse({"--rumble", "--apex6-grip-duck"}).succeeded);
+        assert(!parse({"--apex6-grip-duck", "50"}).succeeded);
+        for (const auto ceiling : {"20", "80", "100"}) {
+            const auto parsed = parse({"--apex6-trigger-ceiling", ceiling});
+            assert(parsed.succeeded && parsed.options.apex6TriggerCeilingExplicit);
+            assert(parsed.options.apex6TriggerCeilingPercent == std::stoul(ceiling));
+        }
+        for (const auto ceiling : {"19", "101", "-1", "50junk", "50.5", ""}) {
+            assert(!parse({"--apex6-trigger-ceiling", ceiling}).succeeded);
+        }
+        assert(!parse({"--apex6-trigger-ceiling"}).succeeded);
+    } else {
+        assert(!parse({"--rumble", "--apex6-grip-duck", "35"}).succeeded);
+        assert(!parse({"--apex6-trigger-ceiling", "80"}).succeeded);
+        assert(usage.find("--apex6-grip-duck") == std::string_view::npos);
+        assert(usage.find("--apex6-trigger-ceiling") == std::string_view::npos);
+    }
     // The lightbar brightness limit is a plain percentage; it is accepted
     // without --sync-lightbar so launchers can always pass it.
     for (const auto brightness : {"0", "55", "100"}) {
