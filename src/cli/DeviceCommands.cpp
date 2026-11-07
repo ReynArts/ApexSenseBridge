@@ -467,13 +467,167 @@ int commandTestRt(int argc, char** argv) {
     return runTestRt(*device);
 }
 
+namespace {
+
+asb::dualsense::Apex6TestEffect apex6TestEffectForMode(std::string_view mode) {
+    using asb::dualsense::Apex6TestEffect;
+    if (mode == "normal" || mode == "off" || mode == "clear") return Apex6TestEffect::Off;
+    if (mode == "weapon" || mode == "break" || mode == "sniper" || mode == "snap") {
+        return Apex6TestEffect::Weapon;
+    }
+    if (mode == "vibration" || mode == "rattle" || mode == "recoil") {
+        return Apex6TestEffect::Vibration;
+    }
+    if (mode == "bow") return Apex6TestEffect::Bow;
+    return Apex6TestEffect::Resistance;
+}
+
+int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
+                        const std::vector<asb::TriggerSide>& targets,
+                        std::string_view mode,
+                        unsigned int level,
+                        std::optional<std::uint8_t> customStart,
+                        std::optional<std::uint8_t> customForce,
+                        unsigned long seconds,
+                        bool forceSweep) {
+    constexpr std::uint8_t kLeftTriggerEnable = 0x08;
+    constexpr std::uint8_t kRightTriggerEnable = 0x04;
+    constexpr auto kLiveStartupTimeout = std::chrono::milliseconds(1000);
+    constexpr auto kLiveWaitSlice = std::chrono::milliseconds(20);
+    constexpr auto kSweepSlice = std::chrono::milliseconds(10);
+
+    std::string error;
+    const auto preset = asb::dualsense::apex6WeaponPresetFromName(mode);
+    const auto effect = apex6TestEffectForMode(mode);
+    if (!preset && effect == asb::dualsense::Apex6TestEffect::Off) {
+        std::cout << "Apex 6 trigger test: Normal requested, no effect to play.\n";
+        return 0;
+    }
+    asb::dualsense::Apex6HapticBridge bridge(device, {}, false);
+    bridge.updateTriggerPositions(0, 0);
+    if (preset) {
+        const auto presetEffect = asb::dualsense::makeApex6WeaponPreset(*preset, level, customStart);
+        for (const auto targetSide : targets) bridge.setDiagnosticEffect(targetSide, presetEffect);
+        std::cout << "Preset " << asb::dualsense::apex6WeaponPresetName(*preset)
+                  << (asb::dualsense::apex6WeaponPresetIsTrain(*preset)
+                          ? ": rhythmic train from position " : ": one-shot at position ")
+                  << static_cast<unsigned int>(
+                         presetEffect.type == asb::dualsense::Apex6TriggerType::Rhythm
+                             ? presetEffect.rhythm.activeFrom : presetEffect.triggerPosition)
+                  << " (0..255).\n";
+    } else {
+        const auto bytes = asb::dualsense::makeApex6TestTriggerEffect(
+            effect, level, customStart, customForce);
+        asb::dualsense::DualSenseFeedback feedback{};
+        for (const auto targetSide : targets) {
+            if (targetSide == asb::TriggerSide::Left) {
+                feedback.enableBits1 = static_cast<std::uint8_t>(feedback.enableBits1 | kLeftTriggerEnable);
+                feedback.leftTriggerEffect = bytes;
+            } else {
+                feedback.enableBits1 = static_cast<std::uint8_t>(feedback.enableBits1 | kRightTriggerEnable);
+                feedback.rightTriggerEffect = bytes;
+            }
+        }
+        bridge.handle(feedback);
+    }
+
+    std::unique_ptr<asb::platform::PhysicalInputSource> input;
+    std::string inputError;
+    if (!forceSweep) {
+        input = asb::platform::openPhysicalInputSource(device.info(), std::nullopt, inputError);
+    }
+    if (!bridge.start(error)) {
+        std::cerr << "Could not start the Apex 6 trigger test: " << error << '\n';
+        return 4;
+    }
+
+    bool live = input != nullptr;
+    if (live) {
+        std::cout << "Trigger position: live. Press and release the trigger during the test.\n";
+    } else if (forceSweep) {
+        std::cout << "Trigger position: scripted sweep (requested).\n";
+    } else {
+        std::cout << "Trigger position: scripted sweep (live position unavailable"
+                  << (inputError.empty() ? "" : ": " + inputError) << ").\n";
+    }
+
+    const auto startedAt = std::chrono::steady_clock::now();
+    const auto deadline = startedAt + std::chrono::seconds(seconds);
+    auto sweepOrigin = std::chrono::milliseconds::zero();
+    bool receivedLive = false;
+    std::uint8_t maxLeft = 0;
+    std::uint8_t maxRight = 0;
+    while (std::chrono::steady_clock::now() < deadline &&
+           !g_stopRequested.load(std::memory_order_relaxed) &&
+           !bridge.failed()) {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - startedAt);
+        if (live) {
+            asb::dualsense::DualSenseInputState state{};
+            std::string readError;
+            const auto status = input->waitForState(state, kLiveWaitSlice, readError);
+            if (status == asb::platform::PhysicalInputStatus::State) {
+                receivedLive = true;
+                maxLeft = (std::max)(maxLeft, state.l2);
+                maxRight = (std::max)(maxRight, state.r2);
+                bridge.updateTriggerPositions(state.l2, state.r2);
+            } else if (status != asb::platform::PhysicalInputStatus::Timeout) {
+                std::cout << "Live trigger position stopped (" << readError
+                          << "); using the scripted sweep.\n";
+                live = false;
+                sweepOrigin = elapsed;
+            } else if (!receivedLive && elapsed >= kLiveStartupTimeout) {
+                std::cout << "No live trigger data; using the scripted sweep.\n";
+                live = false;
+                sweepOrigin = elapsed;
+            }
+        } else {
+            const auto position = asb::dualsense::apex6TestSweepPosition(
+                static_cast<std::uint64_t>((elapsed - sweepOrigin).count()));
+            bridge.updateTriggerPositions(position, position);
+            std::this_thread::sleep_for(kSweepSlice);
+        }
+    }
+    input.reset();
+    if (!bridge.stop(error)) {
+        std::cerr << "WARNING: Apex 6 trigger stop failed: " << error << '\n';
+        return 5;
+    }
+    if (bridge.failed()) {
+        std::cerr << "Apex 6 trigger stream failed: " << bridge.error() << '\n';
+        return 4;
+    }
+    const auto stats = bridge.stats();
+    std::cout << "Apex 6 trigger summary: frames=" << stats.framesWritten
+              << " weapon_breaks=" << stats.weaponBreaks
+              << " bow_breaks=" << stats.bowBreaks
+              << " left_frames=" << stats.leftTriggerFrames
+              << " right_frames=" << stats.rightTriggerFrames
+              << " both_frames=" << stats.bothTriggerFrames
+              << " write_failures=" << stats.writeFailures
+              << " deadline_overruns=" << stats.deadlineOverruns << '\n';
+    if (receivedLive) {
+        std::cout << "Live trigger travel seen: left max "
+                  << static_cast<unsigned int>(maxLeft) << ", right max "
+                  << static_cast<unsigned int>(maxRight) << " (0..255).\n";
+        if (maxLeft == 0 && maxRight == 0) {
+            std::cout << "The trigger was not pressed; press it during the test, or add --sweep.\n";
+        }
+    }
+    std::cout << "Apex 6 trigger haptics stopped.\n";
+    return 0;
+}
+
+} // namespace
+
 int runTestTrigger(asb::flydigi::Apex5Device& device,
                    std::string_view side,
                    std::string_view mode,
                    unsigned int level,
                    std::optional<std::uint8_t> customStart,
                    std::optional<std::uint8_t> customForce,
-                   unsigned long seconds) {
+                   unsigned long seconds,
+                   bool forceSweep) {
     std::string error;
     std::cout << "Using: " << narrowAscii(device.info().product) << " ("
               << hex16(device.info().vendorId) << ':' << hex16(device.info().productId) << ")\n";
@@ -488,21 +642,26 @@ int runTestTrigger(asb::flydigi::Apex5Device& device,
         targets.push_back(asb::TriggerSide::Right);
     }
 
+    std::string_view legacyMode = mode;
+    if (const auto preset = asb::dualsense::apex6WeaponPresetFromName(mode)) {
+        legacyMode = asb::dualsense::apex6WeaponPresetIsTrain(*preset) ? "vibration" : "weapon";
+    }
+
     asb::ForceTriggerCommand cmd{};
-    if (mode == "normal" || mode == "off" || mode == "clear") {
+    if (legacyMode == "normal" || legacyMode == "off" || legacyMode == "clear") {
         cmd.mode = asb::TriggerMode::Normal;
-    } else if (mode == "weapon" || mode == "break" || mode == "sniper") {
+    } else if (legacyMode == "weapon" || legacyMode == "break" || legacyMode == "sniper") {
         cmd.mode = asb::TriggerMode::SniperBreak;
         std::uint8_t s = customStart.value_or(level == 1 ? 60 : (level == 2 ? 40 : (level == 3 ? 25 : 10)));
         std::uint8_t f = customForce.value_or(level == 1 ? 40 : (level == 2 ? 90 : (level == 3 ? 160 : 230)));
         std::uint8_t snap = level == 1 ? 60 : (level == 2 ? 130 : (level == 3 ? 200 : 255));
         cmd.params = {s, f, snap, 0, 0};
-    } else if (mode == "vibration" || mode == "rattle" || mode == "recoil") {
+    } else if (legacyMode == "vibration" || legacyMode == "rattle" || legacyMode == "recoil") {
         cmd.mode = asb::TriggerMode::RecoilRattle;
         std::uint8_t freq = level == 1 ? 10 : (level == 2 ? 20 : (level == 3 ? 30 : 40));
         std::uint8_t str = level == 1 ? 30 : (level == 2 ? 60 : (level == 3 ? 100 : 150));
         cmd.params = {freq, 1, str, 0, 0};
-    } else if (mode == "bow") {
+    } else if (legacyMode == "bow") {
         cmd.mode = asb::TriggerMode::Race;
         std::uint8_t s = customStart.value_or(level == 1 ? 40 : (level == 2 ? 25 : (level == 3 ? 15 : 5)));
         std::uint8_t f = customForce.value_or(level == 1 ? 40 : (level == 2 ? 90 : (level == 3 ? 160 : 230)));
@@ -521,33 +680,8 @@ int runTestTrigger(asb::flydigi::Apex5Device& device,
             std::cerr << "Apex 6 realtime trigger tests require a bounded --seconds duration.\n";
             return 4;
         }
-        asb::dualsense::Apex6HapticBridge bridge(device, {}, false);
-        bridge.updateTriggerPositions(255, 255);
-        for (auto targetSide : targets) {
-            cmd.side = targetSide;
-            bridge.setDiagnosticTrigger(cmd);
-        }
-        if (!bridge.start(error)) {
-            std::cerr << "Could not start the Apex 6 trigger test: " << error << '\n';
-            return 4;
-        }
-        const auto deadline = std::chrono::steady_clock::now() +
-                              std::chrono::seconds(seconds);
-        while (std::chrono::steady_clock::now() < deadline &&
-               !g_stopRequested.load(std::memory_order_relaxed) &&
-               !bridge.failed()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        }
-        if (!bridge.stop(error)) {
-            std::cerr << "WARNING: Apex 6 trigger stop failed: " << error << '\n';
-            return 5;
-        }
-        if (bridge.failed()) {
-            std::cerr << "Apex 6 trigger stream failed: " << bridge.error() << '\n';
-            return 4;
-        }
-        std::cout << "Apex 6 trigger haptics stopped.\n";
-        return 0;
+        return runApex6TestTrigger(device, targets, mode, level, customStart,
+                                   customForce, seconds, forceSweep);
     }
 
     asb::TriggerResetGuard resetOnExit(device);
@@ -590,11 +724,14 @@ int commandTestTrigger(int argc, char** argv) {
     unsigned long seconds = 2;
     std::optional<std::uint8_t> customStart;
     std::optional<std::uint8_t> customForce;
+    bool forceSweep = false;
 
     for (int i = 2; i < argc; ++i) {
         std::string_view opt = argv[i];
         if (opt == "--side" && i + 1 < argc) {
             side = argv[++i];
+        } else if (opt == "--sweep") {
+            forceSweep = true;
         } else if (opt == "--mode" && i + 1 < argc) {
             mode = argv[++i];
         } else if (opt == "--level" && i + 1 < argc) {
@@ -626,7 +763,7 @@ int commandTestTrigger(int argc, char** argv) {
         std::cerr << "Error: " << error << "\n";
         return 3;
     }
-    return runTestTrigger(*device, side, mode, level, customStart, customForce, seconds);
+    return runTestTrigger(*device, side, mode, level, customStart, customForce, seconds, forceSweep);
 }
 
 int runTestRumble(asb::flydigi::Apex5Device& device,

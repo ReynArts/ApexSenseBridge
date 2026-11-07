@@ -48,6 +48,10 @@
   level its own scenes drive. The submachine gun, sword, blade, dagger, axe and
   club still cannot reach the scene's full strength over the real-time
   channel. The native DualSense effects keep exactly their previous strength.
+- `test-trigger` on an APEX 6 Pro now plays the real native effect through the
+  bridge renderer and follows your trigger (press and release it during the
+  test), or a scripted travel with `--sweep`. It prints a short summary of the
+  frames and bursts it played. APEX 4/5 behaviour is unchanged.
 
 ### APEX 6 Pro: onboard profile slot
 
