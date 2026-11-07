@@ -50,6 +50,10 @@ public:
     [[nodiscard]] bool supportsAdaptiveTriggers() const noexcept {
         return isApex4() || isApex5();
     }
+    [[nodiscard]] bool supportsProfileSlots() const noexcept {
+        return isApex5() ||
+               (isApex6() && apex6::isProDeviceType(deviceType_));
+    }
     [[nodiscard]] bool supportsRealtimeHaptics() const noexcept {
         return isApex6() && (features_ & 0x80U) != 0 &&
                (features_ & 0x10U) != 0;

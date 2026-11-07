@@ -153,6 +153,7 @@ private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
     [[nodiscard]] bool mayWriteApex6Haptics(std::string& error) const;
     [[nodiscard]] bool mayControlProfiles(std::string& error) const;
+    [[nodiscard]] bool mayControlProfileSlots(std::string& error) const;
     [[nodiscard]] bool usesApex4Protocol() const noexcept;
     [[nodiscard]] bool usesApex6Protocol() const noexcept;
     [[nodiscard]] std::unique_lock<std::recursive_mutex> acquireWriteLock() const noexcept;
@@ -163,6 +164,7 @@ private:
                                            bool trigger,
                                            std::string& error);
     void waitForAsyncWriteSpacing() const;
+    void pauseForApex6ProfileSpacing() const;
     void recordVendorWrite() noexcept;
     void writerLoop();
 
@@ -173,6 +175,7 @@ private:
     mutable std::unique_ptr<std::recursive_mutex> writeMutex_{std::make_unique<std::recursive_mutex>()};
     std::chrono::steady_clock::time_point lastVendorWriteAt_{};
     std::chrono::steady_clock::time_point lastTriggerWriteAt_{};
+    std::chrono::steady_clock::time_point lastApex6ProfileExchangeAt_{};
     Apex4WritePacer apex4Pacer_{configuredApex4RumbleSpacing().spacing};
     AsyncWritePolicy asyncPolicy_{};
     std::thread writer_{};

@@ -275,6 +275,15 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME apex6_motion_guard COMMAND ApexSenseBridgeApex6MotionGuardTests)
 
+    add_executable(ApexSenseBridgeApex6ProfileTests tests/test_apex6_profile.cpp)
+    target_link_libraries(ApexSenseBridgeApex6ProfileTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6ProfileTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6ProfileTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_profile COMMAND ApexSenseBridgeApex6ProfileTests)
+
     add_executable(ApexSenseBridgeVirtualDualSenseTests
         tests/test_virtual_dualsense.cpp
         src/dualsense/DualSenseFeedback.cpp

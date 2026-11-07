@@ -2,6 +2,22 @@
 
 ## 1.1.0
 
+### APEX 6 Pro: onboard profile slot
+
+- `test-profile-switch` and `bridge-triggers --apex-profile 1..4` now work on an
+  APEX 6 Pro as well as on an APEX 5. The vendor commands `0xA1` (read the slot
+  state) and `0xA2` (select a slot) were checked on a real APEX 6 Pro over the
+  dongle: both reply with the same 11-byte state (active slot, one checksum per
+  slot, one global checksum), the selection takes effect at once, and the
+  original slot is restored and verified when the session or the test ends.
+  A watchdog restore after a crash accepts the APEX 6 Pro too.
+- `test-profile-switch` prints the slot checksums before and after the test on
+  the APEX 6 Pro and fails if they changed, so it proves that nothing was saved
+  to the controller.
+- A `--controller-calibration` entry for the APEX 6 Pro no longer discards
+  `--apex-profile` (only the APEX 4 entry does). RGB lightbar synchronization
+  (`--sync-lightbar`) is still refused on an APEX 6 Pro.
+
 ### APEX 6 Pro: gyroscope and accelerometer
 
 - A bridge session now forwards the APEX 6 Pro motion sensors to the virtual

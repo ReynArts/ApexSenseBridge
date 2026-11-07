@@ -57,6 +57,45 @@ Report buildGetInfo() {
     return buildCommand(kCmdGetInfo);
 }
 
+Report buildProfileStatusRequest() {
+    return buildCommand(kCmdProfileStatus);
+}
+
+std::optional<Report> buildApplyProfile(std::uint8_t slot) {
+    if (slot >= kProfileSlotCount) return std::nullopt;
+    const std::array<std::uint8_t, 1> payload{slot};
+    return buildCommand(kCmdApplyProfile, payload);
+}
+
+std::optional<ProfileState> parseProfileState(
+    std::span<const std::uint8_t> report, std::uint8_t command) noexcept {
+    if (command != kCmdProfileStatus && command != kCmdApplyProfile) {
+        return std::nullopt;
+    }
+    const auto frame = protocolFrame(report);
+    if (frame.size() != kFrameSize || frame[2] != command ||
+        frame[31] != checksum(frame)) {
+        return std::nullopt;
+    }
+    constexpr std::size_t kPackageCountOffset = 3;
+    constexpr std::size_t kPayloadOffset = 5;
+    if (frame[kPackageCountOffset] == 0) return std::nullopt;
+
+    ProfileState state{};
+    state.rawSlot = frame[kPayloadOffset];
+    if (state.rawSlot >= kProfileSlotCount * 2) return std::nullopt;
+    const auto littleEndian = [&frame](std::size_t offset) noexcept {
+        return static_cast<std::uint16_t>(
+            frame[offset] | (static_cast<std::uint16_t>(frame[offset + 1]) << 8U));
+    };
+    for (std::size_t index = 0; index < state.slotChecksums.size(); ++index) {
+        state.slotChecksums[index] = littleEndian(kPayloadOffset + 1 + index * 2);
+    }
+    state.globalChecksum = littleEndian(
+        kPayloadOffset + 1 + state.slotChecksums.size() * 2);
+    return state;
+}
+
 std::array<Report, 2> buildMotorEnable() {
     constexpr std::array<std::uint8_t, 5> first{0x01, 0x02, 0x03, 0x00, 0x40};
     constexpr std::array<std::uint8_t, 5> second{0x01, 0x12, 0x02, 0x40, 0x00};

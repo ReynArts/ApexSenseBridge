@@ -407,7 +407,7 @@ bool applyControllerCalibration(BridgeCommandOptions& options,
     options.lightbarBrightnessPercent = c.rgbBrightness;
     options.apex4GyroStrengthPercent = c.gyro;
     options.apex4GyroYawStrengthPercent = c.gyroYaw;
-    if (index != 1) options.apexProfileSlot.reset();
+    if (index == 0) options.apexProfileSlot.reset();
     if (options.apex6HapticGainExplicit && !options.routeRumble) {
         error = "--apex6-haptic-gain requires grip haptics in the selected calibration.";
         return false;

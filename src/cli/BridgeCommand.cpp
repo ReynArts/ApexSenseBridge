@@ -176,6 +176,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     startup.enter("calibration");
     const bool apex5 = device->identity() && device->identity()->isApex5();
     const bool apex4 = device->identity() && device->identity()->isApex4();
+    const std::string profileModelName = apex6Pro ? "Apex 6 Pro" : "Apex 5";
     const auto verifiedCalibrationModel = apex4 ? "apex4" : apex5 ? "apex5" : apex6Pro ? "apex6" : "";
     if (!applyControllerCalibration(options, verifiedCalibrationModel, error)) {
         std::cerr << error << '\n';
@@ -232,9 +233,15 @@ int commandBridgeTriggers(int argc, char** argv) {
     bool profileSwitchRequired = false;
     bool profileSwitchAcknowledged = true;
     if (options.apexProfileSlot || options.syncLightbar) {
-        if (!device->identity() || !device->identity()->isApex5()) {
-            constexpr std::string_view message =
-                "APEX profile and RGB control require a verified Apex 5.";
+        const bool profileControlSupported =
+            apex5 || (apex6Pro && !options.syncLightbar &&
+                      device->identity()->supportsProfileSlots());
+        if (!profileControlSupported) {
+            const std::string message = apex6Pro
+                ? "RGB lightbar synchronization is not available on an Apex 6 Pro; "
+                  "only --apex-profile-slot is supported."
+                : "APEX profile and RGB control require a verified Apex 5, or "
+                  "a verified Apex 6 Pro for the profile slot alone.";
             std::cerr << message << '\n';
             return failSession(15, message);
         }
@@ -243,7 +250,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         asb::flydigi::ProfileStatus second{};
         if (!device->readProfileStatus(first, error)) {
             const std::string message =
-                "Could not read the original Apex 5 profile: " + error;
+                "Could not read the original " + profileModelName + " profile: " + error;
             std::cerr << message << '\n';
             return failSession(15, message);
         }
@@ -252,14 +259,14 @@ int commandBridgeTriggers(int argc, char** argv) {
         if (!device->readProfileStatus(second, error) ||
             first.rawSlot != second.rawSlot) {
             const std::string message = error.empty()
-                ? "The Apex 5 profile changed during the startup preflight."
-                : "Could not confirm the original Apex 5 profile: " + error;
+                ? "The " + profileModelName + " profile changed during the startup preflight."
+                : "Could not confirm the original " + profileModelName + " profile: " + error;
             std::cerr << message << '\n';
             return failSession(15, message);
         }
         if (first.switchBank) {
-            constexpr std::string_view message =
-                "The Apex 5 is using its Nintendo Switch profile bank; "
+            const std::string message =
+                "The " + profileModelName + " is using its Nintendo Switch profile bank; "
                 "XInput profile and RGB control were refused.";
             std::cerr << message << '\n';
             return failSession(15, message);
@@ -267,7 +274,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         originalProfile = first;
         profileSwitchRequired = options.apexProfileSlot &&
                                 first.slot != *options.apexProfileSlot;
-        if (profileSwitchRequired) {
+        if (profileSwitchRequired && apex5) {
             asb::flydigi::InputTransportStatus transport{};
             error.clear();
             if (!device->readInputTransportStatus(transport, error)) {
@@ -679,7 +686,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         const bool statusRead = device->readProfileStatus(applied, statusError);
         if (!statusRead || applied.switchBank ||
             applied.slot != *options.apexProfileSlot) {
-            std::string message = "Could not verify the requested Apex 5 profile";
+            std::string message = "Could not verify the requested " + profileModelName + " profile";
             if (!profileSwitchAcknowledged && !applyError.empty()) {
                 message += ": " + applyError;
             } else if (!statusRead && !statusError.empty()) {
@@ -695,12 +702,12 @@ int commandBridgeTriggers(int argc, char** argv) {
         // Re-establish the bridge's neutral output baseline before declaring
         // the session ready, without modifying the saved onboard profile.
         std::string baselineError;
-        if (!device->clearAll(baselineError)) {
+        if (!apex6Pro && !device->clearAll(baselineError)) {
             return rollbackFailedProfileStartup(
                 4, "Could not establish a Normal trigger baseline after the "
                    "Apex 5 profile switch: " + baselineError);
         }
-        if (options.routeRumble && !device->stopRumble(baselineError)) {
+        if (options.routeRumble && !apex6Pro && !device->stopRumble(baselineError)) {
             return rollbackFailedProfileStartup(
                 12, "Could not establish a stopped grip-rumble baseline after "
                     "the Apex 5 profile switch: " + baselineError);
@@ -2211,7 +2218,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (!profileRestored) {
         const std::string message =
-            "Could not restore the original Apex 5 profile: " + profileRestoreError;
+            "Could not restore the original " + profileModelName + " profile: " + profileRestoreError;
         std::cerr << "WARNING: " << message << "\nUse the controller's profile "
                      "shortcut to restore it manually.\n";
         return failSession(15, message);

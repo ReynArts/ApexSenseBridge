@@ -107,11 +107,14 @@ struct Apex4IdentityObservation {
     std::vector<std::string> samples;
 };
 
+using ReplyMatcher = bool (*)(std::span<const std::uint8_t>, std::uint8_t) noexcept;
+
 std::optional<std::vector<std::uint8_t>> exchangeCommand(
     platform::HidTransport& transport,
-    const Report& request,
+    std::span<const std::uint8_t> request,
     std::uint8_t command,
-    std::string& error) {
+    std::string& error,
+    ReplyMatcher isReply = isProfileCommandReply) {
     const auto bufferSize = std::max<std::size_t>(
         kReportSize, transport.info().inputReportLength);
     std::vector<std::uint8_t> input(bufferSize, 0);
@@ -160,7 +163,7 @@ std::optional<std::vector<std::uint8_t>> exchangeCommand(
             return std::nullopt;
         }
         const auto bytes = std::span<const std::uint8_t>(input.data(), bytesRead);
-        if (isProfileCommandReply(bytes, command)) {
+        if (isReply(bytes, command)) {
             return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
         }
     }
@@ -466,6 +469,23 @@ bool Apex5Device::mayControlProfiles(std::string& error) const {
     return true;
 }
 
+bool Apex5Device::mayControlProfileSlots(std::string& error) const {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_) {
+        error = "Profile command refused: device identity was not verified";
+        return false;
+    }
+    if (!identity_->supportsProfileSlots()) {
+        error = "Profile command refused: this diagnostic currently supports only "
+                "a verified Apex 5 or Apex 6 Pro";
+        return false;
+    }
+    return true;
+}
+
 std::unique_lock<std::recursive_mutex> Apex5Device::acquireWriteLock() const noexcept {
     return writeMutex_ ? std::unique_lock(*writeMutex_) : std::unique_lock<std::recursive_mutex>();
 }
@@ -512,6 +532,15 @@ void Apex5Device::waitForAsyncWriteSpacing() const {
     const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
     if (since < asyncPolicy_.spacing) {
         std::this_thread::sleep_for(asyncPolicy_.spacing - since);
+    }
+}
+
+void Apex5Device::pauseForApex6ProfileSpacing() const {
+    constexpr auto kMinimumSpacing = std::chrono::milliseconds(200);
+    if (lastApex6ProfileExchangeAt_.time_since_epoch().count() == 0) return;
+    const auto since = std::chrono::steady_clock::now() - lastApex6ProfileExchangeAt_;
+    if (since < kMinimumSpacing) {
+        std::this_thread::sleep_for(kMinimumSpacing - since);
     }
 }
 
@@ -690,7 +719,30 @@ bool Apex5Device::disableApex6Haptics(std::string& error) {
 }
 
 bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {
-    if (!mayControlProfiles(error)) return false;
+    if (!mayControlProfileSlots(error)) return false;
+    if (identity_->isApex6()) {
+        const auto lock = acquireWriteLock();
+        pauseForApex6ProfileSpacing();
+        const auto reply = exchangeCommand(
+            *transport_, apex6::buildProfileStatusRequest(),
+            apex6::kCmdProfileStatus, error, apex6::isValidFrame);
+        lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+        if (!reply) return false;
+        const auto parsed = apex6::parseProfileState(*reply, apex6::kCmdProfileStatus);
+        if (!parsed) {
+            error = "The Apex 6 Pro returned a malformed or unknown profile status";
+            return false;
+        }
+        const bool switchBank = parsed->rawSlot >= kProfileSlotCount;
+        status = ProfileStatus{
+            parsed->rawSlot,
+            static_cast<std::uint8_t>(
+                switchBank ? parsed->rawSlot - kProfileSlotCount : parsed->rawSlot),
+            switchBank,
+            ProfileChecksums{parsed->slotChecksums, parsed->globalChecksum},
+        };
+        return true;
+    }
     const auto reply = exchangeCommand(
         *transport_, buildProfileStatusRequest(), kCmdProfileStatus, error);
     if (!reply) return false;
@@ -704,7 +756,32 @@ bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {
 }
 
 bool Apex5Device::applyProfile(std::uint8_t slot, std::string& error) {
-    if (!mayControlProfiles(error)) return false;
+    if (!mayControlProfileSlots(error)) return false;
+    if (identity_->isApex6()) {
+        const auto apex6Request = apex6::buildApplyProfile(slot);
+        if (!apex6Request) {
+            error = "Profile slot must be in the range 1..4";
+            return false;
+        }
+        const auto lock = acquireWriteLock();
+        pauseForApex6ProfileSpacing();
+        const auto reply = exchangeCommand(
+            *transport_, *apex6Request, apex6::kCmdApplyProfile, error,
+            apex6::isValidFrame);
+        lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+        if (!reply) return false;
+        const auto parsed = apex6::parseProfileState(*reply, apex6::kCmdApplyProfile);
+        if (!parsed) {
+            error = "The Apex 6 Pro returned an error or malformed reply to the profile command";
+            return false;
+        }
+        if (parsed->rawSlot != slot) {
+            error = "The Apex 6 Pro acknowledged the profile command but reported raw slot " +
+                    std::to_string(parsed->rawSlot);
+            return false;
+        }
+        return true;
+    }
     const auto request = buildApplyProfile(slot);
     if (!request) {
         error = "Profile slot must be in the range 1..4";

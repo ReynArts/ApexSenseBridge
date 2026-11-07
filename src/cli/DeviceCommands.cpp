@@ -790,10 +790,23 @@ int commandTestProfileSwitch(int argc, char** argv) {
         std::cerr << "APEX identity verification failed: " << error << '\n';
         return 2;
     }
-    if (!device->identity() || !device->identity()->isApex5()) {
-        std::cerr << "test-profile-switch supports Apex 5 only; no profile command was sent.\n";
+    if (!device->identity() || !device->identity()->supportsProfileSlots()) {
+        std::cerr << "test-profile-switch supports Apex 5 and Apex 6 Pro only; "
+                     "no profile command was sent.\n";
         return 3;
     }
+
+    const auto describeChecksums = [](const asb::flydigi::ProfileStatus& status) {
+        if (!status.checksums) return std::string();
+        std::ostringstream text;
+        text << std::hex << std::uppercase << std::setfill('0');
+        for (std::size_t slot = 0; slot < status.checksums->slots.size(); ++slot) {
+            text << (slot == 0 ? "slots " : " ") << std::setw(4)
+                 << status.checksums->slots[slot];
+        }
+        text << ", global " << std::setw(4) << status.checksums->global;
+        return text.str();
+    };
 
     asb::flydigi::ProfileStatus initial{};
     asb::flydigi::ProfileStatus confirmation{};
@@ -833,6 +846,9 @@ int commandTestProfileSwitch(int argc, char** argv) {
               << hex16(device->info().productId) << ")\n"
               << "Preflight passed twice: profile "
               << static_cast<unsigned int>(initial.slot + 1) << " is active.\n"
+              << (initial.checksums
+                      ? "Profile checksums: " + describeChecksums(initial) + ".\n"
+                      : std::string())
               << "No profile data will be saved or overwritten.\n"
               << "Temporarily switching to profile "
               << static_cast<unsigned int>(target + 1) << "...\n";
@@ -880,6 +896,7 @@ int commandTestProfileSwitch(int argc, char** argv) {
 
     bool restored = false;
     std::string restoreError;
+    asb::flydigi::ProfileStatus finalStatus{};
     for (int attempt = 1; attempt <= 3 && !restored; ++attempt) {
         std::string applyError;
         const bool restoreAcknowledged =
@@ -890,6 +907,7 @@ int commandTestProfileSwitch(int argc, char** argv) {
         std::string statusError;
         const bool statusRead =
             device->readProfileStatus(restoredStatus, statusError);
+        finalStatus = restoredStatus;
         restored = statusRead && !restoredStatus.switchBank &&
                    restoredStatus.slot == initial.slot;
         if (!restored) {
@@ -917,6 +935,15 @@ int commandTestProfileSwitch(int argc, char** argv) {
     std::cout << "Restore verified: profile "
               << static_cast<unsigned int>(initial.slot + 1)
               << " is active again.\n";
+    if (initial.checksums && finalStatus.checksums) {
+        std::cout << "Profile checksums after restore: "
+                  << describeChecksums(finalStatus) << ".\n";
+        if (*initial.checksums != *finalStatus.checksums) {
+            std::cerr << "WARNING: the profile checksums changed during the test; "
+                         "check the controller's profiles in Flydigi Space Station.\n";
+            return 16;
+        }
+    }
     if (!switchVerified) return 13;
     if (!switchAcknowledged) {
         std::cout << "Note: the apply acknowledgement was missed, but both status "

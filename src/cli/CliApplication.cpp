@@ -86,7 +86,7 @@ void printUsage() {
         << "  test-rumble [index] [--left 0..255] [--right 0..255] [--seconds N]\n"
         << "                               Grip-motor vibration test\n"
         << "  test-profile-switch [index] [--target 1..4]\n"
-        << "                               Temporarily switch an Apex 5 profile, then restore it\n"
+        << "                               Temporarily switch an Apex 5 or Apex 6 Pro profile, then restore it\n"
         << "  test-rgb [index] [R G B | #RRGGBB]\n"
         << "                               Test direct Apex 5 RGB lighting with backup/restore\n"
         << "  test-gyro [index] [--seconds N] [--stream] [--json]\n"
@@ -166,7 +166,7 @@ int run(int argc, char** argv) {
         }
         if (!controllerOk) {
             std::cout << "The original controller visibility was restored, but the "
-                         "Apex 5 profile and input settings could not be restored yet: "
+                         "Apex profile and input settings could not be restored yet: "
                       << controllerError
                       << "\nWake the controller and run this command again.\n";
         } else if (!controllerRecovery.recovered) {

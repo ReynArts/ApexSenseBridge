@@ -241,7 +241,7 @@ int main() {
         } else {
             assert(options.triggerStrengthPercent == 80 && options.vibrationStrengthPercent == 90);
             assert(options.routeRumble && !options.syncLightbar && options.hapticThresholdPercent == 0);
-            assert(!options.apexProfileSlot && options.apex4GyroStrengthPercent == 100);
+            assert(options.apexProfileSlot == 2 && options.apex4GyroStrengthPercent == 100);
         }
     }
     auto partial = parse({"--controller-calibration", "apex5:45:70:12:1:1:100:100"}).options;

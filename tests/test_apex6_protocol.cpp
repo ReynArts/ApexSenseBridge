@@ -123,5 +123,63 @@ int main() {
     auto unreported = infoReply;
     unreported[12] = 0x00;
     assert(!parseDeviceInfo(sealed(unreported))->hasBatteryReading());
+
+    const auto statusRequest = buildProfileStatusRequest();
+    assert(statusRequest.size() == 33 && statusRequest[0] == kReportId);
+    assert(statusRequest[3] == kCmdProfileStatus && statusRequest[4] == 0x02);
+    assert(statusRequest[32] == 0xA3);
+
+    const auto applySlot0 = buildApplyProfile(0);
+    assert(applySlot0 && (*applySlot0)[3] == kCmdApplyProfile);
+    assert((*applySlot0)[4] == 0x03 && (*applySlot0)[5] == 0x00 && (*applySlot0)[32] == 0xA5);
+    const auto applySlot3 = buildApplyProfile(3);
+    assert(applySlot3 && (*applySlot3)[5] == 0x03 && (*applySlot3)[32] == 0xA8);
+    assert(!buildApplyProfile(kProfileSlotCount));
+
+    const Report hardwareStatus{
+        0x00, 0x5A, 0xA5, 0xA1, 0x01, 0x00, 0x00, 0x12, 0x41, 0x12, 0x41, 0x12, 0x41,
+        0x12, 0x41, 0x5D, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5C};
+    const Report hardwareApplySlot1{
+        0x00, 0x5A, 0xA5, 0xA2, 0x01, 0x00, 0x01, 0x12, 0x41, 0x12, 0x41, 0x12, 0x41,
+        0x12, 0x41, 0x5D, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E};
+    const auto state = parseProfileState(hardwareStatus, kCmdProfileStatus);
+    assert(state && state->rawSlot == 0 && state->globalChecksum == 0x115D);
+    assert((state->slotChecksums == std::array<std::uint16_t, 4>{0x4112, 0x4112, 0x4112, 0x4112}));
+    const auto applied = parseProfileState(hardwareApplySlot1, kCmdApplyProfile);
+    assert(applied && applied->rawSlot == 1 && applied->slotChecksums == state->slotChecksums);
+    assert(!parseProfileState(hardwareStatus, kCmdApplyProfile));
+    assert(!parseProfileState(hardwareApplySlot1, kCmdProfileStatus));
+    assert(!parseProfileState(hardwareStatus, kCmdGetInfo));
+    assert(parseProfileState(std::span<const std::uint8_t>(hardwareStatus).subspan(1), kCmdProfileStatus));
+
+    const auto reseal = [](Report report) {
+        report[32] = checksum(std::span<const std::uint8_t>(report).subspan(1));
+        return report;
+    };
+    auto badChecksum = hardwareStatus;
+    badChecksum[32] ^= 0x01;
+    assert(!parseProfileState(badChecksum, kCmdProfileStatus));
+    auto errorReply = hardwareStatus;
+    errorReply[4] = 0;
+    assert(!parseProfileState(reseal(errorReply), kCmdProfileStatus));
+    auto distinct = hardwareStatus;
+    distinct[8] = 0x01;
+    distinct[10] = 0x02;
+    distinct[12] = 0x03;
+    distinct[14] = 0x04;
+    distinct[16] = 0x05;
+    const auto distinctState = parseProfileState(reseal(distinct), kCmdProfileStatus);
+    assert(distinctState);
+    assert((distinctState->slotChecksums == std::array<std::uint16_t, 4>{0x0112, 0x0212, 0x0312, 0x0412}));
+    assert(distinctState->globalChecksum == 0x055D);
+    auto switchBank = hardwareStatus;
+    switchBank[6] = 5;
+    const auto switchBankState = parseProfileState(reseal(switchBank), kCmdProfileStatus);
+    assert(switchBankState && switchBankState->rawSlot == 5);
+    switchBank[6] = 8;
+    assert(!parseProfileState(reseal(switchBank), kCmdProfileStatus));
+    assert(!parseProfileState(std::span<const std::uint8_t>(hardwareStatus).first(20), kCmdProfileStatus));
     return 0;
 }

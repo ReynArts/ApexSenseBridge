@@ -20,6 +20,9 @@ inline constexpr std::uint8_t kCmdGetInfo = 0x01;
 inline constexpr std::uint8_t kCmdMotorRoute = 0x53;
 inline constexpr std::uint8_t kCmdRealtimeMotor = 0x57;
 inline constexpr std::uint8_t kCmdOperatorData = 0xEF;
+inline constexpr std::uint8_t kCmdProfileStatus = 0xA1;
+inline constexpr std::uint8_t kCmdApplyProfile = 0xA2;
+inline constexpr std::uint8_t kProfileSlotCount = 4;
 inline constexpr std::uint8_t kDeviceType = 0x96;
 inline constexpr std::uint8_t kPhantomBladeZeroDeviceType = 0x98;
 // Official Space Station k6 model IDs: 0x95 is the non-Pro APEX 6.
@@ -83,6 +86,14 @@ struct DeviceInfo {
     }
 };
 
+struct ProfileState {
+    std::uint8_t rawSlot = 0;
+    std::array<std::uint16_t, kProfileSlotCount> slotChecksums{};
+    std::uint16_t globalChecksum = 0;
+
+    bool operator==(const ProfileState&) const = default;
+};
+
 [[nodiscard]] bool isProduct(std::uint16_t vendorId,
                              std::uint16_t productId) noexcept;
 [[nodiscard]] std::uint8_t checksum(
@@ -91,6 +102,10 @@ struct DeviceInfo {
                                   std::span<const std::uint8_t> payload = {});
 [[nodiscard]] Report buildGetInfo();
 [[nodiscard]] std::array<Report, 2> buildMotorEnable();
+[[nodiscard]] Report buildProfileStatusRequest();
+[[nodiscard]] std::optional<Report> buildApplyProfile(std::uint8_t slot);
+[[nodiscard]] std::optional<ProfileState> parseProfileState(
+    std::span<const std::uint8_t> report, std::uint8_t command) noexcept;
 [[nodiscard]] std::array<Report, 2> buildMotorDisable();
 [[nodiscard]] Report buildRealtimeMotor(const MotorBlock& block,
                                         TriggerRoute route,
