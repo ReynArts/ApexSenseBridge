@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-05T11:55:32.133876+00:00",
-  "totalGames": 224,
-  "discordExecutableGames": 136,
+  "updatedAt": "2026-11-07T10:54:13.783071+00:00",
+  "totalGames": 225,
+  "discordExecutableGames": 137,
   "games": [
     {
       "title": "007 First Light",
@@ -346,7 +346,7 @@
       "profile": "standard",
       "steamAppId": 1938090,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1793656583",
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/cdd2e375176da1f904a11940576790732d6ccbc0/library_capsule_2x.jpg?t=1793996750",
       "executables": [
         "cod.exe"
       ],
@@ -1729,6 +1729,21 @@
       "addedAt": "2026-09-01"
     },
     {
+      "title": "Metro 2033 Redux",
+      "normalized": "metro2033redux",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 286690,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/286690/7c276efe09b88ba437ab80331c5ca3095e6f936d/library_capsule_2x.jpg?t=1792681167",
+      "executables": [
+        "metro.exe",
+        "metro2033.exe"
+      ],
+      "addedAt": "2026-11-07"
+    },
+    {
       "title": "Metro Exodus",
       "normalized": "metroexodus",
       "adaptiveTriggers": true,
@@ -1882,7 +1897,7 @@
       "addedAt": "2026-09-01"
     },
     {
-      "title": "Off The Grid",
+      "title": "Off the Grid",
       "normalized": "offthegrid",
       "adaptiveTriggers": true,
       "hapticFeedback": false,
