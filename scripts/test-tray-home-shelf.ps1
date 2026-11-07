@@ -9,7 +9,8 @@ if ([Threading.Thread]::CurrentThread.ApartmentState -ne "STA") {
 }
 $TrayAssembly = (Resolve-Path -LiteralPath $TrayAssembly).Path
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-[void][Reflection.Assembly]::LoadFrom($TrayAssembly)
+$trayResourceAssembly = [Reflection.Assembly]::LoadFrom($TrayAssembly)
+[System.Windows.Application]::ResourceAssembly = $trayResourceAssembly
 $app = New-Object ApexSenseBridgeTray.App
 $app.InitializeComponent()
 [ApexSenseBridgeTray.Common.LocalizationManager]::Initialize("en")
