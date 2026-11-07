@@ -178,6 +178,39 @@ Enabling **Force continuous activation** before launching the game (Issue B) kee
 
 ---
 
+### Issue H: Games That Only Accept Controllers Through Steam Input (Monster Hunter Wilds)
+
+**Symptoms:** the Tray detects the game and the bridge is active, **Wireless Controller** responds in `joy.cpl`, but the game reacts to no button, stick, rumble or trigger. With Steam Input disabled, no controller works in the game at all, with or without ApexSenseBridge.
+
+**Cause:** a few games read controllers only through Steam Input, not directly from Windows. [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Monster_Hunter_Wilds) lists Monster Hunter Wilds this way ("Steam Input API is required", for Xbox, PlayStation and other controllers alike), and Steam community users report that even an Xbox controller does nothing there with Steam Input off. Its adaptive triggers and haptic feedback also go through Steam Input (USB only). Disabling Steam Input, the usual advice in [Issue A](#issue-a-steam-input-is-overriding-the-dualsense-most-common), therefore leaves such a game with no controller.
+
+**What you can try (not validated with ApexSenseBridge yet):**
+1. Exit Steam completely (**Steam** ➔ **Exit**).
+2. In the Tray, enable **Force continuous activation** and wait for **Bridge ready** / **Bridge active**, so that Steam only sees the virtual DualSense (see [Issue E](#issue-e-steam-shows-both-the-physical-controller-and-the-virtual-dualsense)).
+3. Start Steam again. In the game's **Properties** ➔ **Controller**, set the override to **Enable Steam Input**.
+4. Launch the game. Under **Options** ➔ **Controls** ➔ **Controller Button Icons**, pick the DualSense icons yourself; the game does not detect the controller type.
+
+Steam then reads the virtual DualSense and passes it to the game, so buttons and sticks should work. Whether the game's adaptive triggers and haptics reach your APEX this way has not been confirmed: a first test on an APEX 6 Pro (issue #85) gave working buttons and sticks but no vibration at all, so do not expect adaptive triggers or haptics in this mode yet. If you try it, please report what works on the GitHub issue, with `tray_bridge.log`.
+
+Monster Hunter: World and Monster Hunter Rise are not in the catalogue and offer no adaptive triggers or haptic feedback (PCGamingWiki): World uses Xbox (XInput) controllers and DualShock 4, Rise uses Xbox controllers and accepts PlayStation controllers only through Steam Input. The bridge does not help there; leave **Force continuous activation** off and do not add their executables, so the game keeps using your physical APEX directly.
+
+---
+
+### Issue I: APEX 5 Start Fails With "did not retain the requested physical-input routing"
+
+**Symptoms:** the session never becomes ready, `tray_bridge.log` shows `Could not restart the Apex 5 physical input stream after transport refresh: The Apex 5 did not retain the requested physical-input routing`, and after two identical failures the Tray pauses automatic starts for the game (code 8).
+
+**What it means:** on an APEX 5 the bridge needs both the ordinary controller data and the raw (vendor) data stream, which carries the independent LT/RT values and motion. When the startup snapshot shows one of them off, the bridge turns both on, then reads the setting back. This error means the controller acknowledged the command but the read-back still showed the old routing. The bridge then closes the virtual DualSense, makes the physical controller visible again and restores the original routing, so nothing is left behind by the failed start. The cause has not been confirmed. Another program that changes the same setting (Flydigi Space Station, Flydigi X-Haptics) is one possibility, and so is a firmware or receiver that refuses the change.
+
+**What to try:**
+1. Close Flydigi Space Station and X-Haptics completely (Task Manager ➔ **Details**: no `SpaceStationService.exe`, `XHaptics.exe` or `x-haptic-engine-fusion.exe`), then start the game again or click **Retry**.
+2. Unplug and reconnect the receiver or cable, then retry.
+3. If it still fails, attach the full `tray_bridge.log` (see [section 9](#9-what-to-attach-to-a-bug-report)). The line `Apex 5 input transport snapshot:` from the failed start shows the routing the controller reported before the change. From 1.1.0 the error itself also shows the values that were requested and the values read back.
+
+If Steam showed two controllers with doubled input during a session that did start, see Issue E.
+
+---
+
 ## 3. Step-by-Step Hardware & Virtual Controller Validation (`joy.cpl`)
 
 If a game is not responding, follow this quick diagnostic flow to determine whether the issue is with ApexSenseBridge/Windows or isolated to the game itself:
@@ -292,6 +325,27 @@ If the PC lost power or a game crashed unexpectedly while the controller was hid
 ---
 
 ## 5. Driver Installation Issues, USBip Stability & Portable Version
+
+### Windows 11 Smart App Control blocks the app
+
+**Symptom:** Windows shows a "Smart App Control blocked ..." dialog (the exact wording depends on the Windows version and language) that names a file such as `C:\Program Files\ApexSenseBridge\ApexSenseBridgeTray.exe`. The dialog has no "run anyway" button, and a Microsoft Defender folder exclusion does not change it.
+
+**What is known (Microsoft documentation):**
+- Smart App Control (SAC) is a Windows 11 protection that is separate from Microsoft Defender Antivirus and from SmartScreen. While it is **On**, it lets code run only if Microsoft's cloud service predicts that it is safe, or if it is signed with a certificate from a certificate authority in Microsoft's Trusted Root Program. Unknown, unsigned code is blocked, and the check covers all executable files, not only downloads.
+- Microsoft documents no exclusion or allow list: "There is currently no way to bypass Smart App Control protection for individual apps." A Defender exclusion is therefore not a way around it, and SAC only considers certificates issued by trusted providers, so a self-signed or test certificate does not help either.
+- The ApexSenseBridge installers from 0.6.1 to 1.0.2 are not Authenticode-signed, and neither are the executables inside the 1.0.2 portable package (checked on the published files). Unsigned files carry no publisher reputation, and Microsoft's SmartScreen documentation states that their reputation has to build again with every new version, so Smart App Control can block them.
+- SmartScreen's "Windows protected your PC" prompt is a different mechanism: it offers *Run anyway*, SAC does not.
+
+**Options (your choice):**
+1. Turn Smart App Control off: Windows Security ➔ App & browser control ➔ Smart App Control settings ➔ **Off**. This affects every app on the PC, not only ApexSenseBridge. Turning it off used to be permanent until Windows was reset or reinstalled. Microsoft's FAQ now says that "Recent Windows updates allow Smart App Control to be enabled without requiring a clean installation" but does not name the builds, so on an older build assume that turning it off cannot be undone.
+2. Keep it on and wait for a release that is signed with a certificate from a trusted authority. Nothing in the ApexSenseBridge settings can change SAC's decision.
+
+**What to include in a report:**
+- The full path shown in the dialog (the setup, `ApexSenseBridgeTray.exe`, `ApexSenseBridge.exe`, `viiper.exe`, `libVIIPER.dll`, or one of the bundled USBip and HidHide installers), and whether the setup itself was blocked or only the installed files.
+- The Smart App Control state (On, Evaluation or Off) and the Windows build shown by `winver`.
+- The block events, if any: SAC is built on App Control, and Microsoft documents App Control block events as event 3077 (signature details in event 3089) in Event Viewer ➔ Applications and Services Logs ➔ Microsoft ➔ Windows ➔ CodeIntegrity ➔ Operational.
+
+---
 
 ### Keyboard or mouse input after uninstalling ApexSenseBridge / USBip
 
@@ -453,6 +507,15 @@ Some games in the Tray game list carry an amber **Manual fix** badge (*Correctif
 In the catalogue, Forza Horizon 4, 5 and 6 and Forza Motorsport 7 are marked as manual fix for adaptive triggers only (no haptic feedback), each with its PCGamingWiki page as the reference. The community utility [Forza-Horizon-DualSense-Python](https://github.com/HamzaYslmn/Forza-Horizon-DualSense-Python) is an external fix that users mention for these games: according to its own README, it adds adaptive-trigger feedback from the game's telemetry and drives a real DualSense. ApexSenseBridge does not bundle it, has not validated it together with its virtual DualSense and does not replace it.
 
 One user reported being unable to move the car after enabling **Allow automatic activation** for a Forza Horizon game, and getting normal control back by re-enabling Steam Input and using that utility. The likely explanation (a hypothesis, not verified) is that the game did not use the virtual DualSense on its own and, with Steam Input disabled as ApexSenseBridge normally requires, no layer translated it. If you see this, turn the switch off.
+
+### Only rumble, or no controller at all, in a manual-fix game
+
+- **Rumble but no adaptive triggers or haptics is expected without a working fix.** A manual-fix game does not send DualSense trigger effects by itself. It still sends ordinary rumble, which the bridge plays on the APEX grip motors, so you feel vibration when you shoot or crash and nothing in the triggers. For Red Dead Redemption 2, Control and Forza Horizon 6 the catalogue lists no haptic feedback at all, so no fix brings audio haptics to these games.
+- **The trigger effects come from the fix, not from the game.** In the catalogue, the fix for Red Dead Redemption 2 is a custom config that needs DSX, the fix for Control is a mod, and the fix for Forza Horizon 6 is DSX with RacingDSX, or Special K. Each tool sends the trigger commands to a DualSense itself. The bridge can only forward commands that reach its virtual DualSense, and none of these tools has been tested with it. Open the **Manual fix** badge in the Tray for the links, and follow each tool's own instructions.
+- **No controller at all with Steam Input disabled.** Disabling Steam Input (Issue A) only helps games that read a DualSense on their own. The README of the Control mod states that the game has no PS5 controller support by default, and asks Epic users to add it to Steam for that reason. A game like this does not see the virtual DualSense without Steam Input or a similar layer, and the physical APEX is hidden during the session, so it shows no controller. In that case, turn **Allow automatic activation** off for the game, or keep Steam Input enabled if the fix you use needs it.
+- **Tools that also use HidHide.** The bridge refuses to start if HidHide is already active with a configuration it did not set (for example when another tool such as DSX has been told to hide controllers). Turn that option off in the other tool while the bridge runs.
+
+If you test one of these combinations, a report saying what worked and what did not helps (see [section 9](#9-what-to-attach-to-a-bug-report)).
 
 ---
 

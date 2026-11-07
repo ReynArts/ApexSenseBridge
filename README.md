@@ -121,13 +121,15 @@ APEX Controller ──► ApexSenseBridge (C++20 Engine) ──► Virtual DualS
 
 > [!TIP]
 > For common diagnostic questions, minidump analysis, or setup help, consult the [Knowledge Base & Troubleshooting Guide](TROUBLESHOOTING.md).
+>
+> **Windows 11 Smart App Control blocked the installer or `ApexSenseBridgeTray.exe`?** A Defender exclusion does not help. See [Troubleshooting](TROUBLESHOOTING.md#windows-11-smart-app-control-blocks-the-app).
 
 ### Requirements
 
 - Windows 10 or 11 **x64**.
 - A supported controller connected by **USB or its 2.4 GHz receiver**. For APEX 4, use **DInput mode**.
 - Administrator access for the one-time USBip and HidHide driver installation.
-- For Steam games, **disable Steam Input for that game** so native DualSense input and feedback reach the virtual controller.
+- For Steam games, **disable Steam Input for that game** so native DualSense input and feedback reach the virtual controller. A few games, such as Monster Hunter Wilds, accept controllers only through Steam Input; see [Troubleshooting](TROUBLESHOOTING.md#issue-h-games-that-only-accept-controllers-through-steam-input-monster-hunter-wilds).
 
 ### Option A: Standard Offline Installer (Recommended)
 

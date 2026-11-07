@@ -549,6 +549,37 @@
   startup code is bounded in 1.0.2 and in 1.1.0 and the failing allocation is a
   victim of an address space already exhausted.
 
+### Troubleshooting: Windows 11 Smart App Control ([#82](https://github.com/ReynArts/ApexSenseBridge/issues/82))
+
+- TROUBLESHOOTING gains "Windows 11 Smart App Control blocks the app" and the
+  README installation tip points to it. It explains that Smart App Control only
+  runs apps that Microsoft's cloud predicts as safe or that are signed by a
+  trusted authority, that a Defender exclusion is not a way around it, that the
+  installers from 0.6.1 to 1.0.2 are not code-signed, how to turn the feature off
+  and what to include in a report.
+
+### Troubleshooting: Monster Hunter Wilds needs Steam Input ([#83](https://github.com/ReynArts/ApexSenseBridge/issues/83), [#85](https://github.com/ReynArts/ApexSenseBridge/issues/85))
+
+- Monster Hunter Wilds reads controllers only through Steam Input
+  (PCGamingWiki: "Steam Input API is required", for Xbox and PlayStation pads
+  alike), so with Steam Input disabled, as usually advised, it ignored the
+  virtual DualSense entirely. TROUBLESHOOTING gains an entry for such games with
+  a not-yet-validated recipe: start the bridge before Steam, then enable Steam
+  Input for the game. Whether its adaptive triggers and haptics reach the APEX
+  that way is still unconfirmed. Monster Hunter: World and Rise offer no
+  DualSense features and are best played without the bridge. The README points
+  to the entry.
+
+### Troubleshooting: APEX 5 routing error and manual-fix games with rumble only ([#75](https://github.com/ReynArts/ApexSenseBridge/issues/75), [#80](https://github.com/ReynArts/ApexSenseBridge/issues/80))
+
+- TROUBLESHOOTING gains an entry for the APEX 5 start error "did not retain the
+  requested physical-input routing" (cause not confirmed: another program such as
+  Space Station or X-Haptics rewriting the routing, or third-party control being
+  on), and a section for manual-fix games that only rumble or show no controller.
+- The Red Dead Redemption 2 attach/detach loop seen in #80's detection log (an
+  elevated game process reported as "Process inaccessible" every second) is the
+  defect already fixed under #67.
+
 ### APEX 5: clearer error when the controller keeps its old input routing ([#75](https://github.com/ReynArts/ApexSenseBridge/issues/75))
 
 - When an APEX 5 acknowledges the input-routing command but reads back the old
