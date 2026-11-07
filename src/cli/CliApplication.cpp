@@ -72,6 +72,7 @@ void printUsage() {
         << "                  [--trigger-strength 0..100] [--vibration-strength 0..200]\n"
         << "                  Vibration above 100% boosts APEX 4/5 grip motors only; APEX 6 stays capped at 100%.\n"
         << "                  [--apex6-haptic-gain 100..200] (experimental native grip PCM only)\n"
+        << "                  [--apex6-rate 1000|2000] (experimental 2 kHz grip stream, needs --rumble)\n"
         << "                  [--verify-virtual-input]\n"
         << "                  [--virtual-backend auto|integrated|sidecar]\n"
         << "                  [--touchpad-profile NAME]\n"
@@ -81,12 +82,16 @@ void printUsage() {
         << "                               Route adaptive triggers and optional grip/audio haptics\n"
         << "  test-rt [index]              Gentle RT FORCEADAPT test (~1.5 s)\n"
         << "  test-trigger [index] [--side lt|rt|both] [--mode resistance|weapon|vibration|bow|normal]\n"
-        << "                       [--level 1..4] [--seconds N]\n"
+        << "                       [--level 1..4] [--seconds N] [--sweep]\n"
         << "                               Test adaptive triggers on Flydigi APEX controllers\n"
+        << "                               APEX 6 Pro: plays the native DualSense effect through the bridge renderer;\n"
+        << "                               press the trigger during the test, or --sweep for a scripted travel\n"
+        << "                               APEX 6 Pro weapon presets (--mode, --start 0..255 sets the trigger position):\n"
+        << "                               machinegun rifle smg lmg pistol shotgun sniperrifle sword blade dagger axe club\n"
         << "  test-rumble [index] [--left 0..255] [--right 0..255] [--seconds N]\n"
         << "                               Grip-motor vibration test\n"
         << "  test-profile-switch [index] [--target 1..4]\n"
-        << "                               Temporarily switch an Apex 5 profile, then restore it\n"
+        << "                               Temporarily switch an Apex 5 or Apex 6 Pro profile, then restore it\n"
         << "  test-rgb [index] [R G B | #RRGGBB]\n"
         << "                               Test direct Apex 5 RGB lighting with backup/restore\n"
         << "  test-gyro [index] [--seconds N] [--stream] [--json]\n"
@@ -166,7 +171,7 @@ int run(int argc, char** argv) {
         }
         if (!controllerOk) {
             std::cout << "The original controller visibility was restored, but the "
-                         "Apex 5 profile and input settings could not be restored yet: "
+                         "Apex profile and input settings could not be restored yet: "
                       << controllerError
                       << "\nWake the controller and run this command again.\n";
         } else if (!controllerRecovery.recovered) {

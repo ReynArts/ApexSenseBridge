@@ -20,6 +20,22 @@ std::optional<asb::dualsense::VirtualDualSenseBackend> parseBackend(
     return std::nullopt;
 }
 
+bool parseBoundedPercent(const char* text, unsigned minimum, unsigned maximum,
+                         unsigned& result) noexcept {
+    if (!text || text[0] == '\0' || text[0] == '-') return false;
+    try {
+        std::size_t consumed = 0;
+        const auto parsed = std::stoul(text, &consumed);
+        if (consumed != std::string_view(text).size() || parsed < minimum || parsed > maximum) {
+            return false;
+        }
+        result = static_cast<unsigned>(parsed);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 } // namespace
 
 bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
@@ -198,6 +214,33 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 error = "--apex6-haptic-gain requires an integer percentage from 100 to 200.";
                 return false;
             }
+        } else if (value == "--apex6-rate") {
+            if (++i >= argc) {
+                error = "--apex6-rate requires 1000 or 2000.";
+                return false;
+            }
+            const std::string_view rate = argv[i];
+            if (rate == "1000") {
+                options.apex6SampleRateHz = 1000;
+            } else if (rate == "2000") {
+                options.apex6SampleRateHz = 2000;
+            } else {
+                error = "--apex6-rate requires 1000 or 2000.";
+                return false;
+            }
+            options.apex6SampleRateExplicit = true;
+        } else if (kApex6ShapingOptionsEnabled && value == "--apex6-grip-duck") {
+            if (++i >= argc || !parseBoundedPercent(argv[i], 0, 100, options.apex6GripDuckPercent)) {
+                error = "--apex6-grip-duck requires an integer percentage from 0 to 100.";
+                return false;
+            }
+            options.apex6GripDuckExplicit = true;
+        } else if (kApex6ShapingOptionsEnabled && value == "--apex6-trigger-ceiling") {
+            if (++i >= argc || !parseBoundedPercent(argv[i], 20, 100, options.apex6TriggerCeilingPercent)) {
+                error = "--apex6-trigger-ceiling requires an integer percentage from 20 to 100.";
+                return false;
+            }
+            options.apex6TriggerCeilingExplicit = true;
         } else if (value == "--apex4-gyro-strength" ||
                    value == "--apex4-gyro-yaw-strength") {
             if (++i >= argc) {
@@ -330,6 +373,17 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
         error = "--apex6-haptic-gain requires --rumble.";
         return false;
     }
+    if (options.apex6GripDuckExplicit && !options.routeRumble) {
+        error = "--apex6-grip-duck requires --rumble.";
+        return false;
+    }
+    const bool calibrationSupplied = options.controllerCalibrations[0] ||
+                                     options.controllerCalibrations[1] ||
+                                     options.controllerCalibrations[2];
+    if (options.apex6SampleRateHz == 2000 && !options.routeRumble && !calibrationSupplied) {
+        error = "--apex6-rate 2000 requires --rumble.";
+        return false;
+    }
     error.clear();
     return true;
 }
@@ -341,7 +395,7 @@ std::string_view bridgeCommandUsage() noexcept {
            "[--no-zone-emulation] [--sync-lightbar] [--lightbar-brightness 0..100] "
            "[--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..200] "
-           "[--apex6-haptic-gain 100..200] "
+           "[--apex6-haptic-gain 100..200] [--apex6-rate 1000|2000] "
            "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW[:RGBBRIGHTNESS]] "
            "[--apex4-gyro-strength 25..400] "
            "[--apex4-gyro-yaw-strength 25..400] "
@@ -375,10 +429,18 @@ bool applyControllerCalibration(BridgeCommandOptions& options,
     options.lightbarBrightnessPercent = c.rgbBrightness;
     options.apex4GyroStrengthPercent = c.gyro;
     options.apex4GyroYawStrengthPercent = c.gyroYaw;
-    if (index != 1) options.apexProfileSlot.reset();
+    if (index == 0) options.apexProfileSlot.reset();
     if (options.apex6HapticGainExplicit && !options.routeRumble) {
         error = "--apex6-haptic-gain requires grip haptics in the selected calibration.";
         return false;
+    }
+    if (options.apex6GripDuckExplicit && !options.routeRumble) {
+        error = "--apex6-grip-duck requires grip haptics in the selected calibration.";
+        return false;
+    }
+    if (options.apex6SampleRateHz == 2000 && (index != 2 || !options.routeRumble)) {
+        options.apex6SampleRateHz = 1000;
+        options.apex6SampleRateExplicit = false;
     }
     return true;
 }

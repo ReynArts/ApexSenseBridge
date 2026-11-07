@@ -3,6 +3,7 @@
 #include "cli/BridgeRuntimeSupport.h"
 #include "cli/BridgeTelemetry.h"
 #include "cli/CommandSupport.h"
+#include "core/ApexMotionDiagnosticGuard.h"
 #include "core/ApexProfileRestoreGuard.h"
 #include "core/Apex4GyroValidation.h"
 #include "core/TriggerResetGuard.h"
@@ -24,10 +25,13 @@
 #include "flydigi/Apex5Device.h"
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
+#include "flydigi/Apex6BatteryRefresher.h"
 #include "platform/AudioEndpointProtection.h"
+#include "platform/CompetingHapticsEngines.h"
 #include "platform/PhysicalControllerIsolation.h"
 #include "platform/PhysicalInputFreshnessWatchdog.h"
 #include "platform/PhysicalInputSource.h"
+#include "platform/RunningProcesses.h"
 #include "platform/SessionControl.h"
 #include "platform/XInputGamepad.h"
 
@@ -157,17 +161,49 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << message << '\n';
         return failSession(2, message);
     }
+    const auto competingEngines = asb::platform::findCompetingHapticsEngines(
+        asb::platform::runningExecutableNames());
+    if (!competingEngines.empty()) {
+        std::cerr << asb::platform::competingHapticsEnginesWarning(competingEngines) << '\n';
+    }
+    if ((options.apex6GripDuckExplicit || options.apex6TriggerCeilingExplicit) && !apex6Pro) {
+        constexpr std::string_view message =
+            "--apex6-grip-duck and --apex6-trigger-ceiling require a verified Apex 6 Pro.";
+        std::cerr << message << '\n';
+        return failSession(2, message);
+    }
     if (sessionControl) sessionControl->markProgress(asb::platform::SessionProgress::ControllerVerified);
     startup.enter("calibration");
     const bool apex5 = device->identity() && device->identity()->isApex5();
     const bool apex4 = device->identity() && device->identity()->isApex4();
+    const std::string profileModelName = apex6Pro ? "Apex 6 Pro" : "Apex 5";
     const auto verifiedCalibrationModel = apex4 ? "apex4" : apex5 ? "apex5" : apex6Pro ? "apex6" : "";
     if (!applyControllerCalibration(options, verifiedCalibrationModel, error)) {
         std::cerr << error << '\n';
         return failSession(2, error);
     }
-    if (options.controllerCalibrations[0] || options.controllerCalibrations[1] || options.controllerCalibrations[2])
+    const bool calibrationSupplied = options.controllerCalibrations[0] ||
+                                     options.controllerCalibrations[1] ||
+                                     options.controllerCalibrations[2];
+    if (calibrationSupplied)
         std::cout << "Controller calibration selected after verification: " << verifiedCalibrationModel << '\n';
+    if (options.apex6SampleRateExplicit && !apex6Pro) {
+        constexpr std::string_view message =
+            "--apex6-rate requires a verified Apex 6 Pro.";
+        std::cerr << message << '\n';
+        return failSession(2, message);
+    }
+    if (options.apex6SampleRateHz == 2000 &&
+        options.virtualBackend == asb::dualsense::VirtualDualSenseBackend::Sidecar) {
+        if (!calibrationSupplied) {
+            constexpr std::string_view message =
+                "--apex6-rate 2000 requires the integrated libVIIPER backend.";
+            std::cerr << message << '\n';
+            return failSession(2, message);
+        }
+        options.apex6SampleRateHz = 1000;
+        options.apex6SampleRateExplicit = false;
+    }
     const auto apex4TriggerCapability =
         asb::flydigi::classifyApex4TriggerInterface(device->info());
     if (apex4) {
@@ -217,9 +253,15 @@ int commandBridgeTriggers(int argc, char** argv) {
     bool profileSwitchRequired = false;
     bool profileSwitchAcknowledged = true;
     if (options.apexProfileSlot || options.syncLightbar) {
-        if (!device->identity() || !device->identity()->isApex5()) {
-            constexpr std::string_view message =
-                "APEX profile and RGB control require a verified Apex 5.";
+        const bool profileControlSupported =
+            apex5 || (apex6Pro && !options.syncLightbar &&
+                      device->identity()->supportsProfileSlots());
+        if (!profileControlSupported) {
+            const std::string message = apex6Pro
+                ? "RGB lightbar synchronization is not available on an Apex 6 Pro; "
+                  "only --apex-profile-slot is supported."
+                : "APEX profile and RGB control require a verified Apex 5, or "
+                  "a verified Apex 6 Pro for the profile slot alone.";
             std::cerr << message << '\n';
             return failSession(15, message);
         }
@@ -228,7 +270,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         asb::flydigi::ProfileStatus second{};
         if (!device->readProfileStatus(first, error)) {
             const std::string message =
-                "Could not read the original Apex 5 profile: " + error;
+                "Could not read the original " + profileModelName + " profile: " + error;
             std::cerr << message << '\n';
             return failSession(15, message);
         }
@@ -237,14 +279,14 @@ int commandBridgeTriggers(int argc, char** argv) {
         if (!device->readProfileStatus(second, error) ||
             first.rawSlot != second.rawSlot) {
             const std::string message = error.empty()
-                ? "The Apex 5 profile changed during the startup preflight."
-                : "Could not confirm the original Apex 5 profile: " + error;
+                ? "The " + profileModelName + " profile changed during the startup preflight."
+                : "Could not confirm the original " + profileModelName + " profile: " + error;
             std::cerr << message << '\n';
             return failSession(15, message);
         }
         if (first.switchBank) {
-            constexpr std::string_view message =
-                "The Apex 5 is using its Nintendo Switch profile bank; "
+            const std::string message =
+                "The " + profileModelName + " is using its Nintendo Switch profile bank; "
                 "XInput profile and RGB control were refused.";
             std::cerr << message << '\n';
             return failSession(15, message);
@@ -252,7 +294,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         originalProfile = first;
         profileSwitchRequired = options.apexProfileSlot &&
                                 first.slot != *options.apexProfileSlot;
-        if (profileSwitchRequired) {
+        if (profileSwitchRequired && apex5) {
             asb::flydigi::InputTransportStatus transport{};
             error.clear();
             if (!device->readInputTransportStatus(transport, error)) {
@@ -277,20 +319,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
     }
     if (originalInputTransport) {
-        const auto flagText = [](asb::flydigi::TransportFlag flag) {
-            if (const auto value = flag.value()) return std::string(*value ? "1" : "0");
-            std::ostringstream text;
-            text << "unknown(0x" << std::hex << std::uppercase << std::setw(2)
-                 << std::setfill('0') << static_cast<unsigned>(flag.raw) << ')';
-            return text.str();
-        };
-        std::cout << "Apex 5 input transport snapshot: controller_data="
-                  << originalInputTransport->controllerData
-                  << ", raw_data=" << originalInputTransport->rawData
-                  << ", keyboard_data=" << flagText(originalInputTransport->keyboardData)
-                  << ", mouse_data=" << flagText(originalInputTransport->mouseData)
-                  << ", third_party_control="
-                  << flagText(originalInputTransport->thirdPartyControl)
+        std::cout << "Apex 5 input transport snapshot: "
+                  << asb::flydigi::describeInputTransport(*originalInputTransport)
                   << std::endl;
     }
     std::unique_ptr<asb::TriggerResetGuard> resetOnExit;
@@ -321,6 +351,16 @@ int commandBridgeTriggers(int argc, char** argv) {
 
     if (stopRequested()) return cancelStartup();
     startup.enter("physical-input");
+    constexpr bool kApex6MotionRouting = true;
+    std::unique_ptr<asb::ApexMotionDiagnosticGuard> apex6MotionRouting;
+    if (apex6Pro && kApex6MotionRouting) {
+        apex6MotionRouting = std::make_unique<asb::ApexMotionDiagnosticGuard>(*device);
+        std::string motionError;
+        if (!apex6MotionRouting->enable(motionError)) {
+            std::cerr << "Warning: Apex 6 motion input is unavailable: "
+                      << motionError << '\n';
+        }
+    }
     auto inputSource = asb::platform::openPhysicalInputSource(
         device->info(), options.xinputIndex, error);
     if (!inputSource) {
@@ -384,7 +424,9 @@ int commandBridgeTriggers(int argc, char** argv) {
     auto apex6Bridge = apex6Pro
         ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
               *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent,
-              options.vibrationStrengthPercent, options.apex6HapticGainPercent)
+              options.vibrationStrengthPercent, options.apex6HapticGainPercent,
+              options.apex6GripDuckPercent, options.apex6TriggerCeilingPercent,
+              options.routeRumble ? options.apex6SampleRateHz : 1000U)
         : std::unique_ptr<asb::dualsense::Apex6HapticBridge>{};
     if (apex6Bridge) {
         apex6Bridge->updateTriggerPositions(initialInput.l2, initialInput.r2);
@@ -409,6 +451,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     backendOptions.viiperExecutable = std::move(options.viiperExecutable);
     backendOptions.backend = options.virtualBackend;
     backendOptions.captureAudioHapticsWaveform = apex6Pro;
+    backendOptions.captureAudioHapticsWaveform2k =
+        apex6Pro && options.routeRumble && options.apex6SampleRateHz == 2000;
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(std::move(backendOptions));
     asb::dualsense::FeedbackRouter feedbackRouter;
     const auto makeFeedbackSink = [&]() -> asb::dualsense::FeedbackRouter::Sink {
@@ -653,7 +697,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         const bool statusRead = device->readProfileStatus(applied, statusError);
         if (!statusRead || applied.switchBank ||
             applied.slot != *options.apexProfileSlot) {
-            std::string message = "Could not verify the requested Apex 5 profile";
+            std::string message = "Could not verify the requested " + profileModelName + " profile";
             if (!profileSwitchAcknowledged && !applyError.empty()) {
                 message += ": " + applyError;
             } else if (!statusRead && !statusError.empty()) {
@@ -669,12 +713,12 @@ int commandBridgeTriggers(int argc, char** argv) {
         // Re-establish the bridge's neutral output baseline before declaring
         // the session ready, without modifying the saved onboard profile.
         std::string baselineError;
-        if (!device->clearAll(baselineError)) {
+        if (!apex6Pro && !device->clearAll(baselineError)) {
             return rollbackFailedProfileStartup(
                 4, "Could not establish a Normal trigger baseline after the "
                    "Apex 5 profile switch: " + baselineError);
         }
-        if (options.routeRumble && !device->stopRumble(baselineError)) {
+        if (options.routeRumble && !apex6Pro && !device->stopRumble(baselineError)) {
             return rollbackFailedProfileStartup(
                 12, "Could not establish a stopped grip-rumble baseline after "
                     "the Apex 5 profile switch: " + baselineError);
@@ -840,11 +884,36 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (apex6Pro && options.routeRumble) {
         std::cout << "apex6_pcm_gain_percent=" << options.apex6HapticGainPercent << std::endl;
+        std::cout << "apex6_sample_rate_hz=" << options.apex6SampleRateHz << std::endl;
+        if (options.apex6SampleRateHz == 2000) {
+            std::cerr << "Experimental Apex 6 2 kHz haptic stream enabled: native grip PCM is sent "
+                         "at 2000 samples per second when the integrated libVIIPER supports it; "
+                         "otherwise it falls back to interpolated 1 kHz data. Light stutters are "
+                         "possible during long continuous effects.\n";
+        }
         std::cout << "apex6_haptic_threshold_percent=0" << std::endl;
         if (options.apex6HapticGainPercent > 100) {
             std::cerr << "Experimental Apex 6 native PCM gain enabled: quiet amplitudes are "
                          "increased with bounded compression, not a linear multiplier. "
                          "Trigger effects and native frequencies are not retuned.\n";
+        }
+        if (kApex6ShapingOptionsEnabled) {
+            std::cout << "apex6_grip_duck_percent=" << options.apex6GripDuckPercent << std::endl;
+        }
+        if (options.apex6GripDuckPercent > 0) {
+            std::cerr << "Experimental Apex 6 grip duck enabled: grip haptics are reduced by up to "
+                      << options.apex6GripDuckPercent
+                      << "% as a trigger travels from 8% to 39% of its range.\n";
+        }
+    }
+    if (apex6Pro) {
+        if (kApex6ShapingOptionsEnabled) {
+            std::cout << "apex6_trigger_ceiling_percent=" << options.apex6TriggerCeilingPercent << std::endl;
+        }
+        if (options.apex6TriggerCeilingPercent < 100) {
+            std::cerr << "Experimental Apex 6 trigger ceiling enabled: trigger vibration is softly "
+                         "limited to "
+                      << options.apex6TriggerCeilingPercent << "% of full scale.\n";
         }
     }
     if (sessionControl) {
@@ -1008,6 +1077,9 @@ int commandBridgeTriggers(int argc, char** argv) {
     constexpr auto kInputKeepalive = std::chrono::milliseconds(100);
     auto lastBatteryRefreshAt = std::chrono::steady_clock::now();
     constexpr auto kBatteryRefreshInterval = std::chrono::seconds(15);
+    constexpr bool kApex6PeriodicBatteryRefresh = true;
+    asb::flydigi::Apex6BatteryRefresher apex6BatteryRefresher(std::chrono::steady_clock::now());
+    bool apex6BatteryRefreshDisableReported = false;
     asb::platform::PhysicalInputFreshnessWatchdog inputFreshness(
         std::chrono::seconds(1), started);
     asb::Apex4GyroValidation apex4GyroValidation;
@@ -1255,6 +1327,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                     lastForwardedInput = fresh;
                     lastInputForwardedAt = resumedAt;
                     lastBatteryRefreshAt = resumedAt;
+                    apex6BatteryRefresher.reset(resumedAt);
                     inputFreshness.observeFreshState(resumedAt);
                     independentTriggerLoss.streamReady();
                     lastIdentity = device->identity();
@@ -1328,6 +1401,21 @@ int commandBridgeTriggers(int argc, char** argv) {
             lastBatteryRefreshAt = loopNow;
             std::string refreshError;
             (void)device->requestBatteryRefresh(refreshError);
+        }
+        if (kApex6PeriodicBatteryRefresh && device->identity() && device->identity()->isApex6()) {
+            if (const auto reading = apex6BatteryRefresher.tick(*device, loopNow);
+                reading && reading->hasBatteryLevel()) {
+                inputSource->setBatteryState(reading->batteryPercent(), reading->chargeState());
+            }
+            if (!apex6BatteryRefreshDisableReported &&
+                apex6BatteryRefresher.disabledReason() !=
+                    asb::flydigi::Apex6BatteryRefreshDisabled::None) {
+                apex6BatteryRefreshDisableReported = true;
+                std::cerr << "Apex 6 battery refresh switched off for this session: "
+                          << asb::flydigi::describeApex6BatteryRefreshDisabled(
+                                 apex6BatteryRefresher.disabledReason())
+                          << ".\n";
+            }
         }
         if (rumbleBridge) rumbleBridge->poll();
         asb::dualsense::DualSenseInputState input{};
@@ -1730,6 +1818,22 @@ int commandBridgeTriggers(int argc, char** argv) {
             ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent;
         telemetry.chargeState = lastPhysicalInput
             ? lastPhysicalInput->chargeState : initialInput.chargeState;
+        const auto& batteryIdentity = device->identity();
+        if (batteryIdentity && batteryIdentity->hasBatteryLevel()) {
+            telemetry.batteryKnown = true;
+            telemetry.batterySource = batteryIdentity->isApex6() ? "apex6" : "apex5";
+        } else if (inputBackend == "xinput-fallback") {
+            telemetry.batteryKnown = true;
+            telemetry.batterySource = "xinput";
+        }
+        telemetry.batteryRefreshes = apex6BatteryRefresher.stats().replies;
+        telemetry.batteryRefreshFailures =
+            apex6BatteryRefresher.stats().failures + apex6BatteryRefresher.stats().timeouts;
+        telemetry.batteryRefreshSlowCalls = apex6BatteryRefresher.stats().slowCalls;
+        telemetry.batteryRefreshMaxCallMicroseconds =
+            apex6BatteryRefresher.stats().maximumCallMicroseconds;
+        telemetry.batteryRefreshDisabled =
+            apex6BatteryRefresher.disabledReason() != asb::flydigi::Apex6BatteryRefreshDisabled::None;
         telemetry.cpuPercent = cpuPercent;
 
         std::string telemetryError;
@@ -1947,6 +2051,10 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_bow_breaks=" << apex6Stats.bowBreaks << '\n'
               << "apex6_waveform_threshold_policy=native-pcm-preserved\n"
               << "apex6_pcm_gain_percent=" << apex6Stats.pcmGainPercent << '\n'
+              << "apex6_sample_rate_hz=" << apex6Stats.sampleRateHz << '\n'
+              << "apex6_waveform_2k_blocks=" << apex6Stats.waveform2kBlocks << '\n'
+              << "apex6_waveform_upsampled_blocks=" << apex6Stats.waveformUpsampledBlocks << '\n'
+              << "apex6_prime_reports=" << apex6Stats.primeReports << '\n'
               << "apex6_haptic_threshold_percent=0\n"
               << "apex6_pcm_output_left_peak=" << apex6Stats.pcmOutputLeftPeak << '\n'
               << "apex6_pcm_output_right_peak=" << apex6Stats.pcmOutputRightPeak << '\n'
@@ -1959,6 +2067,9 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_trigger_both_frames=" << apex6Stats.bothTriggerFrames << '\n'
               << "apex6_rumble_updates=" << apex6Stats.rumbleUpdates << '\n'
               << "apex6_rumble_active_updates=" << apex6Stats.rumbleActiveUpdates << '\n'
+              << "apex6_rumble_ignored_reports=" << apex6Stats.rumbleIgnoredReports << '\n'
+              << "apex6_rumble_ignored_last_flags="
+              << static_cast<unsigned>(apex6Stats.lastIgnoredRumbleEnableBits) << '\n'
               << "apex6_audio_envelope_reports=" << apex6Stats.audioEnvelopeReports << '\n'
               << "apex6_audio_envelope_active=" << apex6Stats.audioEnvelopeActive << '\n'
               << "apex6_waveform_left_active=" << apex6Stats.waveformLeftActiveBlocks << '\n'
@@ -1982,6 +2093,7 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_waveform_active_rendered=" << apex6Stats.waveformActiveRendered << '\n'
               << "apex6_grip_envelope_frames=" << apex6Stats.gripEnvelopeFrames << '\n'
               << "apex6_grip_rumble_frames=" << apex6Stats.gripRumbleFrames << '\n'
+              << "apex6_grip_rumble_masked_frames=" << apex6Stats.gripRumbleMaskedFrames << '\n'
               << "apex6_haptic_enables=" << apex6Stats.hapticEnables << '\n'
               << "apex6_haptic_disables=" << apex6Stats.hapticDisables << '\n'
               << "apex6_haptic_frames=" << apex6Stats.framesWritten << '\n'
@@ -2132,7 +2244,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (!profileRestored) {
         const std::string message =
-            "Could not restore the original Apex 5 profile: " + profileRestoreError;
+            "Could not restore the original " + profileModelName + " profile: " + profileRestoreError;
         std::cerr << "WARNING: " << message << "\nUse the controller's profile "
                      "shortcut to restore it manually.\n";
         return failSession(15, message);

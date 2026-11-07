@@ -365,7 +365,8 @@ namespace ApexSenseBridgeTray.Services
                     return false;
                 }
 
-                var args = BuildArguments(profileName, settings, apexProfileSlot, gameTitle);
+                var args = BuildArguments(profileName, settings, apexProfileSlot, gameTitle) +
+                    ControllerSelection.DeviceIndexArgument(settings != null ? settings.SelectedControllerKey : null);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
 
                 int timeoutSec = Math.Max(MinimumInitializationSeconds,
@@ -548,7 +549,8 @@ namespace ApexSenseBridgeTray.Services
         {
             var arguments = BridgeArguments.Build(
                 profileName, false, 12, false, apexProfileSlot,
-                zoneEmulation: settings == null || settings.ZoneEmulation);
+                zoneEmulation: settings == null || settings.ZoneEmulation,
+                apex6Rate2k: settings != null && settings.Apex6Rate2kHz);
             // Send all model profiles; only the engine's verified device selects
             // one. A stale UI label / hot swap can never select another model's data.
             return arguments + (settings != null

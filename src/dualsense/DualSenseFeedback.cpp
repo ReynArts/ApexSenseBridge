@@ -126,6 +126,36 @@ bool decodeViiperFeedbackFrame(std::uint8_t frameType,
         return true;
     }
 
+    if (frameType == 0x04) {
+        constexpr std::size_t kPayloadSize2k = 4 + 16 * 2 * sizeof(std::int16_t);
+        constexpr std::size_t kRawOffset2k = kPayloadSize2k;
+        constexpr std::size_t kRawPayloadSize2k = kRawOffset2k + 28;
+        if (payload.size() < kPayloadSize2k) {
+            return false;
+        }
+
+        DualSenseFeedback decoded{};
+        decoded.kind = FeedbackKind::AudioHapticWaveform2k;
+        decoded.audioSequence = readU32(payload, 0);
+        for (std::size_t index = 0; index < 16; ++index) {
+            decoded.leftHapticSamples2k[index] = static_cast<std::int16_t>(
+                readU16(payload, 4 + index * 4));
+            decoded.rightHapticSamples2k[index] = static_cast<std::int16_t>(
+                readU16(payload, 6 + index * 4));
+        }
+        if (payload.size() >= kRawPayloadSize2k) {
+            decoded.hasRawAudioMeasurements = true;
+            for (std::size_t index = 0; index < decoded.rawAudioPeaks.size(); ++index) {
+                decoded.rawAudioPeaks[index] = readU16(payload, kRawOffset2k + index * 2);
+            }
+            decoded.rawHapticLeftSumSquares = readU64(payload, kRawOffset2k + 8);
+            decoded.rawHapticRightSumSquares = readU64(payload, kRawOffset2k + 16);
+            decoded.rawAudioFrames = readU32(payload, kRawOffset2k + 24);
+        }
+        feedback = decoded;
+        return true;
+    }
+
     return false;
 }
 

@@ -35,7 +35,7 @@ try {
     $expected = @{
         "apex4" = "RowTriggerStrength,RowVibrationStrength,RowGyroStrength,RowGyroYawStrength,RowVibrationThreshold,RowGripVibrations"
         "apex5" = "TileSettingSyncLightbar,TileSettingZoneEmulation,RowTriggerStrength,RowVibrationStrength,RowVibrationThreshold,RowGripVibrations"
-        "apex6" = "RowTriggerStrength,RowVibrationStrength,RowGripVibrations"
+        "apex6" = "TileSettingApex6Rate2kHz,RowTriggerStrength,RowVibrationStrength,RowGripVibrations"
         "disconnected" = ""
     }
     foreach ($status in @("apex4", "apex5", "apex6", "disconnected")) {

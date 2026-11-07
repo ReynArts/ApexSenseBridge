@@ -61,10 +61,14 @@ namespace ApexSenseBridgeTray
 
             try
             {
+                StartupDiagnostics.Mark("settings");
                 settings = TraySettings.Load();
+                StartupDiagnostics.Mark("localization");
                 LocalizationManager.Initialize(settings.Language);
+                StartupDiagnostics.Mark("theme");
                 ThemeManager.Initialize();
 
+                StartupDiagnostics.Mark("single-instance");
                 bool isNewInstance;
                 singleInstanceMutex = new Mutex(true, AppMutexName, out isNewInstance);
                 if (!isNewInstance)
@@ -82,19 +86,28 @@ namespace ApexSenseBridgeTray
                     return;
                 }
 
+                StartupDiagnostics.Mark("game-list");
+                var startupOptions = TrayStartupOptions.Parse(e.Args);
+                startupOptions.ApplyTo(settings);
+
                 gameListService = new CloudGameListService();
                 gameListService.Initialize();
 
+                StartupDiagnostics.Mark("session-manager");
                 sessionManager = new EngineSessionManager();
                 learningService = new ExecutableLearningService();
+                StartupDiagnostics.Mark("process-monitor");
                 monitorService = new ProcessMonitorService(
                     gameListService, sessionManager, learningService, settings);
                 gameListService.GamesUpdated += monitorService.ForceCheck;
                 updateChecker = new UpdateCheckerService();
 
+                StartupDiagnostics.Mark("learning");
                 learningService.InitializeAsync();
 
+                StartupDiagnostics.Mark("tray-icon");
                 InitializeNotifyIcon();
+                StartupDiagnostics.Mark("events");
                 showDashboardEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\ApexSenseBridge.Tray.ShowDashboard.v1");
                 showDashboardWait = ThreadPool.RegisterWaitForSingleObject(showDashboardEvent,
                     (state, timedOut) => Dispatcher.BeginInvoke(new Action(ShowMainWindow)), null, Timeout.Infinite, false);
@@ -285,7 +298,9 @@ namespace ApexSenseBridgeTray
                 {
                     try { await updateChecker.CheckForUpdatesAsync(true); } catch { }
                 });
-                if (Array.IndexOf(e.Args, "--show") >= 0) ShowMainWindow();
+                if (startupOptions.ShowDashboard) ShowMainWindow();
+                StartupDiagnostics.Complete();
+                if (startupOptions.ForceAlwaysOn) StartForcedAlwaysOnSession();
             }
             catch (Exception ex)
             {
@@ -294,9 +309,41 @@ namespace ApexSenseBridgeTray
                     AppLog.WriteLine("tray_startup_error.log", ex.ToString());
                 }
                 catch { }
+                try
+                {
+                    AppLog.WriteLine("tray_startup_error.log", StartupDiagnostics.Describe());
+                }
+                catch { }
                 MessageBox.Show(LocalizationManager.Get("Loc_StartupError") + ex.Message, "ApexSenseBridge Tray", MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
             }
+        }
+
+        private void StartForcedAlwaysOnSession()
+        {
+            var sessionTitle = LocalizationManager.Get("Loc_ManualBridgeGameTitle");
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    if (sessionManager.AutomaticActivationBlocked)
+                        sessionManager.StopSession("Fresh manual activation requested");
+                    string error;
+                    if (!sessionManager.StartSession(sessionTitle, "standard", settings, out error))
+                    {
+                        settings.ForcedProfile = "none";
+                        AppLog.WriteLine("tray_detection.log",
+                            "--force-always-on could not start the bridge (" + error +
+                            "). Automatic detection resumes.");
+                        monitorService.ForceCheck();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    settings.ForcedProfile = "none";
+                    AppLog.WriteLine("tray_crash.log", "[ForceAlwaysOn] " + ex);
+                }
+            });
         }
 
         private void InitializeNotifyIcon()
@@ -314,6 +361,7 @@ namespace ApexSenseBridgeTray
             contextMenu.ForeColor = Color.FromArgb(245, 245, 245);
             contextMenu.Padding = new System.Windows.Forms.Padding(4, 6, 4, 6);
             contextMenu.Opened += (s, e) => ModernizeMenuWindow(contextMenu);
+            StartupDiagnostics.Mark("context-menu");
             BuildContextMenu();
 
             Icon appIcon = SystemIcons.Application;
@@ -451,6 +499,7 @@ namespace ApexSenseBridgeTray
             langMenu.DropDown.ForeColor = Color.FromArgb(245, 245, 245);
             langMenu.DropDown.Padding = new System.Windows.Forms.Padding(4, 6, 4, 6);
             langMenu.DropDown.Opened += (s, e) => ModernizeMenuWindow(langMenu.DropDown);
+            StartupDiagnostics.Mark("language-menu");
             // Every embedded dictionary is offered (same list as the in-app language picker).
             foreach (var language in LanguageCatalog.Available)
             {

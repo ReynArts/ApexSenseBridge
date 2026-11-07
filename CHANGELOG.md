@@ -2,6 +2,214 @@
 
 ## 1.1.0
 
+### Highlights
+
+1.1.0 is a major update that keeps the 1.x numbering. The sections below are the
+detail; in short:
+
+- **Reworked trigger effects on the APEX 6 Pro and the APEX 5** (APEX 4
+  unchanged): effects follow what they mean, vibration on the APEX 6 Pro, per-zone
+  and rhythmic emulation on the APEX 5.
+- **APEX 6 Pro:** gyroscope and accelerometer, real battery level and charge
+  state, onboard profile slots, trigger effects translated into vibration by
+  meaning, twelve weapon presets, and no more trigger hum after a release.
+- **Several controllers:** the Tray lets you choose which APEX is bridged, and
+  sessions no longer fail when two or more are connected.
+- **Reliability:** the virtual DualSense is kept alive across an APEX 4/5 power
+  cycle (validated on hardware on the APEX 5, not yet on the APEX 4), and automatic activation
+  no longer loops on elevated, anti-cheat or repeatedly failing games.
+- **APEX 5/4:** per-zone and rhythmic trigger emulation on by default (APEX 5),
+  faster rumble cadence (APEX 4).
+- **Tray:** new report window, per-game tuning and reset buttons, manual-fix
+  notes in nine languages, `--force-always-on`.
+- **APEX 6 Pro, experimental and off by default:** a 2 kHz grip haptics stream
+  (`--apex6-rate 2000` or a Tray switch) that keeps the 500 to 1000 Hz content
+  of native game haptics.
+
+### APEX 6 Pro: experimental 2 kHz grip haptics (off by default)
+
+- The APEX 6 Pro plays its haptic stream at 2000 samples per second, but the
+  bridge has always fed it 1000: eight samples per 8 ms report, doubled by the
+  controller's own interpolation. A new opt-in mode clears that interpolation
+  flag and sends two raw eight-sample reports per 8 ms block, 4 ms apart, so
+  native game haptics keep their 500 to 1000 Hz content.
+- `--apex6-rate 2000` (needs `--rumble`) turns it on; 1000 stays the default.
+  The Tray has a matching "2 kHz grip haptics (experimental)" switch, shown for
+  the APEX 6 Pro only and off by default. With any other controller, or with
+  grip vibration off, the engine silently stays at 1000, so the switch can be
+  left on.
+- It needs the integrated libVIIPER `v0.7.0-asb14`. Its virtual DualSense now
+  filters the 48 kHz haptic channels with a proper low-pass FIR (within 0.25 dB
+  up to 800 Hz, at least 48 dB down from 1150 Hz) and decimates them to 2 kHz.
+  With an older libVIIPER or the sidecar backend the mode falls back to the
+  1 kHz data interpolated to 2 kHz; the session summary then shows
+  `apex6_waveform_upsampled_blocks` instead of `apex6_waveform_2k_blocks`.
+  Effects that the bridge synthesises itself (trigger effects, rumble) are
+  interpolated to 2 kHz the same way the controller did it, so they sound the
+  same as before.
+- Checked on one APEX 6 Pro through its 2.4 GHz receiver (firmware 9.0.6.8),
+  by ear: tones of 700 and 900 Hz sent this way were heard an octave above
+  their 350 and 450 Hz references in 5 trials out of 5, in both orders, and two
+  identical tones were judged identical. Nothing was measured with a sensor,
+  and wired mode was not tried. A pure 700 Hz tone and a short fanfare played
+  through the real bridge were judged clearly better at 2000 than at 1000: the
+  700 Hz tone kept its pitch instead of folding down to a low one.
+- Known limits: light stutters can appear during long continuous effects. In a
+  side-by-side test they were heard identically with the 1000 and the 2000
+  stream, so they are not specific to this mode; the cause is not isolated (the
+  controller's clock, the radio link and the PC are suspected; wired mode was not
+  tried). The controller's interpolation lowers the top of the band (about -3.6 dB at 700 Hz and -6 dB
+  at 900 Hz), the motors give little sensation above roughly 300 Hz, and the
+  two triggers still share one signal. Whether real games send enough energy
+  between 500 and 1000 Hz for this to be noticeable has not been measured yet.
+
+### Choosing between several APEX controllers
+
+- With two or more APEX controllers or receivers connected, the Tray no longer
+  locks the settings. It identifies each controller, and the top bar shows the
+  selected model followed by the number of the others, for example
+  "Apex 6 Pro + 1".
+- Click that badge (or press View on a gamepad, outside the Games tab) to open
+  the list and pick a controller. The home picture, the settings and the next
+  bridge session follow it: with an APEX 6 Pro and an APEX 5, choosing the
+  APEX 5 shows "Apex 5 + 1", its picture and its own settings. Two controllers
+  of the same model are listed as "Apex 5 #1" and "Apex 5 #2" and share that
+  model's settings.
+- The choice is saved by the controller's HID path and given to the engine as
+  the device index each time a session starts, including when the dashboard is
+  closed. The controller tests (triggers, rumble, RGB, gyro, reset) use the
+  same controller. While a bridge session is running the list stays visible
+  but the choice is locked: stop the bridge to switch. The engine still bridges
+  one controller at a time.
+- An unplugged chosen controller is forgotten only when several others remain;
+  with a single controller left it is used, and the choice comes back when the
+  chosen one returns. A momentary list failure no longer flaps the controller.
+- Home picture: the three controller pictures are cropped to their visible
+  area, so an APEX 6 Pro or an APEX 4 is no longer drawn much smaller than an
+  APEX 5.
+
+### APEX 6 Pro: trigger effects translated into vibration by meaning
+
+- The APEX 6 Pro triggers only vibrate, so each DualSense trigger effect is now
+  translated into a vibration that follows what the effect means, instead of a
+  flat buzz. The amplitudes and durations are tuned proposals that still need
+  to be judged by feel; nothing here is calibrated against a real DualSense.
+- **Weapon / break effects** (native Weapon, legacy break modes, Lock): one
+  strong vibration burst (about 50 ms) when the trigger crosses the break
+  point, then silence. Nothing is played before the break point, nothing is
+  repeated while the trigger is held, and the effect re-arms when the trigger
+  is released. The burst strength follows the effect strength (never above the
+  existing output limit).
+- **Bow**: the vibration grows with the draw, one strong burst at the release
+  point, then nothing until the trigger is released and drawn again.
+- **Progressive resistance (Feedback) and Vibration effects**: the amplitude now
+  moves smoothly between zones instead of jumping at each zone boundary, and
+  fades in and out where a zone starts and ends. Zone strengths and the
+  requested vibration frequency are still honoured as before.
+- **Machine and Galloping effects** are decoded and rendered as a rhythm
+  (amplitude swinging between the two levels, or two beats per cycle) over the
+  requested zones, instead of a constant vibration. Invalid combinations keep
+  the previous translation.
+- A game that refreshes a trigger effect while a burst is playing no longer cuts
+  the burst, and a burst now has priority over a sustained effect on the other
+  trigger so it is not lost.
+- Twelve weapon presets (machine gun, rifle, submachine gun, light machine gun,
+  pistol, shotgun, sniper rifle, sword, blade, dagger, axe, club) can be played
+  with `test-trigger --mode <preset>` and from the Tray trigger test. Except
+  for the sniper rifle, each preset reproduces the shape of the matching
+  weapon scene built into the controller, synthesised from a few damped
+  sinusoids: a low carrier (about 56 to 70 Hz) for the firearms, axe and club,
+  about 220 to 238 Hz for sword, blade and dagger, a short attack, full
+  amplitude, a natural decay and the scene's duration. The pistol and shotgun
+  keep the scene's three parts (hit, texture, recoil).
+- Rhythmic presets repeat at the scene's own rate, with no gap: about 10.6
+  shots per second for the machine gun and light machine gun, 11.9 for the
+  rifle and 16.7 for the submachine gun. One-shot presets fire once per press
+  and play to the end, as before.
+- Level 4 follows the scene's default strength; levels 1 to 3 play 50, 70 and
+  85 % of it. The sniper rifle keeps its previous rendering (a strong hit
+  followed by a tail of about one second), preferred by feel to the original.
+- The presets may now use the full trigger output range (127 instead of 96).
+  The controller halves real-time trigger samples, so this stays below the
+  level its own scenes drive. The submachine gun, sword, blade, dagger, axe and
+  club still cannot reach the scene's full strength over the real-time
+  channel. The native DualSense effects keep exactly their previous strength.
+- `test-trigger` on an APEX 6 Pro now plays the real native effect through the
+  bridge renderer and follows your trigger (press and release it during the
+  test), or a scripted travel with `--sweep`. It prints a short summary of the
+  frames and bursts it played. APEX 4/5 behaviour is unchanged.
+- In the Tray trigger test, the weapon and bow descriptions explain the new
+  behaviour in all nine languages, a status line asks you to press the trigger,
+  the test runs for 5 seconds, and the twelve presets are selectable.
+
+### APEX 6 Pro: grip motors left alone when only the triggers are driven
+
+- When the bridge or `test-trigger` drives only the trigger vibration (grip
+  routing off), the grip motors are no longer switched to realtime mode: they
+  stay in the controller's own mode, as the official engine does in the same
+  situation. With grip routing on, nothing changes. Checked by feel on one
+  controller: it does not remove the grip vibration felt during long trigger
+  effects, so that vibration has another cause.
+
+### APEX 6 Pro: onboard profile slot
+
+- `test-profile-switch` and `bridge-triggers --apex-profile 1..4` now work on an
+  APEX 6 Pro as well as on an APEX 5. The vendor commands `0xA1` (read the slot
+  state) and `0xA2` (select a slot) were checked on a real APEX 6 Pro over the
+  dongle: both reply with the same 11-byte state (active slot, one checksum per
+  slot, one global checksum), the selection takes effect at once, and the
+  original slot is restored and verified when the session or the test ends.
+  A watchdog restore after a crash accepts the APEX 6 Pro too.
+- `test-profile-switch` prints the slot checksums before and after the test on
+  the APEX 6 Pro and fails if they changed, so it proves that nothing was saved
+  to the controller.
+- A `--controller-calibration` entry for the APEX 6 Pro no longer discards
+  `--apex-profile` (only the APEX 4 entry does). RGB lightbar synchronization
+  (`--sync-lightbar`) is still refused on an APEX 6 Pro.
+
+### APEX 6 Pro: gyroscope and accelerometer
+
+- A bridge session now forwards the APEX 6 Pro motion sensors to the virtual
+  DualSense. The controller only streams them after the vendor routing command
+  `0x11` is written, so the session enables the raw-data routing at start, waits
+  for a first motion report (1.5 s at most) and restores the routing when the
+  session ends. If another application owns the input transport, if the
+  controller does not advertise a motion sensor, or if no report arrives, the
+  session starts without motion input and prints a warning.
+- Checked on a real APEX 6 Pro over the dongle: about 170 reports per second, a
+  full turn flat on a table gives 16.4 to 16.7 units per degree per second, and
+  gravity reads 10 000 per g. The gyroscope words are stored in a different order
+  from the accelerometer words on this model: the axes and signs were fitted
+  against the accelerometer and confirmed with a full turn and two tilt poses
+  (front edge up, right side down). The scale comes from one controller.
+- `test-gyro` works on the APEX 6 Pro and prints the vendor motion report count.
+  `test-gyro --stream --seconds N` now stops after N seconds and restores the
+  routing, instead of running until it is interrupted.
+
+### APEX 6 Pro: battery level and charge state
+
+- The identity exchange now also decodes the battery level, the charge state and
+  the seven firmware versions. When the controller reports a level, the virtual
+  DualSense receives the real percentage and charge state, instead of a fixed
+  100 %. A level of 0 with no charge indication is
+  treated as "not reported", so a controller that does not fill the field keeps
+  showing 100 %. The 0-10 scale comes from the vendor protocol and still needs
+  confirmation on every firmware. The firmware versions are decoded and kept
+  internally, without being displayed. The battery is then refreshed every 15
+  seconds without waiting for the reply: one request, then short polls. The
+  refresh switches itself off for the session if a controller call takes more
+  than 5 ms twice, or if the controller fails to answer three times in a row.
+- The telemetry file gains `battery_known`, `battery_source`, `battery_refreshes`
+  and `battery_refresh_failures`, so a measured battery can be told apart from the
+  default 100 %, plus `battery_refresh_slow_calls`, `battery_refresh_max_call_us`
+  and `battery_refresh_disabled` to see what the refresh costs.
+
+### Warning when Flydigi X-Haptics is running
+
+- The bridge now prints a warning at startup when `XHaptics.exe` or
+  `x-haptic-engine-fusion.exe` is running, because that engine can send haptic
+  frames to the same controller. Nothing is stopped or blocked.
+
 ### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
 
 - New `alan-wake-2` touchpad profile. On the Xbox layout, `View` opens the Mind
@@ -294,10 +502,10 @@
   identity check is bridged; the choice is logged. Diagnostic commands
   (`identify`, `test-*`, `clear`) stay strict and explain that several
   controllers are present.
-- The Tray shows a localized "several controllers" state, locks the settings
-  while it cannot tell which controller they apply to, publishes the model the
-  engine verified during a session, and explains that one controller is bridged
-  at a time. Bridging two controllers at once (couch co-op) is not supported.
+- The Tray publishes the model the engine verified during a session and lets
+  you choose the controller (see "Choosing between several APEX controllers"
+  above). One controller is bridged at a time; bridging two controllers at once
+  (couch co-op) is not supported.
 ### Virtual DualSense readiness
 
 - A HID path that existed before the session and later disappeared is treated
@@ -370,6 +578,95 @@
   "start the bridge first, then restart Steam" recipe, a USB or driver trouble
   note, a bug report checklist, and the executable-selection workaround for a
   bridge that turns on and off at game launch ([#63](https://github.com/ReynArts/ApexSenseBridge/issues/63), [#53](https://github.com/ReynArts/ApexSenseBridge/issues/53), [#55](https://github.com/ReynArts/ApexSenseBridge/issues/55), [#32](https://github.com/ReynArts/ApexSenseBridge/issues/32), [#21](https://github.com/ReynArts/ApexSenseBridge/issues/21), [#61](https://github.com/ReynArts/ApexSenseBridge/issues/61)).
+
+### Tray start option `--force-always-on` and Alt+Tab report ([#71](https://github.com/ReynArts/ApexSenseBridge/issues/71))
+
+- `ApexSenseBridgeTray.exe --force-always-on` starts the Tray with Force
+  continuous activation already on: the bridge starts at once and automatic
+  detection no longer starts or stops it. The option lasts for that run only and
+  is never written to the settings file. It is read only by the launch that
+  becomes the running Tray (a second launch just shows the running Tray's
+  dashboard). If the bridge cannot start, the option is dropped and automatic
+  detection resumes.
+- Alt+Tab: the only focus-dependent check of the detection is the 1 s sighting
+  of the foreground window, which can only attach another process of the same
+  game or be ignored while a session is tracked; a new test covers it. Ending a
+  session depends only on process liveness. The loop reported on 1.0.2 (the game
+  re-detected and the bridge restarted, absent with continuous activation)
+  matches the inaccessible-process defect fixed under #67; it was not reproduced
+  and needs `tray_detection.log` from a 1.1.0 build to be confirmed.
+- Not done: a vibration intensity above 100 % on the APEX 6 Pro. The effective
+  ceiling is 100 % from the Tray to the haptic renderer, and the existing PCM
+  gain (`--apex6-haptic-gain`) is not exposed in the Tray; it needs a hardware
+  comparison first.
+
+### Tray: startup diagnostics for out-of-memory failures ([#84](https://github.com/ReynArts/ApexSenseBridge/issues/84))
+
+- When the Tray fails to start, `tray_startup_error.log` now also records each
+  startup phase with its time since launch, private and managed memory, the
+  phase that was running, GC counts, free address space and the largest free
+  block, to locate memory growth such as the startup `OutOfMemoryException`
+  reported on a Chinese-language Windows. The cause is not identified yet: the
+  startup code is bounded in 1.0.2 and in 1.1.0 and the failing allocation is a
+  victim of an address space already exhausted.
+
+### Troubleshooting: Windows 11 Smart App Control ([#82](https://github.com/ReynArts/ApexSenseBridge/issues/82))
+
+- TROUBLESHOOTING gains "Windows 11 Smart App Control blocks the app" and the
+  README installation tip points to it. It explains that Smart App Control only
+  runs apps that Microsoft's cloud predicts as safe or that are signed by a
+  trusted authority, that a Defender exclusion is not a way around it, that the
+  installers from 0.6.1 to 1.0.2 are not code-signed, how to turn the feature off
+  and what to include in a report.
+
+### Troubleshooting: Monster Hunter Wilds needs Steam Input ([#83](https://github.com/ReynArts/ApexSenseBridge/issues/83), [#85](https://github.com/ReynArts/ApexSenseBridge/issues/85))
+
+- Monster Hunter Wilds reads controllers only through Steam Input
+  (PCGamingWiki: "Steam Input API is required", for Xbox and PlayStation pads
+  alike), so with Steam Input disabled, as usually advised, it ignored the
+  virtual DualSense entirely. TROUBLESHOOTING gains an entry for such games with
+  a not-yet-validated recipe: start the bridge before Steam, then enable Steam
+  Input for the game. Whether its adaptive triggers and haptics reach the APEX
+  that way is still unconfirmed. Monster Hunter: World and Rise offer no
+  DualSense features and are best played without the bridge. The README points
+  to the entry.
+
+### Troubleshooting: APEX 5 routing error and manual-fix games with rumble only ([#75](https://github.com/ReynArts/ApexSenseBridge/issues/75), [#80](https://github.com/ReynArts/ApexSenseBridge/issues/80))
+
+- TROUBLESHOOTING gains an entry for the APEX 5 start error "did not retain the
+  requested physical-input routing" (cause not confirmed: another program such as
+  Space Station or X-Haptics rewriting the routing, or third-party control being
+  on), and a section for manual-fix games that only rumble or show no controller.
+- The Red Dead Redemption 2 attach/detach loop seen in #80's detection log (an
+  elevated game process reported as "Process inaccessible" every second) is the
+  defect already fixed under #67.
+
+### APEX 5: clearer error when the controller keeps its old input routing ([#75](https://github.com/ReynArts/ApexSenseBridge/issues/75))
+
+- When an APEX 5 acknowledges the input-routing command but reads back the old
+  routing, the error now shows the requested values and the values the
+  controller reported (controller data, raw data, keyboard, mouse and
+  third-party control). The cause of this failure is not confirmed yet; a failed
+  start already closes the virtual DualSense, makes the physical controller
+  visible again and restores the original routing.
+- The transport snapshot line printed at startup now comes from the same
+  formatter as this error.
+
+### APEX 6 Pro: rumble diagnostics for missing cutscene vibration ([#78](https://github.com/ReynArts/ApexSenseBridge/issues/78))
+
+- The telemetry file now counts DualSense output reports whose motor bytes are
+  non-zero but carry no compatible-vibration bit (`rumble_ignored_reports`, with
+  the last flag byte in `rumble_ignored_last_flags`) and the frames where
+  requested rumble was replaced by haptic audio on the same grip
+  (`grip_rumble_masked_frames`). It also gains `rumble_active_updates`,
+  `grip_rumble_frames` and `grip_envelope_frames`. Behaviour is unchanged. A new
+  test shows that the reports of the Onimusha DualSense mod (zeroed motors, no
+  compatible-vibration bit, silent haptic audio) do not erase the game's own
+  rumble, so the cause of the missing cutscene vibration is still open.
+- The end-of-session summary prints the same counters
+  (`apex6_rumble_ignored_reports`, `apex6_rumble_ignored_last_flags`,
+  `apex6_grip_rumble_masked_frames`).
+
 ## 1.0.2
 
 ### Automatic activation for manual fixes ([#36](https://github.com/ReynArts/ApexSenseBridge/issues/36), [#46](https://github.com/ReynArts/ApexSenseBridge/pull/46))

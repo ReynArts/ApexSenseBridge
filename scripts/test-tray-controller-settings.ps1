@@ -43,6 +43,7 @@ try {
         if ((Get-Control "SliderLightbarBrightness").IsEnabled -ne ($status -eq "apex5")) { throw "Lightbar brightness unlocked for $status" }
         if (((Get-Control "RowLightbarBrightness").Visibility -eq "Visible") -ne ($status -eq "apex5")) { throw "Lightbar brightness shown for $status" }
         if ((Get-Control "TileSettingZoneEmulation").IsEnabled -ne ($status -eq "apex5")) { throw "Trigger emulation unlocked for $status" }
+        if ((Get-Control "TileSettingApex6Rate2kHz").IsEnabled -ne ($status -eq "apex6")) { throw "2 kHz haptics unlocked for $status" }
         if ((Get-Control "SliderVibrationThreshold").IsEnabled -ne ($connected -and $status -ne "apex6")) {
             throw "Incorrect threshold availability for $status"
         }

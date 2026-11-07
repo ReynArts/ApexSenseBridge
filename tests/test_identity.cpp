@@ -9,9 +9,11 @@
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6BatteryRefresher.h"
 #include "flydigi/Apex6Protocol.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -70,7 +72,7 @@ public:
             reply[13] = 1;
             reply[15] = asb::flydigi::kApex4CmdGetInfo;
             replies_.push_back(std::move(reply));
-        } else if (!silent_ && apex6_ && report.size() == 33 &&
+        } else if (!silent_ && apex6_ && !dropApex6Replies && report.size() == 33 &&
                    report[3] == asb::flydigi::apex6::kCmdGetInfo) {
             std::vector<std::uint8_t> reply(33, 0);
             reply[1] = asb::flydigi::apex6::kMagic0;
@@ -78,6 +80,8 @@ public:
             reply[3] = asb::flydigi::apex6::kCmdGetInfo;
             reply[4] = 1;
             reply[6] = deviceType_;
+            reply[12] = apex6BatteryByte;
+            std::copy(apex6FirmwareBytes.begin(), apex6FirmwareBytes.end(), reply.begin() + 16);
             reply[30] = apex6Features;
             reply[32] = asb::flydigi::apex6::checksum(
                 std::span<const std::uint8_t>(reply).subspan(1));
@@ -130,8 +134,10 @@ public:
             replies_.push_back(std::move(reply));
         } else if (!silent_ && !apex4_ && report.size() > 6 &&
                    report[3] == asb::flydigi::kCmdSetInputTransport) {
-            controllerData_ = report[5] != 0;
-            rawData_ = report[6] != 0;
+            if (retainInputTransport) {
+                controllerData_ = report[5] != 0;
+                rawData_ = report[6] != 0;
+            }
             std::vector<std::uint8_t> reply(32, 0);
             reply[0] = asb::flydigi::kReportIdIn;
             reply[1] = asb::flydigi::kMagic0;
@@ -144,10 +150,12 @@ public:
 
     asb::platform::HidReadStatus readInputReport(
         std::span<std::uint8_t> report,
-        std::chrono::milliseconds,
+        std::chrono::milliseconds timeout,
         std::size_t& bytesRead,
         std::string&) override {
         bytesRead = 0;
+        readTimeouts.push_back(timeout);
+        if (readDelay.count() > 0) std::this_thread::sleep_for(readDelay);
         if (replies_.empty()) {
             if (streamApex4State && !writes.empty()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -170,7 +178,13 @@ public:
     std::vector<std::vector<std::uint8_t>> writes;
     std::vector<std::chrono::steady_clock::time_point> writeTimes;
     std::uint8_t apex6Features = 0x9F;
+    std::uint8_t apex6BatteryByte = 0;
+    std::array<std::uint8_t, 14> apex6FirmwareBytes{};
+    bool dropApex6Replies = false;
+    std::vector<std::chrono::milliseconds> readTimeouts;
+    std::chrono::milliseconds readDelay{0};
     std::uint8_t thirdPartyControlByte = 0;
+    bool retainInputTransport = true;
     bool corruptApex6Checksum = false;
     bool streamApex4State = false;
     std::chrono::milliseconds apex4QuietInterval{0};
@@ -282,10 +296,182 @@ int main() {
     assert(apex6Device.enableApex6Haptics(error));
     assert(apex6Transport->writes.size() == 3);
     assert(apex6Transport->writes[1][3] == apex6::kCmdMotorRoute);
+    assert(apex6Transport->writes[2][6] == 0x12 && apex6Transport->writes[2][7] == 0x02);
+    assert(apex6Device.enableApex6Haptics(error, false));
+    assert(apex6Transport->writes.size() == 5);
+    assert(apex6Transport->writes[4][3] == apex6::kCmdMotorRoute);
+    assert(apex6Transport->writes[4][6] == 0x12 && apex6Transport->writes[4][7] == 0x00);
+    apex6Transport->writes.resize(3);
     assert(!apex6Device.asyncWritePolicy().has_value());
     assert(apex6Device.startAsyncWrites(error));
     assert(!apex6Device.asyncWritesRunning());
     assert(apex6Transport->writes.size() == 3);
+    assert(!apex6Device.identity()->hasBatteryLevel());
+    assert(apex6Device.identity()->batteryPercent() == 100);
+    assert(apex6Device.identity()->apex6Firmware() == apex6::FirmwareVersions{});
+
+    struct BatteryCase {
+        std::uint8_t byte;
+        bool known;
+        std::uint8_t level;
+        bool charging;
+        std::uint8_t percent;
+        std::uint8_t chargeState;
+    };
+    const BatteryCase batteryCases[] = {
+        {0x00, false, 0, false, 100, asb::dualsense::chargeStatus::kFull},
+        {0x06, true, 6, false, 60, asb::dualsense::chargeStatus::kCharging},
+        {0x16, true, 6, true, 60, asb::dualsense::chargeStatus::kCharging},
+        {0x10, true, 0, true, 10, asb::dualsense::chargeStatus::kCharging},
+        {0x2A, true, 10, true, 100, asb::dualsense::chargeStatus::kFull},
+        {0x25, true, 5, true, 100, asb::dualsense::chargeStatus::kFull},
+        {0x0A, true, 10, false, 100, asb::dualsense::chargeStatus::kFull},
+        {0x0B, false, 0, false, 100, asb::dualsense::chargeStatus::kFull},
+        {0x1F, false, 0, false, 100, asb::dualsense::chargeStatus::kFull},
+    };
+    for (const auto& batteryCase : batteryCases) {
+        FakeTransport* batteryTransport = nullptr;
+        auto batteryDevice = makeDevice(
+            batteryTransport, apex6::kDeviceType, false, false, 0, true);
+        batteryTransport->apex6BatteryByte = batteryCase.byte;
+        for (std::size_t index = 0; index < batteryTransport->apex6FirmwareBytes.size(); ++index) {
+            batteryTransport->apex6FirmwareBytes[index] = static_cast<std::uint8_t>(
+                index % 2 == 0 ? 1 + index / 2 : 0x80 + index / 2);
+        }
+        error.clear();
+        assert(batteryDevice.verifyIdentity(error));
+        const auto& battery = *batteryDevice.identity();
+        assert(battery.isApex6() && battery.isWired());
+        assert(battery.hasBatteryLevel() == batteryCase.known);
+        assert(battery.batteryLevel() == batteryCase.level);
+        assert(battery.isCharging() == batteryCase.charging);
+        assert(battery.batteryPercent() == batteryCase.percent);
+        assert(battery.chargeState() == batteryCase.chargeState);
+        assert((battery.apex6Firmware() ==
+                apex6::FirmwareVersions{0x0180, 0x0281, 0x0382, 0x0483, 0x0584, 0x0685, 0x0786}));
+        assert(battery.firmwareVersion() == 0x0180);
+    }
+
+    FakeTransport* refreshTransport = nullptr;
+    auto refreshDevice = makeDevice(
+        refreshTransport, apex6::kDeviceType, false, false, 0, true);
+    refreshTransport->apex6BatteryByte = 0x04;
+    error.clear();
+    assert(refreshDevice.verifyIdentity(error));
+    assert(refreshDevice.identity()->batteryPercent() == 40);
+    refreshTransport->readTimeouts.clear();
+    refreshTransport->apex6BatteryByte = 0x12;
+
+    using Clock = std::chrono::steady_clock;
+    using namespace std::chrono_literals;
+    const auto origin = Clock::now();
+    Apex6BatteryRefresherConfig refresherConfig;
+    refresherConfig.pollSpacing = 0ms;
+    refresherConfig.slowCall = 5s;
+    Apex6BatteryRefresher refresher(origin, refresherConfig);
+    assert(!refresher.tick(refreshDevice, origin + 14s));
+    assert(refreshTransport->writes.size() == 1 && refresher.stats().requests == 0);
+    assert(!refresher.tick(refreshDevice, origin + 15s));
+    assert(refresher.waitingForReply() && refresher.stats().requests == 1);
+    assert(refreshTransport->writes.size() == 2);
+    assert(refreshTransport->writes.back()[3] == apex6::kCmdGetInfo);
+    assert(refreshTransport->readTimeouts.empty());
+
+    const auto reading = refresher.tick(refreshDevice, origin + 15s + 2ms);
+    assert(reading && reading->isApex6());
+    assert(reading->batteryLevel() == 2 && reading->isCharging());
+    assert(reading->batteryPercent() == 20);
+    assert(!refresher.waitingForReply() && refresher.stats().replies == 1);
+    assert(refreshDevice.identity()->batteryPercent() == 40);
+    assert(!refresher.tick(refreshDevice, origin + 29s));
+    assert(refreshTransport->writes.size() == 2);
+
+    refreshTransport->dropApex6Replies = true;
+    assert(!refresher.tick(refreshDevice, origin + 31s));
+    assert(refresher.waitingForReply() && refresher.stats().requests == 2);
+    assert(!refresher.tick(refreshDevice, origin + 31s + 100ms));
+    assert(refresher.waitingForReply() && refresher.stats().timeouts == 0);
+    assert(!refresher.tick(refreshDevice, origin + 31s + 301ms));
+    assert(!refresher.waitingForReply() && refresher.stats().timeouts == 1);
+    assert(!refreshTransport->readTimeouts.empty());
+    for (const auto timeout : refreshTransport->readTimeouts) assert(timeout.count() == 0);
+
+    refresher.reset(origin + 100s);
+    assert(!refresher.tick(refreshDevice, origin + 110s));
+    assert(refresher.stats().requests == 2 && !refresher.waitingForReply());
+
+    FakeTransport* spacingTransport = nullptr;
+    auto spacingDevice = makeDevice(
+        spacingTransport, apex6::kDeviceType, false, false, 0, true);
+    spacingTransport->apex6BatteryByte = 0x05;
+    error.clear();
+    assert(spacingDevice.verifyIdentity(error));
+    spacingTransport->readTimeouts.clear();
+    Apex6BatteryRefresherConfig spacingConfig;
+    spacingConfig.slowCall = 5s;
+    Apex6BatteryRefresher spacingRefresher(origin, spacingConfig);
+    assert(!spacingRefresher.tick(spacingDevice, origin + 15s));
+    assert(!spacingRefresher.tick(spacingDevice, origin + 15s + 2ms));
+    assert(spacingTransport->readTimeouts.empty() && spacingRefresher.waitingForReply());
+    const auto spaced = spacingRefresher.tick(spacingDevice, origin + 15s + 5ms);
+    assert(spaced && spaced->batteryPercent() == 50);
+    assert(!spacingTransport->readTimeouts.empty());
+
+    FakeTransport* unansweredTransport = nullptr;
+    auto silentDevice = makeDevice(
+        unansweredTransport, apex6::kDeviceType, false, false, 0, true);
+    error.clear();
+    assert(silentDevice.verifyIdentity(error));
+    unansweredTransport->dropApex6Replies = true;
+    Apex6BatteryRefresherConfig silentConfig;
+    silentConfig.pollSpacing = 0ms;
+    silentConfig.slowCall = 5s;
+    Apex6BatteryRefresher silentRefresher(origin, silentConfig);
+    auto silentAt = origin;
+    for (int cycle = 0; cycle < 3; ++cycle) {
+        silentAt += 15s;
+        assert(!silentRefresher.tick(silentDevice, silentAt));
+        assert(!silentRefresher.tick(silentDevice, silentAt + 301ms));
+        silentAt += 301ms;
+    }
+    assert(silentRefresher.disabledReason() == Apex6BatteryRefreshDisabled::NoAnswer);
+    assert(silentRefresher.stats().requests == 3 && silentRefresher.stats().timeouts == 3);
+    const auto silentWrites = unansweredTransport->writes.size();
+    assert(!silentRefresher.tick(silentDevice, silentAt + 60s));
+    assert(unansweredTransport->writes.size() == silentWrites && !silentRefresher.waitingForReply());
+
+    FakeTransport* slowTransport = nullptr;
+    auto slowDevice = makeDevice(
+        slowTransport, apex6::kDeviceType, false, false, 0, true);
+    slowTransport->apex6BatteryByte = 0x05;
+    error.clear();
+    assert(slowDevice.verifyIdentity(error));
+    slowTransport->readDelay = 12ms;
+    Apex6BatteryRefresherConfig slowConfig;
+    slowConfig.pollSpacing = 0ms;
+    slowConfig.slowCall = 2ms;
+    slowConfig.maximumSlowCalls = 2;
+    Apex6BatteryRefresher slowRefresher(origin, slowConfig);
+    assert(!slowRefresher.tick(slowDevice, origin + 15s));
+    assert(slowRefresher.tick(slowDevice, origin + 15s + 1ms));
+    assert(slowRefresher.stats().slowCalls == 1);
+    assert(slowRefresher.disabledReason() == Apex6BatteryRefreshDisabled::None);
+    assert(!slowRefresher.tick(slowDevice, origin + 31s));
+    assert(slowRefresher.tick(slowDevice, origin + 31s + 1ms));
+    assert(slowRefresher.stats().slowCalls == 2);
+    assert(slowRefresher.disabledReason() == Apex6BatteryRefreshDisabled::SlowCalls);
+    assert(slowRefresher.stats().maximumCallMicroseconds >= 11000);
+    const auto slowWrites = slowTransport->writes.size();
+    assert(!slowRefresher.tick(slowDevice, origin + 60s));
+    assert(slowTransport->writes.size() == slowWrites);
+
+    FakeTransport* closedRefreshTransport = nullptr;
+    auto unverifiedDevice = makeDevice(
+        closedRefreshTransport, apex6::kDeviceType, false, false, 0, true);
+    Apex6BatteryRefresher unverifiedRefresher(origin);
+    assert(!unverifiedRefresher.tick(unverifiedDevice, origin + 15s));
+    assert(unverifiedRefresher.stats().failures == 1 && !unverifiedRefresher.waitingForReply());
+    assert(closedRefreshTransport->writes.empty());
 
     FakeTransport* variantTransport = nullptr;
     auto variant = makeDevice(variantTransport, 0x98, false, false, 0, true);
@@ -432,6 +618,15 @@ int main() {
     assert(accepted.readInputTransportStatus(transportStatus, error));
     assert(transportStatus.thirdPartyControl.value() == true);
     assert(transportStatus.controllerData && !transportStatus.rawData);
+    acceptedTransport->retainInputTransport = false;
+    error.clear();
+    assert(!accepted.setInputTransport(true, true, error));
+    assert(error ==
+           "The Apex 5 did not retain the requested physical-input routing "
+           "(requested controller_data=1, raw_data=1; controller reported "
+           "controller_data=1, raw_data=0, keyboard_data=0, mouse_data=0, "
+           "third_party_control=1)");
+    acceptedTransport->retainInputTransport = true;
     acceptedTransport->thirdPartyControlByte = 0;
     error.clear();
 

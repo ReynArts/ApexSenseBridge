@@ -8,12 +8,19 @@ APEX 4/5 translate adaptive triggers into FORCEADAPT resistance and audio haptic
 into grip vibration. APEX 6 Pro uses its four voice-coil actuators for native
 haptic audio and translated trigger feedback.
 
-**1.0.0 is the first stable release**, bringing together the standalone app,
-Playnite integration, controller-specific settings and a gamepad-friendly
-interface in nine languages.
+**1.1.0 is a major update**, even though the version number only moves from
+1.0 to 1.1. **Trigger effects have been reworked on the APEX 6 Pro and the
+APEX 5**: each DualSense effect now follows what it means (weapon breaks, Bow,
+progressive resistance, vibration, Machine, Galloping) instead of a flat
+translation. The APEX 4 triggers are unchanged. The APEX 6 Pro also gains its motion sensors, real battery level,
+onboard profile slots and a trigger-effect translation tuned by meaning. You can
+now choose between several connected controllers. On APEX 4 and APEX 5 the
+virtual DualSense is kept alive across a controller power cycle, and the automatic
+activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 
-[Download ApexSenseBridge 1.0.0](https://github.com/ReynArts/ApexSenseBridge/releases/latest) ·
-[Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md)
+[Download ApexSenseBridge 1.1.0](https://github.com/ReynArts/ApexSenseBridge/releases/latest) ·
+[Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) ·
+[Roadmap](ROADMAP.md)
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-lightgrey.svg)](#requirements)
@@ -27,6 +34,7 @@ interface in nine languages.
 
 ## Contents
 
+- [What's new in 1.1.0](#whats-new-in-110)
 - [Stable 1.0.0 highlights](#stable-100-highlights)
 - [Supported controllers](#supported-controllers)
 - [Game compatibility](#game-compatibility)
@@ -43,14 +51,61 @@ interface in nine languages.
 
 ---
 
+## What's New in 1.1.0
+
+1.1.0 is a major update. These are the changes you will notice; the
+[changelog](CHANGELOG.md) has the complete list, with measurements and issue links.
+
+### Reworked trigger effects (APEX 6 Pro and APEX 5)
+
+- **APEX 6 Pro:** each DualSense effect is translated into a vibration that follows its meaning (see below), with twelve weapon presets.
+- **APEX 5:** the bridge follows DualSense per-zone force curves and rhythms (graded or gapped profiles, Galloping, Machine) instead of one constant resistance, and the Bow effect releases at its end zone. On by default; the **Trigger effect emulation** switch turns it off.
+- **APEX 4:** trigger behaviour is unchanged in 1.1.0.
+
+### APEX 6 Pro
+
+- **🧭 Gyroscope and accelerometer.** A bridge session now forwards the motion sensors to the virtual DualSense. The session switches on the controller's raw-data routing when it starts, waits up to 1.5 s for the first motion report and restores the routing when it ends; if no report arrives, it starts without motion and prints a warning. `test-gyro` works on the APEX 6 Pro.
+- **🔋 Real battery level and charge state** reach the virtual DualSense instead of a fixed 100 %, refreshed every 15 seconds with self-timing safeguards. A controller that reports nothing keeps showing 100 %.
+- **🗂️ Onboard profile slots 1–4** (`bridge-triggers --apex-profile`, `test-profile-switch`). The original slot is restored and verified when the session ends, and after a crash by the watchdog. `test-profile-switch` compares the slot checksums before and after and fails if they changed.
+- **🎯 Trigger effects translated into vibration by meaning.** The APEX 6 Pro triggers only vibrate, so each DualSense effect becomes a vibration that follows what the effect means instead of a flat buzz: one burst when the trigger crosses the break point for weapon effects, a draw that builds up to a release burst for Bow, smooth transitions between zones for progressive resistance and vibration, and a rhythm for Machine and Galloping. They are tuned by feel, not calibrated against a real DualSense, and they reproduce vibration rather than mechanical resistance.
+- **🔫 Twelve weapon presets** (machine gun, rifle, submachine gun, light machine gun, pistol, shotgun, sniper rifle, sword, blade, dagger, axe, club) to try from the Tray trigger test or with `test-trigger --mode <preset>`. `test-trigger` now plays the real native effect and follows your trigger.
+- **Cleaner trigger release.** The trigger hum that newer firmware kept playing after a release is stopped ([#74](https://github.com/ReynArts/ApexSenseBridge/issues/74)). When only the triggers are driven, the grip motors stay in the controller's own mode.
+
+### All controllers
+
+- **🎛️ Choose between several APEX controllers.** With two or more APEX controllers or receivers connected, the Tray identifies each one and shows the selected model followed by the number of the others in the top bar, for example "Apex 6 Pro + 1". Click it, or press View on a gamepad outside the Games tab, to pick the controller: the home picture, the settings and the next bridge session follow your choice. The choice is saved, and locked while a session runs. The engine still bridges one controller at a time; bridging two at once (couch co-op) is not supported. Sessions no longer fail outright with several controllers connected ([#70](https://github.com/ReynArts/ApexSenseBridge/issues/70)).
+- **🔁 The virtual DualSense survives a controller power cycle (APEX 4 and APEX 5).** Switching the controller off, letting it sleep or unplugging it no longer ends the session: the game keeps a connected DualSense with neutral input and its button prompts do not flip. Validated on real hardware on the APEX 5; not yet validated on the APEX 4. See [Disconnection Recovery](#disconnection-recovery).
+- **🛠️ Far more robust automatic activation.** Elevated and anti-cheat protected games are no longer taken for closed, which made the virtual DualSense reconnect in a loop ([#67](https://github.com/ReynArts/ApexSenseBridge/issues/67)). Repeated start failures of the same game pause automatic starts instead of looping, an engine that stops unexpectedly after becoming ready is retried after 10 s and paused the same way ([#53](https://github.com/ReynArts/ApexSenseBridge/issues/53), [#54](https://github.com/ReynArts/ApexSenseBridge/issues/54), [#55](https://github.com/ReynArts/ApexSenseBridge/issues/55), [#59](https://github.com/ReynArts/ApexSenseBridge/issues/59)), and Grand Theft Auto V Enhanced is no longer matched to the original game.
+- **🎚️ Per-game tuning and reset buttons.** Every tuning slider has a reset button, and a game's detail pane can override trigger strength, vibration strength and (APEX 4/5) the haptic threshold for that game only.
+- **🐞 New report window.** **Settings** > **Send a report** offers Bug, Feature or improvement, Unsupported game and Download the logs. Reports can attach the full logs, and be sent anonymously without a GitHub account.
+- **📚 Manual-fix notes in the Tray.** The game catalogue (over 225 games) keeps each manual-fix game's PCGamingWiki workaround note, with the tools and links it names, shown in the interface language. See [What does "Manual fix" mean?](#what-does-manual-fix-mean).
+- **⚠️ Competing engine warning.** The bridge prints a warning at startup when Flydigi X-Haptics (`XHaptics.exe`, `x-haptic-engine-fusion.exe`) is running, because it can write haptic frames to the same controller. Nothing is stopped or blocked.
+- **🕹️ Alan Wake 2 touchpad profile** and a detailed **Touchpad remapping** panel in the Tray.
+- **🚀 `ApexSenseBridgeTray.exe --force-always-on`** starts the Tray with Force continuous activation already on, for that run only.
+
+### APEX 5 and APEX 4
+
+- **APEX 5, per-zone and rhythmic trigger emulation, on by default.** The bridge follows DualSense trigger curves and rhythms (graded or gapped profiles, Galloping, Machine) from the PC, and the Bow effect now releases at its end zone. The lightbar sync keeps the brightness saved in Space Station, with a **Lightbar max brightness** slider.
+- **APEX 4, faster rumble cadence** (10 ms instead of 25 ms) so short haptic bursts are no longer replaced by the next stop; the identity exchange sends far fewer requests.
+
+### Good to know when upgrading
+
+- **APEX 5:** the per-zone and rhythmic trigger emulation is on by default. Turn it off with the **Trigger effect emulation** switch in the Tray settings, or `--no-zone-emulation`, if you prefer the previous single-resistance behaviour.
+- **APEX 6 Pro:** triggers now feel different, because each effect is translated by meaning instead of played as a flat vibration.- **APEX 4:** `ASB_APEX4_RUMBLE_MS=25` restores the previous rumble spacing without rebuilding.
+- **Not covered yet:** the APEX 6 Pro does not ride out a power cycle (the bridge stops and the voluntary recovery applies), and RGB lightbar sync is still refused on the APEX 6 Pro. See the [roadmap](ROADMAP.md).
+
+---
+
 ## Stable 1.0.0 Highlights
+
+1.0.0 was the first stable release and everything below is still part of the app.
 
 - **🎮 Console Interface Refresh:** Complete console-grade interface for the Tray app, controller diagnostic, and language picker. Full gamepad navigation (D-pad/stick, Cross/A, Circle/B, Options/Menu, bumpers/triggers) and keyboard shortcuts (arrows, Enter, Escape, Ctrl+Tab, Ctrl+F).
 - **🌍 9 Supported Languages:** English, French, Spanish, Simplified Chinese, Russian, Korean, Vietnamese, Japanese, and Brazilian Portuguese, with automatic Windows language detection and in-app language switching.
 - **✨ Recently Added Games & 215+ Titles:** The home screen features a curated shelf of newly added games with "New" badges (last 30 days) and date tracking, backed by an automated daily PCGamingWiki sync.
 - **🕹️ Controller-Specific Calibration & Hot-Plug Safety:** Independent calibration profiles for APEX 4, APEX 5, and APEX 6 Pro. Settings controls lock when no supported pad is connected, preventing misconfiguration. Engine selects calibration only after verified hardware identity.
 - **🔊 Grip Vibration Amplification (0–200%):** Conventional grip vibration strength can be boosted up to 200% on APEX 4 and APEX 5 with saturation at the motor-command limit, without changing trigger resistance.
-- **🎯 APEX 6 Pro Native Voice-Coil Haptics:** Full support for the APEX 6 Pro and official Phantom Blade Zero `0x98` variant. Features synchronized 1 kHz trigger carrier clocks, native Bow effect `0x22`, preserved quiet native PCM, and experimental companding gain (`--apex6-haptic-gain 100..200`).
+- **🎯 APEX 6 Pro Native Voice-Coil Haptics:** Full support for the APEX 6 Pro and official Phantom Blade Zero `0x98` variant. Features synchronized 1 kHz trigger carrier clocks, native Bow effect `0x22`, preserved quiet native PCM, experimental companding gain (`--apex6-haptic-gain 100..200`), and an opt-in 2 kHz grip stream (`--apex6-rate 2000` or the Tray switch).
 - **🧭 APEX 4 Native Gyroscope Decoding:** Direct 16-bit hardware gyro parsing with customizable sensitivity (25–400%) and independent yaw correction slider.
 - **🛡️ Intelligent HidHide Diagnostics:** Diagnoses access conflicts when DSX, DS4Windows, or BetterJoy hold the HidHide driver open and explicitly lists conflicting processes.
 - **🕹️ Death Stranding 2 Touchpad Remapping:** Dedicated profile mapping `View/Back` to right-touchpad click (Likes, Communication) and `LB + Menu` to left-touchpad click (Photo Mode).
@@ -66,9 +121,11 @@ See the [changelog](CHANGELOG.md) for the development history and the
 
 | Controller | Connection Modes | Hardware Verification Status | Special Features |
 |---|---|---|---|
-| **Flydigi APEX 6 Pro** | 2.4 GHz Dongle / Wired USB | ✅ Verified in Hardware (Standard & PBZ `0x98`) | Four voice-coil actuators, native DualSense PCM haptics & companding gain, synchronized trigger carriers, native Bow `0x22` |
-| **Flydigi APEX 5** | 2.4 GHz Dongle / Wired USB | ✅ Fully Verified in Hardware & Gameplay | Full FORCEADAPT Trigger Resistance, Audio Haptics, 0–200% Grip Rumble Gain, Onboard Profiles 1–4 switching |
+| **Flydigi APEX 6 Pro** | 2.4 GHz Dongle / Wired USB | ✅ Verified in Hardware (Standard & PBZ `0x98`), including the 1.1.0 additions | Four voice-coil actuators, native DualSense PCM haptics & companding gain, trigger effects translated into vibration by meaning, 12 weapon presets, gyroscope & accelerometer, battery level, onboard profile slots 1–4 |
+| **Flydigi APEX 5** | 2.4 GHz Dongle / Wired USB | ✅ Fully Verified in Hardware & Gameplay | Full FORCEADAPT Trigger Resistance with per-zone & rhythmic emulation, Audio Haptics, 0–200% Grip Rumble Gain, Onboard Profiles 1–4 switching, survives a controller power cycle |
 | **Flydigi APEX 4** | 2.4 GHz Dongle / Wired USB (DInput) | ✅ Fully Verified in Hardware & Gameplay | Direct 16-bit Native Gyroscope with 25–400% sensitivity & yaw correction, FORCEADAPT Resistance, 0–200% Grip Rumble Gain, 32-byte/64-byte interface auto-detection |
+
+The APEX 6 Pro does not yet ride out a controller power cycle.
 
 ---
 
@@ -85,7 +142,7 @@ Hardware-tested titles include the following. Features depend on the game and co
 - **Marvel's Spider-Man: Miles Morales:** venom charge triggers, web-swing tension, and FNSM gestures.
 - **Warframe:** instant ability swipe gestures and dynamic weapon trigger resistance.
 
-### 📚 215+ Automatically Detected DualSense Games
+### 📚 225+ Automatically Detected DualSense Games
 
 The catalogue tracks native PlayStation 5 DualSense support using PCGamingWiki. Catalogue detection does not certify every effect on every APEX model. The Standalone Tray App and Playnite extension automatically recognize and engage the bridge when any supported title launches.
 
@@ -121,13 +178,15 @@ APEX Controller ──► ApexSenseBridge (C++20 Engine) ──► Virtual DualS
 
 > [!TIP]
 > For common diagnostic questions, minidump analysis, or setup help, consult the [Knowledge Base & Troubleshooting Guide](TROUBLESHOOTING.md).
+>
+> **Windows 11 Smart App Control blocked the installer or `ApexSenseBridgeTray.exe`?** A Defender exclusion does not help. See [Troubleshooting](TROUBLESHOOTING.md#windows-11-smart-app-control-blocks-the-app).
 
 ### Requirements
 
 - Windows 10 or 11 **x64**.
 - A supported controller connected by **USB or its 2.4 GHz receiver**. For APEX 4, use **DInput mode**.
 - Administrator access for the one-time USBip and HidHide driver installation.
-- For Steam games, **disable Steam Input for that game** so native DualSense input and feedback reach the virtual controller.
+- For Steam games, **disable Steam Input for that game** so native DualSense input and feedback reach the virtual controller. A few games, such as Monster Hunter Wilds, accept controllers only through Steam Input; see [Troubleshooting](TROUBLESHOOTING.md#issue-h-games-that-only-accept-controllers-through-steam-input-monster-hunter-wilds).
 
 ### Option A: Standard Offline Installer (Recommended)
 
@@ -185,9 +244,10 @@ a command also opens the Tray app.
 
 - Launch **`ApexSenseBridgeTray.exe`** (or enable *Launch at Windows startup*).
 - Sits silently in the System Tray with a modern console-style interface.
-- **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 215+ supported games start.
+- **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 225+ supported games start.
 - **Dynamic Executable Learning:** Detects renamed, modded, elevated or multi-process game executables after 30 seconds of a stable automatically detected session while filtering out game launchers (Steam, Epic, EA, Ubisoft). Force Continuous Activation alone cannot identify which game should own an executable.
 - **Dashboard & Per-Game Profiles:** Right-click the Tray icon to open the game list, force a specific profile, or assign a dedicated APEX 5 hardware slot (1–4) for each game.
+- **Start with Force Continuous Activation (`--force-always-on`):** `ApexSenseBridgeTray.exe --force-always-on` (for example in a shortcut or a scheduled task) starts the Tray with **Force continuous activation** already on, exactly as if you had switched it on from the home screen: the bridge starts at once and automatic detection no longer starts or stops it. It applies to that run only and is never written to the settings file, so launching the Tray without the argument is back to automatic detection. The argument is read only by the launch that becomes the running Tray: if the Tray is already running, the new launch just brings up its window and the argument is ignored, so close the Tray first. If the bridge cannot start (for example no APEX connected), the option is dropped for that run and automatic detection resumes.
 
 ### 2. Playnite Integration
 
@@ -337,6 +397,8 @@ ApexSenseBridge.exe input-status [index] [--seconds N] [--json]
 ApexSenseBridge.exe test-rt [index]
 ApexSenseBridge.exe test-trigger [index] [--side lt|rt|both] [--seconds N]
 ApexSenseBridge.exe test-rumble [index] [--left 0..255] [--right 0..255] [--seconds N]
+ApexSenseBridge.exe test-gyro [index] [--stream] [--seconds N]
+ApexSenseBridge.exe test-profile-switch [index] [--target 1..4]
 ApexSenseBridge.exe restore-controller-visibility
 ```
 
@@ -344,7 +406,7 @@ ApexSenseBridge.exe restore-controller-visibility
 
 ## Reporting a Problem
 
-In the Tray, open **Settings** > **Controller Diagnostics & Test** > **Report a bug**. It prepares an anonymized installation report that you can preview before anything is published. Please also attach:
+In the Tray, open **Settings** > **Send a report** and pick Bug, Feature or improvement, Unsupported game or Download the logs. A bug report prepares an anonymized installation report that you can preview before anything is published, and can be sent without a GitHub account. Please also attach:
 
 - `tray_bridge.log` and `tray_detection.log` from `%LocalAppData%\ApexSenseBridge\logs\` (the report only holds the latest lines).
 - Whether the controller is on the USB cable or the 2.4 GHz receiver.

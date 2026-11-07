@@ -4,6 +4,7 @@
 #include "core/TriggerEffect.h"
 #include "flydigi/Apex4WritePacing.h"
 #include "flydigi/Apex5Identity.h"
+#include "flydigi/Apex6Imu.h"
 #include "flydigi/Apex6Protocol.h"
 #include "platform/HidTransport.h"
 
@@ -48,6 +49,12 @@ struct FeedbackWriteStats {
     std::uint64_t maximumWriteUs = 0;
 };
 
+enum class Apex6InfoPoll {
+    Pending,
+    Reply,
+    Failed,
+};
+
 class Apex5Device {
 public:
     // Historical API name retained for source compatibility. This transport
@@ -82,12 +89,13 @@ public:
                    std::uint8_t highFrequencyMotor,
                    std::string& error);
     bool stopRumble(std::string& error);
-    bool enableApex6Haptics(std::string& error);
+    bool enableApex6Haptics(std::string& error, bool realtimeGrips = true);
     bool writeApex6Haptics(const apex6::MotorBlock& block,
                            apex6::TriggerRoute route,
                            bool enableTrigger,
                            bool enableGrips,
-                           std::string& error);
+                           std::string& error,
+                           bool interpolate = true);
     bool disableApex6Haptics(std::string& error);
     bool readRgbConfig(std::uint8_t slot,
                        std::array<std::uint8_t, kRgbConfigSize>& outConfig,
@@ -106,7 +114,16 @@ public:
                                   std::string& error);
     bool setInputTransport(bool controllerData, bool rawData,
                            std::string& error);
+    bool readApex6TransportStatus(apex6::TransportStatus& status,
+                                  std::string& error);
+    bool setApex6RawDataRouting(bool enable, std::string& error);
+    bool apex6OperatorStreamActive(std::chrono::milliseconds window,
+                                   std::string& error);
     bool requestBatteryRefresh(std::string& error);
+    bool requestApex6Info(std::string& error);
+    Apex6InfoPoll pollApex6Info(std::size_t maximumReads,
+                                std::optional<Apex5Identity>& reading,
+                                std::string& error);
 
     // Support diagnostic only. Reads the verified vendor HID stream without
     // interpreting or modifying controller state/profile configuration.
@@ -137,6 +154,7 @@ private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
     [[nodiscard]] bool mayWriteApex6Haptics(std::string& error) const;
     [[nodiscard]] bool mayControlProfiles(std::string& error) const;
+    [[nodiscard]] bool mayControlProfileSlots(std::string& error) const;
     [[nodiscard]] bool usesApex4Protocol() const noexcept;
     [[nodiscard]] bool usesApex6Protocol() const noexcept;
     [[nodiscard]] std::unique_lock<std::recursive_mutex> acquireWriteLock() const noexcept;
@@ -147,6 +165,7 @@ private:
                                            bool trigger,
                                            std::string& error);
     void waitForAsyncWriteSpacing() const;
+    void pauseForApex6ProfileSpacing() const;
     void recordVendorWrite() noexcept;
     void writerLoop();
 
@@ -157,6 +176,7 @@ private:
     mutable std::unique_ptr<std::recursive_mutex> writeMutex_{std::make_unique<std::recursive_mutex>()};
     std::chrono::steady_clock::time_point lastVendorWriteAt_{};
     std::chrono::steady_clock::time_point lastTriggerWriteAt_{};
+    std::chrono::steady_clock::time_point lastApex6ProfileExchangeAt_{};
     Apex4WritePacer apex4Pacer_{configuredApex4RumbleSpacing().spacing};
     AsyncWritePolicy asyncPolicy_{};
     std::thread writer_{};

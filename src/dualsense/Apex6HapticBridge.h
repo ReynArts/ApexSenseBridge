@@ -65,6 +65,8 @@ struct Apex6HapticBridgeStats {
     std::uint8_t lastRightTriggerType = 0;
     std::uint64_t rumbleUpdates = 0;
     std::uint64_t rumbleActiveUpdates = 0;
+    std::uint64_t rumbleIgnoredReports = 0;
+    std::uint8_t lastIgnoredRumbleEnableBits = 0;
     std::uint64_t audioEnvelopeReports = 0;
     std::uint64_t audioEnvelopeActive = 0;
     std::uint64_t waveformLeftActiveBlocks = 0;
@@ -97,10 +99,15 @@ struct Apex6HapticBridgeStats {
     std::uint64_t waveformTotalAgeUs = 0;
     std::uint64_t waveformActiveRendered = 0;
     unsigned pcmGainPercent = 100;
+    unsigned gripDuckPercent = 0;
+    unsigned triggerCeilingPercent = 100;
+    std::uint64_t gripDuckedBlocks = 0;
+    std::uint64_t triggerLimitedSamples = 0;
     std::uint64_t pcmOutputLeftPeak = 0;
     std::uint64_t pcmOutputRightPeak = 0;
     std::uint64_t gripEnvelopeFrames = 0;
     std::uint64_t gripRumbleFrames = 0;
+    std::uint64_t gripRumbleMaskedFrames = 0;
     std::uint64_t deadlineOverruns = 0;
     std::uint64_t idleFramesSkipped = 0;
     std::uint64_t idleKeepalives = 0;
@@ -113,6 +120,10 @@ struct Apex6HapticBridgeStats {
     std::uint64_t bothTriggerFrames = 0;
     std::uint64_t hapticEnables = 0;
     std::uint64_t hapticDisables = 0;
+    unsigned sampleRateHz = 1000;
+    std::uint64_t waveform2kBlocks = 0;
+    std::uint64_t waveformUpsampledBlocks = 0;
+    std::uint64_t primeReports = 0;
     std::optional<Apex6TriggerTraceEntry> lastActiveLeft;
     std::optional<Apex6TriggerTraceEntry> lastActiveRight;
     std::optional<Apex6TriggerTraceEntry> lastRejectedLeft;
@@ -128,7 +139,10 @@ public:
                                haptics::HapticConfig config = {},
                                bool routeGrips = true, unsigned triggerStrengthPercent = 100,
                                unsigned vibrationStrengthPercent = 100,
-                               unsigned pcmGainPercent = 100);
+                               unsigned pcmGainPercent = 100,
+                               unsigned gripDuckPercent = 0,
+                               unsigned triggerCeilingPercent = 100,
+                               unsigned sampleRateHz = 1000);
     ~Apex6HapticBridge();
 
     Apex6HapticBridge(const Apex6HapticBridge&) = delete;
@@ -139,6 +153,7 @@ public:
     void handle(const DualSenseFeedback& feedback);
     void updateTriggerPositions(std::uint8_t left, std::uint8_t right) noexcept;
     void setDiagnosticTrigger(const ForceTriggerCommand& command) noexcept;
+    void setDiagnosticEffect(TriggerSide side, const Apex6TriggerEffect& effect) noexcept;
     void setDiagnosticGrips(std::uint8_t left, std::uint8_t right) noexcept;
 
     [[nodiscard]] bool failed() const noexcept;
@@ -150,15 +165,18 @@ private:
 
     struct WaveformBlock {
         std::uint32_t sequence = 0;
-        std::array<std::int16_t, 8> left{};
-        std::array<std::int16_t, 8> right{};
+        std::array<std::int16_t, 16> left{};
+        std::array<std::int16_t, 16> right{};
         Clock::time_point receivedAt{};
+        std::size_t count = 8;
     };
+
+    using WideBlock = std::array<flydigi::apex6::MotorSubframe, 16>;
 
     static constexpr std::size_t kWaveformQueueCapacity = 3;
 
     void run() noexcept;
-    flydigi::apex6::MotorBlock renderBlock(
+    WideBlock renderBlock(
         flydigi::apex6::TriggerRoute& route,
         bool& triggerEnabled,
         Clock::time_point now) noexcept;
@@ -173,6 +191,14 @@ private:
     unsigned triggerStrengthPercent_ = 100;
     unsigned vibrationStrengthPercent_ = 100;
     unsigned pcmGainPercent_ = 100;
+    unsigned gripDuckPercent_ = 0;
+    unsigned triggerCeilingPercent_ = 100;
+    bool rate2k_ = false;
+    std::size_t blockSize_ = 8;
+    std::int8_t leftTriggerPrevious_ = 0;
+    std::int8_t rightTriggerPrevious_ = 0;
+    std::int16_t leftPcmPrevious_ = 0;
+    std::int16_t rightPcmPrevious_ = 0;
     std::uint64_t triggerSampleOffset_ = 0;
     mutable std::mutex stateMutex_;
     std::condition_variable stopSignal_;
@@ -229,6 +255,8 @@ private:
     std::atomic_uint8_t lastRightTriggerType_{0};
     std::atomic_uint64_t rumbleUpdates_{0};
     std::atomic_uint64_t rumbleActiveUpdates_{0};
+    std::atomic_uint64_t rumbleIgnoredReports_{0};
+    std::atomic_uint8_t lastIgnoredRumbleEnableBits_{0};
     std::atomic_uint64_t audioEnvelopeReports_{0};
     std::atomic_uint64_t audioEnvelopeActive_{0};
     std::atomic_uint64_t waveformLeftActiveBlocks_{0};
@@ -260,10 +288,13 @@ private:
     std::atomic_uint64_t waveformMaximumAgeUs_{0};
     std::atomic_uint64_t waveformTotalAgeUs_{0};
     std::atomic_uint64_t waveformActiveRendered_{0};
+    std::atomic_uint64_t gripDuckedBlocks_{0};
+    std::atomic_uint64_t triggerLimitedSamples_{0};
     std::atomic_uint64_t pcmOutputLeftPeak_{0};
     std::atomic_uint64_t pcmOutputRightPeak_{0};
     std::atomic_uint64_t gripEnvelopeFrames_{0};
     std::atomic_uint64_t gripRumbleFrames_{0};
+    std::atomic_uint64_t gripRumbleMaskedFrames_{0};
     std::atomic_uint64_t deadlineOverruns_{0};
     std::atomic_uint64_t idleFramesSkipped_{0};
     std::atomic_uint64_t idleKeepalives_{0};
@@ -276,6 +307,9 @@ private:
     std::atomic_uint64_t bothTriggerFrames_{0};
     std::atomic_uint64_t hapticEnables_{0};
     std::atomic_uint64_t hapticDisables_{0};
+    std::atomic_uint64_t waveform2kBlocks_{0};
+    std::atomic_uint64_t waveformUpsampledBlocks_{0};
+    std::atomic_uint64_t primeReports_{0};
 };
 
 } // namespace asb::dualsense
