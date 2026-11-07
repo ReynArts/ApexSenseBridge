@@ -364,6 +364,8 @@ int commandIdentify(int argc, char** argv) {
                   << static_cast<unsigned int>(identity->batteryLevel())
                   << " (" << static_cast<unsigned int>(identity->batteryPercent()) << "%)"
                   << (identity->isCharging() ? " (charging)" : "") << '\n';
+    } else if (identity->isApex6()) {
+        std::cout << "Battery level: not reported by the controller\n";
     }
     std::cout << "Adaptive triggers: ";
     const auto apex4Capability =

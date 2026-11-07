@@ -21,6 +21,24 @@
   `test-gyro --stream --seconds N` now stops after N seconds and restores the
   routing, instead of running until it is interrupted.
 
+### APEX 6 Pro: battery level and charge state
+
+- The identity exchange now also decodes the battery level, the charge state and
+  the seven firmware versions. When the controller reports a level, the virtual
+  DualSense receives the real percentage and charge state, instead of a fixed
+  100 %. A level of 0 with no charge indication is
+  treated as "not reported", so a controller that does not fill the field keeps
+  showing 100 %. The 0-10 scale comes from the vendor protocol and still needs
+  confirmation on every firmware. The firmware versions are decoded and kept
+  internally, without being displayed. The battery is then refreshed every 15
+  seconds without waiting for the reply: one request, then short polls. The
+  refresh switches itself off for the session if a controller call takes more
+  than 5 ms twice, or if the controller fails to answer three times in a row.
+- The telemetry file gains `battery_known`, `battery_source`, `battery_refreshes`
+  and `battery_refresh_failures`, so a measured battery can be told apart from the
+  default 100 %, plus `battery_refresh_slow_calls`, `battery_refresh_max_call_us`
+  and `battery_refresh_disabled` to see what the refresh costs.
+
 ### Alan Wake 2: touchpad remapping and a detailed remapping panel in the Tray
 
 - New `alan-wake-2` touchpad profile. On the Xbox layout, `View` opens the Mind

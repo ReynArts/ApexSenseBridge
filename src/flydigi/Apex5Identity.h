@@ -1,6 +1,7 @@
 #pragma once
 
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6Protocol.h"
 
 #include <cstdint>
 #include <optional>
@@ -55,7 +56,12 @@ public:
     }
     [[nodiscard]] std::uint8_t features() const noexcept { return features_; }
     [[nodiscard]] bool hasBatteryLevel() const noexcept {
-        return protocol_ == ApexProtocol::CurrentV2;
+        return protocol_ == ApexProtocol::CurrentV2 ||
+               (protocol_ == ApexProtocol::RealtimeV3 && batteryKnown_);
+    }
+    [[nodiscard]] std::uint8_t chargingStatus() const noexcept { return chargingStatus_; }
+    [[nodiscard]] const apex6::FirmwareVersions& apex6Firmware() const noexcept {
+        return apex6Firmware_;
     }
     [[nodiscard]] std::uint8_t batteryLevel() const noexcept { return batteryLevel_; }
     [[nodiscard]] bool isCharging() const noexcept { return charging_; }
@@ -80,6 +86,9 @@ private:
     bool charging_ = false;
     std::uint16_t firmwareVersion_ = 0;
     std::uint8_t features_ = 0;
+    bool batteryKnown_ = false;
+    std::uint8_t chargingStatus_ = 0;
+    apex6::FirmwareVersions apex6Firmware_{};
 };
 
 } // namespace asb::flydigi

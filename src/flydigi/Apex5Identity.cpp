@@ -79,6 +79,11 @@ std::optional<Apex5Identity> Apex5Identity::parseReply(
 }
 
 std::uint8_t Apex5Identity::batteryPercent() const noexcept {
+    if (protocol_ == ApexProtocol::RealtimeV3) {
+        if (!batteryKnown_) return 100;
+        if (chargingStatus_ == apex6::kChargingStatusFull) return 100;
+        return (std::max)(static_cast<std::uint8_t>(batteryLevel_ * 10), std::uint8_t{10});
+    }
     if (hasBatteryLevel()) {
         return dualsense::toBatteryPercent(batteryLevel_);
     }
@@ -113,9 +118,18 @@ std::optional<Apex5Identity> Apex5Identity::parseApex6Reply(
     if (!parsed || !apex6::isProDeviceType(parsed->deviceType)) {
         return std::nullopt;
     }
-    return Apex5Identity(ApexProtocol::RealtimeV3, parsed->deviceType,
-                         parsed->connectionMode, 0, false, 0,
-                         parsed->features);
+    const bool batteryKnown = parsed->hasBatteryReading();
+    const bool charging = batteryKnown &&
+        (parsed->chargingStatus == apex6::kChargingStatusCharging ||
+         parsed->chargingStatus == apex6::kChargingStatusFull);
+    Apex5Identity identity(ApexProtocol::RealtimeV3, parsed->deviceType,
+                           parsed->connectionMode,
+                           batteryKnown ? parsed->batteryLevel : std::uint8_t{0},
+                           charging, parsed->firmware.main, parsed->features);
+    identity.batteryKnown_ = batteryKnown;
+    identity.chargingStatus_ = batteryKnown ? parsed->chargingStatus : std::uint8_t{0};
+    identity.apex6Firmware_ = parsed->firmware;
+    return identity;
 }
 
 bool Apex5Identity::isApex4DeviceType(std::uint8_t deviceType) noexcept {

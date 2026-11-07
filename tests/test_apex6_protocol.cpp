@@ -83,5 +83,45 @@ int main() {
     // Some HID stacks strip the leading report-ID byte on input.
     const auto stripped = std::span<const std::uint8_t>(infoReply).subspan(1);
     assert(parseDeviceInfo(stripped));
+
+    assert(!parsed->hasBatteryReading());
+    assert(parsed->firmware == FirmwareVersions{});
+
+    const auto sealed = [](Report report) {
+        report[32] = checksum(std::span<const std::uint8_t>(report).subspan(1));
+        return report;
+    };
+    auto detailed = infoReply;
+    detailed[12] = 0x17;
+    for (std::size_t index = 0; index < 14; ++index) {
+        detailed[16 + index] = static_cast<std::uint8_t>(index % 2 == 0 ? 0x10 + index / 2 : 0x20 + index / 2);
+    }
+    const auto detailedInfo = parseDeviceInfo(sealed(detailed));
+    assert(detailedInfo);
+    assert(detailedInfo->batteryLevel == 7);
+    assert(detailedInfo->chargingStatus == kChargingStatusCharging);
+    assert(detailedInfo->hasBatteryReading());
+    assert(detailedInfo->features == 0x9F);
+    assert((detailedInfo->firmware == FirmwareVersions{0x1020, 0x1121, 0x1222, 0x1323, 0x1424, 0x1525, 0x1626}));
+
+    auto full = infoReply;
+    full[12] = 0x2A;
+    const auto fullInfo = parseDeviceInfo(sealed(full));
+    assert(fullInfo && fullInfo->batteryLevel == 10 && fullInfo->chargingStatus == kChargingStatusFull);
+    assert(fullInfo->hasBatteryReading());
+
+    auto empty = infoReply;
+    empty[12] = 0x10;
+    const auto emptyCharging = parseDeviceInfo(sealed(empty));
+    assert(emptyCharging && emptyCharging->batteryLevel == 0 && emptyCharging->hasBatteryReading());
+
+    auto outOfRange = infoReply;
+    outOfRange[12] = 0x0B;
+    const auto outOfRangeInfo = parseDeviceInfo(sealed(outOfRange));
+    assert(outOfRangeInfo && outOfRangeInfo->batteryLevel == 11 && !outOfRangeInfo->hasBatteryReading());
+
+    auto unreported = infoReply;
+    unreported[12] = 0x00;
+    assert(!parseDeviceInfo(sealed(unreported))->hasBatteryReading());
     return 0;
 }

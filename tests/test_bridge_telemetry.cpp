@@ -47,6 +47,13 @@ int main() {
     telemetry.maximumSimultaneousTriggers = 2;
     telemetry.batteryPercent = 83;
     telemetry.chargeState = 1;
+    telemetry.batteryKnown = true;
+    telemetry.batterySource = "apex6";
+    telemetry.batteryRefreshes = 7;
+    telemetry.batteryRefreshFailures = 2;
+    telemetry.batteryRefreshSlowCalls = 1;
+    telemetry.batteryRefreshMaxCallMicroseconds = 8400;
+    telemetry.batteryRefreshDisabled = true;
     telemetry.cpuPercent = 1.25;
     telemetry.processUsage.workingSetBytes = 3ULL * 1024ULL * 1024ULL;
     telemetry.processUsage.peakWorkingSetBytes = 4ULL * 1024ULL * 1024ULL;
@@ -151,6 +158,8 @@ int main() {
         "coalesced_reports", "maximum_simultaneous_triggers",
         "simultaneous_trigger_reports", "virtual_maximum_simultaneous_triggers",
         "virtual_simultaneous_trigger_reports", "battery_percent", "charge_state",
+        "battery_known", "battery_source", "battery_refreshes", "battery_refresh_failures",
+        "battery_refresh_slow_calls", "battery_refresh_max_call_us", "battery_refresh_disabled",
         "cpu_percent_total", "working_set_mib", "peak_working_set_mib",
         "audio_haptics_received", "dualsense_output_reports",
         "dualsense_trigger_reports", "dualsense_rumble_reports",
@@ -192,6 +201,13 @@ int main() {
     assert(apex6Output.str().find("\"audio_channel_mask\": 51") != std::string::npos);
     assert(apex6Output.str().find("\"bow_breaks\": 3") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_gain_percent\": 150") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_known\": true") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_source\": \"apex6\"") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refreshes\": 7") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_failures\": 2") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_slow_calls\": 1") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_max_call_us\": 8400") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_disabled\": true") != std::string::npos);
     assert(apex6Output.str().find("\"haptic_threshold_percent\": 0") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_output_left_peak\": 48") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_output_right_peak\": 47") != std::string::npos);

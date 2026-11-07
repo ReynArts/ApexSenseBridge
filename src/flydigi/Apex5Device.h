@@ -49,6 +49,12 @@ struct FeedbackWriteStats {
     std::uint64_t maximumWriteUs = 0;
 };
 
+enum class Apex6InfoPoll {
+    Pending,
+    Reply,
+    Failed,
+};
+
 class Apex5Device {
 public:
     // Historical API name retained for source compatibility. This transport
@@ -113,6 +119,10 @@ public:
     bool apex6OperatorStreamActive(std::chrono::milliseconds window,
                                    std::string& error);
     bool requestBatteryRefresh(std::string& error);
+    bool requestApex6Info(std::string& error);
+    Apex6InfoPoll pollApex6Info(std::size_t maximumReads,
+                                std::optional<Apex5Identity>& reading,
+                                std::string& error);
 
     // Support diagnostic only. Reads the verified vendor HID stream without
     // interpreting or modifying controller state/profile configuration.

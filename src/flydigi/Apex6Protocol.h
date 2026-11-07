@@ -28,6 +28,9 @@ inline constexpr std::uint8_t kPhantomBladeZeroDeviceType = 0x98;
 }
 inline constexpr std::uint8_t kFeatureHaptic = 0x80;
 inline constexpr std::uint8_t kFeatureTriggerHaptic = 0x10;
+inline constexpr std::uint8_t kBatteryLevelMaximum = 10;
+inline constexpr std::uint8_t kChargingStatusCharging = 1;
+inline constexpr std::uint8_t kChargingStatusFull = 2;
 
 using Report = std::array<std::uint8_t, kReportSize>;
 
@@ -48,11 +51,30 @@ struct MotorSubframe {
 
 using MotorBlock = std::array<MotorSubframe, 8>;
 
+struct FirmwareVersions {
+    std::uint16_t main = 0;
+    std::uint16_t receiver = 0;
+    std::uint16_t si = 0;
+    std::uint16_t trigger = 0;
+    std::uint16_t screen = 0;
+    std::uint16_t adc = 0;
+    std::uint16_t sstar = 0;
+
+    bool operator==(const FirmwareVersions&) const = default;
+};
+
 struct DeviceInfo {
     std::uint8_t deviceType = 0;
     std::uint8_t connectionMode = 0;
     std::uint8_t features = 0;
+    std::uint8_t batteryLevel = 0;
+    std::uint8_t chargingStatus = 0;
+    FirmwareVersions firmware{};
 
+    [[nodiscard]] bool hasBatteryReading() const noexcept {
+        return batteryLevel <= kBatteryLevelMaximum &&
+               (batteryLevel != 0 || chargingStatus != 0);
+    }
     [[nodiscard]] bool hasGripHaptics() const noexcept {
         return (features & kFeatureHaptic) != 0;
     }

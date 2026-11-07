@@ -222,6 +222,13 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << "  \"battery_percent\": "
            << static_cast<unsigned>(telemetry.batteryPercent) << ",\n"
            << "  \"charge_state\": " << static_cast<unsigned>(telemetry.chargeState) << ",\n"
+           << "  \"battery_known\": " << (telemetry.batteryKnown ? "true" : "false") << ",\n"
+           << "  \"battery_source\": \"" << telemetry.batterySource << "\",\n"
+           << "  \"battery_refreshes\": " << telemetry.batteryRefreshes << ",\n"
+           << "  \"battery_refresh_failures\": " << telemetry.batteryRefreshFailures << ",\n"
+           << "  \"battery_refresh_slow_calls\": " << telemetry.batteryRefreshSlowCalls << ",\n"
+           << "  \"battery_refresh_max_call_us\": " << telemetry.batteryRefreshMaxCallMicroseconds << ",\n"
+           << "  \"battery_refresh_disabled\": " << (telemetry.batteryRefreshDisabled ? "true" : "false") << ",\n"
            << "  \"cpu_percent_total\": " << telemetry.cpuPercent << ",\n"
            << "  \"working_set_mib\": "
            << static_cast<double>(telemetry.processUsage.workingSetBytes) /

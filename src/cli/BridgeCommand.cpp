@@ -25,6 +25,7 @@
 #include "flydigi/Apex5Device.h"
 #include "flydigi/Apex5Protocol.h"
 #include "platform/HidTransport.h"
+#include "flydigi/Apex6BatteryRefresher.h"
 #include "platform/AudioEndpointProtection.h"
 #include "platform/PhysicalControllerIsolation.h"
 #include "platform/PhysicalInputFreshnessWatchdog.h"
@@ -1019,6 +1020,9 @@ int commandBridgeTriggers(int argc, char** argv) {
     constexpr auto kInputKeepalive = std::chrono::milliseconds(100);
     auto lastBatteryRefreshAt = std::chrono::steady_clock::now();
     constexpr auto kBatteryRefreshInterval = std::chrono::seconds(15);
+    constexpr bool kApex6PeriodicBatteryRefresh = true;
+    asb::flydigi::Apex6BatteryRefresher apex6BatteryRefresher(std::chrono::steady_clock::now());
+    bool apex6BatteryRefreshDisableReported = false;
     asb::platform::PhysicalInputFreshnessWatchdog inputFreshness(
         std::chrono::seconds(1), started);
     asb::Apex4GyroValidation apex4GyroValidation;
@@ -1266,6 +1270,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                     lastForwardedInput = fresh;
                     lastInputForwardedAt = resumedAt;
                     lastBatteryRefreshAt = resumedAt;
+                    apex6BatteryRefresher.reset(resumedAt);
                     inputFreshness.observeFreshState(resumedAt);
                     independentTriggerLoss.streamReady();
                     lastIdentity = device->identity();
@@ -1339,6 +1344,21 @@ int commandBridgeTriggers(int argc, char** argv) {
             lastBatteryRefreshAt = loopNow;
             std::string refreshError;
             (void)device->requestBatteryRefresh(refreshError);
+        }
+        if (kApex6PeriodicBatteryRefresh && device->identity() && device->identity()->isApex6()) {
+            if (const auto reading = apex6BatteryRefresher.tick(*device, loopNow);
+                reading && reading->hasBatteryLevel()) {
+                inputSource->setBatteryState(reading->batteryPercent(), reading->chargeState());
+            }
+            if (!apex6BatteryRefreshDisableReported &&
+                apex6BatteryRefresher.disabledReason() !=
+                    asb::flydigi::Apex6BatteryRefreshDisabled::None) {
+                apex6BatteryRefreshDisableReported = true;
+                std::cerr << "Apex 6 battery refresh switched off for this session: "
+                          << asb::flydigi::describeApex6BatteryRefreshDisabled(
+                                 apex6BatteryRefresher.disabledReason())
+                          << ".\n";
+            }
         }
         if (rumbleBridge) rumbleBridge->poll();
         asb::dualsense::DualSenseInputState input{};
@@ -1741,6 +1761,22 @@ int commandBridgeTriggers(int argc, char** argv) {
             ? lastPhysicalInput->batteryPercent : initialInput.batteryPercent;
         telemetry.chargeState = lastPhysicalInput
             ? lastPhysicalInput->chargeState : initialInput.chargeState;
+        const auto& batteryIdentity = device->identity();
+        if (batteryIdentity && batteryIdentity->hasBatteryLevel()) {
+            telemetry.batteryKnown = true;
+            telemetry.batterySource = batteryIdentity->isApex6() ? "apex6" : "apex5";
+        } else if (inputBackend == "xinput-fallback") {
+            telemetry.batteryKnown = true;
+            telemetry.batterySource = "xinput";
+        }
+        telemetry.batteryRefreshes = apex6BatteryRefresher.stats().replies;
+        telemetry.batteryRefreshFailures =
+            apex6BatteryRefresher.stats().failures + apex6BatteryRefresher.stats().timeouts;
+        telemetry.batteryRefreshSlowCalls = apex6BatteryRefresher.stats().slowCalls;
+        telemetry.batteryRefreshMaxCallMicroseconds =
+            apex6BatteryRefresher.stats().maximumCallMicroseconds;
+        telemetry.batteryRefreshDisabled =
+            apex6BatteryRefresher.disabledReason() != asb::flydigi::Apex6BatteryRefreshDisabled::None;
         telemetry.cpuPercent = cpuPercent;
 
         std::string telemetryError;

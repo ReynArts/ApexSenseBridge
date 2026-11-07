@@ -1059,6 +1059,65 @@ bool Apex5Device::requestBatteryRefresh(std::string& error) {
     return ok;
 }
 
+bool Apex5Device::requestApex6Info(std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "Identity refresh is supported on a verified Apex 6 only";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    waitForAsyncWriteSpacing();
+    const bool written = transport_->writeOutputReport(apex6::buildGetInfo(), error);
+    recordVendorWrite();
+    return written;
+}
+
+Apex6InfoPoll Apex5Device::pollApex6Info(std::size_t maximumReads,
+                                         std::optional<Apex5Identity>& reading,
+                                         std::string& error) {
+    reading.reset();
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return Apex6InfoPoll::Failed;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "Identity refresh is supported on a verified Apex 6 only";
+        return Apex6InfoPoll::Failed;
+    }
+    std::vector<std::uint8_t> input(
+        std::max<std::size_t>(apex6::kReportSize, transport_->info().inputReportLength), 0);
+    constexpr std::size_t kMaximumStreamReports = 512;
+    std::size_t streamReports = 0;
+    for (std::size_t count = 0; count < maximumReads; ++count) {
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport_->readInputReport(
+            input, std::chrono::milliseconds(0), bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) return Apex6InfoPoll::Pending;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not read the Apex 6 identity refresh: " + readError;
+            return Apex6InfoPoll::Failed;
+        }
+        apex6::RawMotion streamMotion{};
+        if (apex6::parseOperatorReport(
+                std::span<const std::uint8_t>(input.data(), bytesRead), streamMotion) !=
+                apex6::OperatorParse::NotOperatorFrame &&
+            streamReports++ < kMaximumStreamReports) {
+            --count;
+            continue;
+        }
+        const auto parsed = Apex5Identity::parseApex6Reply(
+            std::span<const std::uint8_t>(input.data(), bytesRead));
+        if (!parsed || parsed->deviceType() != identity_->deviceType()) continue;
+        reading = *parsed;
+        return Apex6InfoPoll::Reply;
+    }
+    return Apex6InfoPoll::Pending;
+}
+
 std::optional<AsyncWritePolicy> Apex5Device::asyncWritePolicy() const noexcept {
     if (!identity_) return std::nullopt;
     if (identity_->isApex4()) {

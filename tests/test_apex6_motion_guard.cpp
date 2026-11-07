@@ -219,5 +219,21 @@ int main() {
         assert(!device.setApex6RawDataRouting(true, error));
     }
 
+    {
+        FakeApex6Transport* fake = nullptr;
+        auto device = makeDevice(fake);
+        assert(device.verifyIdentity(error));
+        fake->streamAlways = true;
+        fake->queueStreamBacklog(200);
+        assert(device.requestApex6Info(error));
+        std::optional<asb::flydigi::Apex5Identity> reading;
+        auto outcome = asb::flydigi::Apex6InfoPoll::Pending;
+        for (int poll = 0; poll < 4 && outcome == asb::flydigi::Apex6InfoPoll::Pending; ++poll) {
+            outcome = device.pollApex6Info(8, reading, error);
+        }
+        assert(outcome == asb::flydigi::Apex6InfoPoll::Reply);
+        assert(reading && reading->isApex6());
+    }
+
     return 0;
 }

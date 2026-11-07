@@ -45,6 +45,7 @@ add_library(asb_core STATIC
     src/flydigi/Apex5Identity.cpp
     src/flydigi/Apex5Input.cpp
     src/flydigi/Apex5Protocol.cpp
+    src/flydigi/Apex6BatteryRefresher.cpp
     src/flydigi/Apex6Imu.cpp
     src/flydigi/Apex6Protocol.cpp
     src/flydigi/Apex5Device.cpp

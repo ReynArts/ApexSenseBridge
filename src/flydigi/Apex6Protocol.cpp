@@ -110,10 +110,25 @@ std::optional<DeviceInfo> parseDeviceInfo(
     // GPA6 command responses use the v1 input layout:
     // magic, command, package count, package index, then payload.
     constexpr std::size_t kPayloadOffset = 5;
+    constexpr std::size_t kBatteryOffset = kPayloadOffset + 6;
+    constexpr std::size_t kFirmwareOffset = kPayloadOffset + 10;
     constexpr std::size_t kFeatureOffset = kPayloadOffset + 24;
     if (kFeatureOffset >= frame.size() - 1) return std::nullopt;
-    return DeviceInfo{frame[kPayloadOffset], frame[kPayloadOffset + 1],
-                      frame[kFeatureOffset]};
+
+    const auto bigEndian = [&frame](std::size_t offset) noexcept {
+        return static_cast<std::uint16_t>(
+            (static_cast<std::uint16_t>(frame[offset]) << 8U) | frame[offset + 1]);
+    };
+    DeviceInfo info{frame[kPayloadOffset], frame[kPayloadOffset + 1],
+                    frame[kFeatureOffset]};
+    info.batteryLevel = static_cast<std::uint8_t>(frame[kBatteryOffset] & 0x0F);
+    info.chargingStatus = static_cast<std::uint8_t>((frame[kBatteryOffset] >> 4U) & 0x0F);
+    info.firmware = FirmwareVersions{
+        bigEndian(kFirmwareOffset),      bigEndian(kFirmwareOffset + 2),
+        bigEndian(kFirmwareOffset + 4),  bigEndian(kFirmwareOffset + 6),
+        bigEndian(kFirmwareOffset + 8),  bigEndian(kFirmwareOffset + 10),
+        bigEndian(kFirmwareOffset + 12)};
+    return info;
 }
 
 } // namespace asb::flydigi::apex6
