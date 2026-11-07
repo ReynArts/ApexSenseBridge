@@ -82,7 +82,7 @@ Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Sho
 
 [Files]
 Source: "..\APEX6_DUALSENSE_VALIDATION.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
-Source: "..\RELEASE_NOTES_1.0.0.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
+Source: "..\RELEASE_NOTES_1.1.0.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeControl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe"; DestDir: "{app}"; Flags: ignoreversion

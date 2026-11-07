@@ -2,6 +2,27 @@
 
 ## 1.1.0
 
+### Highlights
+
+1.1.0 is a major update that keeps the 1.x numbering. The sections below are the
+detail; in short:
+
+- **Reworked trigger effects on the APEX 6 Pro and the APEX 5** (APEX 4
+  unchanged): effects follow what they mean, vibration on the APEX 6 Pro, per-zone
+  and rhythmic emulation on the APEX 5.
+- **APEX 6 Pro:** gyroscope and accelerometer, real battery level and charge
+  state, onboard profile slots, trigger effects translated into vibration by
+  meaning, twelve weapon presets, and no more trigger hum after a release.
+- **Several controllers:** the Tray lets you choose which APEX is bridged, and
+  sessions no longer fail when two or more are connected.
+- **Reliability:** the virtual DualSense is kept alive across an APEX 4/5 power
+  cycle (validated on hardware on the APEX 5, not yet on the APEX 4), and automatic activation
+  no longer loops on elevated, anti-cheat or repeatedly failing games.
+- **APEX 5/4:** per-zone and rhythmic trigger emulation on by default (APEX 5),
+  faster rumble cadence (APEX 4).
+- **Tray:** new report window, per-game tuning and reset buttons, manual-fix
+  notes in nine languages, `--force-always-on`.
+
 ### Choosing between several APEX controllers
 
 - With two or more APEX controllers or receivers connected, the Tray no longer
@@ -441,10 +462,10 @@
   identity check is bridged; the choice is logged. Diagnostic commands
   (`identify`, `test-*`, `clear`) stay strict and explain that several
   controllers are present.
-- The Tray shows a localized "several controllers" state, locks the settings
-  while it cannot tell which controller they apply to, publishes the model the
-  engine verified during a session, and explains that one controller is bridged
-  at a time. Bridging two controllers at once (couch co-op) is not supported.
+- The Tray publishes the model the engine verified during a session and lets
+  you choose the controller (see "Choosing between several APEX controllers"
+  above). One controller is bridged at a time; bridging two controllers at once
+  (couch co-op) is not supported.
 ### Virtual DualSense readiness
 
 - A HID path that existed before the session and later disappeared is treated
