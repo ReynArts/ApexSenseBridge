@@ -95,6 +95,8 @@ ApexSenseBridge's automatic game detection hooks into games as soon as their exe
 5. Launch your game (ensuring Steam Input is disabled).
 6. The game will now detect the virtual DualSense already fully plugged in from frame 1!
 
+**Tip:** to have it on from the start, launch the Tray with `ApexSenseBridgeTray.exe --force-always-on`. The option lasts for that run only and is not saved. It is ignored if a Tray is already running (close it first); if the bridge cannot start, automatic detection resumes. See the README (*Usage Modes*).
+
 ---
 
 ### Xbox button prompts instead of PlayStation ones with adaptive triggers

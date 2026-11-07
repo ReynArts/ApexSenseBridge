@@ -57,11 +57,13 @@ internal static class TrayLearningTests
             TestPerGameApexProfileSettings();
             TestOnboardProfileSelectorLock();
             TestManualBridgeModeIsNotPersisted();
+            TestTrayStartupOptions();
             TestSharedBridgeArguments();
             TestControllerCalibrations();
             TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
+            TestControllerSelection();
             TestGameExecutableSettings();
             TestSessionStatusDiscovery();
             TestRecoveryPolicy();
@@ -80,6 +82,7 @@ internal static class TrayLearningTests
             TestPidChurningFailureLoopPauses();
             TestUnexpectedEngineExitBacksOff();
             TestLauncherHandoffGraceAndInstallFolder();
+            TestForegroundSwitchesNeverRestartSession();
             TestPreparedLaunchLifecycle();
             TestProcessLivenessClassification();
             TestProtectedGameProcessStaysAttached(testRoot);
@@ -90,6 +93,7 @@ internal static class TrayLearningTests
             TestMissPerformance(testRoot);
             TestSteamAlreadyRunningDetection();
             TestInstallerIdentityIgnoresVersionResourcePadding(testRoot);
+            TestStartupDiagnosticsReport();
             Console.WriteLine("Tray executable learning tests passed ({0} assertions).", assertions);
             return 0;
         }
@@ -845,6 +849,43 @@ internal static class TrayLearningTests
             "A legacy persisted manual bridge mode still disables detection after restart.");
     }
 
+    private static void TestTrayStartupOptions()
+    {
+        var empty = TrayStartupOptions.Parse(new string[0]);
+        Assert(!empty.ShowDashboard && !empty.ForceAlwaysOn && !TrayStartupOptions.Parse(null).ForceAlwaysOn,
+            "Launching the Tray without arguments requested a startup option.");
+
+        var forced = TrayStartupOptions.Parse(new[] { "--FORCE-ALWAYS-ON", "--unknown" });
+        Assert(forced.ForceAlwaysOn && !forced.ShowDashboard,
+            "--force-always-on was not recognized, or it also requested the dashboard.");
+        var both = TrayStartupOptions.Parse(new[] { "--show", "--force-always-on" });
+        Assert(both.ForceAlwaysOn && both.ShowDashboard,
+            "--show and --force-always-on did not combine.");
+        Assert(TrayStartupOptions.Parse(new[] { "--show" }).ShowDashboard &&
+               !TrayStartupOptions.Parse(new[] { "--show" }).ForceAlwaysOn,
+            "--show alone requested continuous activation.");
+        foreach (var near in new[] { "force-always-on", "--force-always-on=1", "--force-always-on-now", "-force-always-on", "" })
+            Assert(!TrayStartupOptions.Parse(new[] { near }).ForceAlwaysOn,
+                "A near-miss argument enabled continuous activation: '" + near + "'.");
+
+        var settings = new TraySettings();
+        Assert(settings.ForcedProfile == "none", "A new settings object started in manual bridge mode.");
+        empty.ApplyTo(settings);
+        Assert(settings.ForcedProfile == "none", "Starting without the option changed the manual bridge mode.");
+        forced.ApplyTo(null);
+        forced.ApplyTo(settings);
+        Assert(settings.ForcedProfile == "standard", "--force-always-on did not enable the manual bridge mode.");
+
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var json = serializer.Serialize(settings);
+        Assert(!json.Contains("ForcedProfile") && !json.Contains("standard"),
+            "--force-always-on was written to the settings file.");
+        var restarted = serializer.Deserialize<TraySettings>(json);
+        restarted.ResetTransientState();
+        Assert(restarted.ForcedProfile == "none",
+            "--force-always-on survived a restart without the argument.");
+    }
+
     private static void TestSharedBridgeArguments()
     {
         var cachedGames = CreateGameList("{\"games\":[{\"title\":\"Death Stranding 2: On the Beach\",\"profile\":\"standard\"}]}");
@@ -1168,11 +1209,11 @@ internal static class TrayLearningTests
             "A single APEX 5 was not accepted.");
         var fabricated = new[]
         {
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleB, Count = 2, Name = "two APEX 5 on two dongles" },
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + wired, Count = 2, Name = "APEX 5 on dongle plus APEX 5 wired" },
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + apex4 + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "APEX 4 plus APEX 5" },
-            new { Output = "Found 3 candidate(s):\r\n\r\n" + dongleA + dongleB + third, Count = 3, Name = "three APEX 5" },
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "duplicate device path" }
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleB, Count = 2, Name = "two APEX 5 on two dongles", Models = new[] { "apex5", "apex5" } },
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + wired, Count = 2, Name = "APEX 5 on dongle plus APEX 5 wired", Models = new[] { "apex5", "apex5" } },
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + apex4 + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "APEX 4 plus APEX 5", Models = new[] { "apex4", "apex5" } },
+            new { Output = "Found 3 candidate(s):\r\n\r\n" + dongleA + dongleB + third, Count = 3, Name = "three APEX 5", Models = new[] { "apex5", "apex5", "apex5" } },
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "duplicate device path", Models = new[] { "apex5", "apex5" } }
         };
         foreach (var sample in fabricated)
         {
@@ -1181,29 +1222,39 @@ internal static class TrayLearningTests
                 "Multiple controllers were not reported as ambiguous: " + sample.Name + ".");
 
             string fingerprints = candidate, published = null;
-            int identityReads = 0;
+            int identityReads = 0, changes = 0;
             BridgeSession.SessionInfo active = null;
             var detector = new ControllerDetectionService(
                 delegate(out string fingerprint) { fingerprint = fingerprints; return ControllerDetectionService.Ambiguous; },
-                () => { identityReads++; return "apex5"; },
+                (int? index) => { identityReads++; return sample.Models[index.Value]; },
                 () => active, () => false, () => 0, false);
             detector.StatusChanged += status => published = status;
+            detector.ControllersChanged += () => changes++;
             try
             {
+                var keys = ControllerDetectionService.SplitCandidates(candidate).Select(ControllerDetectionService.KeyOf).ToArray();
                 detector.Scan(null);
-                Assert(published == ControllerDetectionService.Multiple && detector.CandidateCount == sample.Count && identityReads == 0,
-                    "Several controllers did not publish the multiple-controller state without HID identity reads: " + sample.Name + ".");
-                Assert(ControllerDetectionService.LocksOnboardProfile(published) == false &&
-                    new StartRetryPolicy().ObserveController(published, false) == false,
-                    "The multiple-controller state was treated as a verified model: " + sample.Name + ".");
+                Assert(published == sample.Models[0] && detector.CandidateCount == sample.Count && identityReads == keys.Distinct().Count(),
+                    "Several controllers were not identified one by one: " + sample.Name + ".");
+                Assert(detector.Controllers.Count == sample.Count && detector.SelectedController.Key == keys[0] && changes > 0,
+                    "The detected controllers were not exposed with the first one selected: " + sample.Name + ".");
+                int reads = identityReads;
+                detector.Scan(null);
+                Assert(identityReads == reads, "A verified set of controllers was identified again on every scan: " + sample.Name + ".");
+
+                int pick = Array.IndexOf(keys, keys[sample.Count - 1]);
+                detector.Select(keys[sample.Count - 1]);
+                Assert(published == sample.Models[pick] && detector.SelectedController.Key == keys[pick] && identityReads == reads,
+                    "Choosing a controller did not publish its model without new identity reads: " + sample.Name + ".");
+
                 active = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Controller = "Apex 5 (k5, DeviceType 5)" };
                 detector.Scan(null);
-                Assert(published == "apex5" && identityReads == 0,
+                Assert(published == "apex5" && identityReads == reads,
                     "An active bridge with several controllers did not report the controller the engine verified: " + sample.Name + ".");
                 active = null;
                 detector.Scan(null);
-                Assert(published == ControllerDetectionService.Multiple && identityReads == 0,
-                    "Stopping the bridge did not restore the multiple-controller state: " + sample.Name + ".");
+                Assert(published == sample.Models[pick] && identityReads == reads,
+                    "Stopping the bridge did not restore the chosen controller: " + sample.Name + ".");
             }
             finally { detector.Dispose(); }
         }
@@ -1218,6 +1269,135 @@ internal static class TrayLearningTests
         Assert(!ControllerDetectionService.TryParseSeveralControllers("No APEX 4/5/6 vendor HID interface found.", out count) &&
             !ControllerDetectionService.TryParseSeveralControllers(null, out count),
             "An unrelated engine failure was reported as several controllers.");
+    }
+
+    private static void TestControllerSelection()
+    {
+        string pathA = @"\\?\hid#vid_37d7&pid_2403&mi_02&col03#8&aaaa&0&0002#{4d1e55b2}";
+        string pathB = @"\\?\hid#vid_37d7&pid_2401&mi_02&col03#8&bbbb&0&0002#{4d1e55b2}";
+        string a0 = FabricatedCandidate(0, "Flydigi APEX 6 Pro", "0x37D7:0x2403", 64, pathA);
+        string b1 = FabricatedCandidate(1, "Flydigi APEX 5", "0x37D7:0x2401", 33, pathB);
+        string b0 = FabricatedCandidate(0, "Flydigi APEX 5", "0x37D7:0x2401", 33, pathB);
+        string a1 = FabricatedCandidate(1, "Flydigi APEX 6 Pro", "0x37D7:0x2403", 64, pathA);
+        string single, both, swapped;
+        string singleState = ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\r\n\r\n" + a0, out single);
+        string bothState = ControllerDetectionService.ParseCandidate("Found 2 candidate(s):\r\n\r\n" + a0 + b1, out both);
+        string swappedState = ControllerDetectionService.ParseCandidate("Found 2 candidate(s):\r\n\r\n" + b0 + a1, out swapped);
+        Assert(singleState == null && bothState == ControllerDetectionService.Ambiguous && swappedState == ControllerDetectionService.Ambiguous,
+            "The fabricated controller lists were not parsed.");
+        var keys = ControllerDetectionService.SplitCandidates(both).Select(ControllerDetectionService.KeyOf).ToArray();
+        Assert(keys.Length == 2 && keys[0] == pathA && keys[1] == pathB,
+            "The controller identity was not the HID path.");
+
+        Func<string, string, ControllerDetectionService.CandidateReader> reader = (listing, status) =>
+            delegate(out string fingerprint) { fingerprint = listing; return status; };
+        var ambiguous = ControllerDetectionService.Ambiguous;
+        Assert(ControllerSelection.DeviceIndexArgument(keys[0], reader(both, ambiguous)) == " 0" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader(both, ambiguous)) == " 1" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader(swapped, ambiguous)) == " 0",
+            "The chosen controller did not map to its current list position.");
+        Assert(ControllerSelection.DeviceIndexArgument(null, reader(both, ambiguous)) == "" &&
+               ControllerSelection.DeviceIndexArgument("", reader(both, ambiguous)) == "" &&
+               ControllerSelection.DeviceIndexArgument("missing", reader(both, ambiguous)) == "" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader(single, null)) == "" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader("", "disconnected")) == "" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader("", "unavailable")) == "",
+            "A missing, empty or single-controller selection produced a device index.");
+
+        string listingNow = single, state = null, published = null;
+        int reads = 0, changes = 0;
+        long now = 0;
+        bool swapOnce = false;
+        var answers = new Dictionary<string, string> { { pathA, "apex6" }, { pathB, "apex5" } };
+        var detector = new ControllerDetectionService(
+            delegate(out string fingerprint) { fingerprint = listingNow; return state; },
+            (int? index) =>
+            {
+                reads++;
+                string key = ControllerDetectionService.KeyOf(
+                    ControllerDetectionService.SplitCandidates(listingNow)[index.HasValue ? index.Value : 0]);
+                string model = answers[key];
+                if (swapOnce) { swapOnce = false; listingNow = swapped; }
+                return model;
+            },
+            () => null, () => false, () => now, false);
+        detector.StatusChanged += status => published = status;
+        detector.ControllersChanged += () => changes++;
+        Action<int> scan = n => { for (int i = 0; i < n; i++) detector.Scan(null); };
+        try
+        {
+            scan(1);
+            Assert(published == "apex6" && reads == 1 && detector.Controllers.Count == 1 && detector.Controllers[0].Model == "apex6",
+                "A single controller was not identified and listed.");
+
+            listingNow = both; state = ambiguous;
+            changes = 0;
+            scan(1);
+            Assert(published == "apex6" && reads == 2 && detector.CandidateCount == 2 && changes > 0 &&
+                   detector.Controllers.Count == 2 && detector.Controllers[0].Model == "apex6" && detector.Controllers[1].Model == "apex5" &&
+                   detector.SelectedController.Key == pathA,
+                "A second controller re-identified the first or hid the already selected one.");
+
+            changes = 0;
+            detector.Select(pathB);
+            Assert(published == "apex5" && reads == 2 && changes > 0 && detector.SelectedController.Key == pathB,
+                "Choosing the second controller did not publish its model.");
+            scan(2);
+            Assert(published == "apex5" && reads == 2 && detector.SelectedController.Key == pathB,
+                "The chosen controller was not kept across scans.");
+
+            now += ControllerDetectionService.ReverifyMilliseconds;
+            scan(1);
+            Assert(published == "apex5" && reads == 4, "Both controllers were not verified again after the cache expired.");
+
+            now += ControllerDetectionService.ReverifyMilliseconds;
+            answers[pathB] = "unavailable";
+            scan(ControllerDetectionService.FailureScans - 1);
+            Assert(published == "apex5" && detector.Controllers[1].Model == "apex5",
+                "A chosen controller was downgraded before the failure threshold.");
+            scan(1);
+            Assert(published == "unavailable" && detector.Controllers[1].Model == "unavailable" &&
+                   detector.Controllers[0].Model == "apex6" && detector.SelectedController.Key == pathB,
+                "An unresponsive chosen controller did not lock its settings while the other stayed verified.");
+            answers[pathB] = "apex5";
+            scan(1);
+            Assert(published == "apex5" && detector.Controllers[1].Model == "apex5", "A woken controller was not verified again.");
+
+            detector.Select("missing");
+            Assert(published == "apex6" && detector.SelectedController.Key == pathA,
+                "A missing choice did not fall back to the first verified controller.");
+            detector.Select(pathB);
+            Assert(published == "apex5", "The choice could not be restored.");
+
+            now += ControllerDetectionService.ReverifyMilliseconds;
+            swapOnce = true;
+            int before = reads;
+            scan(1);
+            Assert(published == "apex5" && reads == before + 2 && detector.SelectedController.Key == pathB,
+                "A list that changed during identification altered the published state.");
+            listingNow = swapped;
+            scan(1);
+            Assert(reads == before + 4 && published == "apex5" && detector.SelectedController.Key == pathB &&
+                   detector.Controllers[0].Key == pathB && detector.Controllers[1].Key == pathA,
+                "Results gathered against a changed list were cached.");
+
+            listingNow = single; state = null;
+            scan(1);
+            Assert(published == "apex6" && detector.Controllers.Count == 1,
+                "A single remaining controller did not become the active one.");
+            Assert(detector.CandidateCount == 1, "The candidate count did not follow the list.");
+
+            listingNow = both; state = ambiguous;
+            detector.Select(pathB);
+            scan(1);
+            Assert(published == "apex5", "The remembered choice was lost after a controller left and returned.");
+            state = "disconnected"; listingNow = string.Empty;
+            scan(ControllerDetectionService.DisconnectScans - 1);
+            Assert(published == "apex5", "A transient list failure flapped the chosen controller.");
+            scan(1);
+            Assert(published == "disconnected" && detector.Controllers.Count == 0, "Unplugging every controller was not reported.");
+        }
+        finally { detector.Dispose(); }
     }
 
     private static void TestControllerCalibrationDetection()
@@ -1289,13 +1469,13 @@ internal static class TrayLearningTests
             scan(ControllerDetectionService.FailureScans - 1);
             Assert(published.Count == 0, "A transient second interface locked the verified controller.");
             detector.Scan(null);
-            Assert(lastPublished == ControllerDetectionService.Multiple, "Persistent ambiguous enumeration kept calibration unlocked.");
+            Assert(lastPublished == "apex6" && detector.CandidateCount == 2, "A second listed controller changed the verified controller's model.");
             candidateState = null; candidate = "path-b";
             detector.Scan(null);
             Assert(lastPublished == "apex6", "The remaining controller was not verified again.");
             candidateState = ControllerDetectionService.Ambiguous; candidate = "path-x\n\npath-y";
             detector.Scan(null);
-            Assert(lastPublished == ControllerDetectionService.Multiple, "Ambiguous enumeration without the verified controller kept it unlocked.");
+            Assert(lastPublished == "apex6" && detector.Controllers.Count == 2, "Several controllers without the verified one were not identified.");
             candidateState = null; candidate = "path-b";
             detector.Scan(null);
             active = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Controller = "Apex 6 Pro (k6)" };
@@ -2190,6 +2370,69 @@ internal static class TrayLearningTests
         finally { manager.Dispose(); }
     }
 
+    private static void TestForegroundSwitchesNeverRestartSession()
+    {
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var catalog = CreateGameList("{\"games\":[" +
+            "{\"title\":\"Alpha Game\",\"normalized\":\"alphagame\",\"profile\":\"standard\",\"adaptiveTriggers\":true}," +
+            "{\"title\":\"Beta Game\",\"normalized\":\"betagame\",\"profile\":\"standard\",\"adaptiveTriggers\":true}]}");
+        var settings = new TraySettings();
+        const string alphaPath = @"C:\Fake\Alpha Game\Alpha.exe";
+        settings.SetGameExecutable("alphagame", alphaPath);
+        settings.SetGameExecutable("betagame", @"C:\Fake\Beta Game\Beta.exe");
+        int launchAttempts = 0;
+        var manager = new EngineSessionManager(() => { launchAttempts++; return executable; },
+            "Local\\ASB.AltTabTest." + Guid.NewGuid().ToString("N"), () => false);
+        try
+        {
+            using (var monitor = new ProcessMonitorService(catalog, manager, null, settings, false))
+            {
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var check = typeof(ProcessMonitorService).GetMethod("CheckCandidateProcess", flags);
+                var prune = typeof(ProcessMonitorService).GetMethod("PruneExitedTrackedProcesses", flags);
+                var release = typeof(ProcessMonitorService).GetMethod("ReleaseEndedSession", flags);
+                var expire = typeof(ProcessMonitorService).GetMethod("TryStopExpiredSession", flags);
+                var session = (GameProcessSessionTracker)typeof(ProcessMonitorService).GetField("processSession", flags).GetValue(monitor);
+                int detections = 0;
+                monitor.GameDetected += (game, path) => detections++;
+                var creation = new Dictionary<uint, long> { { 8501, 1000 }, { 8502, 2000 } };
+                monitor.livenessSource = (uint id, long expected, out long ticks) =>
+                {
+                    ticks = 0;
+                    if (!creation.TryGetValue(id, out ticks)) return ProcessLivenessState.Exited;
+                    return expected > 0 && expected != ticks ? ProcessLivenessState.Replaced : ProcessLivenessState.Alive;
+                };
+
+                check.Invoke(monitor, new object[] { 8501u, "Alpha.exe", alphaPath, 0L, null, "poll", false });
+                Assert(manager.IsSessionActive && session.Contains(8501) && launchAttempts == 1 && detections == 1,
+                    "The game did not start one session.");
+
+                for (int altTab = 0; altTab < 25; altTab++)
+                {
+                    check.Invoke(monitor, new object[] { 8601u, "Browser.exe", @"C:\Fake\Browser\Browser.exe", 0L, null, "foreground", false });
+                    check.Invoke(monitor, new object[] { 8602u, "Beta.exe", @"C:\Fake\Beta Game\Beta.exe", 0L, null, "foreground", false });
+                    prune.Invoke(monitor, null);
+                    release.Invoke(monitor, null);
+                    Assert(!(bool)expire.Invoke(monitor, null), "A foreground switch expired the session.");
+                }
+                Assert(manager.IsSessionActive && session.Contains(8501) && !session.Contains(8601) && !session.Contains(8602) &&
+                       !session.IsAwaitingReplacement && launchAttempts == 1 && detections == 1 &&
+                       manager.ActiveGameTitle == "Alpha Game",
+                    "Alt+Tab to another application or game restarted, detached or replaced the session.");
+
+                check.Invoke(monitor, new object[] { 8502u, "Alpha.exe", alphaPath, 0L, null, "foreground", false });
+                check.Invoke(monitor, new object[] { 8502u, "Alpha.exe", alphaPath, 0L, null, "foreground", false });
+                prune.Invoke(monitor, null);
+                Assert(session.Contains(8501) && session.Contains(8502) && launchAttempts == 1 && detections == 1,
+                    "The game window regaining focus as a second process restarted the session instead of attaching.");
+
+                monitor.livenessSource = ProcessLiveness.Check;
+                manager.StopSession("Test stop");
+            }
+        }
+        finally { manager.Dispose(); }
+    }
+
     private const uint MissingProcessId = 0x7FFFFFF0;
 
     private static Process FindProtectedProcess()
@@ -3005,6 +3248,51 @@ internal static class TrayLearningTests
         }
 
         return null;
+    }
+
+    private static void TestStartupDiagnosticsReport()
+    {
+        var previousCulture = Thread.CurrentThread.CurrentCulture;
+        var previousUiCulture = Thread.CurrentThread.CurrentUICulture;
+        try
+        {
+            var chinese = new CultureInfo("zh-CN");
+            Thread.CurrentThread.CurrentCulture = chinese;
+            Thread.CurrentThread.CurrentUICulture = chinese;
+            StartupDiagnostics.ResetForTests();
+
+            StartupDiagnostics.Mark("settings");
+            var ballast = new byte[8 * 1024 * 1024];
+            ballast[ballast.Length - 1] = 1;
+            StartupDiagnostics.Mark("tray-icon");
+            for (int i = 0; i < StartupDiagnostics.MaxPhases * 3; i++) StartupDiagnostics.Mark("flood");
+            StartupDiagnostics.Complete();
+            StartupDiagnostics.Mark("late");
+
+            var report = StartupDiagnostics.Describe();
+            GC.KeepAlive(ballast);
+            var phaseLines = report.Split('\n').Count(line => line.TrimStart().StartsWith("phase ", StringComparison.Ordinal));
+
+            Assert(report.Contains("culture zh-CN/zh-CN"), "startup diagnostics must name the active culture: " + report);
+            Assert(report.Contains("phase settings at ") && report.Contains("phase tray-icon at "),
+                "startup diagnostics must list recorded phases in order: " + report);
+            Assert(phaseLines == StartupDiagnostics.MaxPhases, "startup phase history must stay bounded, got " + phaseLines);
+            Assert(!report.Contains("phase late"), "phases after startup completion must not be recorded");
+            Assert(report.Contains("during flood") && report.Contains("managed ") && report.Contains("private "),
+                "the failure line must report the current phase and both memory figures: " + report);
+            Assert(report.Contains("address space: ") && report.Contains("largest free block "),
+                "the failure report must describe the address space: " + report);
+            Assert(report.All(c => c < 128), "startup diagnostics must be culture invariant ASCII: " + report);
+            Assert(report.Length < 8192, "startup diagnostics must stay small, got " + report.Length);
+            Assert(StartupDiagnostics.PrivateBytes() >= ballast.Length, "private bytes must include the managed heap");
+            Assert(StartupDiagnostics.LargestFreeBlock() > 0, "the address-space walk must find a free block");
+        }
+        finally
+        {
+            Thread.CurrentThread.CurrentCulture = previousCulture;
+            Thread.CurrentThread.CurrentUICulture = previousUiCulture;
+            StartupDiagnostics.ResetForTests();
+        }
     }
 
     private static void Assert(bool condition, string message)

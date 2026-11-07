@@ -188,6 +188,7 @@ a command also opens the Tray app.
 - **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 215+ supported games start.
 - **Dynamic Executable Learning:** Detects renamed, modded, elevated or multi-process game executables after 30 seconds of a stable automatically detected session while filtering out game launchers (Steam, Epic, EA, Ubisoft). Force Continuous Activation alone cannot identify which game should own an executable.
 - **Dashboard & Per-Game Profiles:** Right-click the Tray icon to open the game list, force a specific profile, or assign a dedicated APEX 5 hardware slot (1–4) for each game.
+- **Start with Force Continuous Activation (`--force-always-on`):** `ApexSenseBridgeTray.exe --force-always-on` (for example in a shortcut or a scheduled task) starts the Tray with **Force continuous activation** already on, exactly as if you had switched it on from the home screen: the bridge starts at once and automatic detection no longer starts or stops it. It applies to that run only and is never written to the settings file, so launching the Tray without the argument is back to automatic detection. The argument is read only by the launch that becomes the running Tray: if the Tray is already running, the new launch just brings up its window and the argument is ignored, so close the Tray first. If the bridge cannot start (for example no APEX connected), the option is dropped for that run and automatic detection resumes.
 
 ### 2. Playnite Integration
 

@@ -365,7 +365,8 @@ namespace ApexSenseBridgeTray.Services
                     return false;
                 }
 
-                var args = BuildArguments(profileName, settings, apexProfileSlot, gameTitle);
+                var args = BuildArguments(profileName, settings, apexProfileSlot, gameTitle) +
+                    ControllerSelection.DeviceIndexArgument(settings != null ? settings.SelectedControllerKey : null);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
 
                 int timeoutSec = Math.Max(MinimumInitializationSeconds,

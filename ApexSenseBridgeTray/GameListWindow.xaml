@@ -16,6 +16,32 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/ApexSenseBridgeTray;component/Themes/ConsoleTheme.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="HeaderControllerButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <ContentPresenter/>
+                                <Border x:Name="Hover" CornerRadius="17" Background="#18FFFFFF" Opacity="0" IsHitTestVisible="False"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Hover" Property="Opacity" Value="1"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Cursor" Value="Arrow"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -75,15 +101,21 @@
                                 </StackPanel>
                             </Button>
 
-                            <Border x:Name="BadgeHeaderController" CornerRadius="17" Height="34"
-                                    Background="#14FFFFFF" Padding="14,0" Margin="0,0,14,0" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path x:Name="IconHeaderController" Style="{StaticResource ControllerIconPath}"
-                                          Stroke="{DynamicResource TextMuted}" Margin="0,0,8,0"/>
-                                    <TextBlock x:Name="TxtHeaderController" Text="APEX" FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Border>
+                            <Button x:Name="BtnHeaderController" Style="{StaticResource HeaderControllerButton}"
+                                    Margin="0,0,14,0" VerticalAlignment="Center" IsEnabled="False" Click="OnHeaderControllerClick">
+                                <Border x:Name="BadgeHeaderController" CornerRadius="17" Height="34"
+                                        Background="#14FFFFFF" Padding="14,0">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path x:Name="IconHeaderController" Style="{StaticResource ControllerIconPath}"
+                                              Stroke="{DynamicResource TextMuted}" Margin="0,0,8,0"/>
+                                        <TextBlock x:Name="TxtHeaderController" Text="APEX" FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <Path x:Name="IconHeaderChevron" Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource TextPrimary}"
+                                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Width="8" Height="4" Margin="9,1,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </Border>
+                            </Button>
 
                             <TextBlock x:Name="TxtClock" FontSize="15" Foreground="{DynamicResource TextPrimary}"
                                        VerticalAlignment="Center" Margin="0,0,14,0"/>
@@ -1168,6 +1200,10 @@
                             <StackPanel x:Name="HudFilter" Style="{StaticResource GamepadActionItem}" Visibility="Collapsed">
                                 <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="&#x29C9;" Style="{StaticResource GamepadBadgeText}"/></Border>
                                 <TextBlock Text="{DynamicResource Loc_Gamepad_Filter}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudController" Style="{StaticResource GamepadActionItem}" Visibility="Collapsed">
+                                <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="&#x29C9;" Style="{StaticResource GamepadBadgeText}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Controller}" Style="{StaticResource GamepadActionLabel}"/>
                             </StackPanel>
                             <StackPanel x:Name="HudActionY" Style="{StaticResource GamepadActionItem}">
                                 <Border Style="{StaticResource XboxBtnY}"><Rectangle Style="{StaticResource XboxTextY}"/></Border>

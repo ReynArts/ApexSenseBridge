@@ -34,6 +34,7 @@
     <Compile Include="..\ApexSenseBridgeTray\Services\EngineSessionManager.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\SteamProcessChecker.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ControllerDetectionService.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\ControllerSelection.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ProcessMonitorService.cs" />
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Production\ReleaseSecurity.cs</Link>
@@ -52,6 +53,12 @@
     </Compile>
     <Compile Include="..\ApexSenseBridgeTray\Common\NativeMethods.cs">
       <Link>Production\NativeMethods.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\StartupDiagnostics.cs">
+      <Link>Production\StartupDiagnostics.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\TrayStartupOptions.cs">
+      <Link>Production\TrayStartupOptions.cs</Link>
     </Compile>
     <Compile Include="..\shared\InstallLocator.cs">
       <Link>Production\InstallLocator.cs</Link>

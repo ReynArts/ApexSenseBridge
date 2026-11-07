@@ -2,6 +2,31 @@
 
 ## 1.1.0
 
+### Choosing between several APEX controllers
+
+- With two or more APEX controllers or receivers connected, the Tray no longer
+  locks the settings. It identifies each controller, and the top bar shows the
+  selected model followed by the number of the others, for example
+  "Apex 6 Pro + 1".
+- Click that badge (or press View on a gamepad, outside the Games tab) to open
+  the list and pick a controller. The home picture, the settings and the next
+  bridge session follow it: with an APEX 6 Pro and an APEX 5, choosing the
+  APEX 5 shows "Apex 5 + 1", its picture and its own settings. Two controllers
+  of the same model are listed as "Apex 5 #1" and "Apex 5 #2" and share that
+  model's settings.
+- The choice is saved by the controller's HID path and given to the engine as
+  the device index each time a session starts, including when the dashboard is
+  closed. The controller tests (triggers, rumble, RGB, gyro, reset) use the
+  same controller. While a bridge session is running the list stays visible
+  but the choice is locked: stop the bridge to switch. The engine still bridges
+  one controller at a time.
+- An unplugged chosen controller is forgotten only when several others remain;
+  with a single controller left it is used, and the choice comes back when the
+  chosen one returns. A momentary list failure no longer flaps the controller.
+- Home picture: the three controller pictures are cropped to their visible
+  area, so an APEX 6 Pro or an APEX 4 is no longer drawn much smaller than an
+  APEX 5.
+
 ### APEX 6 Pro: trigger effects translated into vibration by meaning
 
 - The APEX 6 Pro triggers only vibrate, so each DualSense trigger effect is now
@@ -489,6 +514,37 @@
   "start the bridge first, then restart Steam" recipe, a USB or driver trouble
   note, a bug report checklist, and the executable-selection workaround for a
   bridge that turns on and off at game launch ([#63](https://github.com/ReynArts/ApexSenseBridge/issues/63), [#53](https://github.com/ReynArts/ApexSenseBridge/issues/53), [#55](https://github.com/ReynArts/ApexSenseBridge/issues/55), [#32](https://github.com/ReynArts/ApexSenseBridge/issues/32), [#21](https://github.com/ReynArts/ApexSenseBridge/issues/21), [#61](https://github.com/ReynArts/ApexSenseBridge/issues/61)).
+
+### Tray start option `--force-always-on` and Alt+Tab report ([#71](https://github.com/ReynArts/ApexSenseBridge/issues/71))
+
+- `ApexSenseBridgeTray.exe --force-always-on` starts the Tray with Force
+  continuous activation already on: the bridge starts at once and automatic
+  detection no longer starts or stops it. The option lasts for that run only and
+  is never written to the settings file. It is read only by the launch that
+  becomes the running Tray (a second launch just shows the running Tray's
+  dashboard). If the bridge cannot start, the option is dropped and automatic
+  detection resumes.
+- Alt+Tab: the only focus-dependent check of the detection is the 1 s sighting
+  of the foreground window, which can only attach another process of the same
+  game or be ignored while a session is tracked; a new test covers it. Ending a
+  session depends only on process liveness. The loop reported on 1.0.2 (the game
+  re-detected and the bridge restarted, absent with continuous activation)
+  matches the inaccessible-process defect fixed under #67; it was not reproduced
+  and needs `tray_detection.log` from a 1.1.0 build to be confirmed.
+- Not done: a vibration intensity above 100 % on the APEX 6 Pro. The effective
+  ceiling is 100 % from the Tray to the haptic renderer, and the existing PCM
+  gain (`--apex6-haptic-gain`) is not exposed in the Tray; it needs a hardware
+  comparison first.
+
+### Tray: startup diagnostics for out-of-memory failures ([#84](https://github.com/ReynArts/ApexSenseBridge/issues/84))
+
+- When the Tray fails to start, `tray_startup_error.log` now also records each
+  startup phase with its time since launch, private and managed memory, the
+  phase that was running, GC counts, free address space and the largest free
+  block, to locate memory growth such as the startup `OutOfMemoryException`
+  reported on a Chinese-language Windows. The cause is not identified yet: the
+  startup code is bounded in 1.0.2 and in 1.1.0 and the failing allocation is a
+  victim of an address space already exhausted.
 
 ### APEX 5: clearer error when the controller keeps its old input routing ([#75](https://github.com/ReynArts/ApexSenseBridge/issues/75))
 

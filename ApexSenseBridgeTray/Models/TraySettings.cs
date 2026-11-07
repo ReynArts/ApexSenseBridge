@@ -85,6 +85,7 @@ namespace ApexSenseBridgeTray.Models
         // Legacy scalar preferences remain for migration, not as an active
         // cross-model calibration. Never persist the last connected model.
         public Dictionary<string, ControllerCalibration> ControllerCalibrations { get; set; }
+        public string SelectedControllerKey { get; set; }
 
         public static bool IsCalibrationModel(string model)
         {

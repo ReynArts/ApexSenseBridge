@@ -47,7 +47,7 @@ namespace ApexSenseBridgeTray
             InitializeComponent();
             WindowCorners.ApplyRounded(this);
 
-            testService = new ControllerTestService();
+            testService = new ControllerTestService(() => this.settings.SelectedControllerKey);
 
             pollTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
