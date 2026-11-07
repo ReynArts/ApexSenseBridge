@@ -101,11 +101,11 @@ struct ProfileState {
 [[nodiscard]] Report buildCommand(std::uint8_t command,
                                   std::span<const std::uint8_t> payload = {});
 [[nodiscard]] Report buildGetInfo();
-[[nodiscard]] std::array<Report, 2> buildMotorEnable();
 [[nodiscard]] Report buildProfileStatusRequest();
 [[nodiscard]] std::optional<Report> buildApplyProfile(std::uint8_t slot);
 [[nodiscard]] std::optional<ProfileState> parseProfileState(
     std::span<const std::uint8_t> report, std::uint8_t command) noexcept;
+[[nodiscard]] std::array<Report, 2> buildMotorEnable(bool realtimeGrips = true);
 [[nodiscard]] std::array<Report, 2> buildMotorDisable();
 [[nodiscard]] Report buildRealtimeMotor(const MotorBlock& block,
                                         TriggerRoute route,

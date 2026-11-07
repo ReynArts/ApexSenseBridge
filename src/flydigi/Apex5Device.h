@@ -89,7 +89,7 @@ public:
                    std::uint8_t highFrequencyMotor,
                    std::string& error);
     bool stopRumble(std::string& error);
-    bool enableApex6Haptics(std::string& error);
+    bool enableApex6Haptics(std::string& error, bool realtimeGrips = true);
     bool writeApex6Haptics(const apex6::MotorBlock& block,
                            apex6::TriggerRoute route,
                            bool enableTrigger,

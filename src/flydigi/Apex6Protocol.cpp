@@ -96,11 +96,13 @@ std::optional<ProfileState> parseProfileState(
     return state;
 }
 
-std::array<Report, 2> buildMotorEnable() {
-    constexpr std::array<std::uint8_t, 5> first{0x01, 0x02, 0x03, 0x00, 0x40};
-    constexpr std::array<std::uint8_t, 5> second{0x01, 0x12, 0x02, 0x40, 0x00};
-    return {buildCommand(kCmdMotorRoute, first),
-            buildCommand(kCmdMotorRoute, second)};
+std::array<Report, 2> buildMotorEnable(bool realtimeGrips) {
+    constexpr std::array<std::uint8_t, 5> triggers{0x01, 0x02, 0x03, 0x00, 0x40};
+    constexpr std::array<std::uint8_t, 5> gripsRealtime{0x01, 0x12, 0x02, 0x40, 0x00};
+    constexpr std::array<std::uint8_t, 3> gripsNative{0x01, 0x12, 0x00};
+    return {buildCommand(kCmdMotorRoute, triggers),
+            realtimeGrips ? buildCommand(kCmdMotorRoute, gripsRealtime)
+                          : buildCommand(kCmdMotorRoute, gripsNative)};
 }
 
 std::array<Report, 2> buildMotorDisable() {

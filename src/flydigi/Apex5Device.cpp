@@ -658,11 +658,12 @@ bool Apex5Device::stopRumble(std::string& error) {
     return setRumble(0, 0, error);
 }
 
-bool Apex5Device::enableApex6Haptics(std::string& error) {
+bool Apex5Device::enableApex6Haptics(std::string& error, bool realtimeGrips) {
     if (!mayWriteApex6Haptics(error)) return false;
     const auto lock = acquireWriteLock();
     bool wroteAny = false;
-    for (const auto& report : apex6::buildMotorEnable()) {
+    const auto enableReports = apex6::buildMotorEnable(realtimeGrips);
+    for (const auto& report : enableReports) {
         if (!transport_->writeOutputReport(report, error)) {
             if (wroteAny) {
                 std::string ignored;

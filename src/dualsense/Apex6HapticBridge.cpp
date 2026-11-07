@@ -123,7 +123,7 @@ bool Apex6HapticBridge::start(std::string& error) {
         if (started_) return true;
         stopping_ = false;
     }
-    if (!device_.enableApex6Haptics(error)) return false;
+    if (!device_.enableApex6Haptics(error, routeGrips_)) return false;
     hapticEnables_.fetch_add(1, std::memory_order_relaxed);
     std::this_thread::sleep_for(kEnableDelay);
     {

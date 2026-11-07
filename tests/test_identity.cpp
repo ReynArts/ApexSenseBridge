@@ -293,6 +293,12 @@ int main() {
     assert(apex6Device.enableApex6Haptics(error));
     assert(apex6Transport->writes.size() == 3);
     assert(apex6Transport->writes[1][3] == apex6::kCmdMotorRoute);
+    assert(apex6Transport->writes[2][6] == 0x12 && apex6Transport->writes[2][7] == 0x02);
+    assert(apex6Device.enableApex6Haptics(error, false));
+    assert(apex6Transport->writes.size() == 5);
+    assert(apex6Transport->writes[4][3] == apex6::kCmdMotorRoute);
+    assert(apex6Transport->writes[4][6] == 0x12 && apex6Transport->writes[4][7] == 0x00);
+    apex6Transport->writes.resize(3);
     assert(!apex6Device.asyncWritePolicy().has_value());
     assert(apex6Device.startAsyncWrites(error));
     assert(!apex6Device.asyncWritesRunning());

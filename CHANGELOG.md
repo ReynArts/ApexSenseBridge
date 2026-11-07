@@ -53,6 +53,15 @@
   test), or a scripted travel with `--sweep`. It prints a short summary of the
   frames and bursts it played. APEX 4/5 behaviour is unchanged.
 
+### APEX 6 Pro: grip motors left alone when only the triggers are driven
+
+- When the bridge or `test-trigger` drives only the trigger vibration (grip
+  routing off), the grip motors are no longer switched to realtime mode: they
+  stay in the controller's own mode, as the official engine does in the same
+  situation. With grip routing on, nothing changes. Checked by feel on one
+  controller: it does not remove the grip vibration felt during long trigger
+  effects, so that vibration has another cause.
+
 ### APEX 6 Pro: onboard profile slot
 
 - `test-profile-switch` and `bridge-triggers --apex-profile 1..4` now work on an

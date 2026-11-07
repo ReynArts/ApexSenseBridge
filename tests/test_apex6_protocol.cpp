@@ -35,6 +35,19 @@ int main() {
     assert(disable[0][32] == 0x5B);
     assert(disable[1][32] == 0x6B);
 
+    assert(buildMotorEnable(true) == enable);
+    assert(enable[1][5] == 0x01 && enable[1][6] == 0x12 && enable[1][7] == 0x02 &&
+           enable[1][8] == 0x40 && enable[1][9] == 0x00);
+    const auto triggersOnly = buildMotorEnable(false);
+    assert(triggersOnly[0] == enable[0]);
+    assert(triggersOnly[1][3] == kCmdMotorRoute);
+    assert(triggersOnly[1][4] == 0x05);
+    assert(triggersOnly[1][5] == 0x01);
+    assert(triggersOnly[1][6] == 0x12);
+    assert(triggersOnly[1][7] == 0x00);
+    assert(triggersOnly[1][32] == 0x6B);
+    assert(triggersOnly[1] == disable[1]);
+
     MotorBlock motors{};
     motors[0] = MotorSubframe{-128, 0, 127};
     motors[7] = MotorSubframe{1, -1, 0};
