@@ -16,7 +16,8 @@ void writeI16(std::array<std::uint8_t, 33>& input, std::size_t offset,
 
 std::array<std::uint8_t, 33> buildViiperInput(
     const DualSenseInputState& state,
-    bool captureAudioHapticsWaveform) {
+    bool captureAudioHapticsWaveform,
+    bool captureAudioHapticsWaveform2k) {
     std::array<std::uint8_t, 33> input{};
     input[0] = state.lx;
     input[1] = state.ly;
@@ -48,7 +49,8 @@ std::array<std::uint8_t, 33> buildViiperInput(
     // opt-in extension for raw haptic audio capture, so legacy sessions keep
     // producing exactly the same 33-byte input packet.
     input[32] = static_cast<std::uint8_t>(
-        state.chargeState | (captureAudioHapticsWaveform ? 0x80 : 0));
+        state.chargeState | (captureAudioHapticsWaveform ? 0x80 : 0) |
+        (captureAudioHapticsWaveform && captureAudioHapticsWaveform2k ? 0x40 : 0));
     return input;
 }
 

@@ -135,6 +135,8 @@
   "Loc_LightbarBrightnessHint": "Upper limit for the synchronized LEDs (0 to 100%, default 100%). The color follows the game; the brightness stays the one saved in Flydigi Space Station, capped by this value. Applies to the next session.",
   "Loc_ZoneEmulation": "Trigger effect emulation",
   "Loc_ZoneEmulationHint": "Reproduce per-zone force, vibration and rhythmic DualSense trigger effects on the APEX 5. Turn off to use the previous behavior",
+  "Loc_Apex6Rate2kHz": "2 kHz grip haptics (experimental)",
+  "Loc_Apex6Rate2kHzHint": "Sends APEX 6 Pro grip haptics at 2000 samples per second instead of 1000. Needs the integrated libVIIPER; light stutters are possible during long continuous effects. Off by default.",
   "Loc_ManualBridge": "Force continuous activation",
   "Loc_ManualBridgeHint": "Keeps the bridge active continuously without waiting for a game",
   "Loc_PreparedLaunch": "Launch a game (.exe)",

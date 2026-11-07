@@ -120,6 +120,10 @@ struct Apex6HapticBridgeStats {
     std::uint64_t bothTriggerFrames = 0;
     std::uint64_t hapticEnables = 0;
     std::uint64_t hapticDisables = 0;
+    unsigned sampleRateHz = 1000;
+    std::uint64_t waveform2kBlocks = 0;
+    std::uint64_t waveformUpsampledBlocks = 0;
+    std::uint64_t primeReports = 0;
     std::optional<Apex6TriggerTraceEntry> lastActiveLeft;
     std::optional<Apex6TriggerTraceEntry> lastActiveRight;
     std::optional<Apex6TriggerTraceEntry> lastRejectedLeft;
@@ -137,7 +141,8 @@ public:
                                unsigned vibrationStrengthPercent = 100,
                                unsigned pcmGainPercent = 100,
                                unsigned gripDuckPercent = 0,
-                               unsigned triggerCeilingPercent = 100);
+                               unsigned triggerCeilingPercent = 100,
+                               unsigned sampleRateHz = 1000);
     ~Apex6HapticBridge();
 
     Apex6HapticBridge(const Apex6HapticBridge&) = delete;
@@ -160,15 +165,18 @@ private:
 
     struct WaveformBlock {
         std::uint32_t sequence = 0;
-        std::array<std::int16_t, 8> left{};
-        std::array<std::int16_t, 8> right{};
+        std::array<std::int16_t, 16> left{};
+        std::array<std::int16_t, 16> right{};
         Clock::time_point receivedAt{};
+        std::size_t count = 8;
     };
+
+    using WideBlock = std::array<flydigi::apex6::MotorSubframe, 16>;
 
     static constexpr std::size_t kWaveformQueueCapacity = 3;
 
     void run() noexcept;
-    flydigi::apex6::MotorBlock renderBlock(
+    WideBlock renderBlock(
         flydigi::apex6::TriggerRoute& route,
         bool& triggerEnabled,
         Clock::time_point now) noexcept;
@@ -185,6 +193,12 @@ private:
     unsigned pcmGainPercent_ = 100;
     unsigned gripDuckPercent_ = 0;
     unsigned triggerCeilingPercent_ = 100;
+    bool rate2k_ = false;
+    std::size_t blockSize_ = 8;
+    std::int8_t leftTriggerPrevious_ = 0;
+    std::int8_t rightTriggerPrevious_ = 0;
+    std::int16_t leftPcmPrevious_ = 0;
+    std::int16_t rightPcmPrevious_ = 0;
     std::uint64_t triggerSampleOffset_ = 0;
     mutable std::mutex stateMutex_;
     std::condition_variable stopSignal_;
@@ -293,6 +307,9 @@ private:
     std::atomic_uint64_t bothTriggerFrames_{0};
     std::atomic_uint64_t hapticEnables_{0};
     std::atomic_uint64_t hapticDisables_{0};
+    std::atomic_uint64_t waveform2kBlocks_{0};
+    std::atomic_uint64_t waveformUpsampledBlocks_{0};
+    std::atomic_uint64_t primeReports_{0};
 };
 
 } // namespace asb::dualsense

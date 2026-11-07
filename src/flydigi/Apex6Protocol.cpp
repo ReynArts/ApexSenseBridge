@@ -116,10 +116,11 @@ Report buildRealtimeMotor(const MotorBlock& block,
                           TriggerRoute route,
                           bool enableTrigger,
                           bool enableLeftGrip,
-                          bool enableRightGrip) {
+                          bool enableRightGrip,
+                          bool interpolate) {
     std::array<std::uint8_t, 25> payload{};
     payload[0] = static_cast<std::uint8_t>(
-        0x80U |
+        (interpolate ? 0x80U : 0U) |
         (enableRightGrip ? 0x10U : 0U) |
         (enableLeftGrip ? 0x08U : 0U) |
         (enableTrigger ? 0x04U : 0U) |

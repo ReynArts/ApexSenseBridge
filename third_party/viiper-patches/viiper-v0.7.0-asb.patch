@@ -153,10 +153,10 @@ index 0000000..09018dd
 +}
 diff --git a/device/dualsense/asb_extensions.go b/device/dualsense/asb_extensions.go
 new file mode 100644
-index 0000000..f5dcbc6
+index 0000000..a3dd901
 --- /dev/null
 +++ b/device/dualsense/asb_extensions.go
-@@ -0,0 +1,526 @@
+@@ -0,0 +1,539 @@
 +package dualsense
 +
 +import (
@@ -252,10 +252,11 @@ index 0000000..f5dcbc6
 +}
 +
 +type FeedbackFrame struct {
-+	Type     uint8
-+	HID      ASBOutputState
-+	Audio    AudioHapticsState
-+	Waveform AudioWaveformState
++	Type       uint8
++	HID        ASBOutputState
++	Audio      AudioHapticsState
++	Waveform   AudioWaveformState
++	Waveform2k AudioWaveform2kState
 +}
 +
 +func (f *FeedbackFrame) MarshalBinary() ([]byte, error) {
@@ -268,6 +269,8 @@ index 0000000..f5dcbc6
 +		payload, err = f.Audio.MarshalBinary()
 +	case FeedbackFrameAudioWaveform:
 +		payload, err = f.Waveform.MarshalBinary()
++	case FeedbackFrameAudioWaveform2k:
++		payload, err = f.Waveform2k.MarshalBinary()
 +	}
 +	if err != nil {
 +		return nil, err
@@ -441,7 +444,7 @@ index 0000000..f5dcbc6
 +	if err != nil {
 +		return err
 +	}
-+	d.audioWaveEnabled.Store(data[32]&0x80 != 0)
++	d.audioWaveMode.Store(asbWaveformMode(data[32]))
 +	d.UpdateInputState(&state)
 +	return nil
 +}
@@ -449,7 +452,7 @@ index 0000000..f5dcbc6
 +// PaceIsoOutTransfers is enabled only for ApexSenseBridge's raw-waveform
 +// mode. Legacy ASB sessions retain VIIPER's existing ISO completion timing.
 +func (d *DualSense) PaceIsoOutTransfers() bool {
-+	return d.audioWaveEnabled.Load()
++	return d.audioWaveMode.Load() != audioWaveOff
 +}
 +
 +func (d *DualSense) HandleIsoTransfer(ep uint32, dir uint32, out []byte, packets []usb.IsoPacket) ([]byte, []usb.IsoPacket) {
@@ -466,6 +469,9 @@ index 0000000..f5dcbc6
 +
 +func (d *DualSense) SetInterfaceAlt(interfaceNumber, alternateSetting uint8) {
 +	if int(interfaceNumber) < len(d.interfaceAlt) {
++		if interfaceNumber == 1 && d.interfaceAlt[interfaceNumber] != alternateSetting {
++			d.resetAudioWaveform2kOnStreamChange()
++		}
 +		d.interfaceAlt[interfaceNumber] = alternateSetting
 +	}
 +}
@@ -509,9 +515,11 @@ index 0000000..f5dcbc6
 +	if len(data) < 8 {
 +		return
 +	}
-+	waveformEnabled := d.audioWaveEnabled.Load()
++	mode := d.audioWaveMode.Load()
++	waveformEnabled := mode != audioWaveOff
 +	d.audioMu.Lock()
 +	defer d.audioMu.Unlock()
++	d.applyAudioWaveModeLocked(mode)
 +	for i := 0; i+7 < len(data); i += 8 {
 +		frontLeft := absS16(int16(binary.LittleEndian.Uint16(data[i : i+2])))
 +		frontRight := absS16(int16(binary.LittleEndian.Uint16(data[i+2 : i+4])))
@@ -532,9 +540,11 @@ index 0000000..f5dcbc6
 +			d.audioRawLeftSquares += uint64(int64(leftSigned) * int64(leftSigned))
 +			d.audioRawRightSquares += uint64(int64(rightSigned) * int64(rightSigned))
 +			d.audioRawFrames++
-+			d.audioDecimateLeft += int64(leftSigned)
-+			d.audioDecimateRight += int64(rightSigned)
-+			d.audioDecimateFrames++
++			if mode == audioWave1k {
++				d.audioDecimateLeft += int64(leftSigned)
++				d.audioDecimateRight += int64(rightSigned)
++				d.audioDecimateFrames++
++			}
 +		}
 +		if frontLeft > d.audioFrontPeak {
 +			d.audioFrontPeak = frontLeft
@@ -548,7 +558,10 @@ index 0000000..f5dcbc6
 +		if right > d.audioRightPeak {
 +			d.audioRightPeak = right
 +		}
-+		if waveformEnabled && d.audioDecimateFrames == 48 {
++		if mode == audioWave2k {
++			d.pushAudioWave2kLocked(leftSigned, rightSigned)
++		}
++		if mode == audioWave1k && d.audioDecimateFrames == 48 {
 +			index := d.audioWaveSamples
 +			d.audioWaveLeft[index] = int16(d.audioDecimateLeft / 48)
 +			d.audioWaveRight[index] = int16(d.audioDecimateRight / 48)
@@ -1031,11 +1044,730 @@ index 0000000..1ac0587
 +		t.Fatal("raw audio diagnostics ran without the APEX 6 waveform opt-in")
 +	}
 +}
+diff --git a/device/dualsense/asb_waveform2k.go b/device/dualsense/asb_waveform2k.go
+new file mode 100644
+index 0000000..d5ceb42
+--- /dev/null
++++ b/device/dualsense/asb_waveform2k.go
+@@ -0,0 +1,182 @@
++package dualsense
++
++import (
++	"encoding/binary"
++	"math"
++)
++
++const (
++	audioWaveOff uint32 = iota
++	audioWave1k
++	audioWave2k
++)
++
++const (
++	fir2kTapCount     = 361
++	fir2kDecimation   = 24
++	fir2kFrameSamples = 16
++	fir2kCutoffHz     = 960.0
++	fir2kKaiserBeta   = 4.4
++	fir2kInputRateHz  = 48000.0
++	fir2kFracBits     = 24
++)
++
++var fir2kTaps = designFir2kTaps()
++
++func designFir2kTaps() [fir2kTapCount]int64 {
++	var ideal [fir2kTapCount]float64
++	center := float64(fir2kTapCount-1) / 2
++	normalizedCutoff := fir2kCutoffHz / fir2kInputRateHz
++	sum := 0.0
++	for i := range ideal {
++		x := float64(i) - center
++		sinc := 2 * normalizedCutoff
++		if x != 0 {
++			sinc = math.Sin(2*math.Pi*normalizedCutoff*x) / (math.Pi * x)
++		}
++		r := x / center
++		ideal[i] = sinc * besselI0(fir2kKaiserBeta*math.Sqrt(1-r*r)) / besselI0(fir2kKaiserBeta)
++		sum += ideal[i]
++	}
++	var taps [fir2kTapCount]int64
++	var quantizedSum int64
++	for i := range ideal {
++		taps[i] = int64(math.Round(ideal[i] / sum * (1 << fir2kFracBits)))
++		quantizedSum += taps[i]
++	}
++	taps[fir2kTapCount/2] += (1 << fir2kFracBits) - quantizedSum
++	return taps
++}
++
++func besselI0(x float64) float64 {
++	sum, term := 1.0, 1.0
++	for k := 1; k < 64; k++ {
++		term *= x / 2 / float64(k)
++		sum += term * term
++	}
++	return sum
++}
++
++func fir2kOutput(window []int16) int16 {
++	var acc int64
++	for i, tap := range fir2kTaps {
++		acc += tap * int64(window[i])
++	}
++	const half = int64(1) << (fir2kFracBits - 1)
++	var value int64
++	if acc >= 0 {
++		value = (acc + half) >> fir2kFracBits
++	} else {
++		value = -((-acc + half) >> fir2kFracBits)
++	}
++	if value > math.MaxInt16 {
++		return math.MaxInt16
++	}
++	if value < math.MinInt16 {
++		return math.MinInt16
++	}
++	return int16(value)
++}
++
++type AudioWaveform2kState struct {
++	Sequence           uint32
++	Left               [fir2kFrameSamples]int16
++	Right              [fir2kFrameSamples]int16
++	RawPeaks           [4]uint16
++	RawLeftSumSquares  uint64
++	RawRightSumSquares uint64
++	RawFrames          uint32
++}
++
++func (s *AudioWaveform2kState) MarshalBinary() ([]byte, error) {
++	b := make([]byte, 96)
++	binary.LittleEndian.PutUint32(b[0:4], s.Sequence)
++	for i := 0; i < fir2kFrameSamples; i++ {
++		binary.LittleEndian.PutUint16(b[4+i*4:6+i*4], uint16(s.Left[i]))
++		binary.LittleEndian.PutUint16(b[6+i*4:8+i*4], uint16(s.Right[i]))
++	}
++	for i, peak := range s.RawPeaks {
++		binary.LittleEndian.PutUint16(b[68+i*2:70+i*2], peak)
++	}
++	binary.LittleEndian.PutUint64(b[76:84], s.RawLeftSumSquares)
++	binary.LittleEndian.PutUint64(b[84:92], s.RawRightSumSquares)
++	binary.LittleEndian.PutUint32(b[92:96], s.RawFrames)
++	return b, nil
++}
++
++func asbWaveformMode(option byte) uint32 {
++	if option&0x80 == 0 {
++		return audioWaveOff
++	}
++	if option&0x40 != 0 {
++		return audioWave2k
++	}
++	return audioWave1k
++}
++
++func (d *DualSense) applyAudioWaveModeLocked(mode uint32) {
++	if mode == d.audioWaveActiveMode {
++		return
++	}
++	if mode == audioWave2k || d.audioWaveActiveMode == audioWave2k {
++		d.resetAudioWaveformLocked()
++	}
++	d.audioWaveActiveMode = mode
++}
++
++func (d *DualSense) resetAudioWaveformLocked() {
++	d.audioDecimateFrames, d.audioDecimateLeft, d.audioDecimateRight = 0, 0, 0
++	d.audioWaveSamples = 0
++	d.audioWaveLeft, d.audioWaveRight = [8]int16{}, [8]int16{}
++	d.audioRawPeaks = [4]uint16{}
++	d.audioRawLeftSquares, d.audioRawRightSquares, d.audioRawFrames = 0, 0, 0
++	d.audioFir2kLeft, d.audioFir2kRight = [2 * fir2kTapCount]int16{}, [2 * fir2kTapCount]int16{}
++	d.audioFir2kPos, d.audioFir2kPhase = 0, 0
++	d.audioWave2kSamples = 0
++	d.audioWave2kLeft, d.audioWave2kRight = [fir2kFrameSamples]int16{}, [fir2kFrameSamples]int16{}
++}
++
++func (d *DualSense) resetAudioWaveform2kOnStreamChange() {
++	d.audioMu.Lock()
++	defer d.audioMu.Unlock()
++	if d.audioWaveActiveMode == audioWave2k {
++		d.resetAudioWaveformLocked()
++	}
++}
++
++func (d *DualSense) pushAudioWave2kLocked(left, right int16) {
++	pos := d.audioFir2kPos
++	d.audioFir2kLeft[pos], d.audioFir2kLeft[pos+fir2kTapCount] = left, left
++	d.audioFir2kRight[pos], d.audioFir2kRight[pos+fir2kTapCount] = right, right
++	pos++
++	if pos == fir2kTapCount {
++		pos = 0
++	}
++	d.audioFir2kPos = pos
++	d.audioFir2kPhase++
++	if d.audioFir2kPhase < fir2kDecimation {
++		return
++	}
++	d.audioFir2kPhase = 0
++	index := d.audioWave2kSamples
++	d.audioWave2kLeft[index] = fir2kOutput(d.audioFir2kLeft[pos : pos+fir2kTapCount])
++	d.audioWave2kRight[index] = fir2kOutput(d.audioFir2kRight[pos : pos+fir2kTapCount])
++	d.audioWave2kSamples++
++	if d.audioWave2kSamples == fir2kFrameSamples {
++		d.flushAudioWaveform2kLocked()
++	}
++}
++
++func (d *DualSense) flushAudioWaveform2kLocked() {
++	d.audioWave2kSeq++
++	frame := FeedbackFrame{Type: FeedbackFrameAudioWaveform2k, Waveform2k: AudioWaveform2kState{
++		Sequence: d.audioWave2kSeq, Left: d.audioWave2kLeft, Right: d.audioWave2kRight,
++		RawPeaks: d.audioRawPeaks, RawLeftSumSquares: d.audioRawLeftSquares,
++		RawRightSumSquares: d.audioRawRightSquares, RawFrames: d.audioRawFrames,
++	}}
++	d.audioWave2kSamples = 0
++	d.audioWave2kLeft, d.audioWave2kRight = [fir2kFrameSamples]int16{}, [fir2kFrameSamples]int16{}
++	d.audioRawPeaks = [4]uint16{}
++	d.audioRawLeftSquares, d.audioRawRightSquares, d.audioRawFrames = 0, 0, 0
++	d.emitRawOutput(frame)
++}
+diff --git a/device/dualsense/asb_waveform2k_test.go b/device/dualsense/asb_waveform2k_test.go
+new file mode 100644
+index 0000000..4e11fb0
+--- /dev/null
++++ b/device/dualsense/asb_waveform2k_test.go
+@@ -0,0 +1,525 @@
++package dualsense
++
++import (
++	"crypto/sha256"
++	"encoding/binary"
++	"encoding/hex"
++	"math"
++	"testing"
++)
++
++func asbGoldenStimulus(frames int, seed uint32) []byte {
++	pcm := make([]byte, frames*8)
++	state := seed
++	next := func() uint32 {
++		state = state*1664525 + 1013904223
++		return state
++	}
++	for i := 0; i < frames; i++ {
++		tri := int32(i%97)*600 - 29100
++		frontLeft := int16(int32(next()>>20) - 2048)
++		frontRight := int16(int32(next()>>22) - 512)
++		left := tri + int32(next()>>21) - 1024
++		right := int32(int16(next() >> 16))
++		if i%1013 == 0 {
++			right = -32768
++		}
++		if left > 32767 {
++			left = 32767
++		}
++		if left < -32768 {
++			left = -32768
++		}
++		binary.LittleEndian.PutUint16(pcm[i*8:], uint16(frontLeft))
++		binary.LittleEndian.PutUint16(pcm[i*8+2:], uint16(frontRight))
++		binary.LittleEndian.PutUint16(pcm[i*8+4:], uint16(int16(left)))
++		binary.LittleEndian.PutUint16(pcm[i*8+6:], uint16(int16(right)))
++	}
++	return pcm
++}
++
++type asbGoldenStep struct {
++	mode   byte
++	frames int
++	seed   uint32
++}
++
++var asbGoldenSteps = []asbGoldenStep{
++	{0x80, 5000, 1},
++	{0x00, 1000, 2},
++	{0x80, 3000, 3},
++	{0x81, 777, 4},
++	{0x00, 100, 5},
++	{0x80, 2500, 6},
++}
++
++func runASBGoldenScenario(t *testing.T, ds *DualSense) []FeedbackFrame {
++	t.Helper()
++	var frames []FeedbackFrame
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) { frames = append(frames, frame) })
++	chunks := []int{37, 192, 1, 480, 5}
++	chunk := 0
++	for _, step := range asbGoldenSteps {
++		input := make([]byte, asbInputStateSize)
++		input[32] = step.mode
++		if err := ds.UpdateASBInputState(input); err != nil {
++			t.Fatal(err)
++		}
++		pcm := asbGoldenStimulus(step.frames, step.seed)
++		for offset := 0; offset < len(pcm); {
++			size := chunks[chunk%len(chunks)] * 8
++			chunk++
++			end := offset + size
++			if end > len(pcm) {
++				end = len(pcm)
++			}
++			ds.consumeAudioHaptics(pcm[offset:end])
++			offset = end
++		}
++	}
++	return frames
++}
++
++func digestASBFrames(t *testing.T, frames []FeedbackFrame) string {
++	t.Helper()
++	h := sha256.New()
++	for _, frame := range frames {
++		encoded, err := frame.MarshalBinary()
++		if err != nil {
++			t.Fatal(err)
++		}
++		h.Write(encoded)
++	}
++	return hex.EncodeToString(h.Sum(nil))
++}
++
++const asbGolden1kDigest = "35f51fba3fa7a3bd93b2761fd5cf34d42bd2afb1929c482051aeb8a1c2b9120b"
++
++func setASBWaveOption(t *testing.T, ds *DualSense, option byte) {
++	t.Helper()
++	input := make([]byte, asbInputStateSize)
++	input[32] = option
++	if err := ds.UpdateASBInputState(input); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func referenceASB1kFrames(steps []asbGoldenStep) []AudioWaveformState {
++	var enabled []byte
++	for _, step := range steps {
++		if step.mode&0x80 != 0 {
++			enabled = append(enabled, asbGoldenStimulus(step.frames, step.seed)...)
++		}
++	}
++	sample := func(frame, offset int) int16 {
++		return int16(binary.LittleEndian.Uint16(enabled[frame*8+offset:]))
++	}
++	magnitude := func(v int16) uint16 {
++		if v < 0 {
++			return uint16(-int32(v))
++		}
++		return uint16(v)
++	}
++	var out []AudioWaveformState
++	for block := 0; (block+1)*384 <= len(enabled)/8; block++ {
++		state := AudioWaveformState{Sequence: uint32(block + 1), RawFrames: 384}
++		for i := 0; i < 8; i++ {
++			var sumLeft, sumRight int64
++			for j := 0; j < 48; j++ {
++				frame := block*384 + i*48 + j
++				sumLeft += int64(sample(frame, 4))
++				sumRight += int64(sample(frame, 6))
++			}
++			state.Left[i] = int16(sumLeft / 48)
++			state.Right[i] = int16(sumRight / 48)
++		}
++		for j := 0; j < 384; j++ {
++			frame := block*384 + j
++			for channel := 0; channel < 4; channel++ {
++				if m := magnitude(sample(frame, channel*2)); m > state.RawPeaks[channel] {
++					state.RawPeaks[channel] = m
++				}
++			}
++			l, r := int64(sample(frame, 4)), int64(sample(frame, 6))
++			state.RawLeftSumSquares += uint64(l * l)
++			state.RawRightSumSquares += uint64(r * r)
++		}
++		out = append(out, state)
++	}
++	return out
++}
++
++func TestASBWaveform1kGoldenUnchanged(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	frames := runASBGoldenScenario(t, ds)
++	if got := digestASBFrames(t, frames); got != asbGolden1kDigest {
++		t.Fatalf("1 kHz feedback stream changed: digest %s, want %s", got, asbGolden1kDigest)
++	}
++	var waveforms []AudioWaveformState
++	for _, frame := range frames {
++		switch frame.Type {
++		case FeedbackFrameAudioWaveform:
++			waveforms = append(waveforms, frame.Waveform)
++		case FeedbackFrameAudioWaveform2k:
++			t.Fatal("2 kHz frame emitted without option bit 6")
++		}
++	}
++	want := referenceASB1kFrames(asbGoldenSteps)
++	if len(want) != 29 || len(waveforms) != len(want) {
++		t.Fatalf("got %d waveform frames, reference has %d", len(waveforms), len(want))
++	}
++	for i := range want {
++		if waveforms[i] != want[i] {
++			t.Fatalf("frame %d differs from plain-mean reference:\n got %+v\nwant %+v", i, waveforms[i], want[i])
++		}
++	}
++}
++
++func TestASBWaveform2kMarshalLayout(t *testing.T) {
++	var state AudioWaveform2kState
++	state.Sequence = 0x04030201
++	for i := 0; i < 16; i++ {
++		state.Left[i] = int16(-1000 - i)
++		state.Right[i] = int16(2000 + i)
++	}
++	state.RawPeaks = [4]uint16{0x1111, 0x2222, 0x3333, 0x8000}
++	state.RawLeftSumSquares = 0x0102030405060708
++	state.RawRightSumSquares = 0x1112131415161718
++	state.RawFrames = 384
++	frame := FeedbackFrame{Type: FeedbackFrameAudioWaveform2k, Waveform2k: state}
++	encoded, err := frame.MarshalBinary()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if len(encoded) != 99 || encoded[0] != 0x04 || binary.LittleEndian.Uint16(encoded[1:3]) != 96 {
++		t.Fatalf("unexpected 2 kHz framing: len=%d header=%x", len(encoded), encoded[:3])
++	}
++	p := encoded[3:]
++	if binary.LittleEndian.Uint32(p[0:4]) != 0x04030201 {
++		t.Fatal("sequence misplaced")
++	}
++	for i := 0; i < 16; i++ {
++		l := int16(binary.LittleEndian.Uint16(p[4+i*4:]))
++		r := int16(binary.LittleEndian.Uint16(p[6+i*4:]))
++		if l != state.Left[i] || r != state.Right[i] {
++			t.Fatalf("sample %d misplaced: (%d,%d)", i, l, r)
++		}
++	}
++	for i, peak := range state.RawPeaks {
++		if binary.LittleEndian.Uint16(p[68+i*2:]) != peak {
++			t.Fatalf("peak %d misplaced", i)
++		}
++	}
++	if binary.LittleEndian.Uint64(p[76:84]) != state.RawLeftSumSquares ||
++		binary.LittleEndian.Uint64(p[84:92]) != state.RawRightSumSquares ||
++		binary.LittleEndian.Uint32(p[92:96]) != 384 {
++		t.Fatalf("raw measurements misplaced: %x", p[68:])
++	}
++
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var got []FeedbackFrame
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) {
++		if frame.Type == FeedbackFrameAudioWaveform2k {
++			got = append(got, frame)
++		}
++	})
++	setASBWaveOption(t, ds, 0xC0)
++	pcm := make([]byte, 3*384*8)
++	for i := 0; i < 3*384; i++ {
++		binary.LittleEndian.PutUint16(pcm[i*8+4:], uint16(3000))
++		binary.LittleEndian.PutUint16(pcm[i*8+6:], 0x10000-6000)
++	}
++	ds.consumeAudioHaptics(pcm[:1000*8])
++	if len(got) != 2 {
++		t.Fatalf("expected 2 frames after 1000 input frames, got %d", len(got))
++	}
++	ds.consumeAudioHaptics(pcm[1000*8:])
++	if len(got) != 3 {
++		t.Fatalf("expected one 2 kHz frame per 384 input frames, got %d", len(got))
++	}
++	for i, frame := range got {
++		w := frame.Waveform2k
++		if w.Sequence != uint32(i+1) || w.RawFrames != 384 || w.RawPeaks != [4]uint16{0, 0, 3000, 6000} ||
++			w.RawLeftSumSquares != 384*3000*3000 || w.RawRightSumSquares != 384*6000*6000 {
++			t.Fatalf("frame %d raw measurements wrong: %+v", i, w)
++		}
++	}
++	last := got[2].Waveform2k
++	for i := 0; i < 16; i++ {
++		if last.Left[i] != 3000 || last.Right[i] != -6000 {
++			t.Fatalf("settled DC sample %d = (%d,%d), want (3000,-6000)", i, last.Left[i], last.Right[i])
++		}
++	}
++}
++
++func runFir2k(input []int16) []int16 {
++	ds := &DualSense{}
++	ds.audioWaveActiveMode = audioWave2k
++	var out []int16
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) {
++		out = append(out, frame.Waveform2k.Left[:]...)
++	})
++	for _, v := range input {
++		ds.pushAudioWave2kLocked(v, 0)
++	}
++	return out
++}
++
++func sineInput(freq, amplitude float64, frames int) []int16 {
++	in := make([]int16, frames)
++	for i := range in {
++		in[i] = int16(math.Round(amplitude * math.Sin(2*math.Pi*freq*float64(i)/48000)))
++	}
++	return in
++}
++
++func toneAmplitude(samples []int16, freq, rate float64) float64 {
++	var re, im float64
++	for i, v := range samples {
++		w := 2 * math.Pi * freq * float64(i) / rate
++		re += float64(v) * math.Cos(w)
++		im += float64(v) * math.Sin(w)
++	}
++	return 2 * math.Hypot(re, im) / float64(len(samples))
++}
++
++func peakAbs(samples []int16) float64 {
++	peak := 0.0
++	for _, v := range samples {
++		peak = math.Max(peak, math.Abs(float64(v)))
++	}
++	return peak
++}
++
++const fir2kSettle = 32
++
++func TestASBWaveform2kFIRResponse(t *testing.T) {
++	sum := int64(0)
++	for i, tap := range fir2kTaps {
++		sum += tap
++		if tap != fir2kTaps[fir2kTapCount-1-i] {
++			t.Fatal("FIR taps are not symmetric")
++		}
++	}
++	if sum != 1<<fir2kFracBits {
++		t.Fatalf("DC gain is %v, want exactly 1", float64(sum)/(1<<fir2kFracBits))
++	}
++	if delay := float64(fir2kTapCount-1) / 2 / 48; delay > 4 {
++		t.Fatalf("group delay %.3f ms exceeds 4 ms", delay)
++	}
++	const amplitude = 20000.0
++	for _, freq := range []float64{200, 500, 800} {
++		out := runFir2k(sineInput(freq, amplitude, 24*(fir2kSettle+900)))[fir2kSettle:]
++		gain := 20 * math.Log10(toneAmplitude(out[:900], freq, 2000)/amplitude)
++		if math.Abs(gain) > 1 {
++			t.Fatalf("%v Hz passband gain %.3f dB", freq, gain)
++		}
++		t.Logf("%5.0f Hz: %+.3f dB", freq, gain)
++	}
++	for _, freq := range []float64{1150, 1500, 3000, 8000} {
++		out := runFir2k(sineInput(freq, amplitude, 24*(fir2kSettle+900)))[fir2kSettle:]
++		gain := 20 * math.Log10(math.Max(peakAbs(out), 0.5)/amplitude)
++		if gain > -40 {
++			t.Fatalf("%v Hz stopband attenuation only %.2f dB", freq, gain)
++		}
++		t.Logf("%5.0f Hz: peak %.2f dB", freq, gain)
++	}
++	for _, level := range []int16{1, -1, 12345, -12345, 32767, -32768} {
++		in := make([]int16, 24*64)
++		for i := range in {
++			in[i] = level
++		}
++		out := runFir2k(in)
++		for _, v := range out[fir2kSettle:] {
++			if v != level {
++				t.Fatalf("DC level %d came out as %d", level, v)
++			}
++		}
++	}
++}
++
++func TestASBWaveform2kRoundingAndSaturation(t *testing.T) {
++	window := make([]int16, fir2kTapCount)
++	for i, tap := range fir2kTaps {
++		window[i] = 32767
++		if tap < 0 {
++			window[i] = -32767
++		}
++	}
++	if got := fir2kOutput(window); got != 32767 {
++		t.Fatalf("positive overshoot not saturated: %d", got)
++	}
++	for i := range window {
++		window[i] = -window[i]
++	}
++	if got := fir2kOutput(window); got != -32768 {
++		t.Fatalf("negative overshoot not saturated: %d", got)
++	}
++	state := uint32(7)
++	for trial := 0; trial < 2000; trial++ {
++		var acc int64
++		for i := range window {
++			state = state*1664525 + 1013904223
++			window[i] = int16(state >> 18)
++			acc += fir2kTaps[i] * int64(window[i])
++		}
++		want := math.Round(float64(acc) / (1 << fir2kFracBits))
++		want = math.Max(-32768, math.Min(32767, want))
++		if got := fir2kOutput(window); float64(got) != want {
++			t.Fatalf("rounding: got %d want %v (acc %d)", got, want, acc)
++		}
++	}
++}
++
++func TestASBWaveform2kModeSwitching(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var frames []FeedbackFrame
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) {
++		if frame.Type == FeedbackFrameAudioWaveform || frame.Type == FeedbackFrameAudioWaveform2k {
++			frames = append(frames, frame)
++		}
++	})
++	constant := func(n int, left, right int16) []byte {
++		pcm := make([]byte, n*8)
++		for i := 0; i < n; i++ {
++			binary.LittleEndian.PutUint16(pcm[i*8+4:], uint16(left))
++			binary.LittleEndian.PutUint16(pcm[i*8+6:], uint16(right))
++		}
++		return pcm
++	}
++
++	setASBWaveOption(t, ds, 0x40)
++	if ds.PaceIsoOutTransfers() {
++		t.Fatal("bit 6 without bit 7 enabled ISO pacing")
++	}
++	ds.consumeAudioHaptics(constant(800, 5000, 5000))
++	if len(frames) != 0 || ds.audioRawFrames != 0 {
++		t.Fatal("bit 6 alone must not enable any waveform output")
++	}
++
++	setASBWaveOption(t, ds, 0x80)
++	ds.consumeAudioHaptics(constant(384+200, 10000, -10000))
++	if len(frames) != 1 || frames[0].Type != FeedbackFrameAudioWaveform || frames[0].Waveform.Sequence != 1 {
++		t.Fatalf("1 kHz mode did not emit type 0x03: %+v", frames)
++	}
++
++	setASBWaveOption(t, ds, 0xC0)
++	if !ds.PaceIsoOutTransfers() {
++		t.Fatal("ISO pacing must stay enabled in 2 kHz mode")
++	}
++	ds.consumeAudioHaptics(constant(384, 0, 0))
++	if len(frames) != 2 || frames[1].Type != FeedbackFrameAudioWaveform2k {
++		t.Fatalf("2 kHz mode did not emit type 0x04: %+v", frames)
++	}
++	w := frames[1].Waveform2k
++	if w.Sequence != 1 || w.RawFrames != 384 || w.RawPeaks != [4]uint16{} ||
++		w.RawLeftSumSquares != 0 || w.Left != [16]int16{} || w.Right != [16]int16{} {
++		t.Fatalf("stale 1 kHz state leaked into 2 kHz mode: %+v", w)
++	}
++	ds.consumeAudioHaptics(constant(500, 8000, 8000))
++
++	setASBWaveOption(t, ds, 0x80)
++	ds.consumeAudioHaptics(constant(384, 1200, -2400))
++	if len(frames) != 4 || frames[2].Type != FeedbackFrameAudioWaveform2k || frames[2].Waveform2k.Sequence != 2 ||
++		frames[3].Type != FeedbackFrameAudioWaveform {
++		t.Fatalf("unexpected frames around the 2 kHz to 1 kHz switch: %d frames", len(frames))
++	}
++	back := frames[3].Waveform
++	if back.Sequence != 2 || back.RawFrames != 384 || back.RawPeaks != [4]uint16{0, 0, 1200, 2400} ||
++		back.RawLeftSumSquares != 384*1200*1200 {
++		t.Fatalf("stale 2 kHz state leaked into 1 kHz mode: %+v", back)
++	}
++	for i := 0; i < 8; i++ {
++		if back.Left[i] != 1200 || back.Right[i] != -2400 {
++			t.Fatalf("1 kHz sample %d = (%d,%d) after switch", i, back.Left[i], back.Right[i])
++		}
++	}
++
++	setASBWaveOption(t, ds, 0xC0)
++	ds.consumeAudioHaptics(constant(384, 0, 0))
++	again := frames[len(frames)-1]
++	if again.Type != FeedbackFrameAudioWaveform2k || again.Waveform2k.Sequence != 3 ||
++		again.Waveform2k.Left != [16]int16{} || again.Waveform2k.RawPeaks != [4]uint16{} {
++		t.Fatalf("2 kHz decimator was not reset on re-entry: %+v", again)
++	}
++
++	ds.consumeAudioHaptics(constant(200, 9000, 9000))
++	ds.SetInterfaceAlt(1, 1)
++	ds.SetInterfaceAlt(1, 0)
++	ds.SetInterfaceAlt(1, 1)
++	count := len(frames)
++	ds.consumeAudioHaptics(constant(384, 0, 0))
++	restarted := frames[len(frames)-1]
++	if len(frames) != count+1 || restarted.Waveform2k.Left != [16]int16{} || restarted.Waveform2k.RawFrames != 384 {
++		t.Fatalf("2 kHz decimator was not reset on stream restart: %+v", restarted)
++	}
++
++	setASBWaveOption(t, ds, 0x00)
++	if ds.PaceIsoOutTransfers() {
++		t.Fatal("ISO pacing still enabled after waveform opt-out")
++	}
++	count = len(frames)
++	ds.consumeAudioHaptics(constant(2000, 3000, 3000))
++	if len(frames) != count {
++		t.Fatal("waveform emitted after opt-out")
++	}
++}
++
++func TestASBWaveform2kEndToEndTones(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var left, right []int16
++	ds.SetRawOutputCallback(func(frame FeedbackFrame) {
++		switch frame.Type {
++		case FeedbackFrameAudioWaveform2k:
++			left = append(left, frame.Waveform2k.Left[:]...)
++			right = append(right, frame.Waveform2k.Right[:]...)
++		case FeedbackFrameAudioWaveform:
++			t.Fatal("type 0x03 emitted in 2 kHz mode")
++		}
++	})
++	setASBWaveOption(t, ds, 0xC0)
++	const amplitude = 16000.0
++	frames := 48000
++	pcm := make([]byte, frames*8)
++	for i := 0; i < frames; i++ {
++		phase := float64(i) / 48000
++		l := int16(math.Round(amplitude * math.Sin(2*math.Pi*700*phase)))
++		r := int16(math.Round(amplitude * math.Sin(2*math.Pi*3000*phase+0.3)))
++		binary.LittleEndian.PutUint16(pcm[i*8:], 200)
++		binary.LittleEndian.PutUint16(pcm[i*8+4:], uint16(l))
++		binary.LittleEndian.PutUint16(pcm[i*8+6:], uint16(r))
++	}
++	for offset := 0; offset < len(pcm); offset += 48 * 8 {
++		ds.consumeAudioHaptics(pcm[offset : offset+48*8])
++	}
++	if len(left) != 2000 {
++		t.Fatalf("one second at 48 kHz produced %d samples, want 2000", len(left))
++	}
++	settled := left[fir2kSettle : fir2kSettle+1960]
++	at700 := 20 * math.Log10(toneAmplitude(settled, 700, 2000)/amplitude)
++	if math.Abs(at700) > 1 {
++		t.Fatalf("700 Hz tone level %.3f dB", at700)
++	}
++	for _, freq := range []float64{300, 100, 900, 500} {
++		if level := 20 * math.Log10(toneAmplitude(settled, freq, 2000)/amplitude); level > -40 {
++			t.Fatalf("700 Hz tone leaked to %v Hz at %.2f dB", freq, level)
++		}
++	}
++	suppressed := 20 * math.Log10(math.Max(peakAbs(right[fir2kSettle:]), 0.5)/amplitude)
++	if suppressed > -40 {
++		t.Fatalf("3 kHz tone only %.2f dB down", suppressed)
++	}
++	t.Logf("700 Hz: %+.3f dB, 3 kHz residual peak: %.2f dB", at700, suppressed)
++}
 diff --git a/device/dualsense/const.go b/device/dualsense/const.go
-index 530b457..8bc5366 100644
+index 530b457..eae31f8 100644
 --- a/device/dualsense/const.go
 +++ b/device/dualsense/const.go
-@@ -29,8 +29,16 @@ const (
+@@ -29,8 +29,17 @@ const (
  var DefaultBuildTime = time.Date(2025, time.July, 4, 10, 10, 32, 0, time.UTC)
  
  const (
@@ -1048,17 +1780,18 @@ index 530b457..8bc5366 100644
 +)
 +
 +const (
-+	FeedbackFrameHIDOutput     = 0x01
-+	FeedbackFrameAudioHaptics  = 0x02
-+	FeedbackFrameAudioWaveform = 0x03
++	FeedbackFrameHIDOutput       = 0x01
++	FeedbackFrameAudioHaptics    = 0x02
++	FeedbackFrameAudioWaveform   = 0x03
++	FeedbackFrameAudioWaveform2k = 0x04
  )
  
  const (
 diff --git a/device/dualsense/device.go b/device/dualsense/device.go
-index 5dd1d2c..eae742d 100644
+index 5dd1d2c..a0016ca 100644
 --- a/device/dualsense/device.go
 +++ b/device/dualsense/device.go
-@@ -19,15 +19,45 @@ type DualSense struct {
+@@ -19,15 +19,54 @@ type DualSense struct {
  	inputState *InputState
  	metaState  *MetaState
  
@@ -1100,7 +1833,16 @@ index 5dd1d2c..eae742d 100644
 +	audioWaveRight       [8]int16
 +	audioWaveSamples     uint8
 +	audioWaveSeq         uint32
-+	audioWaveEnabled     atomic.Bool
++	audioWaveMode        atomic.Uint32
++	audioWaveActiveMode  uint32
++	audioFir2kLeft       [2 * fir2kTapCount]int16
++	audioFir2kRight      [2 * fir2kTapCount]int16
++	audioFir2kPos        int
++	audioFir2kPhase      uint32
++	audioWave2kLeft      [fir2kFrameSamples]int16
++	audioWave2kRight     [fir2kFrameSamples]int16
++	audioWave2kSamples   uint8
++	audioWave2kSeq       uint32
 +	audioRawPeaks        [4]uint16
 +	audioRawLeftSquares  uint64
 +	audioRawRightSquares uint64
@@ -1108,7 +1850,7 @@ index 5dd1d2c..eae742d 100644
  }
  
  func New(o *device.CreateOptions) (*DualSense, error) {
-@@ -84,13 +114,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
+@@ -84,13 +123,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
  	}
  
  	d := &DualSense{
@@ -1125,7 +1867,7 @@ index 5dd1d2c..eae742d 100644
  	}
  
  	if o != nil {
-@@ -124,9 +156,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
+@@ -124,9 +165,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
  }
  
  func (d *DualSense) SetOutputCallback(f func(OutputState)) {
@@ -1161,7 +1903,7 @@ index 5dd1d2c..eae742d 100644
  func (d *DualSense) UpdateInputState(state *InputState) {
  	d.mtx.Lock()
  	defer d.mtx.Unlock()
-@@ -169,8 +227,10 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
+@@ -169,8 +236,10 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
  
  	if dir == usbip.DirOut && ep == 3 {
  		if len(out) >= 48 && out[0] == ReportIDOutput {
@@ -1174,7 +1916,7 @@ index 5dd1d2c..eae742d 100644
  			}
  		}
  	}
-@@ -221,14 +281,22 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
+@@ -221,14 +290,22 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
  			case reportType == reportTypeFeature:
  				return nil, true
  			case reportType == reportTypeOutput && reportID == ReportIDOutput && len(data) >= 48:
@@ -1199,7 +1941,7 @@ index 5dd1d2c..eae742d 100644
  	slog.Warn("DualSense control request unhandled",
  		"bmRequestType", bmRequestType,
  		"bRequest", bRequest,
-@@ -310,36 +378,20 @@ func (d *DualSense) featureReportPairing() []byte {
+@@ -310,36 +387,20 @@ func (d *DualSense) featureReportPairing() []byte {
  }
  
  func (d *DualSense) featureReportFirmware() []byte {
@@ -1250,7 +1992,7 @@ index 5dd1d2c..eae742d 100644
  }
  
  func (d *DualSense) featureReportCommandResponse() []byte {
-@@ -439,8 +491,20 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
+@@ -439,8 +500,20 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
  	b[37] = touch2
  	encodeTouchCoords(b[38:41], s.Touch2X, s.Touch2Y)
  
@@ -2131,7 +2873,7 @@ index 0000000..9b7bea7
 +	}
 +}
 diff --git a/lib/viiper/dualsense.go b/lib/viiper/dualsense.go
-index 05a7849..82bad63 100644
+index 05a7849..d19ebcc 100644
 --- a/lib/viiper/dualsense.go
 +++ b/lib/viiper/dualsense.go
 @@ -93,10 +93,16 @@ typedef struct {
@@ -2168,7 +2910,7 @@ index 05a7849..82bad63 100644
 +//
 +//export GetVIIPERASBPatchVersion
 +func GetVIIPERASBPatchVersion() C.uint32_t {
-+	return 13
++	return 14
 +}
 +
 +// SetDualSenseASBInputState updates a DualSense from ApexSenseBridge's compact

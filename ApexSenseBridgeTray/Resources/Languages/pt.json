@@ -135,6 +135,8 @@
   "Loc_LightbarBrightnessHint": "Limite superior para os LEDs sincronizados (0 a 100%, padrão 100%). A cor segue o jogo; o brilho continua o salvo no Flydigi Space Station, limitado por este valor. Aplica-se à próxima sessão.",
   "Loc_ZoneEmulation": "Emulação de efeitos do gatilho",
   "Loc_ZoneEmulationHint": "Reproduz no APEX 5 a força por zona, a vibração e os efeitos rítmicos dos gatilhos do DualSense. Desative para voltar ao comportamento anterior",
+  "Loc_Apex6Rate2kHz": "Háptica das alças a 2 kHz (experimental)",
+  "Loc_Apex6Rate2kHzHint": "Envia a háptica das alças do APEX 6 Pro a 2000 amostras por segundo em vez de 1000. Requer a libVIIPER integrada; podem ocorrer pequenos travamentos durante efeitos contínuos longos. Desativado por padrão.",
   "Loc_ManualBridge": "Forçar ativação contínua",
   "Loc_ManualBridgeHint": "Mantém a ponte ativa continuamente sem esperar por um jogo",
   "Loc_PreparedLaunch": "Iniciar um jogo (.exe)",

@@ -473,6 +473,25 @@ When `ApexSenseBridgeTray.exe` or the bridge engine initializes, it sends a hand
 
 ---
 
+### Light stutters during long continuous haptics (APEX 6 Pro)
+
+Symptom: a long continuous vibration occasionally hiccups, more often after
+about a minute.
+
+What is known: it was heard the same way with the 1000 and the 2000 samples
+per second stream (`--apex6-rate`, Tray switch "2 kHz grip haptics"), so it is
+not caused by the 2 kHz mode. The stream is sent in small steps and the
+controller's own clock is independent of the PC's, so over a long effect its
+small queue can run dry or overflow for a few milliseconds. The 2.4 GHz link
+and a heavily loaded PC (compilations, anti-virus scans) are also suspected.
+Short effects, and every pause in the game's haptics, start the stream again
+from a clean state. Wired mode has not been tested.
+
+If you report it, attach the session summary, in particular
+`apex6_waveform_underruns`, `apex6_deadline_overruns`, `apex6_sample_rate_hz`
+and `apex6_waveform_upsampled_blocks` (non-zero in 2000 mode means the
+libVIIPER in use is older than `v0.7.0-asb14`).
+
 ## 7. Interface & System Tray Quick Reference (FR / EN)
 
 | Menu Option (French) | English Equivalent | Description |

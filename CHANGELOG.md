@@ -22,6 +22,46 @@ detail; in short:
   faster rumble cadence (APEX 4).
 - **Tray:** new report window, per-game tuning and reset buttons, manual-fix
   notes in nine languages, `--force-always-on`.
+- **APEX 6 Pro, experimental and off by default:** a 2 kHz grip haptics stream
+  (`--apex6-rate 2000` or a Tray switch) that keeps the 500 to 1000 Hz content
+  of native game haptics.
+
+### APEX 6 Pro: experimental 2 kHz grip haptics (off by default)
+
+- The APEX 6 Pro plays its haptic stream at 2000 samples per second, but the
+  bridge has always fed it 1000: eight samples per 8 ms report, doubled by the
+  controller's own interpolation. A new opt-in mode clears that interpolation
+  flag and sends two raw eight-sample reports per 8 ms block, 4 ms apart, so
+  native game haptics keep their 500 to 1000 Hz content.
+- `--apex6-rate 2000` (needs `--rumble`) turns it on; 1000 stays the default.
+  The Tray has a matching "2 kHz grip haptics (experimental)" switch, shown for
+  the APEX 6 Pro only and off by default. With any other controller, or with
+  grip vibration off, the engine silently stays at 1000, so the switch can be
+  left on.
+- It needs the integrated libVIIPER `v0.7.0-asb14`. Its virtual DualSense now
+  filters the 48 kHz haptic channels with a proper low-pass FIR (within 0.25 dB
+  up to 800 Hz, at least 48 dB down from 1150 Hz) and decimates them to 2 kHz.
+  With an older libVIIPER or the sidecar backend the mode falls back to the
+  1 kHz data interpolated to 2 kHz; the session summary then shows
+  `apex6_waveform_upsampled_blocks` instead of `apex6_waveform_2k_blocks`.
+  Effects that the bridge synthesises itself (trigger effects, rumble) are
+  interpolated to 2 kHz the same way the controller did it, so they sound the
+  same as before.
+- Checked on one APEX 6 Pro through its 2.4 GHz receiver (firmware 9.0.6.8),
+  by ear: tones of 700 and 900 Hz sent this way were heard an octave above
+  their 350 and 450 Hz references in 5 trials out of 5, in both orders, and two
+  identical tones were judged identical. Nothing was measured with a sensor,
+  and wired mode was not tried. A pure 700 Hz tone and a short fanfare played
+  through the real bridge were judged clearly better at 2000 than at 1000: the
+  700 Hz tone kept its pitch instead of folding down to a low one.
+- Known limits: light stutters can appear during long continuous effects. In a
+  side-by-side test they were heard identically with the 1000 and the 2000
+  stream, so they are not specific to this mode; the cause is not isolated (the
+  controller's clock, the radio link and the PC are suspected; wired mode was not
+  tried). The controller's interpolation lowers the top of the band (about -3.6 dB at 700 Hz and -6 dB
+  at 900 Hz), the motors give little sensation above roughly 300 Hz, and the
+  two triggers still share one signal. Whether real games send enough energy
+  between 500 and 1000 Hz for this to be noticeable has not been measured yet.
 
 ### Choosing between several APEX controllers
 

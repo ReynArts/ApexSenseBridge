@@ -701,6 +701,12 @@ int main() {
     assert(encodedWaveform[32] == 0x84);
     assert(std::equal(encodedLive.begin(), encodedLive.begin() + 32,
                       encodedWaveform.begin()));
+    const auto encodedWaveform2k = buildViiperInput(live, true, true);
+    assert(encodedWaveform2k[32] == 0xC4);
+    assert(std::equal(encodedLive.begin(), encodedLive.begin() + 32,
+                      encodedWaveform2k.begin()));
+    assert(buildViiperInput(live, false, true) == encodedLive);
+    assert(buildViiperInput(live, true, false) == encodedWaveform);
 
     std::array<std::uint8_t, 30> hidPayload{};
     hidPayload[0] = 0x0F;
@@ -801,6 +807,54 @@ int main() {
     assert(!feedback.hasRawAudioMeasurements);
     assert(!decodeViiperFeedbackFrame(
         0x03, std::span<const std::uint8_t>(waveformPayload).first(35), feedback));
+
+    std::array<std::uint8_t, 96> waveform2k{};
+    waveform2k[0] = 0x08;
+    waveform2k[1] = 0x07;
+    waveform2k[2] = 0x06;
+    waveform2k[3] = 0x05;
+    for (std::size_t index = 0; index < 16; ++index) {
+        const auto left = static_cast<std::uint16_t>(2000 + index);
+        const auto right = static_cast<std::uint16_t>(0x10000 - 2000 - index);
+        waveform2k[4 + index * 4] = static_cast<std::uint8_t>(left);
+        waveform2k[5 + index * 4] = static_cast<std::uint8_t>(left >> 8U);
+        waveform2k[6 + index * 4] = static_cast<std::uint8_t>(right);
+        waveform2k[7 + index * 4] = static_cast<std::uint8_t>(right >> 8U);
+    }
+    const auto putLittleEndian2k = [&waveform2k](std::size_t offset,
+                                                std::uint64_t value, std::size_t size) {
+        for (std::size_t byte = 0; byte < size; ++byte) {
+            waveform2k[offset + byte] = static_cast<std::uint8_t>(value >> (byte * 8));
+        }
+    };
+    putLittleEndian2k(68, 111, 2);
+    putLittleEndian2k(70, 222, 2);
+    putLittleEndian2k(72, 3333, 2);
+    putLittleEndian2k(74, 4444, 2);
+    putLittleEndian2k(76, 384ULL * 3333 * 3333, 8);
+    putLittleEndian2k(84, 384ULL * 4444 * 4444, 8);
+    putLittleEndian2k(92, 384, 4);
+    DualSenseFeedback feedback2k{};
+    assert(decodeViiperFeedbackFrame(0x04, waveform2k, feedback2k));
+    assert(feedback2k.kind == FeedbackKind::AudioHapticWaveform2k);
+    assert(feedback2k.audioSequence == 0x05060708);
+    assert(feedback2k.leftHapticSamples2k.front() == 2000);
+    assert(feedback2k.leftHapticSamples2k.back() == 2015);
+    assert(feedback2k.rightHapticSamples2k.front() == -2000);
+    assert(feedback2k.rightHapticSamples2k.back() == -2015);
+    assert(feedback2k.leftHapticSamples2k[7] == 2007 && feedback2k.leftHapticSamples2k[8] == 2008);
+    assert(feedback2k.hasRawAudioMeasurements && feedback2k.rawAudioFrames == 384);
+    assert((feedback2k.rawAudioPeaks == std::array<std::uint16_t, 4>{111, 222, 3333, 4444}));
+    assert(feedback2k.rawHapticLeftSumSquares == 384ULL * 3333 * 3333);
+    assert(feedback2k.rawHapticRightSumSquares == 384ULL * 4444 * 4444);
+    assert(decodeViiperFeedbackFrame(
+        0x04, std::span<const std::uint8_t>(waveform2k).first(68), feedback2k));
+    assert(!feedback2k.hasRawAudioMeasurements && feedback2k.rawAudioFrames == 0);
+    assert(decodeViiperFeedbackFrame(
+        0x04, std::span<const std::uint8_t>(waveform2k).first(95), feedback2k));
+    assert(!feedback2k.hasRawAudioMeasurements);
+    assert(!decodeViiperFeedbackFrame(
+        0x04, std::span<const std::uint8_t>(waveform2k).first(67), feedback2k));
     assert(!feedback.hasRumble());
     assert(!feedback.requestsRumbleUpdate());
     assert(!feedback.hasTriggerEffect());

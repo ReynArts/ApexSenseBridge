@@ -135,6 +135,8 @@
   "Loc_LightbarBrightnessHint": "Giới hạn trên cho các LED được đồng bộ (0 đến 100%, mặc định 100%). Màu theo trò chơi; độ sáng giữ nguyên giá trị đã lưu trong Flydigi Space Station, nhưng không vượt quá giá trị này. Áp dụng cho phiên tiếp theo.",
   "Loc_ZoneEmulation": "Mô phỏng hiệu ứng cò",
   "Loc_ZoneEmulationHint": "Tái tạo trên APEX 5 lực theo vùng, rung và các hiệu ứng nhịp của cò DualSense. Tắt để quay lại hành vi trước đây",
+  "Loc_Apex6Rate2kHz": "Xúc giác tay cầm 2 kHz (thử nghiệm)",
+  "Loc_Apex6Rate2kHzHint": "Gửi phản hồi xúc giác của tay cầm APEX 6 Pro với tốc độ 2000 mẫu mỗi giây thay vì 1000. Cần libVIIPER tích hợp; có thể xảy ra hiện tượng giật nhẹ trong các hiệu ứng liên tục kéo dài. Mặc định tắt.",
   "Loc_ManualBridge": "Bắt buộc kích hoạt liên tục",
   "Loc_ManualBridgeHint": "Duy trì cầu nối hoạt động liên tục mà không cần chờ trò chơi",
   "Loc_PreparedLaunch": "Khởi chạy trò chơi (.exe)",

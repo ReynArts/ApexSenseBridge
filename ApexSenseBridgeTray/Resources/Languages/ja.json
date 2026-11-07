@@ -135,6 +135,8 @@
   "Loc_LightbarBrightnessHint": "同期する LED の上限（0〜100%、既定は 100%）。色はゲームに従い、輝度は Flydigi Space Station に保存された値のまま、この値を上限とします。次回のセッションから適用されます。",
   "Loc_ZoneEmulation": "トリガー効果のエミュレーション",
   "Loc_ZoneEmulationHint": "APEX 5でDualSenseのゾーン別の強さ、振動、リズム系トリガー効果を再現します。オフにすると従来の動作に戻ります",
+  "Loc_Apex6Rate2kHz": "2 kHzグリップハプティクス(実験的)",
+  "Loc_Apex6Rate2kHzHint": "APEX 6 Proのグリップのハプティクスを、毎秒1000ではなく毎秒2000サンプルで送信します。統合されたlibVIIPERが必要です。長く続くエフェクトの間に軽いカクつきが発生する場合があります。デフォルトではオフです。",
   "Loc_ManualBridge": "常時アクティブ化を強制",
   "Loc_ManualBridgeHint": "ゲームの起動を待たずにブリッジを常時稼働させます",
   "Loc_PreparedLaunch": "ゲームを起動 (.exe)",

@@ -682,12 +682,13 @@ bool Apex5Device::writeApex6Haptics(const apex6::MotorBlock& block,
                                     apex6::TriggerRoute route,
                                     bool enableTrigger,
                                     bool enableGrips,
-                                    std::string& error) {
+                                    std::string& error,
+                                    bool interpolate) {
     if (!mayWriteApex6Haptics(error)) return false;
     const auto lock = acquireWriteLock();
     return transport_->writeOutputReport(
         apex6::buildRealtimeMotor(
-            block, route, enableTrigger, enableGrips, enableGrips),
+            block, route, enableTrigger, enableGrips, enableGrips, interpolate),
         error);
 }
 

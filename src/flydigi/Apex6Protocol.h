@@ -111,7 +111,8 @@ struct ProfileState {
                                         TriggerRoute route,
                                         bool enableTrigger = true,
                                         bool enableLeftGrip = true,
-                                        bool enableRightGrip = true);
+                                        bool enableRightGrip = true,
+                                        bool interpolate = true);
 [[nodiscard]] std::optional<DeviceInfo> parseDeviceInfo(
     std::span<const std::uint8_t> report) noexcept;
 [[nodiscard]] bool isValidFrame(std::span<const std::uint8_t> report,

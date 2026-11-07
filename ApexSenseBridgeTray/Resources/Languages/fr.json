@@ -135,6 +135,8 @@
   "Loc_LightbarBrightnessHint": "Limite supérieure pour les LED synchronisées (0 à 100 %, 100 % par défaut). La couleur suit le jeu ; la luminosité reste celle enregistrée dans Flydigi Space Station, plafonnée par cette valeur. S'applique à la prochaine session.",
   "Loc_ZoneEmulation": "Émulation des effets de gâchette",
   "Loc_ZoneEmulationHint": "Reproduit sur l'APEX 5 la force par zone, la vibration et les effets rythmés des gâchettes DualSense. Désactiver pour revenir au comportement précédent",
+  "Loc_Apex6Rate2kHz": "Haptique des poignées à 2 kHz (expérimental)",
+  "Loc_Apex6Rate2kHzHint": "Envoie l’haptique des poignées de l’APEX 6 Pro à 2000 échantillons par seconde au lieu de 1000. Nécessite la libVIIPER intégrée ; de légères saccades sont possibles pendant les longs effets continus. Désactivé par défaut.",
   "Loc_ManualBridge": "Forcer l'activation permanente",
   "Loc_ManualBridgeHint": "Active le pont en continu sans attendre la détection d'un jeu",
   "Loc_PreparedLaunch": "Lancer un jeu (.exe)",

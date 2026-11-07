@@ -182,8 +182,28 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << error << '\n';
         return failSession(2, error);
     }
-    if (options.controllerCalibrations[0] || options.controllerCalibrations[1] || options.controllerCalibrations[2])
+    const bool calibrationSupplied = options.controllerCalibrations[0] ||
+                                     options.controllerCalibrations[1] ||
+                                     options.controllerCalibrations[2];
+    if (calibrationSupplied)
         std::cout << "Controller calibration selected after verification: " << verifiedCalibrationModel << '\n';
+    if (options.apex6SampleRateExplicit && !apex6Pro) {
+        constexpr std::string_view message =
+            "--apex6-rate requires a verified Apex 6 Pro.";
+        std::cerr << message << '\n';
+        return failSession(2, message);
+    }
+    if (options.apex6SampleRateHz == 2000 &&
+        options.virtualBackend == asb::dualsense::VirtualDualSenseBackend::Sidecar) {
+        if (!calibrationSupplied) {
+            constexpr std::string_view message =
+                "--apex6-rate 2000 requires the integrated libVIIPER backend.";
+            std::cerr << message << '\n';
+            return failSession(2, message);
+        }
+        options.apex6SampleRateHz = 1000;
+        options.apex6SampleRateExplicit = false;
+    }
     const auto apex4TriggerCapability =
         asb::flydigi::classifyApex4TriggerInterface(device->info());
     if (apex4) {
@@ -405,7 +425,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
               *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent,
               options.vibrationStrengthPercent, options.apex6HapticGainPercent,
-              options.apex6GripDuckPercent, options.apex6TriggerCeilingPercent)
+              options.apex6GripDuckPercent, options.apex6TriggerCeilingPercent,
+              options.routeRumble ? options.apex6SampleRateHz : 1000U)
         : std::unique_ptr<asb::dualsense::Apex6HapticBridge>{};
     if (apex6Bridge) {
         apex6Bridge->updateTriggerPositions(initialInput.l2, initialInput.r2);
@@ -430,6 +451,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     backendOptions.viiperExecutable = std::move(options.viiperExecutable);
     backendOptions.backend = options.virtualBackend;
     backendOptions.captureAudioHapticsWaveform = apex6Pro;
+    backendOptions.captureAudioHapticsWaveform2k =
+        apex6Pro && options.routeRumble && options.apex6SampleRateHz == 2000;
     auto virtualDualSense = asb::dualsense::createVirtualDualSense(std::move(backendOptions));
     asb::dualsense::FeedbackRouter feedbackRouter;
     const auto makeFeedbackSink = [&]() -> asb::dualsense::FeedbackRouter::Sink {
@@ -861,6 +884,13 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (apex6Pro && options.routeRumble) {
         std::cout << "apex6_pcm_gain_percent=" << options.apex6HapticGainPercent << std::endl;
+        std::cout << "apex6_sample_rate_hz=" << options.apex6SampleRateHz << std::endl;
+        if (options.apex6SampleRateHz == 2000) {
+            std::cerr << "Experimental Apex 6 2 kHz haptic stream enabled: native grip PCM is sent "
+                         "at 2000 samples per second when the integrated libVIIPER supports it; "
+                         "otherwise it falls back to interpolated 1 kHz data. Light stutters are "
+                         "possible during long continuous effects.\n";
+        }
         std::cout << "apex6_haptic_threshold_percent=0" << std::endl;
         if (options.apex6HapticGainPercent > 100) {
             std::cerr << "Experimental Apex 6 native PCM gain enabled: quiet amplitudes are "
@@ -2021,6 +2051,10 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_bow_breaks=" << apex6Stats.bowBreaks << '\n'
               << "apex6_waveform_threshold_policy=native-pcm-preserved\n"
               << "apex6_pcm_gain_percent=" << apex6Stats.pcmGainPercent << '\n'
+              << "apex6_sample_rate_hz=" << apex6Stats.sampleRateHz << '\n'
+              << "apex6_waveform_2k_blocks=" << apex6Stats.waveform2kBlocks << '\n'
+              << "apex6_waveform_upsampled_blocks=" << apex6Stats.waveformUpsampledBlocks << '\n'
+              << "apex6_prime_reports=" << apex6Stats.primeReports << '\n'
               << "apex6_haptic_threshold_percent=0\n"
               << "apex6_pcm_output_left_peak=" << apex6Stats.pcmOutputLeftPeak << '\n'
               << "apex6_pcm_output_right_peak=" << apex6Stats.pcmOutputRightPeak << '\n'

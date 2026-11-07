@@ -135,6 +135,8 @@
   "Loc_LightbarBrightnessHint": "동기화된 LED의 상한(0~100%, 기본 100%). 색상은 게임을 따르고, 밝기는 Flydigi Space Station에 저장된 값을 유지하되 이 값을 넘지 않습니다. 다음 세션부터 적용됩니다.",
   "Loc_ZoneEmulation": "트리거 효과 에뮬레이션",
   "Loc_ZoneEmulationHint": "APEX 5에서 DualSense의 구간별 강도, 진동, 리듬형 트리거 효과를 재현합니다. 끄면 이전 동작으로 돌아갑니다",
+  "Loc_Apex6Rate2kHz": "2 kHz 그립 햅틱 (실험적)",
+  "Loc_Apex6Rate2kHzHint": "APEX 6 Pro 그립 햅틱을 초당 1000개 대신 2000개 샘플로 전송합니다. 통합된 libVIIPER가 필요하며, 긴 연속 효과 중에 가벼운 끊김이 발생할 수 있습니다. 기본값은 꺼짐입니다.",
   "Loc_ManualBridge": "강제 상시 활성화",
   "Loc_ManualBridgeHint": "게임을 기다리지 않고 브리지를 항상 활성 상태로 유지합니다.",
   "Loc_PreparedLaunch": "게임 실행 (.exe)",

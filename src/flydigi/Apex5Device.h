@@ -94,7 +94,8 @@ public:
                            apex6::TriggerRoute route,
                            bool enableTrigger,
                            bool enableGrips,
-                           std::string& error);
+                           std::string& error,
+                           bool interpolate = true);
     bool disableApex6Haptics(std::string& error);
     bool readRgbConfig(std::uint8_t slot,
                        std::array<std::uint8_t, kRgbConfigSize>& outConfig,

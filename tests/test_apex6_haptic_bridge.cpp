@@ -1797,10 +1797,190 @@ void testShapingBridge() {
     assert(clamped.stats.gripDuckPercent == 100 && clamped.stats.triggerCeilingPercent == 20);
 }
 
+std::vector<std::vector<std::uint8_t>> realtimeReports(const FakeApex6Transport& transport) {
+    std::vector<std::vector<std::uint8_t>> result;
+    for (const auto& report : transport.writes) {
+        if (report.size() == 33 && report[3] == asb::flydigi::apex6::kCmdRealtimeMotor) {
+            result.push_back(report);
+        }
+    }
+    return result;
+}
+
+int decodedSample(const std::vector<std::uint8_t>& report, std::size_t sample, std::size_t channel) {
+    return static_cast<int>(report[6 + sample * 3 + channel]) - 128;
+}
+
+bool reportIsSilent(const std::vector<std::uint8_t>& report) {
+    for (std::size_t sample = 0; sample < 8; ++sample) {
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            if (decodedSample(report, sample, channel) != 0) return false;
+        }
+    }
+    return true;
+}
+
+void testApex6TwoKilohertzNativePcm() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true, 100, 100, 100, 0, 100, 2000);
+    assert(bridge.start(error));
+    const auto leftSample = [](std::size_t index) {
+        return static_cast<std::int16_t>(2000 + index * 1800);
+    };
+    DualSenseFeedback waveform{};
+    waveform.kind = FeedbackKind::AudioHapticWaveform2k;
+    for (std::size_t index = 0; index < 16; ++index) {
+        waveform.leftHapticSamples2k[index] = leftSample(index);
+        waveform.rightHapticSamples2k[index] = static_cast<std::int16_t>(-leftSample(index));
+    }
+    for (unsigned sequence = 1; sequence <= 6; ++sequence) {
+        waveform.audioSequence = sequence;
+        bridge.handle(waveform);
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    assert(bridge.stop(error));
+
+    const auto reports = realtimeReports(*transport);
+    assert(reports.size() > 3 + 4);
+    const auto streamed = reports.size() - 3;
+    for (std::size_t index = 0; index < streamed; ++index) {
+        assert((reports[index][5] & 0x80) == 0);
+        assert(reports[index][5] == 0x1B);
+    }
+    for (std::size_t index = 0; index < 4; ++index) assert(reportIsSilent(reports[index]));
+    assert((reports[streamed][5] & 0x80) != 0);
+
+    const auto expected = [&](std::size_t index) {
+        return static_cast<int>(scaleApex6Pcm(leftSample(index), 100));
+    };
+    bool foundBlock = false;
+    for (std::size_t index = 0; index + 1 < streamed && !foundBlock; ++index) {
+        bool match = true;
+        for (std::size_t sample = 0; sample < 8 && match; ++sample) {
+            match = decodedSample(reports[index], sample, 1) == expected(sample) &&
+                    decodedSample(reports[index], sample, 2) == -expected(sample) &&
+                    decodedSample(reports[index + 1], sample, 1) == expected(sample + 8) &&
+                    decodedSample(reports[index + 1], sample, 2) == -expected(sample + 8);
+        }
+        foundBlock = match;
+    }
+    assert(foundBlock);
+
+    const auto stats = bridge.stats();
+    assert(stats.sampleRateHz == 2000);
+    assert(stats.waveform2kBlocks == 6);
+    assert(stats.waveformUpsampledBlocks == 0);
+    assert(stats.primeReports == 4);
+    assert(stats.framesWritten >= reports.size() - 3);
+}
+
+void testApex6TwoKilohertzUpsamplesNarrowBlocks() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true, 100, 100, 100, 0, 100, 2000);
+    assert(bridge.start(error));
+    DualSenseFeedback waveform{};
+    waveform.kind = FeedbackKind::AudioHapticWaveform;
+    waveform.leftHapticSamples.fill(12000);
+    waveform.rightHapticSamples.fill(-12000);
+    for (unsigned sequence = 1; sequence <= 5; ++sequence) {
+        waveform.audioSequence = sequence;
+        bridge.handle(waveform);
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    assert(bridge.stop(error));
+
+    const auto reports = realtimeReports(*transport);
+    assert(reports.size() > 3);
+    const auto streamed = reports.size() - 3;
+    std::size_t first = streamed;
+    for (std::size_t index = 0; index < streamed; ++index) {
+        assert((reports[index][5] & 0x80) == 0);
+        if (first == streamed && !reportIsSilent(reports[index])) first = index;
+    }
+    assert(first + 1 < streamed);
+    const int full = static_cast<int>(scaleApex6Pcm(12000, 100));
+    const int half = static_cast<int>(scaleApex6Pcm(6000, 100));
+    assert(decodedSample(reports[first], 0, 1) == half);
+    for (std::size_t sample = 1; sample < 8; ++sample) {
+        assert(decodedSample(reports[first], sample, 1) == full);
+        assert(decodedSample(reports[first], sample, 2) == -full);
+    }
+    for (std::size_t sample = 0; sample < 8; ++sample) {
+        assert(decodedSample(reports[first + 1], sample, 1) == full);
+    }
+    const auto stats = bridge.stats();
+    assert(stats.waveformUpsampledBlocks >= 1);
+    assert(stats.waveform2kBlocks == 0);
+}
+
+void testApex6OneKilohertzIgnoresWideBlocksAndKeepsInterpolation() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    assert(bridge.start(error));
+    DualSenseFeedback wide{};
+    wide.kind = FeedbackKind::AudioHapticWaveform2k;
+    wide.leftHapticSamples2k.fill(20000);
+    DualSenseFeedback narrow{};
+    narrow.kind = FeedbackKind::AudioHapticWaveform;
+    narrow.leftHapticSamples.fill(20000);
+    for (unsigned sequence = 1; sequence <= 4; ++sequence) {
+        wide.audioSequence = sequence;
+        narrow.audioSequence = sequence;
+        bridge.handle(wide);
+        bridge.handle(narrow);
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+    assert(bridge.stop(error));
+    const auto reports = realtimeReports(*transport);
+    assert(reports.size() > 3);
+    for (std::size_t index = 0; index + 3 < reports.size(); ++index) {
+        assert((reports[index][5] & 0x80) != 0);
+    }
+    const auto stats = bridge.stats();
+    assert(stats.sampleRateHz == 1000);
+    assert(stats.waveformBlocks == 4);
+    assert(stats.waveform2kBlocks == 0 && stats.primeReports == 0);
+    assert(stats.waveformUpsampledBlocks == 0);
+}
+
+void testApex6SampleRateIsSanitised() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    Apex6HapticBridge odd(device, {}, true, 100, 100, 100, 0, 100, 1500);
+    assert(odd.stats().sampleRateHz == 1000);
+    Apex6HapticBridge fast(device, {}, true, 100, 100, 100, 0, 100, 2000);
+    assert(fast.stats().sampleRateHz == 2000);
+    Apex6HapticBridge normal(device, {}, true);
+    assert(normal.stats().sampleRateHz == 1000);
+}
+
 int main() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
 
+    testApex6SampleRateIsSanitised();
+    testApex6TwoKilohertzNativePcm();
+    testApex6TwoKilohertzUpsamplesNarrowBlocks();
+    testApex6OneKilohertzIgnoresWideBlocksAndKeepsInterpolation();
     testShapingHelpers();
     testShapingBridge();
     testTriggerReleaseSendsExplicitZeroFrames();

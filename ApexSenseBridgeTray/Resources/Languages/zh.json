@@ -135,6 +135,8 @@
   "Loc_LightbarBrightnessHint": "同步 LED 的亮度上限（0 到 100%，默认 100%）。颜色跟随游戏；亮度保持 Flydigi Space Station 中保存的值，但不超过此上限。下次会话生效。",
   "Loc_ZoneEmulation": "扳机效果模拟",
   "Loc_ZoneEmulationHint": "在 APEX 5 上还原 DualSense 扳机的分区力度、震动和节奏类效果。关闭后恢复之前的行为",
+  "Loc_Apex6Rate2kHz": "2 kHz 握把触觉（实验性）",
+  "Loc_Apex6Rate2kHzHint": "以每秒 2000 个采样（而非 1000 个）向 APEX 6 Pro 握把发送触觉反馈。需要内置的 libVIIPER；在较长的持续效果期间可能出现轻微卡顿。默认关闭。",
   "Loc_ManualBridge": "强制常驻激活",
   "Loc_ManualBridgeHint": "无需等待游戏启动，始终保持桥接处于激活状态",
   "Loc_PreparedLaunch": "启动游戏 (.exe)",

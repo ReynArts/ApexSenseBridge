@@ -14,6 +14,7 @@ ApexSenseBridge 1.1.0 is a major update, even though the version number only mov
 - **Trigger effects translated into vibration by meaning:** a burst at the break point for weapon effects, a draw and release burst for Bow, smooth zone transitions for progressive resistance and vibration, rhythms for Machine and Galloping.
 - **Twelve weapon presets** in the Tray trigger test and `test-trigger --mode <preset>`; `test-trigger` plays the real native effect and follows your trigger.
 - **Cleaner release:** the trigger hum kept by newer firmware after a release is stopped ([#74](https://github.com/ReynArts/ApexSenseBridge/issues/74)).
+- **Experimental 2 kHz grip haptics (off by default):** `--apex6-rate 2000` or the Tray switch sends native game haptics at 2000 samples per second instead of 1000, so their 500 to 1000 Hz content is no longer folded down. Needs libVIIPER v0.7.0-asb14. Judged clearly better by ear on one APEX 6 Pro; see the changelog for the limits.
 
 ## 2. All controllers
 
@@ -32,3 +33,4 @@ ApexSenseBridge 1.1.0 is a major update, even though the version number only mov
 
 - The APEX 6 Pro does not ride out a controller power cycle, and RGB lightbar sync is still refused on it.
 - Bridging two controllers at once is not supported.
+- The 2 kHz grip haptics mode is experimental: light stutters can appear during long continuous effects, in both the 1000 and the 2000 stream, and the real spectrum of game haptics above 500 Hz has not been measured.

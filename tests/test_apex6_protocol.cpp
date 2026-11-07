@@ -70,6 +70,19 @@ int main() {
     assert(gripsOnly[5] == 0x9B);
     assert(gripsOnly[6] == 0x80);
 
+    const auto raw = buildRealtimeMotor(
+        motors, TriggerRoute::Mute, false, true, true, false);
+    assert(raw[5] == 0x1B);
+    assert(raw[3] == kCmdRealtimeMotor && raw[4] == gripsOnly[4]);
+    for (std::size_t index = 6; index < 32; ++index) assert(raw[index] == gripsOnly[index]);
+    assert(raw[32] == checksum(std::span<const std::uint8_t>(raw).subspan(1)));
+    assert(raw[32] != gripsOnly[32]);
+    const auto rawTrigger = buildRealtimeMotor(
+        motors, TriggerRoute::Right, true, true, true, false);
+    assert(rawTrigger[5] == 0x1D);
+    assert(buildRealtimeMotor(motors, TriggerRoute::Right, true, true, true, true) == realtime);
+    assert(buildRealtimeMotor(motors, TriggerRoute::Right, true, true, true) == realtime);
+
     Report infoReply{};
     infoReply[0] = 0x00;
     infoReply[1] = kMagic0;
