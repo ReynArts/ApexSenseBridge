@@ -2,6 +2,53 @@
 
 ## 1.1.0
 
+### APEX 6 Pro: trigger effects translated into vibration by meaning
+
+- The APEX 6 Pro triggers only vibrate, so each DualSense trigger effect is now
+  translated into a vibration that follows what the effect means, instead of a
+  flat buzz. The amplitudes and durations are tuned proposals that still need
+  to be judged by feel; nothing here is calibrated against a real DualSense.
+- **Weapon / break effects** (native Weapon, legacy break modes, Lock): one
+  strong vibration burst (about 50 ms) when the trigger crosses the break
+  point, then silence. Nothing is played before the break point, nothing is
+  repeated while the trigger is held, and the effect re-arms when the trigger
+  is released. The burst strength follows the effect strength (never above the
+  existing output limit).
+- **Bow**: the vibration grows with the draw, one strong burst at the release
+  point, then nothing until the trigger is released and drawn again.
+- **Progressive resistance (Feedback) and Vibration effects**: the amplitude now
+  moves smoothly between zones instead of jumping at each zone boundary, and
+  fades in and out where a zone starts and ends. Zone strengths and the
+  requested vibration frequency are still honoured as before.
+- **Machine and Galloping effects** are decoded and rendered as a rhythm
+  (amplitude swinging between the two levels, or two beats per cycle) over the
+  requested zones, instead of a constant vibration. Invalid combinations keep
+  the previous translation.
+- A game that refreshes a trigger effect while a burst is playing no longer cuts
+  the burst, and a burst now has priority over a sustained effect on the other
+  trigger so it is not lost.
+- Twelve weapon presets (machine gun, rifle, submachine gun, light machine gun,
+  pistol, shotgun, sniper rifle, sword, blade, dagger, axe, club) can be played
+  with `test-trigger --mode <preset>` and from the Tray trigger test. Except
+  for the sniper rifle, each preset reproduces the shape of the matching
+  weapon scene built into the controller, synthesised from a few damped
+  sinusoids: a low carrier (about 56 to 70 Hz) for the firearms, axe and club,
+  about 220 to 238 Hz for sword, blade and dagger, a short attack, full
+  amplitude, a natural decay and the scene's duration. The pistol and shotgun
+  keep the scene's three parts (hit, texture, recoil).
+- Rhythmic presets repeat at the scene's own rate, with no gap: about 10.6
+  shots per second for the machine gun and light machine gun, 11.9 for the
+  rifle and 16.7 for the submachine gun. One-shot presets fire once per press
+  and play to the end, as before.
+- Level 4 follows the scene's default strength; levels 1 to 3 play 50, 70 and
+  85 % of it. The sniper rifle keeps its previous rendering (a strong hit
+  followed by a tail of about one second), preferred by feel to the original.
+- The presets may now use the full trigger output range (127 instead of 96).
+  The controller halves real-time trigger samples, so this stays below the
+  level its own scenes drive. The submachine gun, sword, blade, dagger, axe and
+  club still cannot reach the scene's full strength over the real-time
+  channel. The native DualSense effects keep exactly their previous strength.
+
 ### APEX 6 Pro: onboard profile slot
 
 - `test-profile-switch` and `bridge-triggers --apex-profile 1..4` now work on an

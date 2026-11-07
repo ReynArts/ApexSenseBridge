@@ -343,7 +343,7 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
     }
     target = next;
     if (next.type != Apex6TriggerType::Off) wakeLocked();
-    (left ? leftTriggerState_ : rightTriggerState_).reset();
+    (left ? leftTriggerState_ : rightTriggerState_).retarget();
     if (!decoded) triggerRejectedStops_.fetch_add(1, std::memory_order_relaxed);
     else (next.type == Apex6TriggerType::Off ? triggerStops_ : triggerActiveUpdates_)
         .fetch_add(1, std::memory_order_relaxed);
@@ -367,6 +367,18 @@ void Apex6HapticBridge::setDiagnosticTrigger(
     auto& target = command.side == TriggerSide::Left ? leftTrigger_ : rightTrigger_;
     auto& state = command.side == TriggerSide::Left
         ? leftTriggerState_ : rightTriggerState_;
+    if (target != effect) {
+        target = effect;
+        state.reset();
+        wakeLocked();
+    }
+}
+
+void Apex6HapticBridge::setDiagnosticEffect(
+    TriggerSide side, const Apex6TriggerEffect& effect) noexcept {
+    std::lock_guard lock(stateMutex_);
+    auto& target = side == TriggerSide::Left ? leftTrigger_ : rightTrigger_;
+    auto& state = side == TriggerSide::Left ? leftTriggerState_ : rightTriggerState_;
     if (target != effect) {
         target = effect;
         state.reset();
@@ -422,6 +434,8 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
     bool waveformRecentlyReceived = false;
     std::uint8_t leftPositionSnapshot = 0;
     std::uint8_t rightPositionSnapshot = 0;
+    bool leftBurstFrame = false;
+    bool rightBurstFrame = false;
     {
         std::lock_guard lock(stateMutex_);
         wakeRequested_ = false;
@@ -458,20 +472,22 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
         rumbleLow = rumbleLow_;
         rumbleHigh = rumbleHigh_;
         diagnosticGripCarrier = diagnosticGripCarrier_;
-        const auto leftPulseBefore = leftTriggerState_.pulseSamplesRemaining;
-        const auto rightPulseBefore = rightTriggerState_.pulseSamplesRemaining;
         leftPositionSnapshot = leftPosition_;
         rightPositionSnapshot = rightPosition_;
+        const auto leftBurstsBefore = leftTriggerState_.burstsStarted;
+        const auto rightBurstsBefore = rightTriggerState_.burstsStarted;
         leftTrigger = renderApex6TriggerEffect(
             leftTrigger_, leftPosition_, leftTriggerState_, triggerSampleOffset_);
         rightTrigger = renderApex6TriggerEffect(
             rightTrigger_, rightPosition_, rightTriggerState_, triggerSampleOffset_);
         triggerSampleOffset_ += leftTrigger.size();
-        if (leftTriggerState_.pulseSamplesRemaining > leftPulseBefore) {
+        leftBurstFrame = leftTriggerState_.burstInFrame;
+        rightBurstFrame = rightTriggerState_.burstInFrame;
+        if (leftTriggerState_.burstsStarted > leftBurstsBefore) {
             (leftTrigger_.type == Apex6TriggerType::Bow ? bowBreaks_ : weaponBreaks_)
                 .fetch_add(1, std::memory_order_relaxed);
         }
-        if (rightTriggerState_.pulseSamplesRemaining > rightPulseBefore) {
+        if (rightTriggerState_.burstsStarted > rightBurstsBefore) {
             (rightTrigger_.type == Apex6TriggerType::Bow ? bowBreaks_ : weaponBreaks_)
                 .fetch_add(1, std::memory_order_relaxed);
         }
@@ -577,7 +593,9 @@ flydigi::apex6::MotorBlock Apex6HapticBridge::renderBlock(
         return output;
     }
 
-    const bool chooseRight = rightActive && (!leftActive || routeRightNext_);
+    const bool burstDecides = leftBurstFrame != rightBurstFrame;
+    const bool chooseRight = rightActive &&
+        (!leftActive || (burstDecides ? rightBurstFrame : routeRightNext_));
     routeRightNext_ = !routeRightNext_;
     route = chooseRight ? flydigi::apex6::TriggerRoute::Right
                         : flydigi::apex6::TriggerRoute::Left;

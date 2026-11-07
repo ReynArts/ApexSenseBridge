@@ -145,6 +145,7 @@ public:
     void handle(const DualSenseFeedback& feedback);
     void updateTriggerPositions(std::uint8_t left, std::uint8_t right) noexcept;
     void setDiagnosticTrigger(const ForceTriggerCommand& command) noexcept;
+    void setDiagnosticEffect(TriggerSide side, const Apex6TriggerEffect& effect) noexcept;
     void setDiagnosticGrips(std::uint8_t left, std::uint8_t right) noexcept;
 
     [[nodiscard]] bool failed() const noexcept;
