@@ -2,12 +2,21 @@
 param(
     [string]$ExpectedVersion = "",
     [switch]$CheckArtifacts,
-    [switch]$RequireSignatures
+    [switch]$RequireSignatures,
+    [switch]$RequireSignedUninstaller,
+    [switch]$AllowUntrustedSignatures
 )
 
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
+
+if ($AllowUntrustedSignatures -and -not $RequireSignatures) {
+    throw "ApexSenseBridge release contract: -AllowUntrustedSignatures requires -RequireSignatures"
+}
+if ($RequireSignedUninstaller -and -not $RequireSignatures) {
+    throw "ApexSenseBridge release contract: -RequireSignedUninstaller requires -RequireSignatures"
+}
 
 function Fail([string]$Message) {
     throw "ApexSenseBridge release contract: $Message"
@@ -185,14 +194,33 @@ if ($RequireSignatures) {
         "playnite\ApexSenseBridge\bin\Release\ApexSenseBridge.dll",
         "dist\ApexSenseBridge-Setup.exe"
     )
+    if ($RequireSignedUninstaller) {
+        $uninstallerCache = Join-Path $projectRoot "build-signpath\signed-uninstaller-cache"
+        $uninstallers = @(Get-ChildItem -LiteralPath $uninstallerCache -File -Filter "*.e32" `
+            -ErrorAction SilentlyContinue)
+        if ($uninstallers.Count -ne 1) {
+            Fail "expected exactly one signed Inno Setup uninstaller, found $($uninstallers.Count)"
+        }
+        $signedPaths += $uninstallers[0].FullName
+    }
     $publisher = $null
     foreach ($relativePath in $signedPaths) {
-        $path = Join-Path $projectRoot $relativePath
+        $path = if ([System.IO.Path]::IsPathRooted($relativePath)) {
+            $relativePath
+        } else {
+            Join-Path $projectRoot $relativePath
+        }
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             Fail "signed payload is missing: $relativePath"
         }
         $signature = Get-AuthenticodeSignature -LiteralPath $path
-        if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+        $signatureIsTrusted = $signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid
+        $signatureIsIntactTestSignature = $AllowUntrustedSignatures -and
+            $signature.SignerCertificate -and
+            $signature.Status -notin @(
+                [System.Management.Automation.SignatureStatus]::NotSigned,
+                [System.Management.Automation.SignatureStatus]::HashMismatch)
+        if ((-not $signatureIsTrusted -and -not $signatureIsIntactTestSignature) -or
             -not $signature.SignerCertificate) {
             Fail "$relativePath has no valid trusted Authenticode signature ($($signature.Status))"
         }
