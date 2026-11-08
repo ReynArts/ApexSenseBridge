@@ -91,6 +91,7 @@ Source: "..\build-win\Release\ApexSenseBridge.exe"; DestDir: "{app}"; Flags: ign
 Source: "..\build-win\Release\ApexSenseBridgeControl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build-win\Release\ApexSenseBridgeUpdater.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\assets\app.ico"; DestDir: "{app}\Resources"; Flags: ignoreversion
 Source: "..\assets\logo.png"; DestDir: "{app}\Resources"; Flags: ignoreversion
 Source: "..\data\supported_games.json"; DestDir: "{app}\Data"; Flags: ignoreversion
@@ -164,6 +165,10 @@ Filename: "{app}\ApexSenseBridge.exe"; Parameters: "restore-controller-visibilit
 Filename: "{sys}\msiexec.exe"; Parameters: "/x {#HidHideProductCode} /quiet /norestart"; Flags: runhidden waituntilterminated; Check: ShouldRemoveHidHide; AfterInstall: AuditHidHideRemoval; RunOnceId: "RemoveHidHide"
 
 [UninstallDelete]
+Type: filesandordirs; Name: "{app}\.update-backup"
+Type: files; Name: "{app}\*.old"
+Type: filesandordirs; Name: "{commonappdata}\ApexSenseBridge\updates"
+Type: files; Name: "{commonappdata}\ApexSenseBridge\update.log"
 Type: filesandordirs; Name: "{userappdata}\Playnite\Extensions\{#ExtensionId}"
 Type: filesandordirs; Name: "{userappdata}\Playnite\ExtensionsData\{#ExtensionId}"; Check: ShouldDeleteUserData
 Type: filesandordirs; Name: "{userappdata}\Playnite\ExtensionsData\e41b1737-6753-4b59-bc65-4fdd6a7df7f4"; Check: ShouldDeleteUserData

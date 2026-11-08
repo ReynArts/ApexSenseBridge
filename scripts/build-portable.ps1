@@ -52,6 +52,7 @@ foreach ($name in @(
     "ApexSenseBridgeControl.exe",
     "ApexSenseBridgeTray.exe",
     "ApexSenseBridgeTray.exe.config",
+    "ApexSenseBridgeUpdater.exe",
     "libVIIPER.dll",
     "viiper.exe"
 )) {
