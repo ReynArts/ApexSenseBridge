@@ -138,6 +138,9 @@
     <Compile Include="Services\StartRetryPolicy.cs" />
     <Compile Include="Services\SteamProcessChecker.cs" />
     <Compile Include="Services\UpdateCheckerService.cs" />
+    <Compile Include="..\shared\UpdatePackage.cs">
+      <Link>Common\UpdatePackage.cs</Link>
+    </Compile>
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Common\ReleaseSecurity.cs</Link>
     </Compile>

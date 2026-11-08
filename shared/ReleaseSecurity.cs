@@ -184,12 +184,33 @@ namespace ApexSenseBridge.Security
                        StringComparison.OrdinalIgnoreCase);
         }
 
+        internal static bool IsGithubReleaseDownloadUrl(string downloadUrl)
+        {
+            Uri uri;
+            return Uri.TryCreate(downloadUrl, UriKind.Absolute, out uri) &&
+                   string.Equals(uri.Scheme, Uri.UriSchemeHttps,
+                       StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(uri.Host, "github.com",
+                       StringComparison.OrdinalIgnoreCase) &&
+                   uri.AbsolutePath.StartsWith(ExpectedDownloadPrefix,
+                       StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static string ReadSignerSubject(string path)
+        {
+            using (var certificate = new X509Certificate2(
+                X509Certificate.CreateFromSignedFile(path)))
+            {
+                return certificate.Subject;
+            }
+        }
+
         private static bool IsFieldPadding(char value)
         {
             return value == '\0' || char.IsWhiteSpace(value);
         }
 
-        private static bool HasTrustedAuthenticodeSignature(string path)
+        internal static bool HasTrustedAuthenticodeSignature(string path)
         {
             var fileInfo = new WinTrustFileInfo
             {

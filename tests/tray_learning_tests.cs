@@ -96,6 +96,7 @@ internal static class TrayLearningTests
             TestSteamAlreadyRunningDetection();
             TestInstallerIdentityIgnoresVersionResourcePadding(testRoot);
             TestStartupDiagnosticsReport();
+            assertions += UpdatePackageTests.Run(testRoot);
             Console.WriteLine("Tray executable learning tests passed ({0} assertions).", assertions);
             return 0;
         }
