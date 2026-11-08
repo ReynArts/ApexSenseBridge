@@ -181,6 +181,9 @@ struct Apex6TriggerRenderState {
         burstLength = kept.burstLength;
         burstDrive = kept.burstDrive;
         burstsStarted = kept.burstsStarted;
+        previousPosition = kept.previousPosition;
+        hasPreviousPosition = kept.hasPreviousPosition;
+        armed = kept.armed;
     }
 };
 

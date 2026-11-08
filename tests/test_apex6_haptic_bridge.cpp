@@ -554,6 +554,9 @@ void testRetargetKeepsBurstWithoutRetrigger() {
     assert(peak(cut.next(0)) == 0);
     assert(peak(cut.next(200)) > 0);
     cut.effect = Apex6TriggerEffect{};
+    for (unsigned frame = 1; frame < kBurstFrames; ++frame) {
+        assert(peak(cut.next(200)) > 0);
+    }
     assert(peak(cut.next(200)) == 0);
     assert(peak(cut.next(200)) == 0);
 }

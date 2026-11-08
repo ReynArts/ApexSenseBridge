@@ -8,6 +8,7 @@
 #include <string>
 
 namespace asb::dualsense {
+
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
@@ -318,8 +319,6 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
 
     switch (effect.type) {
     case Apex6TriggerType::Off:
-        state.burstElapsed = 0;
-        state.burstLength = 0;
         break;
     case Apex6TriggerType::Feedback:
         envelope.amplitude = kApex6TriggerFeedbackDrivePerLevel * levelCurve(
