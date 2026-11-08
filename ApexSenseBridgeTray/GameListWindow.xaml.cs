@@ -3372,7 +3372,9 @@ namespace ApexSenseBridgeTray
                 {
                     if (TxtUpdateStatus != null)
                     {
-                        TxtUpdateStatus.Text = LocalizationManager.Get("Loc_UpdateUpToDate");
+                        TxtUpdateStatus.Text = info != null && !string.IsNullOrEmpty(info.LatestVersion)
+                            ? LocalizationManager.Format("Loc_UpdateUpToDate", info.CurrentVersion)
+                            : LocalizationManager.Get("Loc_UpdateCheckUnavailable");
                     }
                 }
             }
