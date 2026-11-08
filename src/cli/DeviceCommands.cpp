@@ -482,6 +482,40 @@ asb::dualsense::Apex6TestEffect apex6TestEffectForMode(std::string_view mode) {
     return Apex6TestEffect::Resistance;
 }
 
+unsigned g_apex6TestSampleRate = 1000;
+bool g_apex6TestRouteGrips = false;
+bool g_apex6TestEmulateClears = false;
+unsigned g_apex6TestEmulateRumble = 0;
+unsigned g_apex6TestRumbleOnShot = 0;
+unsigned g_apex6TestRumbleAutoMs = 0;
+unsigned g_apex6TestPresetDrive = 0;
+unsigned g_apex6TestVibrationHz = 0;
+double g_apex6TestPresetHz = 0.0;
+int g_apex6TestRumbleLeft = -1;
+int g_apex6TestRumbleRight = -1;
+unsigned g_apex6TestGripDuck = 0;
+asb::dualsense::Apex6DualPolicy g_apex6DualPolicy = asb::dualsense::kApex6DefaultDualPolicy;
+std::string g_apex6DualLeft = "vibration";
+std::string g_apex6DualRight = "weapon";
+unsigned g_apex6DualLeftHz = 60;
+unsigned g_apex6DualRightHz = 0;
+bool g_apex6DualBlind = false;
+
+void applyApex6DualEffect(asb::dualsense::Apex6HapticBridge& bridge, asb::TriggerSide side,
+                          const std::string& name, unsigned hertz, unsigned level,
+                          std::optional<std::uint8_t> start, std::optional<std::uint8_t> force) {
+    if (const auto preset = asb::dualsense::apex6WeaponPresetFromName(name)) {
+        bridge.setDiagnosticEffect(side, asb::dualsense::makeApex6WeaponPreset(*preset, level, start));
+        return;
+    }
+    auto bytes = asb::dualsense::makeApex6TestTriggerEffect(apex6TestEffectForMode(name), level, start, force);
+    if (bytes[0] == 0x26 && hertz != 0) bytes[9] = static_cast<std::uint8_t>((std::min)(hertz, 255U));
+    asb::dualsense::DualSenseFeedback feedback{};
+    feedback.enableBits1 = side == asb::TriggerSide::Left ? 0x08 : 0x04;
+    (side == asb::TriggerSide::Left ? feedback.leftTriggerEffect : feedback.rightTriggerEffect) = bytes;
+    bridge.handle(feedback);
+}
+
 int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                         const std::vector<asb::TriggerSide>& targets,
                         std::string_view mode,
@@ -499,14 +533,40 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
     std::string error;
     const auto preset = asb::dualsense::apex6WeaponPresetFromName(mode);
     const auto effect = apex6TestEffectForMode(mode);
-    if (!preset && effect == asb::dualsense::Apex6TestEffect::Off) {
+    if (!preset && effect == asb::dualsense::Apex6TestEffect::Off && mode != "dual") {
         std::cout << "Apex 6 trigger test: Normal requested, no effect to play.\n";
         return 0;
     }
-    asb::dualsense::Apex6HapticBridge bridge(device, {}, false);
+    asb::dualsense::Apex6HapticBridge bridge(device, {}, g_apex6TestRouteGrips, 100, 100, 100, g_apex6TestGripDuck, 100,
+                                             g_apex6TestSampleRate);
     bridge.updateTriggerPositions(0, 0);
-    if (preset) {
-        const auto presetEffect = asb::dualsense::makeApex6WeaponPreset(*preset, level, customStart);
+    const bool dual = mode == "dual";
+    if (dual) {
+        bridge.setDualPolicy(g_apex6DualPolicy);
+        applyApex6DualEffect(bridge, asb::TriggerSide::Left, g_apex6DualLeft, g_apex6DualLeftHz, level,
+                             customStart, customForce);
+        applyApex6DualEffect(bridge, asb::TriggerSide::Right, g_apex6DualRight, g_apex6DualRightHz, level,
+                             std::nullopt, std::nullopt);
+        std::cout << "Dual trigger test: LT " << g_apex6DualLeft << ", RT " << g_apex6DualRight
+                  << ". Hold LT and press RT repeatedly.\n";
+        if (!g_apex6DualBlind) {
+            std::cout << "Dual policy: " << asb::dualsense::apex6DualPolicyName(g_apex6DualPolicy) << '\n';
+        }
+    } else if (preset) {
+        auto presetEffect = asb::dualsense::makeApex6WeaponPreset(*preset, level, customStart);
+        if (g_apex6TestPresetDrive != 0 || g_apex6TestPresetHz > 0.0) {
+            const bool train = presetEffect.type == asb::dualsense::Apex6TriggerType::Rhythm;
+            auto& shape = train ? presetEffect.rhythm.pulse : presetEffect.impact;
+            if (g_apex6TestPresetDrive != 0) {
+                const auto drive = static_cast<std::uint8_t>((std::min)(g_apex6TestPresetDrive, 255U));
+                if (train) presetEffect.rhythm.drive = drive; else presetEffect.impactDrive = drive;
+            }
+            if (g_apex6TestPresetHz > 0.0) {
+                for (std::size_t index = 0; index < shape.segmentCount; ++index) {
+                    shape.segments[index].frequency = g_apex6TestPresetHz;
+                }
+            }
+        }
         for (const auto targetSide : targets) bridge.setDiagnosticEffect(targetSide, presetEffect);
         std::cout << "Preset " << asb::dualsense::apex6WeaponPresetName(*preset)
                   << (asb::dualsense::apex6WeaponPresetIsTrain(*preset)
@@ -516,8 +576,12 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                              ? presetEffect.rhythm.activeFrom : presetEffect.triggerPosition)
                   << " (0..255).\n";
     } else {
-        const auto bytes = asb::dualsense::makeApex6TestTriggerEffect(
+        auto bytes = asb::dualsense::makeApex6TestTriggerEffect(
             effect, level, customStart, customForce);
+        if (mode == "cod") bytes = {0x25, 0x90, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0};
+        if (g_apex6TestVibrationHz != 0 && bytes[0] == 0x26) {
+            bytes[9] = static_cast<std::uint8_t>((std::min)(g_apex6TestVibrationHz, 255U));
+        }
         asb::dualsense::DualSenseFeedback feedback{};
         for (const auto targetSide : targets) {
             if (targetSide == asb::TriggerSide::Left) {
@@ -551,6 +615,22 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                   << (inputError.empty() ? "" : ": " + inputError) << ").\n";
     }
 
+    const bool emulate =
+        (g_apex6TestEmulateClears || g_apex6TestEmulateRumble != 0 ||
+         g_apex6TestRumbleLeft > 0 || g_apex6TestRumbleRight > 0);
+    asb::dualsense::DualSenseFeedback emulatedEffect{};
+    emulatedEffect.enableBits1 = static_cast<std::uint8_t>(kLeftTriggerEnable | kRightTriggerEnable);
+    emulatedEffect.leftTriggerEffect = {0x05};
+    emulatedEffect.rightTriggerEffect = {0x25, 0x90, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0};
+    asb::dualsense::DualSenseFeedback emulatedClear{};
+    emulatedClear.enableBits1 = 0xFC;
+    auto lastEmulated = std::chrono::steady_clock::now();
+    bool emulatedClearPending = false;
+    bool rumbleSent = false;
+    auto lastRumbleSend = std::chrono::steady_clock::now();
+    std::uint64_t lastWeaponBreaks = 0;
+    auto rumbleUntil = std::chrono::steady_clock::now();
+    std::uint8_t latestRight = 0;
     const auto startedAt = std::chrono::steady_clock::now();
     const auto deadline = startedAt + std::chrono::seconds(seconds);
     auto sweepOrigin = std::chrono::milliseconds::zero();
@@ -562,6 +642,51 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
            !bridge.failed()) {
         const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - startedAt);
+        if (emulate) {
+            const auto now = std::chrono::steady_clock::now();
+            if (g_apex6TestEmulateClears && emulatedClearPending &&
+                now - lastEmulated >= std::chrono::milliseconds(17)) {
+                bridge.handle(emulatedClear);
+                emulatedClearPending = false;
+            } else if (!emulatedClearPending && now - lastEmulated >= std::chrono::milliseconds(35)) {
+                if (mode == "cod") bridge.handle(emulatedEffect);
+                emulatedClearPending = g_apex6TestEmulateClears;
+                lastEmulated = now;
+            }
+            const auto clampRumble = [](int value) {
+                return static_cast<std::uint8_t>((std::clamp)(value, 0, 255));
+            };
+            const int rumbleBase = static_cast<int>(g_apex6TestEmulateRumble);
+            const int rumbleLeftValue = g_apex6TestRumbleLeft >= 0 ? g_apex6TestRumbleLeft : rumbleBase;
+            const int rumbleRightValue = g_apex6TestRumbleRight >= 0 ? g_apex6TestRumbleRight : rumbleBase;
+            if (rumbleLeftValue != 0 || rumbleRightValue != 0) {
+                bool pressed = latestRight >= 100;
+                if (g_apex6TestRumbleOnShot) {
+                    const auto breaks = bridge.stats().weaponBreaks;
+                    if (breaks != lastWeaponBreaks) {
+                        lastWeaponBreaks = breaks;
+                        rumbleUntil = now + std::chrono::milliseconds(g_apex6TestRumbleOnShot);
+                    }
+                    pressed = now < rumbleUntil;
+                }
+                if (pressed && g_apex6TestRumbleAutoMs != 0) {
+                    const auto phase = static_cast<unsigned>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(now - startedAt).count()) %
+                        g_apex6TestRumbleAutoMs;
+                    pressed = phase < g_apex6TestRumbleAutoMs / 2;
+                }
+                if (pressed != rumbleSent ||
+                    (pressed && now - lastRumbleSend >= std::chrono::milliseconds(35))) {
+                    asb::dualsense::DualSenseFeedback rumble{};
+                    rumble.enableBits1 = 0x01;
+                    rumble.rumbleLeft = pressed ? clampRumble(rumbleLeftValue) : static_cast<std::uint8_t>(0);
+                    rumble.rumbleRight = pressed ? clampRumble(rumbleRightValue) : static_cast<std::uint8_t>(0);
+                    bridge.handle(rumble);
+                    rumbleSent = pressed;
+                    lastRumbleSend = now;
+                }
+            }
+        }
         if (live) {
             asb::dualsense::DualSenseInputState state{};
             std::string readError;
@@ -570,6 +695,7 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                 receivedLive = true;
                 maxLeft = (std::max)(maxLeft, state.l2);
                 maxRight = (std::max)(maxRight, state.r2);
+                latestRight = state.r2;
                 bridge.updateTriggerPositions(state.l2, state.r2);
             } else if (status != asb::platform::PhysicalInputStatus::Timeout) {
                 std::cout << "Live trigger position stopped (" << readError
@@ -604,8 +730,32 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
               << " left_frames=" << stats.leftTriggerFrames
               << " right_frames=" << stats.rightTriggerFrames
               << " both_frames=" << stats.bothTriggerFrames
+              << " retargets=" << stats.triggerRetargets
               << " write_failures=" << stats.writeFailures
               << " deadline_overruns=" << stats.deadlineOverruns << '\n';
+    if (dual) {
+        const auto frames = stats.framesWritten == 0 ? 1 : stats.framesWritten;
+        std::cout << "Apex 6 dual summary: policy=" << asb::dualsense::apex6DualPolicyName(stats.dualPolicy)
+                  << " dual_blocks=" << stats.dualTriggerBlocks
+                  << " episodes=" << stats.dualEpisodes
+                  << " mix_frames=" << stats.dualMixFrames
+                  << " mix_clipped=" << stats.dualMixClippedSamples
+                  << " burst=" << stats.dualBurstSwitches
+                  << " returns=" << stats.dualReturns
+                  << " new_effect=" << stats.dualOnsetSwitches
+                  << " yield=" << stats.dualYieldSwitches
+                  << " owner_changes=" << stats.dualOwnerChanges
+                  << " fw_blocks=" << stats.dualFirmwareBlocks
+                  << " fw_entries=" << stats.dualFirmwareEntries
+                  << " fw_exits=" << stats.dualFirmwareExits
+                  << " fw_refreshes=" << stats.dualFirmwareRefreshes
+                  << " fw_writes=" << stats.dualFirmwareWrites
+                  << " fw_write_us=" << stats.dualFirmwareWriteUs
+                  << " fw_deferred=" << stats.dualFirmwareDeferred
+                  << " fw_unmapped=" << stats.dualFirmwareUnmapped
+                  << " average_write_us=" << stats.totalWriteDurationUs / frames
+                  << " maximum_write_us=" << stats.maximumWriteDurationUs << '\n';
+    }
     if (receivedLive) {
         std::cout << "Live trigger travel seen: left max "
                   << static_cast<unsigned int>(maxLeft) << ", right max "
@@ -730,6 +880,47 @@ int commandTestTrigger(int argc, char** argv) {
         std::string_view opt = argv[i];
         if (opt == "--side" && i + 1 < argc) {
             side = argv[++i];
+        } else if (opt == "--rate" && i + 1 < argc) {
+            g_apex6TestSampleRate = std::string_view(argv[++i]) == "2000" ? 2000U : 1000U;
+        } else if (opt == "--emulate-rumble-left" && i + 1 < argc) {
+            g_apex6TestRumbleLeft = static_cast<int>(std::strtol(argv[++i], nullptr, 10));
+        } else if (opt == "--emulate-rumble-right" && i + 1 < argc) {
+            g_apex6TestRumbleRight = static_cast<int>(std::strtol(argv[++i], nullptr, 10));
+        } else if (opt == "--vib-hz" && i + 1 < argc) {
+            g_apex6TestVibrationHz = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--preset-drive" && i + 1 < argc) {
+            g_apex6TestPresetDrive = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--preset-hz" && i + 1 < argc) {
+            g_apex6TestPresetHz = std::strtod(argv[++i], nullptr);
+        } else if (opt == "--rumble-auto" && i + 1 < argc) {
+            g_apex6TestRumbleAutoMs = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--rumble-on-shot" && i + 1 < argc) {
+            g_apex6TestRumbleOnShot = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--grip-duck" && i + 1 < argc) {
+            g_apex6TestGripDuck = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--dual-policy" && i + 1 < argc) {
+            const auto policy = asb::dualsense::apex6DualPolicyFromName(argv[++i]);
+            if (!policy) {
+                std::cerr << "--dual-policy expects mix, priority or firmware.\n";
+                return 1;
+            }
+            g_apex6DualPolicy = *policy;
+        } else if (opt == "--dual-lt-hz" && i + 1 < argc) {
+            g_apex6DualLeftHz = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--dual-rt-hz" && i + 1 < argc) {
+            g_apex6DualRightHz = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--dual-lt" && i + 1 < argc) {
+            g_apex6DualLeft = argv[++i];
+        } else if (opt == "--dual-rt" && i + 1 < argc) {
+            g_apex6DualRight = argv[++i];
+        } else if (opt == "--dual-blind") {
+            g_apex6DualBlind = true;
+        } else if (opt == "--emulate-clears") {
+            g_apex6TestEmulateClears = true;
+        } else if (opt == "--emulate-rumble" && i + 1 < argc) {
+            g_apex6TestEmulateRumble = static_cast<unsigned>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (opt == "--route-grips") {
+            g_apex6TestRouteGrips = true;
         } else if (opt == "--sweep") {
             forceSweep = true;
         } else if (opt == "--mode" && i + 1 < argc) {
