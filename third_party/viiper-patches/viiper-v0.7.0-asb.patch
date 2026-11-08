@@ -2063,6 +2063,32 @@ index 3a02c10..4527a0f 100644
  		}
  	}
  }
+diff --git a/internal/server/api/autoattach.go b/internal/server/api/autoattach.go
+index 810a18e..6e124ad 100644
+--- a/internal/server/api/autoattach.go
++++ b/internal/server/api/autoattach.go
+@@ -8,5 +8,10 @@ import (
+ )
+ 
+ func AttachLocalhostClient(ctx context.Context, deviceExportMeta *usbip.ExportMeta, usbipServerPort uint16, useNativeIOCTL bool, logger *slog.Logger) error {
+-	return attachLocalhostClientImpl(ctx, deviceExportMeta, usbipServerPort, useNativeIOCTL, logger)
++	if err := attachLocalhostClientImpl(ctx, deviceExportMeta, usbipServerPort, useNativeIOCTL, logger); err != nil {
++		return err
++	}
++	meta := *deviceExportMeta
++	usbip.RegisterLocalAttachment(&meta, func() error { return detachLocalhostClientImpl(&meta, usbipServerPort) })
++	return nil
+ }
+diff --git a/internal/server/api/autoattach_linux.go b/internal/server/api/autoattach_linux.go
+index 311433e..b904331 100644
+--- a/internal/server/api/autoattach_linux.go
++++ b/internal/server/api/autoattach_linux.go
+@@ -74,3 +74,5 @@ func CheckAutoAttachPrerequisites(_ bool, logger *slog.Logger) bool {
+ 
+ 	return allOk
+ }
++
++func detachLocalhostClientImpl(_ *usbip.ExportMeta, _ uint16) error { return nil }
 diff --git a/internal/server/api/autoattach_windows.go b/internal/server/api/autoattach_windows.go
 index 47a805a..7716fd4 100644
 --- a/internal/server/api/autoattach_windows.go
@@ -2280,6 +2306,147 @@ index 47a805a..7716fd4 100644
  		logger.Warn("Auto-attach requires usbip-win2")
  		logger.Info("Download and install usbip-win2:")
  		logger.Info("  https://github.com/vadimgrn/usbip-win2")
+diff --git a/internal/server/api/detach_windows.go b/internal/server/api/detach_windows.go
+new file mode 100644
+index 0000000..ffa1bfb
+--- /dev/null
++++ b/internal/server/api/detach_windows.go
+@@ -0,0 +1,94 @@
++//go:build windows
++
++package api
++
++import (
++	"bytes"
++	"encoding/binary"
++	"fmt"
++	"unsafe"
++
++	"github.com/Alia5/VIIPER/usbip"
++	"golang.org/x/sys/windows"
++)
++
++// usbip-win2 v0.9.8.0 vhci.h: imported_device is 1128 bytes,
++// GET_IMPORTED_DEVICES has a four-byte header followed by these entries.
++const importedDeviceSize = 1128
++
++func importedPorts(data []byte, bus, service string) ([]int32, error) {
++	if len(data) < 4 || (len(data)-4)%importedDeviceSize != 0 {
++		return nil, fmt.Errorf("invalid USBip imported-device response length %d", len(data))
++	}
++	cstr := func(b []byte) string {
++		if i := bytes.IndexByte(b, 0); i >= 0 {
++			return string(b[:i])
++		}
++		return ""
++	}
++	var ports []int32
++	for off := 4; off < len(data); off += importedDeviceSize {
++		d := data[off : off+importedDeviceSize]
++		host := cstr(d[68:1093])
++		if cstr(d[4:36]) == bus && cstr(d[36:68]) == service && (host == "127.0.0.1" || host == "localhost" || host == "::1") {
++			port := int32(binary.LittleEndian.Uint32(d))
++			if port <= 0 {
++				return nil, fmt.Errorf("invalid owned USBip port %d", port)
++			}
++			ports = append(ports, port)
++		}
++	}
++	return ports, nil
++}
++
++func detachLocalhostClientImpl(meta *usbip.ExportMeta, serverPort uint16) error {
++	if serverPort == 0 {
++		return fmt.Errorf("refusing USBip detach with no owned server port")
++	}
++	path, err := getDeviceInterfacePath(&deviceGUID)
++	if err != nil {
++		return err
++	}
++	p, err := windows.UTF16PtrFromString(path)
++	if err != nil {
++		return err
++	}
++	h, err := windows.CreateFile(p, windows.GENERIC_READ|windows.GENERIC_WRITE, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
++	if err != nil {
++		return err
++	}
++	defer windows.CloseHandle(h)
++	const getImported = ioctlPluginHardware + (2 << 2)
++	const plugout = ioctlPluginHardware + (1 << 2)
++	var data []byte
++	var n uint32
++	for count := 1; count <= 4096; count *= 2 {
++		data = make([]byte, 4+count*importedDeviceSize)
++		binary.LittleEndian.PutUint32(data, 4+importedDeviceSize)
++		err = windows.DeviceIoControl(h, getImported, &data[0], 4, &data[0], uint32(len(data)), &n, nil)
++		if err == windows.ERROR_INSUFFICIENT_BUFFER {
++			continue
++		}
++		if err != nil {
++			return fmt.Errorf("USBip enumeration before detach: %w", err)
++		}
++		break
++	}
++	if err != nil || n > uint32(len(data)) {
++		return fmt.Errorf("USBip enumeration exceeded bounded buffer")
++	}
++	ports, err := importedPorts(data[:n], fmt.Sprintf("%d-%d", meta.BusID, meta.DevID), fmt.Sprint(serverPort))
++	if err != nil {
++		return err
++	}
++	for _, port := range ports {
++		request := struct {
++			Size uint32
++			Port int32
++		}{8, port}
++		if err := windows.DeviceIoControl(h, plugout, (*byte)(unsafe.Pointer(&request)), 8, nil, 0, &n, nil); err != nil {
++			return fmt.Errorf("detach owned USBip port %d: %w", port, err)
++		}
++	}
++	return nil
++}
+diff --git a/internal/server/api/detach_windows_test.go b/internal/server/api/detach_windows_test.go
+new file mode 100644
+index 0000000..7c7f2d3
+--- /dev/null
++++ b/internal/server/api/detach_windows_test.go
+@@ -0,0 +1,35 @@
++//go:build windows
++
++package api
++
++import (
++	"encoding/binary"
++	"testing"
++)
++
++func TestImportedPortsOwnership(t *testing.T) {
++	makeEntry := func(host, service, bus string, port uint32) []byte {
++		d := make([]byte, importedDeviceSize)
++		binary.LittleEndian.PutUint32(d, port)
++		copy(d[4:36], bus)
++		copy(d[36:68], service)
++		copy(d[68:1093], host)
++		return d
++	}
++	data := make([]byte, 4)
++	data = append(data, makeEntry("127.0.0.1", "4567", "1-1", 2)...)
++	data = append(data, makeEntry("127.0.0.1", "9999", "1-1", 3)...)
++	data = append(data, makeEntry("192.168.1.4", "4567", "1-1", 4)...)
++	data = append(data, makeEntry("localhost", "4567", "2-1", 5)...)
++	ports, err := importedPorts(data, "1-1", "4567")
++	if err != nil || len(ports) != 1 || ports[0] != 2 {
++		t.Fatalf("unsafe port selection: %v %v", ports, err)
++	}
++	if _, err := importedPorts(data[:len(data)-1], "1-1", "4567"); err == nil {
++		t.Fatal("accepted truncated response")
++	}
++	invalid := append(make([]byte, 4), makeEntry("127.0.0.1", "4567", "1-1", 0xffffffff)...)
++	if _, err := importedPorts(invalid, "1-1", "4567"); err == nil {
++		t.Fatal("accepted wildcard port")
++	}
++}
 diff --git a/internal/server/usb/config.go b/internal/server/usb/config.go
 index 5c0cc81..2271313 100644
 --- a/internal/server/usb/config.go
@@ -2291,7 +2458,7 @@ index 5c0cc81..2271313 100644
 +	LoopbackOnly            bool          `kong:"-"`
  }
 diff --git a/internal/server/usb/server.go b/internal/server/usb/server.go
-index fe0802b..0a8a2a6 100644
+index fe0802b..ea52c5a 100644
 --- a/internal/server/usb/server.go
 +++ b/internal/server/usb/server.go
 @@ -33,12 +33,34 @@ type batchingWriter struct {
@@ -2386,7 +2553,18 @@ index fe0802b..0a8a2a6 100644
  
  	// Standard header peek size
  	headerPeekSize = 8
-@@ -352,6 +380,13 @@ func (s *Server) ListenAndServe() error {
+@@ -236,7 +264,9 @@ func (s *Server) RemoveBus(busID uint32) error {
+ 	if len(devices) > 0 {
+ 		s.logger.Warn(fmt.Sprintf("Removing non-empty bus %d with %d device(s) attached; removing devices", busID, len(devices)))
+ 		for _, dev := range devices {
+-			_ = bus.Remove(dev)
++			if err := bus.Remove(dev); err != nil {
++				return err
++			}
+ 		}
+ 	}
+ 
+@@ -352,6 +382,13 @@ func (s *Server) ListenAndServe() error {
  			s.logger.Error("Accept error", "error", err)
  			continue
  		}
@@ -2400,7 +2578,7 @@ index fe0802b..0a8a2a6 100644
  		if tcpConn, ok := c.(*net.TCPConn); ok {
  			if err := tcpConn.SetNoDelay(true); err != nil {
  				s.logger.Warn("failed to set TCP_NODELAY", "error", err)
-@@ -370,6 +405,11 @@ func (s *Server) ListenAndServe() error {
+@@ -370,12 +407,29 @@ func (s *Server) ListenAndServe() error {
  	}
  }
  
@@ -2412,7 +2590,25 @@ index fe0802b..0a8a2a6 100644
  // Ready returns a channel that is closed once the server has successfully bound
  // to its listen address and is ready to accept connections.
  func (s *Server) Ready() <-chan struct{} { return s.ready }
-@@ -572,6 +612,86 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 
+ // Close stops the USB server by closing its listener.
+ func (s *Server) Close() error {
++	s.busesMu.Lock()
++	ids := make([]uint32, 0, len(s.busses))
++	for id := range s.busses {
++		ids = append(ids, id)
++	}
++	s.busesMu.Unlock()
++	for _, id := range ids {
++		if err := s.RemoveBus(id); err != nil {
++			return err
++		}
++	}
++
+ 	if s.ln != nil {
+ 		return s.ln.Close()
+ 	}
+@@ -572,6 +626,86 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  	} else {
  		writer = conn
  	}
@@ -2499,7 +2695,7 @@ index fe0802b..0a8a2a6 100644
  
  	var owningBus *virtualbus.VirtualBus
  	for _, b := range s.busses {
-@@ -643,9 +763,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -643,9 +777,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  		if cmd == usbip.CmdUnlinkCode {
  			unlinkSeq := binary.BigEndian.Uint32(hdr[urbHdrOffsetUnlink : urbHdrOffsetUnlink+4])
  			s.logger.Debug("USBIP_CMD_UNLINK", "seq", seq, "unlink", unlinkSeq)
@@ -2519,7 +2715,7 @@ index fe0802b..0a8a2a6 100644
  			continue
  		}
  		if cmd != usbip.CmdSubmitCode {
-@@ -653,6 +782,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -653,6 +796,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  		}
  		xferFlags := binary.BigEndian.Uint32(hdr[urbHdrOffsetFlags : urbHdrOffsetFlags+4])
  		xferLen := binary.BigEndian.Uint32(hdr[urbHdrOffsetLength : urbHdrOffsetLength+4])
@@ -2529,7 +2725,7 @@ index fe0802b..0a8a2a6 100644
  		setup := hdr[urbHdrOffsetSetup:urbHdrSize]
  
  		var outPayload []byte
-@@ -663,7 +795,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -663,7 +809,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  			}
  		}
  
@@ -2550,7 +2746,7 @@ index fe0802b..0a8a2a6 100644
  
  		actualLen := uint32(len(respData))
  		if dir == usbip.DirOut {
-@@ -674,22 +818,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -674,22 +832,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
  			Basic:           usbip.HeaderBasic{Command: usbip.RetSubmitCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0},
  			Status:          0,
  			ActualLength:    actualLen,
@@ -2582,7 +2778,7 @@ index fe0802b..0a8a2a6 100644
  		}
  		if bw != nil && ep == 0 {
  			if err := bw.Flush(); err != nil {
-@@ -728,13 +868,62 @@ func isClientDisconnect(err error) bool {
+@@ -728,13 +882,62 @@ func isClientDisconnect(err error) bool {
  	return false
  }
  
@@ -2648,7 +2844,7 @@ index fe0802b..0a8a2a6 100644
  	}
  	bm := setup[0]
  	breq := setup[1]
-@@ -743,16 +932,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -743,16 +946,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  	wLength := binary.LittleEndian.Uint16(setup[6:8])
  
  	if breq == usbReqGetStatus {
@@ -2672,7 +2868,7 @@ index fe0802b..0a8a2a6 100644
  	}
  
  	desc := dev.GetDescriptor()
-@@ -774,12 +966,12 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -774,12 +980,12 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			}
  		}
  		if len(data) == 0 {
@@ -2688,7 +2884,7 @@ index fe0802b..0a8a2a6 100644
  	}
  
  	if desc.MicrosoftOS10 != nil &&
-@@ -788,9 +980,9 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -788,9 +994,9 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			wIndex == 0x0004 || wIndex == 0x0005) {
  		if data, ok := desc.MicrosoftOS10.ControlResponse(wValue, wIndex); ok {
  			if int(wLength) < len(data) {
@@ -2700,7 +2896,7 @@ index fe0802b..0a8a2a6 100644
  		}
  	}
  
-@@ -798,21 +990,22 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -798,21 +1004,22 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		dtype := uint8(wValue >> 8)
  		iface := uint8(wIndex & 0xff)
  		var data []byte
@@ -2726,7 +2922,7 @@ index fe0802b..0a8a2a6 100644
  					}
  					data = []byte(d)
  				}
-@@ -827,23 +1020,31 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -827,23 +1034,31 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  			}
  		}
  		if len(data) == 0 {
@@ -2764,7 +2960,7 @@ index fe0802b..0a8a2a6 100644
  		}
  	}
  
-@@ -851,15 +1052,15 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -851,15 +1066,15 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		if desc.Interfaces[iface].Descriptor.BInterfaceClass == usbInterfaceClassHID {
  			switch {
  			case bm == hidReqTypeIn && breq == hidReqGetIdle:
@@ -2785,7 +2981,7 @@ index fe0802b..0a8a2a6 100644
  			}
  		}
  	}
-@@ -868,7 +1069,7 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -868,7 +1083,7 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
  		s.logger.Debug("EP0 control unhandled", "bmRequestType", bm, "bRequest", breq, "wValue", wValue, "wIndex", wIndex, "wLength", wLength)
  	}
  
@@ -2873,7 +3069,7 @@ index 0000000..9b7bea7
 +	}
 +}
 diff --git a/lib/viiper/dualsense.go b/lib/viiper/dualsense.go
-index 05a7849..d19ebcc 100644
+index 05a7849..8f99edf 100644
 --- a/lib/viiper/dualsense.go
 +++ b/lib/viiper/dualsense.go
 @@ -93,10 +93,16 @@ typedef struct {
@@ -2910,7 +3106,7 @@ index 05a7849..d19ebcc 100644
 +//
 +//export GetVIIPERASBPatchVersion
 +func GetVIIPERASBPatchVersion() C.uint32_t {
-+	return 14
++	return 15
 +}
 +
 +// SetDualSenseASBInputState updates a DualSense from ApexSenseBridge's compact
@@ -2982,7 +3178,7 @@ index 05a7849..d19ebcc 100644
  // @param handle Handle to the DualSense device to remove.
  //
 diff --git a/lib/viiper/server.go b/lib/viiper/server.go
-index 0924794..89c503d 100644
+index 0924794..c7ac447 100644
 --- a/lib/viiper/server.go
 +++ b/lib/viiper/server.go
 @@ -45,6 +45,19 @@ import (
@@ -3013,6 +3209,26 @@ index 0924794..89c503d 100644
  	}, logger, nil)
  
  	readyChan := s.Ready()
+@@ -121,6 +135,9 @@ func CloseUSBServer(handle C.USBServerHandle) bool {
+ 	hw.mtx.Lock()
+ 	defer hw.mtx.Unlock()
+ 
++	if err := hw.s.Close(); err != nil {
++		return false
++	}
+ 	for busID, dhs := range hw.deviceHandles {
+ 		for _, dh := range dhs {
+ 			cgo.Handle(dh).Delete()
+@@ -129,9 +146,6 @@ func CloseUSBServer(handle C.USBServerHandle) bool {
+ 	}
+ 	hw.deviceHandles = nil
+ 
+-	if err := hw.s.Close(); err != nil {
+-		return false
+-	}
+ 	h.Delete()
+ 	return true
+ }
 diff --git a/usb/device.go b/usb/device.go
 index bfa4742..7f21b48 100644
 --- a/usb/device.go
@@ -3088,6 +3304,69 @@ index e45b71b..5e1f628 100644
  }
  
  // HIDSubDescriptor is one subordinate descriptor entry in the HID class descriptor.
+diff --git a/usbip/local_attachment.go b/usbip/local_attachment.go
+new file mode 100644
+index 0000000..11a6701
+--- /dev/null
++++ b/usbip/local_attachment.go
+@@ -0,0 +1,24 @@
++package usbip
++
++import "sync"
++
++// Local attachment cleanup runs before the export connection is closed: closing
++// TCP alone lets usbip-win2 schedule an automatic reattach to a dead server.
++var localAttachments sync.Map
++
++type attachmentKey struct{ bus, device uint32 }
++
++func RegisterLocalAttachment(meta *ExportMeta, detach func() error) {
++	localAttachments.Store(attachmentKey{meta.BusID, meta.DevID}, detach)
++}
++
++func DetachLocalAttachment(meta *ExportMeta) error {
++	key := attachmentKey{meta.BusID, meta.DevID}
++	if value, ok := localAttachments.Load(key); ok {
++		if err := value.(func() error)(); err != nil {
++			return err
++		}
++		localAttachments.Delete(key)
++	}
++	return nil
++}
+diff --git a/usbip/local_attachment_test.go b/usbip/local_attachment_test.go
+new file mode 100644
+index 0000000..3a86d84
+--- /dev/null
++++ b/usbip/local_attachment_test.go
+@@ -0,0 +1,27 @@
++package usbip
++
++import (
++	"errors"
++	"testing"
++)
++
++func TestDetachLocalAttachmentRetriesFailures(t *testing.T) {
++	meta := ExportMeta{BusID: 999, DevID: 999}
++	calls := 0
++	RegisterLocalAttachment(&meta, func() error {
++		calls++
++		if calls == 1 {
++			return errors.New("busy")
++		}
++		return nil
++	})
++	if DetachLocalAttachment(&meta) == nil {
++		t.Fatal("lost detach failure")
++	}
++	if err := DetachLocalAttachment(&meta); err != nil {
++		t.Fatal(err)
++	}
++	if err := DetachLocalAttachment(&meta); err != nil || calls != 2 {
++		t.Fatal("detach was not idempotent")
++	}
++}
 diff --git a/usbip/usbip.go b/usbip/usbip.go
 index 4b6a6ba..a1a0061 100644
 --- a/usbip/usbip.go
@@ -3134,3 +3413,102 @@ index 4b6a6ba..a1a0061 100644
  // CmdUnlink and RetUnlink
  type CmdUnlink struct {
  	Basic        HeaderBasic
+diff --git a/virtualbus/local_attachment_test.go b/virtualbus/local_attachment_test.go
+new file mode 100644
+index 0000000..e966795
+--- /dev/null
++++ b/virtualbus/local_attachment_test.go
+@@ -0,0 +1,59 @@
++package virtualbus_test
++
++import (
++	"errors"
++	"testing"
++
++	"github.com/Alia5/VIIPER/device"
++	"github.com/Alia5/VIIPER/device/dualsense"
++	"github.com/Alia5/VIIPER/usbip"
++	"github.com/Alia5/VIIPER/virtualbus"
++)
++
++func TestDetachBeforeCancellingExport(t *testing.T) {
++	for _, operation := range []string{"device", "bus"} {
++		t.Run(operation, func(t *testing.T) {
++			bus := virtualbus.New(991)
++			dev, err := dualsense.New(nil)
++			if err != nil {
++				t.Fatal(err)
++			}
++			ctx, err := bus.Add(dev)
++			if err != nil {
++				t.Fatal(err)
++			}
++			meta := device.GetDeviceMeta(ctx)
++			fail := true
++			usbip.RegisterLocalAttachment(meta, func() error {
++				if ctx.Err() != nil {
++					t.Fatal("export closed before Windows port was detached")
++				}
++				if fail {
++					return errors.New("driver refused detach")
++				}
++				return nil
++			})
++			remove := func() error {
++				if operation == "bus" {
++					return bus.Close()
++				}
++				return bus.Remove(dev)
++			}
++			if remove() == nil || ctx.Err() != nil || len(bus.Devices()) != 1 {
++				t.Fatal("detach failure discarded the live export")
++			}
++			fail = false
++			if err := remove(); err != nil {
++				t.Fatal(err)
++			}
++			if ctx.Err() == nil {
++				t.Fatal("successful detach did not cancel export")
++			}
++			if operation == "device" {
++				if err := bus.Close(); err != nil {
++					t.Fatal(err)
++				}
++			}
++		})
++	}
++}
+diff --git a/virtualbus/virtualbus.go b/virtualbus/virtualbus.go
+index 95918cc..b1ebcdc 100644
+--- a/virtualbus/virtualbus.go
++++ b/virtualbus/virtualbus.go
+@@ -167,6 +167,9 @@ func (vb *VirtualBus) RemoveDeviceByID(deviceID string) error {
+ 	defer vb.mtx.Unlock()
+ 	for i, d := range vb.devices {
+ 		if fmt.Sprintf("%d", d.meta.DevID) == deviceID {
++			if err := usbip.DetachLocalAttachment(&d.meta); err != nil {
++				return err
++			}
+ 			if d.cancel != nil {
+ 				d.cancel()
+ 			}
+@@ -188,6 +191,9 @@ func (vb *VirtualBus) Remove(dev usb.Device) error {
+ 	defer vb.mtx.Unlock()
+ 	for i, d := range vb.devices {
+ 		if d.dev == dev {
++			if err := usbip.DetachLocalAttachment(&d.meta); err != nil {
++				return err
++			}
+ 			if d.cancel != nil {
+ 				d.cancel()
+ 			}
+@@ -206,6 +212,9 @@ func (vb *VirtualBus) Close() error {
+ 	defer vb.mtx.Unlock()
+ 
+ 	for i := range vb.devices {
++		if err := usbip.DetachLocalAttachment(&vb.devices[i].meta); err != nil {
++			return err
++		}
+ 		if vb.devices[i].cancel != nil {
+ 			vb.devices[i].cancel()
+ 		}

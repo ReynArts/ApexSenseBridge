@@ -868,6 +868,11 @@ public:
         // final counters. Drop it only when starting a new session.
         active_.reset();
 
+        if (libViiperCleanupFailed()) {
+            error = "Previous virtual DualSense cleanup failed; refusing to create another virtual controller.";
+            return false;
+        }
+
         std::string integratedError;
         if (options_.backend != VirtualDualSenseBackend::Sidecar) {
             auto integrated = createLibViiperVirtualDualSense(options_);
@@ -876,7 +881,10 @@ public:
                 error.clear();
                 return true;
             }
-            if (options_.backend == VirtualDualSenseBackend::Integrated) {
+            // A cleanup failure is a lifecycle error, not an unavailable DLL.
+            // Falling back would create a second controller over the orphan.
+            if (options_.backend == VirtualDualSenseBackend::Integrated ||
+                libViiperCleanupFailed()) {
                 error = std::move(integratedError);
                 return false;
             }

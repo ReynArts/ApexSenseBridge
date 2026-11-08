@@ -10,6 +10,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <filesystem>
+#include <iostream>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -21,6 +22,8 @@
 
 namespace asb::dualsense {
 namespace {
+
+std::atomic_bool previousServerCleanupFailed{false};
 
 using ViiperHandle = std::uintptr_t;
 using ViiperBool = std::uint8_t;
@@ -101,6 +104,10 @@ public:
 
     bool open(std::string& error, FeedbackHandler handler) override {
         close();
+        if (previousServerCleanupFailed.load()) {
+            error = "Previous virtual DualSense cleanup failed; refusing to create another virtual controller.";
+            return false;
+        }
         resetStats();
         handler_ = std::move(handler);
         const auto elapsedMicroseconds = [](const auto startedAt) {
@@ -235,15 +242,22 @@ public:
         }
 
         if (deviceHandle_ != 0 && removeDualSenseDevice_) {
-            (void)removeDualSenseDevice_(deviceHandle_);
+            if (!removeDualSenseDevice_(deviceHandle_)) {
+                std::cerr << "VIIPER: failed to detach the session virtual DualSense\n";
+            }
             deviceHandle_ = 0;
         }
         if (busId_ != 0 && serverHandle_ != 0 && removeUSBBus_) {
-            (void)removeUSBBus_(serverHandle_, busId_);
+            if (!removeUSBBus_(serverHandle_, busId_)) {
+                std::cerr << "VIIPER: failed to remove the session USB bus\n";
+            }
             busId_ = 0;
         }
         if (serverHandle_ != 0 && closeUSBServer_) {
-            (void)closeUSBServer_(serverHandle_);
+            if (!closeUSBServer_(serverHandle_)) {
+                previousServerCleanupFailed.store(true);
+                std::cerr << "VIIPER: failed to close the session USB server\n";
+            }
             serverHandle_ = 0;
         }
 
@@ -558,6 +572,10 @@ private:
 };
 
 } // namespace
+
+bool libViiperCleanupFailed() noexcept {
+    return previousServerCleanupFailed.load();
+}
 
 std::unique_ptr<VirtualDualSense> createLibViiperVirtualDualSense(
     VirtualDualSenseOptions options) {
