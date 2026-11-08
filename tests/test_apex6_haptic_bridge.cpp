@@ -1543,7 +1543,7 @@ void testTriggerReleaseSendsExplicitZeroFrames() {
     DualSenseFeedback release{};
     release.enableBits1 = 0x04;
     bridge.handle(release);
-    std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
     assert(bridge.stop(error));
 
     constexpr std::uint8_t kTriggerEnable = 0x04;

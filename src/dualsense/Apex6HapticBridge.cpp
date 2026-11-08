@@ -19,6 +19,7 @@ constexpr auto kFramePeriod = std::chrono::milliseconds(8);
 constexpr auto kIdleKeepalive = std::chrono::milliseconds(50);
 constexpr unsigned kIdleEnterFrames = 8;
 constexpr unsigned kTriggerReleaseFrames = 4;
+constexpr auto kTriggerClearHold = std::chrono::milliseconds(100);
 constexpr auto kEnableDelay = std::chrono::milliseconds(94);
 constexpr auto kAudioEnvelopeTimeout = std::chrono::milliseconds(100);
 constexpr auto kMaximumWaveformAge = std::chrono::milliseconds(24);
@@ -409,6 +410,7 @@ bool Apex6HapticBridge::stop(std::string& error) noexcept {
         rumbleHigh_ = 0;
         diagnosticGripCarrier_ = false;
         leftTrigger_ = {};
+        pendingClear_ = {};
         rightTrigger_ = {};
         leftTriggerState_.reset();
         rightTriggerState_.reset();
@@ -569,6 +571,8 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
         rumbleUpdates_.fetch_add(1, std::memory_order_relaxed);
         if (feedback.rumbleLeft != 0 || feedback.rumbleRight != 0) {
             rumbleActiveUpdates_.fetch_add(1, std::memory_order_relaxed);
+            updateMaximum(rumbleLeftPeak_, feedback.rumbleLeft);
+            updateMaximum(rumbleRightPeak_, feedback.rumbleRight);
         }
         rumbleLow_ = routeGrips_ ? feedback.rumbleLeft : 0;
         rumbleHigh_ = routeGrips_ ? feedback.rumbleRight : 0;
@@ -646,6 +650,14 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
     }
     lastRequest = entry;
     auto& target = left ? leftTrigger_ : rightTrigger_;
+    const std::size_t sideIndex = left ? 0 : 1;
+    if (decoded && next.type == Apex6TriggerType::Off && target.type != Apex6TriggerType::Off) {
+        pendingClear_[sideIndex] = true;
+        pendingClearAt_[sideIndex] = Clock::now() + kTriggerClearHold;
+        triggerStops_.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    pendingClear_[sideIndex] = false;
     if (next == target) {
         triggerDeduplicated_.fetch_add(1, std::memory_order_relaxed);
         return;
@@ -779,6 +791,15 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
     {
         std::lock_guard lock(stateMutex_);
         wakeRequested_ = false;
+        for (std::size_t sideIndex = 0; sideIndex < 2; ++sideIndex) {
+            if (pendingClear_[sideIndex] && now >= pendingClearAt_[sideIndex]) {
+                pendingClear_[sideIndex] = false;
+                const auto clearedSide = sideIndex == 0 ? TriggerSide::Left : TriggerSide::Right;
+                (sideIndex == 0 ? leftTrigger_ : rightTrigger_) = Apex6TriggerEffect{};
+                noteTriggerChangeLocked(clearedSide);
+                (sideIndex == 0 ? leftTriggerState_ : rightTriggerState_).retarget();
+            }
+        }
         while (!waveformQueue_.empty() &&
                now - waveformQueue_.front().receivedAt > kMaximumWaveformAge) {
             const auto& dropped = waveformQueue_.front();
@@ -1300,6 +1321,8 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
     result.lastRightTriggerType = lastRightTriggerType_.load(std::memory_order_relaxed);
     result.rumbleUpdates = rumbleUpdates_.load(std::memory_order_relaxed);
     result.rumbleActiveUpdates = rumbleActiveUpdates_.load(std::memory_order_relaxed);
+    result.rumbleLeftPeak = rumbleLeftPeak_.load(std::memory_order_relaxed);
+    result.rumbleRightPeak = rumbleRightPeak_.load(std::memory_order_relaxed);
     result.rumbleIgnoredReports = rumbleIgnoredReports_.load(std::memory_order_relaxed);
     result.lastIgnoredRumbleEnableBits =
         lastIgnoredRumbleEnableBits_.load(std::memory_order_relaxed);

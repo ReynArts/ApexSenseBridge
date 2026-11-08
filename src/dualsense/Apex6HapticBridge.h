@@ -171,6 +171,8 @@ struct Apex6HapticBridgeStats {
     std::uint8_t lastRightTriggerType = 0;
     std::uint64_t rumbleUpdates = 0;
     std::uint64_t rumbleActiveUpdates = 0;
+    std::uint64_t rumbleLeftPeak = 0;
+    std::uint64_t rumbleRightPeak = 0;
     std::uint64_t rumbleIgnoredReports = 0;
     std::uint8_t lastIgnoredRumbleEnableBits = 0;
     std::uint64_t audioEnvelopeReports = 0;
@@ -336,6 +338,8 @@ private:
     std::int16_t leftPcmPrevious_ = 0;
     std::int16_t rightPcmPrevious_ = 0;
     std::uint64_t triggerSampleOffset_ = 0;
+    std::array<bool, 2> pendingClear_{};
+    std::array<Clock::time_point, 2> pendingClearAt_{};
     mutable std::mutex stateMutex_;
     std::condition_variable stopSignal_;
     std::thread worker_;
@@ -409,6 +413,8 @@ private:
     std::atomic_uint8_t lastRightTriggerType_{0};
     std::atomic_uint64_t rumbleUpdates_{0};
     std::atomic_uint64_t rumbleActiveUpdates_{0};
+    std::atomic_uint64_t rumbleLeftPeak_{0};
+    std::atomic_uint64_t rumbleRightPeak_{0};
     std::atomic_uint64_t rumbleIgnoredReports_{0};
     std::atomic_uint8_t lastIgnoredRumbleEnableBits_{0};
     std::atomic_uint64_t audioEnvelopeReports_{0};
