@@ -6,10 +6,30 @@ input path; do not test USB filter removal on a development workstation.
 
 ## Automated release gates
 
+- The SignPath account is created, the OSS organization invitation is accepted,
+  and only then is the CI user email confirmation completed.
+- The SignPath GitHub App has access to this repository and the SignPath project
+  is linked to the predefined GitHub.com trusted build system.
+- SignPath contains the three artifact configurations from
+  `signpath/payload-artifact-configuration.xml` and
+  `signpath/uninstaller-artifact-configuration.xml` and
+  `signpath/installer-artifact-configuration.xml`. Record their slugs in the
+  repository variables listed below.
+- GitHub Actions secret `SIGNPATH_API_TOKEN` contains the CI user's SignPath API
+  token. Repository variables `SIGNPATH_ORGANIZATION_ID`,
+  `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_TEST_SIGNING_POLICY_SLUG`,
+  `SIGNPATH_RELEASE_SIGNING_POLICY_SLUG`,
+  `SIGNPATH_PAYLOAD_ARTIFACT_CONFIGURATION_SLUG` and
+  `SIGNPATH_UNINSTALLER_ARTIFACT_CONFIGURATION_SLUG` and
+  `SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG` match the SignPath project.
+- A manual `workflow_dispatch` run succeeds with the self-signed test policy.
+  SignPath must approve the project and provision the production certificate
+  before `SIGNPATH_RELEASE_SIGNING_POLICY_SLUG` is used by a release tag.
 - Tag is exactly `v<major>.<minor>.<patch>` and matches every source manifest:
   `powershell -File .\scripts\verify-version-consistency.ps1 -ExpectedVersion vX.Y.Z`.
-- Release build completes with signing required:
-  `powershell -File .\scripts\build-installer.ps1 -RequireSigning`.
+- The workflow signs the six Windows payload files, Inno Setup's generated
+  uninstaller, and then the final installer through SignPath. No release is
+  published if any signing request fails.
 - All native and installer contract tests pass:
   `ctest --test-dir .\build-win -C Release --output-on-failure`.
 - Final artifacts, SHA-256 file and Authenticode publisher agree:

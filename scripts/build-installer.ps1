@@ -3,6 +3,8 @@ param(
     [string]$PlayniteSdkPath = "",
     [string]$ToolboxPath = "",
     [string]$IsccPath = "",
+    [switch]$SkipBuild,
+    [switch]$SignPath,
     [switch]$Sign,
     [switch]$RequireSigning
 )
@@ -31,6 +33,9 @@ function Fail([string]$Message) {
 }
 
 $signingRequested = $Sign -or $RequireSigning
+if ($SignPath -and $signingRequested) {
+    Fail "-SignPath cannot be combined with local certificate signing."
+}
 $signingIdentityCount = @(
     -not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_PATH),
     -not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_BASE64),
@@ -45,8 +50,10 @@ if ($signingRequested -and $signingIdentityCount -ne 1) {
 
 # Windows keeps a running executable locked. Stop the standalone Tray before
 # replacing the canonical build payload during a release build.
-Stop-Process -Name "ApexSenseBridgeTray" -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 200
+if (-not $SkipBuild) {
+    Stop-Process -Name "ApexSenseBridgeTray" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 200
+}
 
 # A release build owns dist completely. Recreate it so stale binaries, old PEXT
 # packages, and expanded portable directories can never coexist with the three
@@ -72,29 +79,36 @@ foreach ($package in $requiredPackages) {
     }
 }
 
-Write-Host "Building the statically linked native engine and control panel..."
-& (Join-Path $PSScriptRoot "build-windows.ps1")
-if ($LASTEXITCODE -ne 0) { Fail "native build failed" }
-
-foreach ($name in @("ApexSenseBridge.exe", "ApexSenseBridgeControl.exe", "libVIIPER.dll", "viiper.exe",
-                    "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
-                    "VIIPER-v0.7.0-asb.patch")) {
-    if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $name))) {
-        Fail "$name is missing from $releaseDir. Build the pinned patched VIIPER payloads first."
-    }
+if (-not $SkipBuild) {
+    Write-Host "Building the statically linked native engine and control panel..."
+    & (Join-Path $PSScriptRoot "build-windows.ps1")
+    if ($LASTEXITCODE -ne 0) { Fail "native build failed" }
+} else {
+    Write-Host "Reusing the existing signed release payload..."
 }
 
-Write-Host "Building the Playnite extension payload..."
+Write-Host $(if ($SkipBuild) { "Packing the signed Playnite extension payload..." } else { "Building the Playnite extension payload..." })
 & (Join-Path $PSScriptRoot "build-playnite-extension.ps1") `
     -PlayniteInstallDir $PlayniteInstallDir `
     -PlayniteSdkPath $PlayniteSdkPath `
     -ToolboxPath $ToolboxPath `
+    -SkipBuild:$SkipBuild `
     -Sign:$signingRequested
 if ($LASTEXITCODE -ne 0) { Fail "Playnite extension build failed" }
 
-Write-Host "Building the Standalone Tray application..."
-& (Join-Path $PSScriptRoot "build-tray-app.ps1")
-if ($LASTEXITCODE -ne 0) { Fail "Tray app build failed" }
+if (-not $SkipBuild) {
+    Write-Host "Building the Standalone Tray application..."
+    & (Join-Path $PSScriptRoot "build-tray-app.ps1")
+    if ($LASTEXITCODE -ne 0) { Fail "Tray app build failed" }
+}
+
+foreach ($name in @("ApexSenseBridge.exe", "ApexSenseBridgeControl.exe", "ApexSenseBridgeTray.exe",
+                    "libVIIPER.dll", "viiper.exe", "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
+                    "VIIPER-v0.7.0-asb.patch")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $name) -PathType Leaf)) {
+        Fail "$name is missing from $releaseDir. Build the pinned release payloads first."
+    }
+}
 
 if ($signingRequested) {
     Write-Host "Signing the Windows release payload..."
@@ -132,6 +146,9 @@ if ($signingRequested) {
     $isccArguments += "/DSignBuild"
     $isccArguments += $signToolDefinition
 }
+if ($SignPath) {
+    $isccArguments += "/DSignPathBuild"
+}
 $isccArguments += $installerScript
 & $IsccPath @isccArguments
 if ($LASTEXITCODE -ne 0) { Fail "Inno Setup compilation failed" }
@@ -154,29 +171,9 @@ if (-not (Test-Path -LiteralPath $portableZip)) {
     Fail "portable build succeeded but $portableZip was not created"
 }
 
-$releaseArtifactPaths = @(
-    $setup,
-    $portableZip
-)
-$releaseArtifactPaths += @(
-    Get-ChildItem -LiteralPath $distFull -Filter "ApexSenseBridge-Playnite-*.pext" -File |
-        Select-Object -ExpandProperty FullName
-)
-foreach ($artifactPath in $releaseArtifactPaths) {
-    if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
-        Fail "release artifact is missing: $artifactPath"
-    }
-}
 $checksumPath = Join-Path $distFull "SHA256SUMS.txt"
-$checksumLines = $releaseArtifactPaths |
-    Sort-Object { Split-Path -Leaf $_ } |
-    ForEach-Object {
-        $name = Split-Path -Leaf $_
-        $hash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash
-        "$hash  $name"
-    }
-[System.IO.File]::WriteAllLines(
-    $checksumPath, $checksumLines, (New-Object System.Text.UTF8Encoding($false)))
+& (Join-Path $PSScriptRoot "finalize-release-artifacts.ps1")
+if ($LASTEXITCODE -ne 0) { Fail "release checksum generation failed" }
 
 Write-Host ""
 Write-Host "Release packages ready:" -ForegroundColor Green

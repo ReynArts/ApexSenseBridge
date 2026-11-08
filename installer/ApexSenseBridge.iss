@@ -45,6 +45,10 @@ WizardStyle=modern
 SignTool=asbsign
 SignedUninstaller=yes
 #endif
+#ifdef SignPathBuild
+SignedUninstaller=yes
+SignedUninstallerDir=..\build-signpath\signed-uninstaller-cache
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
