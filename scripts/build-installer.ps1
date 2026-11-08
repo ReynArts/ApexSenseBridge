@@ -171,6 +171,15 @@ if (-not (Test-Path -LiteralPath $portableZip)) {
     Fail "portable build succeeded but $portableZip was not created"
 }
 
+Write-Host "Building the update package from the verified release payload..."
+& (Join-Path $PSScriptRoot "build-update-package.ps1")
+if ($LASTEXITCODE -ne 0) { Fail "update package build failed" }
+
+$updatePackage = Join-Path $projectRoot "dist\ApexSenseBridge-Update.zip"
+if (-not (Test-Path -LiteralPath $updatePackage)) {
+    Fail "update package build succeeded but $updatePackage was not created"
+}
+
 $checksumPath = Join-Path $distFull "SHA256SUMS.txt"
 & (Join-Path $PSScriptRoot "finalize-release-artifacts.ps1")
 if ($LASTEXITCODE -ne 0) { Fail "release checksum generation failed" }
@@ -181,4 +190,6 @@ Write-Host "  $setup"
 Write-Host "  SHA-256 $((Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash)"
 Write-Host "  $portableZip"
 Write-Host "  SHA-256 $((Get-FileHash -LiteralPath $portableZip -Algorithm SHA256).Hash)"
+Write-Host "  $updatePackage"
+Write-Host "  SHA-256 $((Get-FileHash -LiteralPath $updatePackage -Algorithm SHA256).Hash)"
 Write-Host "  $checksumPath"

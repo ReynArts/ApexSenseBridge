@@ -4,7 +4,8 @@ param(
     [switch]$CheckArtifacts,
     [switch]$RequireSignatures,
     [switch]$RequireSignedUninstaller,
-    [switch]$AllowUntrustedSignatures
+    [switch]$AllowUntrustedSignatures,
+    [string]$UpdatePackagePath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -82,6 +83,155 @@ function Assert-ArtifactVersion([string]$RelativePath) {
     }
 }
 
+function Assert-UpdatePackage(
+    [string]$Path,
+    [string]$ExpectedVersion,
+    [string]$DriverManifestPath,
+    [string]$BinaryDirectory = ""
+) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Fail "release artifact is missing: $Path"
+    }
+    if ((Get-Item -LiteralPath $Path).Length -gt 200MB) {
+        Fail "update package exceeds the 200 MB limit"
+    }
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $binaries = New-Object System.Collections.Generic.List[string]
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $entriesByName = @{}
+        foreach ($entry in $archive.Entries) {
+            $name = $entry.FullName
+            $key = $name.ToLowerInvariant()
+            if ($entriesByName.ContainsKey($key)) {
+                Fail "update package has a duplicate entry: $name"
+            }
+            $entriesByName[$key] = $entry
+            if ($name -ne "manifest.json") {
+                $safe = $name -match '^(app|playnite)/[^\\:]+$' -and $name -notmatch '(^|/)\.\.?(/|$)' -and
+                    $name -notmatch '//' -and -not $name.EndsWith("/") -and
+                    $name -notmatch '(^|/)[^/]*[. ](/|$)' -and $name -notmatch '[<>"|?*\x00-\x1f]' -and
+                    $name -notmatch '(?i)(^|/)(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.[^/]*)?(/|$)'
+                if (-not $safe) {
+                    Fail "update package has an unsafe entry name: $name"
+                }
+            }
+            if ($entry.Length -gt 100MB) {
+                Fail "update package entry exceeds the 100 MB limit: $name"
+            }
+        }
+        if (-not $entriesByName.ContainsKey("manifest.json")) {
+            Fail "update package has no manifest.json"
+        }
+
+        $manifestStream = $archive.GetEntry("manifest.json").Open()
+        try {
+            $memory = New-Object System.IO.MemoryStream
+            $manifestStream.CopyTo($memory)
+            $manifestBytes = $memory.ToArray()
+        } finally {
+            $manifestStream.Dispose()
+        }
+        if ($manifestBytes.Length -ge 3 -and $manifestBytes[0] -eq 0xEF -and
+            $manifestBytes[1] -eq 0xBB -and $manifestBytes[2] -eq 0xBF) {
+            Fail "update package manifest.json must be UTF-8 without a BOM"
+        }
+        try {
+            $manifest = (New-Object System.Text.UTF8Encoding($false, $true)).GetString($manifestBytes) |
+                ConvertFrom-Json
+        } catch {
+            Fail "update package manifest.json is not valid UTF-8 JSON"
+        }
+
+        if ($manifest.schema -ne 1) {
+            Fail "update package manifest schema is '$($manifest.schema)', expected 1"
+        }
+        if ($manifest.version -ne $ExpectedVersion) {
+            Fail "update package manifest version is '$($manifest.version)', expected '$ExpectedVersion'"
+        }
+        if ($manifest.driversChanged -isnot [bool]) {
+            Fail "update package manifest driversChanged must be a boolean"
+        }
+        $drivers = Get-Content -LiteralPath $DriverManifestPath -Raw | ConvertFrom-Json
+        if ($manifest.usbipVersion -ne $drivers.'usbip-win2'.version) {
+            Fail "update package usbipVersion '$($manifest.usbipVersion)' differs from installer\driver-manifest.json"
+        }
+        if ($manifest.hidHideVersion -ne $drivers.HidHide.version) {
+            Fail "update package hidHideVersion '$($manifest.hidHideVersion)' differs from installer\driver-manifest.json"
+        }
+
+        $files = @($manifest.files)
+        if ($files.Count -eq 0) {
+            Fail "update package manifest lists no files"
+        }
+        if ($files.Count -ne $entriesByName.Count - 1) {
+            Fail "update package holds $($entriesByName.Count - 1) files but its manifest lists $($files.Count)"
+        }
+        $listed = @{}
+        $index = 0
+        foreach ($file in $files) {
+            $index++
+            if ($file.section -cnotin @("app", "playnite")) {
+                Fail "update package manifest has an unknown section '$($file.section)'"
+            }
+            $entryName = "$($file.section)/$($file.path)"
+            $key = $entryName.ToLowerInvariant()
+            if ($listed.ContainsKey($key)) {
+                Fail "update package manifest lists $entryName twice"
+            }
+            $listed[$key] = $true
+            if ($file.sha256 -cnotmatch '^[0-9a-f]{64}$') {
+                Fail "update package manifest sha256 for $entryName is not 64 lowercase hex digits"
+            }
+            if (($file.size -isnot [int] -and $file.size -isnot [long]) -or $file.size -lt 0) {
+                Fail "update package manifest size for $entryName is not a non-negative integer"
+            }
+            $leaf = $entryName.Substring($entryName.LastIndexOf('/') + 1)
+            if ($leaf -match '^(USBip-.*\.exe|HidHide_.*\.exe|install-usbip\.ps1|ApexSenseBridge-Setup\.exe|ApexSenseBridge-Uninstaller\.exe|unins\d+\.(exe|dat|msg))$' -or
+                $leaf -match '\.e32$') {
+                Fail "update package must not contain $leaf"
+            }
+            if (-not $entriesByName.ContainsKey($key)) {
+                Fail "update package manifest lists $entryName, which is not in the zip"
+            }
+            $entry = $entriesByName[$key]
+            if ($entry.FullName -cne $entryName) {
+                Fail "update package entry '$($entry.FullName)' differs in case from manifest path '$entryName'"
+            }
+            $entryStream = $entry.Open()
+            try {
+                $memory = New-Object System.IO.MemoryStream
+                $entryStream.CopyTo($memory)
+                $bytes = $memory.ToArray()
+            } finally {
+                $entryStream.Dispose()
+            }
+            if ($bytes.LongLength -ne $file.size) {
+                Fail "update package size mismatch for $entryName"
+            }
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $actualHash = (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+            } finally {
+                $sha.Dispose()
+            }
+            if ($actualHash -ne $file.sha256) {
+                Fail "update package SHA-256 mismatch for $entryName"
+            }
+            if ($BinaryDirectory -ne "" -and $leaf -match '(?i)\.(exe|dll)$') {
+                New-Item -ItemType Directory -Path $BinaryDirectory -Force | Out-Null
+                $binaryPath = Join-Path $BinaryDirectory ("{0:d3}-{1}" -f $index, $leaf)
+                [System.IO.File]::WriteAllBytes($binaryPath, $bytes)
+                $binaries.Add($binaryPath)
+            }
+        }
+    } finally {
+        $archive.Dispose()
+    }
+    return ,$binaries.ToArray()
+}
+
 $script:Version = Get-RequiredMatch "CMakeLists.txt" `
     '(?m)^project\(ApexSenseBridge VERSION ([0-9]+\.[0-9]+\.[0-9]+) LANGUAGES CXX\)\r?$' `
     "canonical project version"
@@ -154,6 +304,12 @@ if ($CheckArtifacts) {
     if ($pextFiles.Count -ne 1 -or $pextFiles[0].Name -ne $expectedPext) {
         Fail "dist must contain exactly $expectedPext and no stale Playnite package"
     }
+
+    if ([string]::IsNullOrWhiteSpace($UpdatePackagePath)) {
+        $UpdatePackagePath = Join-Path $projectRoot "dist\ApexSenseBridge-Update.zip"
+    }
+    Assert-UpdatePackage $UpdatePackagePath $script:Version `
+        (Join-Path $projectRoot "installer\driver-manifest.json") | Out-Null
 
     $checksumPath = Join-Path $projectRoot "dist\SHA256SUMS.txt"
     if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
@@ -228,6 +384,33 @@ if ($RequireSignatures) {
             $publisher = $signature.SignerCertificate.Subject
         } elseif ($signature.SignerCertificate.Subject -ne $publisher) {
             Fail "$relativePath is signed by a different publisher"
+        }
+    }
+
+    $updateBinaryDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("asb-update-verify-" + [Guid]::NewGuid().ToString("N"))
+    try {
+        $updateBinaries = Assert-UpdatePackage $UpdatePackagePath $script:Version `
+            (Join-Path $projectRoot "installer\driver-manifest.json") $updateBinaryDirectory
+        foreach ($binary in $updateBinaries) {
+            $packagedName = (Split-Path -Leaf $binary).Substring(4)
+            $signature = Get-AuthenticodeSignature -LiteralPath $binary
+            $signatureIsTrusted = $signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid
+            $signatureIsIntactTestSignature = $AllowUntrustedSignatures -and
+                $signature.SignerCertificate -and
+                $signature.Status -notin @(
+                    [System.Management.Automation.SignatureStatus]::NotSigned,
+                    [System.Management.Automation.SignatureStatus]::HashMismatch)
+            if ((-not $signatureIsTrusted -and -not $signatureIsIntactTestSignature) -or
+                -not $signature.SignerCertificate) {
+                Fail "update package file $packagedName has no valid trusted Authenticode signature ($($signature.Status))"
+            }
+            if ($signature.SignerCertificate.Subject -ne $publisher) {
+                Fail "update package file $packagedName is signed by a different publisher"
+            }
+        }
+    } finally {
+        if (Test-Path -LiteralPath $updateBinaryDirectory) {
+            Remove-Item -LiteralPath $updateBinaryDirectory -Recurse -Force
         }
     }
 }
