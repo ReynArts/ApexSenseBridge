@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace ApexSenseBridge.Security
@@ -11,6 +12,7 @@ namespace ApexSenseBridge.Security
     {
         private const string ExpectedAssetName = "ApexSenseBridge-Setup.exe";
         private const string ExpectedProductName = "ApexSenseBridge";
+        private const string BootstrapPublisherName = "SignPath Foundation";
         private const string ExpectedDownloadPrefix =
             "/ReynArts/ApexSenseBridge/releases/download/";
 
@@ -114,11 +116,14 @@ namespace ApexSenseBridge.Security
 
                 using (var installerCertificate = new X509Certificate2(
                     X509Certificate.CreateFromSignedFile(installerPath)))
-                using (var currentCertificate = new X509Certificate2(
-                    X509Certificate.CreateFromSignedFile(currentBinaryPath)))
                 {
-                    if (!IsSamePublisher(installerCertificate.Subject,
-                        currentCertificate.Subject))
+                    string currentSubject = HasTrustedAuthenticodeSignature(currentBinaryPath)
+                        ? ReadSignerSubject(currentBinaryPath)
+                        : string.Empty;
+                    bool accepted = string.IsNullOrEmpty(currentSubject)
+                        ? IsBootstrapPublisher(installerCertificate.Subject)
+                        : IsSamePublisher(installerCertificate.Subject, currentSubject);
+                    if (!accepted)
                     {
                         error = "The setup signer differs from the installed ApexSenseBridge publisher.";
                         return false;
@@ -198,11 +203,54 @@ namespace ApexSenseBridge.Security
 
         internal static string ReadSignerSubject(string path)
         {
-            using (var certificate = new X509Certificate2(
-                X509Certificate.CreateFromSignedFile(path)))
+            try
             {
-                return certificate.Subject;
+                using (var certificate = new X509Certificate2(
+                    X509Certificate.CreateFromSignedFile(path)))
+                {
+                    return certificate.Subject;
+                }
             }
+            catch (CryptographicException)
+            {
+                return string.Empty;
+            }
+        }
+
+        internal static bool IsBootstrapPublisher(string subject)
+        {
+            return string.Equals(ReadNameComponent(subject, "CN"),
+                       BootstrapPublisherName, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(ReadNameComponent(subject, "O"),
+                       BootstrapPublisherName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool IsAcceptedPublisher(
+            string signerSubject, string installedSubject)
+        {
+            return string.IsNullOrEmpty(installedSubject)
+                ? IsBootstrapPublisher(signerSubject)
+                : IsSamePublisher(signerSubject, installedSubject);
+        }
+
+        private static string ReadNameComponent(string subject, string key)
+        {
+            if (string.IsNullOrEmpty(subject))
+            {
+                return null;
+            }
+
+            string prefix = key + "=";
+            foreach (string part in subject.Split(','))
+            {
+                string token = part.Trim();
+                if (token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return token.Substring(prefix.Length).Trim();
+                }
+            }
+
+            return null;
         }
 
         private static bool IsFieldPadding(char value)

@@ -5,6 +5,17 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.1.0. Leave empty for a plain test run.'
+        required: false
+        default: ''
+        type: string
+      publish:
+        description: 'Publish a GitHub Release signed with the self-signed test certificate (needs a tag).'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   actions: read
@@ -13,7 +24,17 @@ permissions:
 jobs:
   build-and-release:
     runs-on: windows-2022
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      PUBLISH_RELEASE: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.tag != '') }}
     steps:
+      - name: Validate the release request
+        shell: powershell
+        run: |
+          if ($env:PUBLISH_RELEASE -eq 'true' -and $env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
+            throw "The release tag '$($env:RELEASE_TAG)' must look like v1.2.3."
+          }
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
@@ -23,7 +44,11 @@ jobs:
       - name: Verify source version matches release tag
         shell: powershell
         run: |
-          .\scripts\verify-version-consistency.ps1
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_TAG)) {
+            .\scripts\verify-version-consistency.ps1
+          } else {
+            .\scripts\verify-version-consistency.ps1 -ExpectedVersion $env:RELEASE_TAG
+          }
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
@@ -192,13 +217,16 @@ jobs:
               -not $env:GITHUB_REF.StartsWith('refs/tags/')) {
             $verify['AllowUntrustedSignatures'] = $true
           }
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_TAG)) {
+            $verify['ExpectedVersion'] = $env:RELEASE_TAG
+          }
           .\scripts\verify-version-consistency.ps1 @verify
 
       - name: Extract Release Notes from CHANGELOG
         shell: powershell
         run: |
           $raw = Get-Content -LiteralPath "CHANGELOG.md" -Raw
-          $tag = $env:GITHUB_REF_NAME
+          $tag = $env:RELEASE_TAG
           if ([string]::IsNullOrWhiteSpace($tag) -and $env:GITHUB_REF -and $env:GITHUB_REF.StartsWith("refs/tags/")) {
             $tag = $env:GITHUB_REF.Substring("refs/tags/".Length)
           }
@@ -228,13 +256,19 @@ jobs:
             }
           }
           $notes = ($extracted -join [Environment]::NewLine).Trim()
+          if ($env:GITHUB_EVENT_NAME -ne 'push') {
+            $notice = "> **This release is signed with a self-signed test certificate.** Windows shows the publisher as an unknown test certificate and SmartScreen may warn on first launch. Verify the downloads against ``SHA256SUMS.txt``. Releases signed by SignPath Foundation start with 1.1.1, and updating from this version to a signed release is supported."
+            $notes = $notice + [Environment]::NewLine + [Environment]::NewLine + $notes
+          }
           [System.IO.File]::WriteAllText("dist/release-notes.md", $notes, (New-Object System.Text.UTF8Encoding($false)))
           Write-Host "Extracted release notes ($($notes.Length) characters) to dist/release-notes.md"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: env.PUBLISH_RELEASE == 'true'
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           body_path: dist/release-notes.md
           files: |
             dist/ApexSenseBridge-Setup.exe
@@ -244,16 +278,16 @@ jobs:
             dist/SHA256SUMS.txt
           generate_release_notes: false
           draft: false
-          prerelease: ${{ github.ref_name == 'v1.0.2' || contains(github.ref_name, '-') }}
+          prerelease: ${{ env.RELEASE_TAG == 'v1.0.2' || contains(env.RELEASE_TAG, '-') }}
 
   # Releases created with GITHUB_TOKEN do not trigger a separate release workflow.
   # Call it explicitly after publication; manual publications use its release event.
   issue-followup:
     needs: build-and-release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.tag != '')
     permissions:
       contents: read
       issues: write
     uses: ./.github/workflows/release-issue-followup.yml
     with:
-      release_tag: ${{ github.ref_name }}
+      release_tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}

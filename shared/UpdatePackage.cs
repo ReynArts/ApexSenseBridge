@@ -62,6 +62,9 @@ namespace ApexSenseBridge.Security
         internal static Func<string, string> SignerSubjectReader =
             ReleaseSecurity.ReadSignerSubject;
 
+        internal static Func<string, bool> InstalledTrustCheck =
+            ReleaseSecurity.HasTrustedAuthenticodeSignature;
+
         internal static Func<string, Version> InstalledVersionReader =
             ReadInstalledVersion;
 
@@ -789,7 +792,7 @@ namespace ApexSenseBridge.Security
                 return false;
             }
 
-            if (!ReleaseSecurity.IsSamePublisher(subject, installedSubject))
+            if (!ReleaseSecurity.IsAcceptedPublisher(subject, installedSubject))
             {
                 error = "The signer differs from the installed ApexSenseBridge publisher: " + name;
                 return false;
@@ -821,10 +824,15 @@ namespace ApexSenseBridge.Security
                 return false;
             }
 
-            if (string.IsNullOrEmpty(subject))
+            if (subject == null)
             {
                 error = "The installed ApexSenseBridge publisher could not be verified.";
                 return false;
+            }
+
+            if (subject.Length > 0 && !InstalledTrustCheck(installedEnginePath))
+            {
+                subject = string.Empty;
             }
 
             return true;

@@ -4,6 +4,21 @@ Use this checklist for every public installer release. Driver lifecycle tests
 must run in disposable Windows virtual machines with a snapshot and a recovery
 input path; do not test USB filter removal on a development workstation.
 
+## Self-signed release (1.1.0 only)
+
+- Run the "Release ApexSenseBridge" workflow manually from `dev` with the tag
+  (for example `v1.1.0`). Manual runs always use the self-signed
+  `test-signing` policy. Run it once with "publish" unchecked, then again with
+  "publish" checked to create the release.
+- The workflow creates the tag itself; a tag created that way does not start the
+  tag-triggered run. Never push a `v*` tag by hand before the SignPath production
+  certificate is imported: that run uses `release-signing` and fails without it.
+- An installed version whose signature is missing or not trusted (the 1.1.0
+  self-signed build) accepts an update only if every file is trusted and signed
+  by SignPath Foundation (`CN` and `O` equal to `SignPath Foundation` in
+  `ReleaseSecurity.IsBootstrapPublisher`). Check that subject against the first
+  production-signed build before releasing 1.1.1.
+
 ## Automated release gates
 
 - The SignPath account is created, the OSS organization invitation is accepted,

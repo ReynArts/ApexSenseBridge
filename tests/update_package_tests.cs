@@ -41,6 +41,7 @@ internal static class UpdatePackageTests
         Directory.CreateDirectory(root);
 
         var trust = UpdatePackage.SignatureTrustCheck;
+        var installedTrust = UpdatePackage.InstalledTrustCheck;
         var subject = UpdatePackage.SignerSubjectReader;
         var version = UpdatePackage.InstalledVersionReader;
         var registry = UpdatePackage.InstalledRegistryReader;
@@ -67,6 +68,7 @@ internal static class UpdatePackageTests
         finally
         {
             UpdatePackage.SignatureTrustCheck = trust;
+            UpdatePackage.InstalledTrustCheck = installedTrust;
             UpdatePackage.SignerSubjectReader = subject;
             UpdatePackage.InstalledVersionReader = version;
             UpdatePackage.InstalledRegistryReader = registry;
@@ -78,6 +80,7 @@ internal static class UpdatePackageTests
     private static void UseFakeEnvironment()
     {
         UpdatePackage.SignatureTrustCheck = path => true;
+        UpdatePackage.InstalledTrustCheck = path => true;
         UpdatePackage.SignerSubjectReader = path => Publisher;
         UpdatePackage.InstalledVersionReader = path => new Version(1, 0, 0);
         UpdatePackage.InstalledRegistryReader = DriverRegistry("0.9.8.0", "1.5.230");
@@ -696,8 +699,53 @@ internal static class UpdatePackageTests
                 "an unsigned installed engine must reject the package: " + error);
 
             UpdatePackage.SignerSubjectReader = path => path == engine ? string.Empty : Publisher;
+            Assert(!UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error) &&
+                   error.IndexOf("signer differs", StringComparison.OrdinalIgnoreCase) >= 0,
+                "an unsigned installed engine must reject a package signed by another publisher: " + error);
+
+            const string Bootstrap = "CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US";
+            UpdatePackage.SignerSubjectReader = path => path == engine ? string.Empty : Bootstrap;
+            Assert(UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error),
+                "an unsigned installed engine must accept a package signed by SignPath Foundation: " + error);
+
+            UpdatePackage.SignerSubjectReader = path => path == engine ? string.Empty
+                : System.IO.Path.GetExtension(path) == ".dll" ? "CN=Someone Else, O=SignPath Foundation" : Bootstrap;
             Assert(!UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error),
-                "an empty installed subject must reject the package");
+                "one file signed by another publisher must reject the package even from an unsigned install");
+
+            UpdatePackage.SignatureTrustCheck = path => false;
+            UpdatePackage.SignerSubjectReader = path => path == engine ? string.Empty : Bootstrap;
+            Assert(!UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error) &&
+                   error.IndexOf("Authenticode", StringComparison.OrdinalIgnoreCase) >= 0,
+                "an unsigned installed engine must still require trusted signatures on every file: " + error);
+            UpdatePackage.SignatureTrustCheck = path => true;
+
+            UpdatePackage.SignerSubjectReader = path => path == engine ? Publisher : Bootstrap;
+            Assert(!UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error),
+                "a signed installed engine must not accept a different publisher, even SignPath Foundation");
+
+            var installedTrust = UpdatePackage.InstalledTrustCheck;
+            try
+            {
+                const string SelfSigned = "CN=Test certificate for 'ApexSenseBridge [OSS]'";
+                UpdatePackage.InstalledTrustCheck = path => false;
+                UpdatePackage.SignerSubjectReader = path => path == engine ? SelfSigned : Bootstrap;
+                Assert(UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error),
+                    "an engine signed with an untrusted self-signed certificate must accept SignPath Foundation: " + error);
+
+                UpdatePackage.SignerSubjectReader = path => path == engine ? SelfSigned : Publisher;
+                Assert(!UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error),
+                    "an engine signed with an untrusted self-signed certificate must still reject other publishers");
+
+                UpdatePackage.InstalledTrustCheck = path => true;
+                UpdatePackage.SignerSubjectReader = path => path == engine ? SelfSigned : Bootstrap;
+                Assert(!UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error),
+                    "a trusted installed publisher must not be replaced by SignPath Foundation");
+            }
+            finally
+            {
+                UpdatePackage.InstalledTrustCheck = installedTrust;
+            }
 
             UpdatePackage.SignerSubjectReader = path =>
             {
@@ -947,8 +995,8 @@ internal static class UpdatePackageTests
             UpdatePackageManifest manifest;
             string error;
             Assert(!UpdatePackage.Verify(zip, "1.1.0", engine, out manifest, out error) && manifest == null &&
-                   error.IndexOf("publisher", StringComparison.OrdinalIgnoreCase) >= 0,
-                "an unsigned installed engine must reject the package with the real checks: " + error);
+                   error.IndexOf("Authenticode", StringComparison.OrdinalIgnoreCase) >= 0,
+                "an unsigned package must be rejected by the real checks even when the installed engine is unsigned: " + error);
         }
         finally
         {

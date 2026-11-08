@@ -12,6 +12,7 @@ namespace ApexSenseBridgeUpdater
         public static void Install(UpdaterOptions options)
         {
             UpdatePackage.SignatureTrustCheck = delegate(string path) { return !Contains(path, "ASB-TEST-UNSIGNED"); };
+            UpdatePackage.InstalledTrustCheck = delegate(string path) { return true; };
             UpdatePackage.SignerSubjectReader = delegate(string path)
             {
                 return Contains(path, "ASB-TEST-OTHER-SIGNER") ? "CN=ASB Test Other" : "CN=ASB Test Publisher";
