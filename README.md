@@ -18,6 +18,18 @@ now choose between several connected controllers. On APEX 4 and APEX 5 the
 virtual DualSense is kept alive across a controller power cycle, and the automatic
 activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 
+**The flagship feature of 1.1.0 is 2 kHz haptics on the APEX 6 Pro**, on by
+default: the controller's voice coils now receive the full 2000 samples per
+second they can play, so DualSense haptic effects keep their 500 to 1000 Hz
+content instead of being folded down. See
+[2 kHz haptics](#2-khz-haptics-on-the-apex-6-pro).
+
+> [!WARNING]
+> **The 2 kHz mode is new and has not been tested over the long term.** The
+> stability of the controller hardware under long sessions at this rate is not
+> validated. You can turn it off at any time (see
+> [how](#2-khz-haptics-on-the-apex-6-pro)).
+
 [Download ApexSenseBridge 1.1.0](https://github.com/ReynArts/ApexSenseBridge/releases/latest) ·
 [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) ·
 [Roadmap](ROADMAP.md)
@@ -35,6 +47,7 @@ activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 ## Contents
 
 - [What's new in 1.1.0](#whats-new-in-110)
+- [2 kHz haptics (APEX 6 Pro)](#2-khz-haptics-on-the-apex-6-pro)
 - [Stable 1.0.0 highlights](#stable-100-highlights)
 - [Supported controllers](#supported-controllers)
 - [Game compatibility](#game-compatibility)
@@ -56,6 +69,10 @@ activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 1.1.0 is a major update. These are the changes you will notice; the
 [changelog](CHANGELOG.md) has the complete list, with measurements and issue links.
 
+### 🔊 Flagship: 2 kHz haptics on the APEX 6 Pro, on by default
+
+Native game haptics now reach the grip voice coils at the full 2000 samples per second the controller can play, instead of 1000, with a proper low-pass filter in between. Their 500 to 1000 Hz content keeps its pitch instead of folding down into low tones, which brings the APEX 6 Pro noticeably closer to the way a DualSense renders haptic effects. It is on by default and can be turned off. **It has not been tested over the long term, so the stability of the controller hardware under long sessions is not validated.** Details, checks and limits: [2 kHz haptics](#2-khz-haptics-on-the-apex-6-pro).
+
 ### Reworked trigger effects (APEX 6 Pro and APEX 5)
 
 - **APEX 6 Pro:** each DualSense effect is translated into a vibration that follows its meaning (see below), with twelve weapon presets.
@@ -64,6 +81,8 @@ activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 
 ### APEX 6 Pro
 
+- **💡 Lightbar sync** is now available on the APEX 6 Pro and the onboard profile selector is unlocked.
+- **🎯 Weapon snaps that no longer get cut.** Games set and clear a trigger effect about sixteen times a second; a clear used to cut a snap in progress and the trigger position was forgotten, so many presses never crossed the break point. A clear no longer cuts a snap, and the position memory survives a new effect.
 - **🧭 Gyroscope and accelerometer.** A bridge session now forwards the motion sensors to the virtual DualSense. The session switches on the controller's raw-data routing when it starts, waits up to 1.5 s for the first motion report and restores the routing when it ends; if no report arrives, it starts without motion and prints a warning. `test-gyro` works on the APEX 6 Pro.
 - **🔋 Real battery level and charge state** reach the virtual DualSense instead of a fixed 100 %, refreshed every 15 seconds with self-timing safeguards. A controller that reports nothing keeps showing 100 %.
 - **🗂️ Onboard profile slots 1–4** (`bridge-triggers --apex-profile`, `test-profile-switch`). The original slot is restored and verified when the session ends, and after a crash by the watchdog. `test-profile-switch` compares the slot checksums before and after and fails if they changed.
@@ -91,9 +110,41 @@ activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 ### Good to know when upgrading
 
 - **APEX 5:** the per-zone and rhythmic trigger emulation is on by default. Turn it off with the **Trigger effect emulation** switch in the Tray settings, or `--no-zone-emulation`, if you prefer the previous single-resistance behaviour.
-- **APEX 6 Pro:** triggers now feel different, because each effect is translated by meaning instead of played as a flat vibration.- **APEX 4:** `ASB_APEX4_RUMBLE_MS=25` restores the previous rumble spacing without rebuilding.
+- **APEX 6 Pro:** triggers now feel different, because each effect is translated by meaning instead of played as a flat vibration.
+- **APEX 6 Pro:** the 2 kHz haptics mode is on by default. Turn it off with the **2 kHz grip haptics** switch in the Tray settings, or pass `--apex6-rate 1000`, if you prefer the previous 1 kHz stream.
+- **APEX 4:** `ASB_APEX4_RUMBLE_MS=25` restores the previous rumble spacing without rebuilding.
 - **Known limitation (APEX 6 Pro):** the firmware drives both triggers from a single signal, so when a game plays two different effects on the two triggers at the same time, the bridge plays the sum of both effects on both triggers (each trigger feels a blend). One effect on one trigger, or the same effect on both, is unaffected. A better solution is on the [roadmap](ROADMAP.md).
 - **Not covered yet:** the APEX 6 Pro does not ride out a power cycle (the bridge stops and the voluntary recovery applies). See the [roadmap](ROADMAP.md).
+
+---
+
+## 2 kHz Haptics on the APEX 6 Pro
+
+The APEX 6 Pro plays its haptic stream at 2000 samples per second, but until
+1.1.0 the bridge fed it 1000 and the controller interpolated the rest, losing
+everything between 500 and 1000 Hz. In 1.1.0 the bridge sends the real 2 kHz
+data: the virtual DualSense filters the game's 48 kHz haptic channels with a
+low-pass filter (flat within 0.25 dB up to 800 Hz, at least 48 dB down from
+1150 Hz) and the engine sends two raw eight-sample reports every 8 ms. It is on
+by default for the APEX 6 Pro with grip vibration on; with any other controller,
+or with an older libVIIPER or the sidecar backend, the engine falls back to the
+previous behaviour automatically.
+
+> [!CAUTION]
+> **Not tested over the long term.** The stability of the controller hardware
+> (voice-coil actuators, firmware and radio link) under long sessions at 2 kHz is
+> **not validated**. The software is provided as is, under the MIT license.
+
+**What has been checked, and what has not.**
+
+- Checked on a single APEX 6 Pro over the 2.4 GHz receiver (firmware 9.0.6.8), by ear: tones of 700 and 900 Hz were heard an octave above their 350 and 450 Hz references in 5 trials out of 5, and a 700 Hz tone and a short fanfare through the real bridge were judged clearly better at 2000 than at 1000.
+- Nothing was measured with a sensor. The wired connection, long sessions, other firmware versions and other units have not been tested.
+- Light stutters can appear during long continuous effects. In a side-by-side test they were heard identically at 1000 and 2000, so they are not specific to this mode; the cause is not isolated.
+- The motors give little sensation above roughly 300 Hz, the two triggers still share one signal, and how much of the 500 to 1000 Hz band real games actually use has not been measured.
+
+**Turning it off.** Switch off **2 kHz grip haptics** in the Tray settings, or pass
+`--apex6-rate 1000` to `bridge-triggers`. If you report a problem, say whether
+the 2 kHz mode was on and attach the logs.
 
 ---
 

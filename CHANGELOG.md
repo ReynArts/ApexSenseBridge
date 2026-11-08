@@ -7,6 +7,12 @@
 1.1.0 is a major update that keeps the 1.x numbering. The sections below are the
 detail; in short:
 
+- **2 kHz haptics on the APEX 6 Pro, on by default (flagship).** The grip voice
+  coils now receive the full 2000 samples per second, so native game haptics keep
+  their 500 to 1000 Hz content instead of folding down, a large step for
+  reproducing DualSense effects. **It has not been tested over the long term, so
+  the stability of the controller hardware under long sessions is not
+  validated.** Turn it off with the Tray switch or `--apex6-rate 1000`.
 - **Reworked trigger effects on the APEX 6 Pro and the APEX 5** (APEX 4
   unchanged): effects follow what they mean, vibration on the APEX 6 Pro, per-zone
   and rhythmic emulation on the APEX 5.
@@ -22,9 +28,9 @@ detail; in short:
   faster rumble cadence (APEX 4).
 - **Tray:** new report window, per-game tuning and reset buttons, manual-fix
   notes in nine languages, `--force-always-on`.
-- **APEX 6 Pro, experimental and off by default:** a 2 kHz grip haptics stream
-  (`--apex6-rate 2000` or a Tray switch) that keeps the 500 to 1000 Hz content
-  of native game haptics.
+- **APEX 6 Pro lightbar sync** and an unlocked onboard profile selector, weapon
+  snaps that are no longer cut by a game's rapid effect resets, and an update
+  package with a signed updater (see below).
 
 ### Anonymous version statistics (on by default, can be turned off)
 
@@ -68,16 +74,20 @@ detail; in short:
   `verify-version-consistency.ps1` checks the package, its hashes and signatures
   and the updater version.
 
-### APEX 6 Pro: experimental 2 kHz grip haptics (off by default)
+### APEX 6 Pro: 2 kHz grip haptics (on by default)
+
+- **Not tested over the long term.** The stability of the controller hardware
+  under long sessions at 2 kHz is not validated; see the known limits below.
 
 - The APEX 6 Pro plays its haptic stream at 2000 samples per second, but the
   bridge has always fed it 1000: eight samples per 8 ms report, doubled by the
   controller's own interpolation. A new opt-in mode clears that interpolation
   flag and sends two raw eight-sample reports per 8 ms block, 4 ms apart, so
   native game haptics keep their 500 to 1000 Hz content.
-- `--apex6-rate 2000` (needs `--rumble`) turns it on; 1000 stays the default.
-  The Tray has a matching "2 kHz grip haptics (experimental)" switch, shown for
-  the APEX 6 Pro only and off by default. With any other controller, or with
+- It is on by default: `--apex6-rate 2000` (needs `--rumble`) selects it and
+  `--apex6-rate 1000` returns to the previous stream. The Tray has a matching
+  "2 kHz grip haptics" switch, shown for the APEX 6 Pro only and on by default.
+  With any other controller, or with
   grip vibration off, the engine silently stays at 1000, so the switch can be
   left on.
 - It needs the integrated libVIIPER `v0.7.0-asb14`. Its virtual DualSense now
@@ -210,6 +220,18 @@ detail; in short:
 - In the Tray trigger test, the weapon and bow descriptions explain the new
   behaviour in all nine languages, a status line asks you to press the trigger,
   the test runs for 5 seconds, and the twelve presets are selectable.
+
+### APEX 6 Pro: weapon snaps survive a game's rapid effect resets
+
+- Games set and clear the trigger effect about sixteen times a second. A clear
+  used to cut the snap in progress, and setting the effect again forgot the
+  previous trigger position, so many presses never crossed the break point. A
+  clear no longer cuts a snap, and the position and armed state survive a new
+  effect.
+- A trigger clear is now held for 100 ms before it is applied, and the session
+  telemetry reports the peak game rumble (`apex6_rumble_left_peak`,
+  `apex6_rumble_right_peak`). The `test-trigger` summary counts the trigger
+  presses.
 
 ### APEX 6 Pro: grip motors left alone when only the triggers are driven
 

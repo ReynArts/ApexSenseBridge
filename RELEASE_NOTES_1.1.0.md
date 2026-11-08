@@ -2,19 +2,21 @@
 
 ApexSenseBridge 1.1.0 is a major update, even though the version number only moves from 1.0 to 1.1. It extends the APEX 6 Pro support, adds a controller picker and makes automatic activation far more robust. The complete list is in `CHANGELOG.md`.
 
+**The flagship feature is 2 kHz haptics on the APEX 6 Pro, on by default**: native game haptics keep their 500 to 1000 Hz content instead of folding down. It has not been tested over the long term, so the stability of the controller hardware under long sessions is not validated; it can be turned off (Tray switch or `--apex6-rate 1000`).
+
 **Trigger effects have been reworked on the APEX 6 Pro and the APEX 5** so that each DualSense effect follows what it means. The APEX 4 triggers are unchanged.
 
 ---
 
 ## 1. Flydigi APEX 6 Pro
 
+- **2 kHz grip haptics, on by default (flagship):** the bridge sends native game haptics at 2000 samples per second instead of 1000, so their 500 to 1000 Hz content is no longer folded down. Needs libVIIPER v0.7.0-asb14. Judged clearly better by ear on one APEX 6 Pro; see the changelog for the limits.
 - **Motion sensors:** gyroscope and accelerometer are forwarded to the virtual DualSense; `test-gyro` supports the APEX 6 Pro.
 - **Battery:** real level and charge state instead of a fixed 100 %, refreshed every 15 seconds with self-timing safeguards.
 - **Onboard profile slots 1–4:** `--apex-profile` and `test-profile-switch`, with the original slot restored and verified.
 - **Trigger effects translated into vibration by meaning:** a burst at the break point for weapon effects, a draw and release burst for Bow, smooth zone transitions for progressive resistance and vibration, rhythms for Machine and Galloping.
 - **Twelve weapon presets** in the Tray trigger test and `test-trigger --mode <preset>`; `test-trigger` plays the real native effect and follows your trigger.
 - **Cleaner release:** the trigger hum kept by newer firmware after a release is stopped ([#74](https://github.com/ReynArts/ApexSenseBridge/issues/74)).
-- **Experimental 2 kHz grip haptics (off by default):** `--apex6-rate 2000` or the Tray switch sends native game haptics at 2000 samples per second instead of 1000, so their 500 to 1000 Hz content is no longer folded down. Needs libVIIPER v0.7.0-asb14. Judged clearly better by ear on one APEX 6 Pro; see the changelog for the limits.
 
 ## 2. All controllers
 
@@ -34,4 +36,4 @@ ApexSenseBridge 1.1.0 is a major update, even though the version number only mov
 - The APEX 6 Pro does not ride out a controller power cycle.
 - On the APEX 6 Pro, lightbar sync stores every color in the controller: it is off by default, limited to one color every 1.5 s and 300 per session, and your Space Station lighting is saved and restored.
 - Bridging two controllers at once is not supported.
-- The 2 kHz grip haptics mode is experimental: light stutters can appear during long continuous effects, in both the 1000 and the 2000 stream, and the real spectrum of game haptics above 500 Hz has not been measured.
+- The 2 kHz grip haptics mode has not been tested over the long term and the stability of the controller hardware under long sessions is not validated; turn it off with the Tray switch or `--apex6-rate 1000`. Light stutters can appear during long continuous effects, in both the 1000 and the 2000 stream, and the real spectrum of game haptics above 500 Hz has not been measured.
