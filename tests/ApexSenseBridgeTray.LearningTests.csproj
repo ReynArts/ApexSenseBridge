@@ -26,15 +26,21 @@
     <Reference Include="System.Management" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="tray_learning_tests.cs" />
+    <Compile Include="update_package_tests.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\SessionRecoveryState.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\StartRetryPolicy.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\EngineSessionManager.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\SteamProcessChecker.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ControllerDetectionService.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\ControllerSelection.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ProcessMonitorService.cs" />
+    <Compile Include="..\shared\UpdatePackage.cs">
+      <Link>Production\UpdatePackage.cs</Link>
+    </Compile>
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Production\ReleaseSecurity.cs</Link>
     </Compile>
@@ -53,6 +59,12 @@
     <Compile Include="..\ApexSenseBridgeTray\Common\NativeMethods.cs">
       <Link>Production\NativeMethods.cs</Link>
     </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\StartupDiagnostics.cs">
+      <Link>Production\StartupDiagnostics.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\TrayStartupOptions.cs">
+      <Link>Production\TrayStartupOptions.cs</Link>
+    </Compile>
     <Compile Include="..\shared\InstallLocator.cs">
       <Link>Production\InstallLocator.cs</Link>
     </Compile>
@@ -68,6 +80,15 @@
     <Compile Include="..\ApexSenseBridgeTray\Services\GameActivationPolicy.cs">
       <Link>Production\GameActivationPolicy.cs</Link>
     </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\ManualFixGuide.cs">
+      <Link>Production\ManualFixGuide.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\TouchpadRemapGuide.cs">
+      <Link>Production\TouchpadRemapGuide.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Services\ReportRelayClient.cs">
+      <Link>Production\ReportRelayClient.cs</Link>
+    </Compile>
     <Compile Include="..\ApexSenseBridgeTray\Services\PlatformClientProcessFilter.cs">
       <Link>Production\PlatformClientProcessFilter.cs</Link>
     </Compile>
@@ -79,6 +100,9 @@
     </Compile>
     <Compile Include="..\shared\BridgeArguments.cs">
       <Link>Production\BridgeArguments.cs</Link>
+    </Compile>
+    <Compile Include="..\shared\ProcessLiveness.cs">
+      <Link>Production\ProcessLiveness.cs</Link>
     </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

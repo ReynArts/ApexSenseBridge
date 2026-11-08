@@ -5,6 +5,7 @@ Fetches PC games with DualSense Adaptive Triggers and Haptic Feedback
 from PCGamingWiki API, resolves Steam cover thumbnails, and generates data/supported_games.json.
 """
 
+import hashlib
 import html
 import json
 import os
@@ -39,6 +40,8 @@ SPECIAL_PROFILES = {
     "warframe": "warframe",
     "deathstranding2": "death-stranding-2",
     "deathstranding2onthebeach": "death-stranding-2",
+    "alanwake2": "alan-wake-2",
+    "alanwakeii": "alan-wake-2",
 }
 
 BUILTIN_GAMES = [
@@ -439,6 +442,413 @@ def fetch_pcgw_titles(page_titles: list) -> list:
     return list(fetch_pcgw_support(page_titles))
 
 
+MANUAL_FIX_FEATURES = {
+    "adaptiveTriggers": "dualsense adaptive trigger support notes",
+    "hapticFeedback": "dualsense haptics support notes",
+}
+MANUAL_FIX_TRANSLATION_LANGUAGES = ("es", "fr", "ja", "ko", "pt", "ru", "vi", "zh")
+MANUAL_FIX_NOTE_LIMIT = 600
+MANUAL_FIX_LINK_LIMIT = 6
+MANUAL_FIX_TOOLS = (
+    ("DSX", re.compile(r"\bDSX\b")),
+    ("DSY", re.compile(r"\bDSY\b")),
+    ("RacingDSX", re.compile(r"RacingDSX", re.IGNORECASE)),
+    ("DualSenseAT", re.compile(r"DualSense\s?AT\b")),
+    ("Special K", re.compile(r"Special\s?K\b", re.IGNORECASE)),
+    ("SimHub", re.compile(r"Sim\s?Hub", re.IGNORECASE)),
+)
+
+_REF_PATTERN = re.compile(r"<ref\b[^>]*/>|<ref\b[^>]*>.*?</ref>", re.IGNORECASE | re.DOTALL)
+_BREAK_PATTERN = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_TAG_PATTERN = re.compile(r"<[^>]+>")
+_CODE_TEMPLATE_PATTERN = re.compile(r"\{\{\s*(?:code|c)\s*\|([^{}]*)\}\}", re.IGNORECASE)
+_TEMPLATE_PATTERN = re.compile(r"\{\{[^{}]*\}\}")
+_LINK_PATTERN = re.compile(
+    r"\[\[([^\[\]|]+)(?:\|([^\[\]]*))?\]\]|\[(https?://[^\s\]]+)(?:[ \t]+([^\]]*))?\]"
+)
+_EMPHASIS_PATTERN = re.compile(r"'{2,}")
+
+
+def extract_wikitext_field(wikitext: str, field: str) -> str:
+    wanted = field.casefold()
+    collected = None
+    for line in (wikitext or "").splitlines():
+        if collected is None:
+            match = re.match(r"^\|\s*([^=|]+?)\s*=(.*)$", line)
+            if match and match.group(1).casefold() == wanted:
+                collected = [match.group(2)]
+            continue
+        if line.startswith("|") or line.startswith("}}"):
+            break
+        collected.append(line)
+    return "\n".join(collected).strip() if collected is not None else ""
+
+
+def clean_wikitext(raw: str) -> tuple:
+    links = []
+
+    def replace_link(match):
+        if match.group(1) is not None:
+            target = html.unescape(match.group(1)).strip()
+            label = html.unescape(match.group(2) or target).strip()
+            if ":" in target and not target.casefold().startswith(("file:", "image:", "category:")):
+                url = "https://www.pcgamingwiki.com/wiki/" + urllib.parse.quote(
+                    target.replace(" ", "_"), safe=":#_(),'!-."
+                )
+                links.append({"label": label, "url": url})
+            return label
+        url = html.unescape(match.group(3)).strip()
+        label = html.unescape(match.group(4) or "").strip()
+        if not label:
+            label = urllib.parse.urlparse(url).netloc
+        links.append({"label": label, "url": url})
+        return label
+
+    text = _REF_PATTERN.sub("", raw or "")
+    text = _BREAK_PATTERN.sub(" ", text)
+    text = _CODE_TEMPLATE_PATTERN.sub(lambda m: m.group(1), text)
+    text = _LINK_PATTERN.sub(replace_link, text)
+    previous = None
+    while previous != text:
+        previous = text
+        text = _TEMPLATE_PATTERN.sub("", text)
+    text = _TAG_PATTERN.sub("", text)
+    text = _EMPHASIS_PATTERN.sub("", html.unescape(text))
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text) > MANUAL_FIX_NOTE_LIMIT:
+        text = text[:MANUAL_FIX_NOTE_LIMIT].rsplit(" ", 1)[0].rstrip(" ,;:.") + "…"
+
+    unique_links = []
+    seen_urls = set()
+    for link in links:
+        if link["url"] in seen_urls:
+            continue
+        seen_urls.add(link["url"])
+        unique_links.append(link)
+    return text, unique_links[:MANUAL_FIX_LINK_LIMIT]
+
+
+def detect_manual_fix_tools(note: str, links: list) -> list:
+    haystack = " ".join([note] + [f"{l['label']} {l['url']}" for l in links])
+    return [name for name, pattern in MANUAL_FIX_TOOLS if pattern.search(haystack)]
+
+
+def parse_manual_fix_details(wikitext: str, features: list) -> dict:
+    details = {}
+    for feature in features:
+        field = MANUAL_FIX_FEATURES.get(feature)
+        if not field:
+            continue
+        note, links = clean_wikitext(extract_wikitext_field(wikitext, field))
+        if not note and not links:
+            continue
+        details[feature] = {
+            "note": note,
+            "links": links,
+            "tools": detect_manual_fix_tools(note, links),
+        }
+    return details
+
+
+def pcgw_page_title(url: str) -> str:
+    path = urllib.parse.urlparse(url or "").path
+    prefix = "/wiki/"
+    if not path.startswith(prefix):
+        return ""
+    return urllib.parse.unquote(path[len(prefix):]).replace("_", " ")
+
+
+def fetch_pcgw_wikitext(page_title: str):
+    params = {
+        "action": "parse",
+        "page": page_title,
+        "prop": "wikitext",
+        "redirects": 1,
+        "format": "json",
+    }
+    url = f"{PCGW_API}?{urllib.parse.urlencode(params)}"
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as err:
+        print(f"[WARN] Failed to fetch wikitext of {page_title}: {err}", file=sys.stderr)
+        return None
+    if data.get("error"):
+        print(f"[INFO] PCGW page '{page_title}' not found: {data['error'].get('info', '')}", file=sys.stderr)
+        return None
+    return data.get("parse", {}).get("wikitext", {}).get("*") or None
+
+
+def manual_fix_note_key(note: str) -> str:
+    return hashlib.sha256((note or "").encode("utf-8")).hexdigest()[:16]
+
+
+def load_manual_fix_translations(path: str) -> dict:
+    empty = {"notes": {}, "labels": {}}
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (OSError, ValueError):
+        return empty
+    if not isinstance(data, dict):
+        return empty
+    notes = data.get("notes")
+    labels = data.get("labels")
+    return {
+        "notes": notes if isinstance(notes, dict) else {},
+        "labels": labels if isinstance(labels, dict) else {},
+    }
+
+
+def pick_translations(entry) -> dict:
+    if not isinstance(entry, dict):
+        return {}
+    return {
+        language: entry[language].strip()
+        for language in MANUAL_FIX_TRANSLATION_LANGUAGES
+        if isinstance(entry.get(language), str) and entry[language].strip()
+    }
+
+
+def attach_manual_fix_translations(games: list, translations: dict) -> dict:
+    stats = {"translated": 0, "missing": 0}
+    notes = translations.get("notes", {})
+    labels = translations.get("labels", {})
+    for game in games:
+        for entry in (game.get("manualFixDetails") or {}).values():
+            entry.pop("translations", None)
+            found = pick_translations(notes.get(manual_fix_note_key(entry.get("note", ""))))
+            if found:
+                entry["translations"] = found
+                stats["translated"] += 1
+            elif entry.get("note"):
+                stats["missing"] += 1
+            for link in entry.get("links", []):
+                link.pop("translations", None)
+                label_found = pick_translations(labels.get(link.get("label")))
+                if label_found:
+                    link["translations"] = label_found
+    return stats
+
+
+MYMEMORY_API = "https://api.mymemory.translated.net/get"
+MYMEMORY_LANGUAGES = {
+    "es": "es", "fr": "fr", "ja": "ja", "ko": "ko",
+    "pt": "pt", "ru": "ru", "vi": "vi", "zh": "zh-CN",
+}
+MYMEMORY_QUERY_LIMIT = 450
+MANUAL_FIX_TRANSLATION_BATCH = 10
+MANUAL_FIX_TRANSLATION_PAUSE = 0.4
+
+
+class TranslationQuotaExceeded(RuntimeError):
+    pass
+
+
+def manual_fix_language_problem(source: str, text) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return "is missing"
+    if len(text) > len(source) * 3 + 60:
+        return "is far longer than the source"
+    if "\n" in text or "\r" in text:
+        return "spans several lines"
+    if "http" in text.casefold() and "http" not in source.casefold():
+        return "adds a web address"
+    for _, pattern in MANUAL_FIX_TOOLS:
+        ascii_pattern = re.compile(
+            pattern.pattern, (pattern.flags & ~re.UNICODE) | re.ASCII
+        )
+        if ascii_pattern.search(source) and not ascii_pattern.search(text):
+            return "lost a tool name"
+    return ""
+
+
+def manual_fix_translation_problem(source: str, candidate) -> str:
+    if not isinstance(candidate, dict):
+        return "no translations returned"
+    for language in MANUAL_FIX_TRANSLATION_LANGUAGES:
+        problem = manual_fix_language_problem(source, candidate.get(language))
+        if problem:
+            return f"{language} {problem}"
+    return ""
+
+
+def pending_manual_fix_notes(games: list, translations: dict) -> dict:
+    pending = {}
+    known = translations.get("notes", {})
+    for game in games:
+        for entry in (game.get("manualFixDetails") or {}).values():
+            note = entry.get("note", "")
+            if not note:
+                continue
+            key = manual_fix_note_key(note)
+            if key not in pending and manual_fix_translation_problem(note, known.get(key)):
+                pending[key] = note
+    return pending
+
+
+def protect_manual_fix_names(text: str) -> tuple:
+    names = {}
+
+    def hide(match):
+        token = f"Qzx{len(names) + 1}"
+        names[token] = match.group(0)
+        return token
+
+    for _, pattern in MANUAL_FIX_TOOLS:
+        text = pattern.sub(hide, text)
+    return text, names
+
+
+def restore_manual_fix_names(text: str, names: dict) -> str:
+    for token, name in names.items():
+        text = re.sub(rf"Qzx\s*{token[3:]}(?!\d)", lambda _: name, text)
+    return text
+
+
+def mymemory_translate(text: str, language: str) -> str:
+    if len(text.encode("utf-8")) > MYMEMORY_QUERY_LIMIT:
+        raise ValueError("note is too long for the free translation service")
+    params = {"q": text, "langpair": f"en|{MYMEMORY_LANGUAGES[language]}"}
+    email = os.environ.get("MANUAL_FIX_TRANSLATION_EMAIL")
+    if email:
+        params["de"] = email
+    request = urllib.request.Request(
+        f"{MYMEMORY_API}?{urllib.parse.urlencode(params)}",
+        headers={"User-Agent": USER_AGENT},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    status = str(data.get("responseStatus"))
+    translated = (data.get("responseData") or {}).get("translatedText")
+    if status == "429" or (isinstance(translated, str) and "MYMEMORY WARNING" in translated.upper()):
+        raise TranslationQuotaExceeded("the free translation quota is used up for today")
+    if status != "200" or not isinstance(translated, str):
+        raise RuntimeError(f"the translation service answered {status}")
+    return html.unescape(translated).strip()
+
+
+def mymemory_translate_batch(
+    items: list, translate=mymemory_translate, pause: float = MANUAL_FIX_TRANSLATION_PAUSE
+) -> dict:
+    result = {}
+    for item in items:
+        protected, names = protect_manual_fix_names(item["text"])
+        translated = {}
+        for language in MANUAL_FIX_TRANSLATION_LANGUAGES:
+            try:
+                translated[language] = restore_manual_fix_names(
+                    translate(protected, language), names
+                )
+            except TranslationQuotaExceeded:
+                raise
+            except Exception as err:
+                print(
+                    f"[WARN] No {language} translation for note {item['id']}: {err}",
+                    file=sys.stderr,
+                )
+            if pause:
+                time.sleep(pause)
+        if translated:
+            result[item["id"]] = translated
+    return result
+
+
+def translate_missing_manual_fix_notes(
+    games: list,
+    translations: dict,
+    translator=mymemory_translate_batch,
+    batch_size: int = MANUAL_FIX_TRANSLATION_BATCH,
+) -> dict:
+    stats = {"pending": 0, "added": 0, "rejected": 0, "failed": 0}
+    pending = list(pending_manual_fix_notes(games, translations).items())
+    stats["pending"] = len(pending)
+    for start in range(0, len(pending), batch_size):
+        chunk = pending[start:start + batch_size]
+        try:
+            returned = translator([{"id": key, "text": source} for key, source in chunk])
+        except Exception as err:
+            print(f"[WARN] Manual-fix translation stopped: {err}", file=sys.stderr)
+            stats["failed"] += len(pending) - start
+            break
+        for key, source in chunk:
+            candidate = returned.get(key) if isinstance(returned, dict) else None
+            kept = translations.setdefault("notes", {}).get(key, {})
+            entry = {"source": source}
+            for language in MANUAL_FIX_TRANSLATION_LANGUAGES:
+                if not manual_fix_language_problem(source, kept.get(language)):
+                    entry[language] = kept[language]
+                    continue
+                text = candidate.get(language) if isinstance(candidate, dict) else None
+                problem = manual_fix_language_problem(source, text)
+                if problem:
+                    if isinstance(candidate, dict) and language in candidate:
+                        print(
+                            f"[WARN] Rejected {language} translation of note {key}: {problem}",
+                            file=sys.stderr,
+                        )
+                        stats["rejected"] += 1
+                    continue
+                entry[language] = text.strip()
+                stats["added"] += 1
+            if len(entry) > 1:
+                translations["notes"][key] = entry
+    return stats
+
+
+def save_manual_fix_translations(path: str, translations: dict) -> None:
+    newline = "\n"
+    try:
+        with open(path, "rb") as stream:
+            if b"\r\n" in stream.read():
+                newline = "\r\n"
+    except OSError:
+        pass
+    payload = {
+        "version": 1,
+        "notes": translations.get("notes", {}),
+        "labels": translations.get("labels", {}),
+    }
+    text = json.dumps(payload, indent=2, ensure_ascii=False).replace("\n", newline)
+    with open(path, "wb") as stream:
+        stream.write(text.encode("utf-8"))
+
+
+def manual_fix_features(game: dict) -> list:
+    return [feature for feature in MANUAL_FIX_FEATURES if game.get(f"{feature}ManualFix")]
+
+
+def enrich_with_manual_fix_details(games: list, cache: dict, fetch=fetch_pcgw_wikitext, pause: float = 0.4) -> dict:
+    stats = {"fetched": 0, "cached": 0, "empty": 0}
+    for game in games:
+        features = manual_fix_features(game)
+        if not features:
+            game.pop("manualFixDetails", None)
+            continue
+
+        page_title = pcgw_page_title(game.get("manualFixUrl", ""))
+        wikitext = fetch(page_title) if page_title else None
+        if wikitext is None:
+            previous = cache.get(game.get("normalized"), {}).get("manualFixDetails", {})
+            details = {f: previous[f] for f in features if f in previous}
+            if details:
+                stats["cached"] += 1
+        else:
+            details = parse_manual_fix_details(wikitext, features)
+            stats["fetched"] += 1
+            if pause:
+                time.sleep(pause)
+
+        if details:
+            game["manualFixDetails"] = details
+        else:
+            game.pop("manualFixDetails", None)
+            stats["empty"] += 1
+    return stats
+
+
 def fetch_steam_icon_url(app_id: int) -> str:
     """Fetches the correct Steam library_capsule_2x icon URL via IStoreBrowseService API."""
     try:
@@ -635,6 +1045,40 @@ def main():
         else:
             game.pop("requiresManualFix", None)
             game.pop("manualFixUrl", None)
+
+    print("[*] Fetching manual-fix notes from PCGamingWiki game pages...")
+    fix_stats = enrich_with_manual_fix_details(list(games_dict.values()), existing_cache)
+    print(
+        "[+] Manual-fix notes: "
+        f"{fix_stats['fetched']} pages read, {fix_stats['cached']} kept from cache, "
+        f"{fix_stats['empty']} without usable note."
+    )
+    translations_path = os.path.join(root_dir, "data", "manual_fix_translations.json")
+    translations = load_manual_fix_translations(translations_path)
+    pending_notes = pending_manual_fix_notes(list(games_dict.values()), translations)
+    if pending_notes:
+        print(f"[*] Translating {len(pending_notes)} new or changed manual-fix notes...")
+        try:
+            auto_stats = translate_missing_manual_fix_notes(
+                list(games_dict.values()), translations
+            )
+            if auto_stats["added"]:
+                save_manual_fix_translations(translations_path, translations)
+            print(
+                "[+] Automatic translation: "
+                f"{auto_stats['added']} languages added, {auto_stats['rejected']} rejected, "
+                f"{auto_stats['failed']} notes postponed (shown in English meanwhile)."
+            )
+        except Exception as err:
+            print(f"[WARN] Automatic translation skipped: {err}", file=sys.stderr)
+    translation_stats = attach_manual_fix_translations(
+        list(games_dict.values()), translations
+    )
+    print(
+        "[+] Manual-fix translations: "
+        f"{translation_stats['translated']} notes translated, "
+        f"{translation_stats['missing']} shown in English."
+    )
 
     # Audit every legacy/unverified AppID once. Future runs reuse verified identities.
     need_resolve = [

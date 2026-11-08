@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-17T08:18:23.616959+00:00",
-  "totalGames": 221,
-  "discordExecutableGames": 132,
+  "updatedAt": "2026-11-08T11:05:26.425453+00:00",
+  "totalGames": 225,
+  "discordExecutableGames": 137,
   "games": [
     {
       "title": "007 First Light",
@@ -28,6 +28,20 @@
         "aplaguetalerequiem_x64.exe"
       ],
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "A Quiet Place: The Road Ahead",
+      "normalized": "aquietplacetheroadahead",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 2233120,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2233120/library_600x900.jpg?t=1790864553",
+      "executables": [
+        "aquietplace-win64-shipping.exe"
+      ],
+      "addedAt": "2026-11-04"
     },
     {
       "title": "Ace Combat 8: Wings of Theve",
@@ -56,7 +70,7 @@
       "normalized": "alanwakeii",
       "adaptiveTriggers": true,
       "hapticFeedback": true,
-      "profile": "standard",
+      "profile": "alan-wake-2",
       "steamAppId": 0,
       "steamAppIdVerified": false,
       "iconUrl": "",
@@ -114,6 +128,9 @@
       "steamAppId": 4732690,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4732690/791911bc19f47ed3546d70fbce423026f7d846bc/library_capsule_2x.jpg?t=1791291076",
+      "executables": [
+        "endfield.exe"
+      ],
       "addedAt": "2026-09-01"
     },
     {
@@ -186,6 +203,44 @@
         "jsgme.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for tires slipping or locking.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.racedepartment.com/downloads/dualsensexlink-dualsense-adaptive-trigger-and-led-effects.48675/",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX). Gatillos adaptativos cuando los neumáticos patinan o se bloquean.",
+            "fr": "Configuration personnalisée (nécessite DSX). Gâchettes adaptatives lorsque les pneus patinent ou se bloquent.",
+            "ja": "カスタム設定（DSX が必要）。タイヤのスリップやロック時にアダプティブトリガーが作動します。",
+            "ko": "사용자 지정 설정(DSX 필요). 타이어가 미끄러지거나 잠길 때 적응형 트리거가 작동합니다.",
+            "pt": "Configuração personalizada (requer DSX). Gatilhos adaptativos quando os pneus derrapam ou travam.",
+            "ru": "Пользовательская конфигурация (требуется DSX). Адаптивные триггеры при пробуксовке или блокировке шин.",
+            "vi": "Cấu hình tùy chỉnh (cần DSX). Cò thích ứng khi lốp xe trượt hoặc bị khóa.",
+            "zh": "自定义配置（需要 DSX）。轮胎打滑或抱死时触发自适应扳机。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -329,7 +384,7 @@
       "profile": "standard",
       "steamAppId": 1938090,
       "steamAppIdVerified": true,
-      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/29a83f235591f21c076c80e8e48dee1e17b4cac7/library_capsule_2x.jpg?t=1792179713",
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1938090/cdd2e375176da1f904a11940576790732d6ccbc0/library_capsule_2x.jpg?t=1793996750",
       "executables": [
         "cod.exe"
       ],
@@ -495,6 +550,38 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Mod",
+          "links": [
+            {
+              "label": "Mod",
+              "url": "https://github.com/tpetsas/control-dualsense-mod?tab=readme-ov-file",
+              "translations": {
+                "es": "Mod",
+                "fr": "Mod",
+                "ja": "MOD",
+                "ko": "모드",
+                "pt": "Mod",
+                "ru": "Мод",
+                "vi": "Bản mod",
+                "zh": "MOD"
+              }
+            }
+          ],
+          "tools": [],
+          "translations": {
+            "es": "Mod",
+            "fr": "Mod",
+            "ja": "MOD",
+            "ko": "모드",
+            "pt": "Mod",
+            "ru": "Мод",
+            "vi": "Bản mod",
+            "zh": "MOD"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -637,6 +724,45 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config. Requires DSX.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ],
+          "translations": {
+            "es": "Configuración personalizada. Requiere DSX.",
+            "fr": "Configuration personnalisée. Nécessite DSX.",
+            "ja": "カスタム設定。DSX が必要です。",
+            "ko": "사용자 지정 설정. DSX가 필요합니다.",
+            "pt": "Configuração personalizada. Requer DSX.",
+            "ru": "Пользовательская конфигурация. Требуется DSX.",
+            "vi": "Cấu hình tùy chỉnh. Cần DSX.",
+            "zh": "自定义配置。需要 DSX。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -679,6 +805,17 @@
       "addedAt": "2026-09-01"
     },
     {
+      "title": "Delta Force (2024)",
+      "normalized": "deltaforce2024",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 0,
+      "steamAppIdVerified": false,
+      "iconUrl": "",
+      "addedAt": "2026-10-22"
+    },
+    {
       "title": "Depersonalization",
       "normalized": "depersonalization",
       "adaptiveTriggers": false,
@@ -701,6 +838,30 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use RacingDSX, follow same steps in readme as DiRT Rally, then add dirt4 to Executables to match.",
+          "links": [
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "RacingDSX"
+          ],
+          "translations": {
+            "es": "Usa RacingDSX, sigue los mismos pasos del readme que para DiRT Rally y luego añade dirt4 a Executables para que coincida.",
+            "fr": "Utilisez RacingDSX, suivez les mêmes étapes du readme que pour DiRT Rally, puis ajoutez dirt4 à Executables pour qu’il corresponde.",
+            "ja": "RacingDSX を使用し、DiRT Rally と同じ readme の手順に従ってから、dirt4 を Executables に追加して一致させてください。",
+            "ko": "RacingDSX를 사용하고 DiRT Rally와 같은 readme 절차를 따른 다음, 일치하도록 dirt4를 Executables에 추가하세요.",
+            "pt": "Use o RacingDSX, siga os mesmos passos do readme do DiRT Rally e depois adicione dirt4 a Executables para corresponder.",
+            "ru": "Используйте RacingDSX, выполните те же шаги из readme, что и для DiRT Rally, затем добавьте dirt4 в Executables для соответствия.",
+            "vi": "Dùng RacingDSX, làm theo các bước trong readme như với DiRT Rally, rồi thêm dirt4 vào Executables để khớp.",
+            "zh": "使用 RacingDSX，按照与 DiRT Rally 相同的 readme 步骤操作，然后将 dirt4 添加到 Executables 以进行匹配。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -715,6 +876,30 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use RacingDSX",
+          "links": [
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "RacingDSX"
+          ],
+          "translations": {
+            "es": "Usa RacingDSX",
+            "fr": "Utilisez RacingDSX",
+            "ja": "RacingDSX を使用してください",
+            "ko": "RacingDSX를 사용하세요",
+            "pt": "Use o RacingDSX",
+            "ru": "Используйте RacingDSX",
+            "vi": "Dùng RacingDSX",
+            "zh": "使用 RacingDSX"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -732,6 +917,30 @@
         "dirtrally2.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use RacingDSX",
+          "links": [
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "RacingDSX"
+          ],
+          "translations": {
+            "es": "Usa RacingDSX",
+            "fr": "Utilisez RacingDSX",
+            "ja": "RacingDSX を使用してください",
+            "ko": "RacingDSX를 사용하세요",
+            "pt": "Use o RacingDSX",
+            "ru": "Используйте RacingDSX",
+            "vi": "Dùng RacingDSX",
+            "zh": "使用 RacingDSX"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -774,6 +983,44 @@
         "duckgame.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for guns.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://steamcommunity.com/sharedfiles/filedetails/?id=2654985616",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX). Gatillos adaptativos para las armas de fuego.",
+            "fr": "Configuration personnalisée (nécessite DSX). Gâchettes adaptatives pour les armes à feu.",
+            "ja": "カスタム設定（DSX が必要）。銃にアダプティブトリガーを適用します。",
+            "ko": "사용자 지정 설정(DSX 필요). 총기에 적응형 트리거를 적용합니다.",
+            "pt": "Configuração personalizada (requer DSX). Gatilhos adaptativos para as armas.",
+            "ru": "Пользовательская конфигурация (требуется DSX). Адаптивные триггеры для огнестрельного оружия.",
+            "vi": "Cấu hình tùy chỉnh (cần DSX). Cò thích ứng cho súng.",
+            "zh": "自定义配置（需要 DSX）。为枪械提供自适应扳机。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -792,6 +1039,38 @@
         "dyinglightgame.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Adaptive triggers for guns and melee weapons",
+          "links": [],
+          "tools": [],
+          "translations": {
+            "es": "Gatillos adaptativos para armas de fuego y armas cuerpo a cuerpo",
+            "fr": "Gâchettes adaptatives pour les armes à feu et les armes de mêlée",
+            "ja": "銃と近接武器のアダプティブトリガー",
+            "ko": "총기와 근접 무기용 적응형 트리거",
+            "pt": "Gatilhos adaptativos para armas de fogo e armas corpo a corpo",
+            "ru": "Адаптивные триггеры для огнестрельного и холодного оружия",
+            "vi": "Cò thích ứng cho súng và vũ khí cận chiến",
+            "zh": "枪械和近战武器的自适应扳机"
+          }
+        },
+        "hapticFeedback": {
+          "note": "Haptic feedback for weapon swinging, climbing, flashlight, trap remote etc.",
+          "links": [],
+          "tools": [],
+          "translations": {
+            "es": "Respuesta háptica al blandir armas, escalar, usar la linterna, el mando de trampas, etc.",
+            "fr": "Retour haptique pour les coups d’arme, l’escalade, la lampe torche, la télécommande de piège, etc.",
+            "ja": "武器を振る、登る、懐中電灯、トラップのリモコンなどでのハプティックフィードバック。",
+            "ko": "무기 휘두르기, 오르기, 손전등, 함정 리모컨 등에 대한 햅틱 피드백.",
+            "pt": "Retorno háptico ao balançar armas, escalar, usar a lanterna, o controle de armadilhas etc.",
+            "ru": "Тактильная отдача при взмахах оружием, лазании, использовании фонарика, пульта ловушек и т. д.",
+            "vi": "Phản hồi xúc giác khi vung vũ khí, leo trèo, dùng đèn pin, điều khiển bẫy, v.v.",
+            "zh": "挥动武器、攀爬、手电筒、陷阱遥控器等动作的触觉反馈。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -834,6 +1113,30 @@
         "wrc.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "hapticFeedback": {
+          "note": "Use the Shake-It Bass Shaker function of Simhub to emulate haptic feedback from the controller's VCA motors.",
+          "links": [
+            {
+              "label": "Simhub",
+              "url": "https://www.simhubdash.com/"
+            }
+          ],
+          "tools": [
+            "SimHub"
+          ],
+          "translations": {
+            "es": "Usa la función Shake-It Bass Shaker de Simhub para emular la respuesta háptica de los motores VCA del mando.",
+            "fr": "Utilisez la fonction Shake-It Bass Shaker de Simhub pour émuler le retour haptique des moteurs VCA de la manette.",
+            "ja": "Simhub の Shake-It Bass Shaker 機能を使って、コントローラーの VCA モーターのハプティックフィードバックをエミュレートします。",
+            "ko": "Simhub의 Shake-It Bass Shaker 기능으로 컨트롤러 VCA 모터의 햅틱 피드백을 에뮬레이션하세요.",
+            "pt": "Use a função Shake-It Bass Shaker do Simhub para emular o retorno háptico dos motores VCA do controle.",
+            "ru": "Используйте функцию Shake-It Bass Shaker в Simhub, чтобы имитировать тактильную отдачу VCA-моторов контроллера.",
+            "vi": "Dùng chức năng Shake-It Bass Shaker của Simhub để mô phỏng phản hồi xúc giác từ động cơ VCA của tay cầm.",
+            "zh": "使用 Simhub 的 Shake-It Bass Shaker 功能来模拟手柄 VCA 马达的触觉反馈。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -862,6 +1165,45 @@
         "eurotrucks2.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX and Steam).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT/wiki/Tutorial-for-Euro-Truck-Simulator-2",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX y Steam).",
+            "fr": "Configuration personnalisée (nécessite DSX et Steam).",
+            "ja": "カスタム設定（DSX と Steam が必要）。",
+            "ko": "사용자 지정 설정(DSX와 Steam 필요).",
+            "pt": "Configuração personalizada (requer DSX e Steam).",
+            "ru": "Пользовательская конфигурация (требуются DSX и Steam).",
+            "vi": "Cấu hình tùy chỉnh (cần DSX và Steam).",
+            "zh": "自定义配置（需要 DSX 和 Steam）。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -951,6 +1293,44 @@
         "fallout4.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). The author includes tutorial to configure the behavior of triggers.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/fallout4/mods/62113?tab=description",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX). El autor incluye un tutorial para configurar el comportamiento de los gatillos.",
+            "fr": "Configuration personnalisée (nécessite DSX). L’auteur fournit un tutoriel pour configurer le comportement des gâchettes.",
+            "ja": "カスタム設定（DSX が必要）。作者がトリガーの動作を設定するためのチュートリアルを用意しています。",
+            "ko": "사용자 지정 설정(DSX 필요). 제작자가 트리거 동작을 설정하는 튜토리얼을 제공합니다.",
+            "pt": "Configuração personalizada (requer DSX). O autor inclui um tutorial para configurar o comportamento dos gatilhos.",
+            "ru": "Пользовательская конфигурация (требуется DSX). Автор приложил руководство по настройке поведения триггеров.",
+            "vi": "Cấu hình tùy chỉnh (cần DSX). Tác giả có kèm hướng dẫn cấu hình hành vi của cò.",
+            "zh": "自定义配置（需要 DSX）。作者附带了配置扳机行为的教程。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1047,14 +1427,17 @@
       "addedAt": "2026-09-01"
     },
     {
-      "title": "Fobia - St. Dinfna Hotel",
+      "title": "Fobia: St. Dinfna Hotel",
       "normalized": "fobiastdinfnahotel",
       "adaptiveTriggers": false,
       "hapticFeedback": true,
       "profile": "standard",
-      "steamAppId": 0,
-      "steamAppIdVerified": false,
-      "iconUrl": "",
+      "steamAppId": 1298140,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1298140/library_600x900_2x.jpg?t=1725487910",
+      "executables": [
+        "fobia-win64-shipping.exe"
+      ],
       "addedAt": "2026-09-01"
     },
     {
@@ -1083,6 +1466,36 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX. Alternatively, use of Special K can emulate support for Xbox Impulse Triggers.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX",
+            "Special K"
+          ],
+          "translations": {
+            "es": "Requiere DSX y RacingDSX. Como alternativa, Special K puede emular la compatibilidad con los Impulse Triggers de Xbox.",
+            "fr": "Nécessite DSX et RacingDSX. Sinon, Special K peut émuler la prise en charge des Impulse Triggers de la Xbox.",
+            "ja": "DSX と RacingDSX が必要です。代わりに Special K を使うと、Xbox の Impulse Triggers への対応をエミュレートできます。",
+            "ko": "DSX와 RacingDSX가 필요합니다. 대안으로 Special K를 사용하면 Xbox Impulse Triggers 지원을 에뮬레이션할 수 있습니다.",
+            "pt": "Requer DSX e RacingDSX. Como alternativa, o Special K pode emular o suporte aos Impulse Triggers do Xbox.",
+            "ru": "Требуются DSX и RacingDSX. В качестве альтернативы Special K может эмулировать поддержку Xbox Impulse Triggers.",
+            "vi": "Cần DSX và RacingDSX. Ngoài ra, có thể dùng Special K để mô phỏng hỗ trợ Impulse Triggers của Xbox.",
+            "zh": "需要 DSX 和 RacingDSX。或者使用 Special K 来模拟对 Xbox Impulse Triggers 的支持。"
+          }
+        }
+      },
       "addedAt": "2026-09-12"
     },
     {
@@ -1100,6 +1513,35 @@
         "forzahorizon5.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX"
+          ],
+          "translations": {
+            "es": "Requiere DSX y RacingDSX.",
+            "fr": "Nécessite DSX et RacingDSX.",
+            "ja": "DSX と RacingDSX が必要です。",
+            "ko": "DSX와 RacingDSX가 필요합니다.",
+            "pt": "Requer DSX e RacingDSX.",
+            "ru": "Требуются DSX и RacingDSX.",
+            "vi": "Cần DSX và RacingDSX.",
+            "zh": "需要 DSX 和 RacingDSX。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1114,6 +1556,36 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2483190/711e39803402def82a90e1f31578c64744f952f3/library_capsule_2x.jpg?t=1791312088",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX, or use Special K to translate Xbox Impulse Triggers signals to their DualSense equivalence.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX",
+            "Special K"
+          ],
+          "translations": {
+            "es": "Requiere DSX y RacingDSX, o usa Special K para traducir las señales de los Impulse Triggers de Xbox a su equivalente en DualSense.",
+            "fr": "Nécessite DSX et RacingDSX, ou utilisez Special K pour traduire les signaux des Impulse Triggers de la Xbox en leur équivalent DualSense.",
+            "ja": "DSX と RacingDSX が必要です。または Special K を使って、Xbox の Impulse Triggers の信号を DualSense 相当に変換してください。",
+            "ko": "DSX와 RacingDSX가 필요합니다. 또는 Special K로 Xbox Impulse Triggers 신호를 DualSense 대응 신호로 변환하세요.",
+            "pt": "Requer DSX e RacingDSX, ou use o Special K para traduzir os sinais dos Impulse Triggers do Xbox para o equivalente no DualSense.",
+            "ru": "Требуются DSX и RacingDSX, либо используйте Special K, чтобы преобразовывать сигналы Xbox Impulse Triggers в их эквивалент для DualSense.",
+            "vi": "Cần DSX và RacingDSX, hoặc dùng Special K để chuyển tín hiệu Impulse Triggers của Xbox sang tín hiệu tương đương của DualSense.",
+            "zh": "需要 DSX 和 RacingDSX，或使用 Special K 将 Xbox Impulse Triggers 信号转换为对应的 DualSense 信号。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1128,6 +1600,35 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires DSX and RacingDSX.",
+          "links": [
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            },
+            {
+              "label": "RacingDSX",
+              "url": "https://github.com/cosmii02/RacingDSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "RacingDSX"
+          ],
+          "translations": {
+            "es": "Requiere DSX y RacingDSX.",
+            "fr": "Nécessite DSX et RacingDSX.",
+            "ja": "DSX と RacingDSX が必要です。",
+            "ko": "DSX와 RacingDSX가 필요합니다.",
+            "pt": "Requer DSX e RacingDSX.",
+            "ru": "Требуются DSX и RacingDSX.",
+            "vi": "Cần DSX và RacingDSX.",
+            "zh": "需要 DSX 和 RacingDSX。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1153,6 +1654,23 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "hapticFeedback": {
+          "note": "Requires manual configuration on the controller's audio device. Wired only.",
+          "links": [],
+          "tools": [],
+          "translations": {
+            "es": "Requiere configuración manual en el dispositivo de audio del mando. Solo con cable.",
+            "fr": "Nécessite une configuration manuelle du périphérique audio de la manette. Filaire uniquement.",
+            "ja": "コントローラーのオーディオデバイスの手動設定が必要です。有線接続のみ。",
+            "ko": "컨트롤러의 오디오 장치를 수동으로 설정해야 합니다. 유선 연결만 지원합니다.",
+            "pt": "Requer configuração manual no dispositivo de áudio do controle. Somente com fio.",
+            "ru": "Требуется ручная настройка аудиоустройства контроллера. Только по проводу.",
+            "vi": "Cần cấu hình thủ công thiết bị âm thanh của tay cầm. Chỉ hỗ trợ có dây.",
+            "zh": "需要手动配置手柄的音频设备。仅支持有线连接。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1198,6 +1716,45 @@
         "gow.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config. Requires DSX and DualSense AT (see Custom config).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/godofwar/mods/145",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ],
+          "translations": {
+            "es": "Configuración personalizada. Requiere DSX y DualSense AT (consulta Configuración personalizada).",
+            "fr": "Configuration personnalisée. Nécessite DSX et DualSense AT (voir Configuration personnalisée).",
+            "ja": "カスタム設定。DSX と DualSense AT が必要です（カスタム設定を参照）。",
+            "ko": "사용자 지정 설정. DSX와 DualSense AT가 필요합니다(사용자 지정 설정 참조).",
+            "pt": "Configuração personalizada. Requer DSX e DualSense AT (veja Configuração personalizada).",
+            "ru": "Пользовательская конфигурация. Требуются DSX и DualSense AT (см. «Пользовательская конфигурация»).",
+            "vi": "Cấu hình tùy chỉnh. Cần DSX và DualSense AT (xem Cấu hình tùy chỉnh).",
+            "zh": "自定义配置。需要 DSX 和 DualSense AT（参见“自定义配置”）。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1240,6 +1797,44 @@
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/271590/library_600x900_2x.jpg?t=1765387725",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for weapons.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/zelmer69/dualsense4GTA5/",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX). Gatillos adaptativos para las armas.",
+            "fr": "Configuration personnalisée (nécessite DSX). Gâchettes adaptatives pour les armes.",
+            "ja": "カスタム設定（DSX が必要）。武器にアダプティブトリガーを適用します。",
+            "ko": "사용자 지정 설정(DSX 필요). 무기에 적응형 트리거를 적용합니다.",
+            "pt": "Configuração personalizada (requer DSX). Gatilhos adaptativos para as armas.",
+            "ru": "Пользовательская конфигурация (требуется DSX). Адаптивные триггеры для оружия.",
+            "vi": "Cấu hình tùy chỉnh (cần DSX). Cò thích ứng cho vũ khí.",
+            "zh": "自定义配置（需要 DSX）。为武器提供自适应扳机。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1265,6 +1860,30 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use GTASense and DSX.",
+          "links": [
+            {
+              "label": "GTASense",
+              "url": "https://github.com/theGENreel/GTASense"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ],
+          "translations": {
+            "es": "Usa GTASense y DSX.",
+            "fr": "Utilisez GTASense et DSX.",
+            "ja": "GTASense と DSX を使用してください。",
+            "ko": "GTASense와 DSX를 사용하세요.",
+            "pt": "Use o GTASense e o DSX.",
+            "ru": "Используйте GTASense и DSX.",
+            "vi": "Dùng GTASense và DSX.",
+            "zh": "使用 GTASense 和 DSX。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1296,6 +1915,42 @@
         "hlvr.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config. Can only be used with HLA-NoVr MOD.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/WujekFoliarz/HLA-NoVR-DualSense",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "HLA-NoVr MOD",
+              "url": "https://github.com/gb2dev/HLA-NoVR"
+            }
+          ],
+          "tools": [],
+          "translations": {
+            "es": "Configuración personalizada. Solo se puede usar con el mod HLA-NoVr.",
+            "fr": "Configuration personnalisée. Utilisable uniquement avec le mod HLA-NoVr.",
+            "ja": "カスタム設定。HLA-NoVr MOD でのみ使用できます。",
+            "ko": "사용자 지정 설정. HLA-NoVr 모드에서만 사용할 수 있습니다.",
+            "pt": "Configuração personalizada. Só pode ser usada com o mod HLA-NoVr.",
+            "ru": "Пользовательская конфигурация. Работает только с модом HLA-NoVr.",
+            "vi": "Cấu hình tùy chỉnh. Chỉ dùng được với bản mod HLA-NoVr.",
+            "zh": "自定义配置。只能与 HLA-NoVr MOD 配合使用。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1663,6 +2318,38 @@
         "mgsgroundzeroes.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/WujekFoliarz/MGSV-Ground-Zeros-DualSenseMOD",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            }
+          ],
+          "tools": [],
+          "translations": {
+            "es": "Configuración personalizada",
+            "fr": "Configuration personnalisée",
+            "ja": "カスタム設定",
+            "ko": "사용자 지정 설정",
+            "pt": "Configuração personalizada",
+            "ru": "Пользовательская конфигурация",
+            "vi": "Cấu hình tùy chỉnh",
+            "zh": "自定义配置"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1681,6 +2368,31 @@
         "mgsvtpp.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Requires tpp-mod and DSX or DSY",
+          "links": [
+            {
+              "label": "tpp-mod",
+              "url": "https://github.com/alicealys/tpp-mod/"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DSY"
+          ],
+          "translations": {
+            "es": "Requiere tpp-mod y DSX o DSY",
+            "fr": "Nécessite tpp-mod et DSX ou DSY",
+            "ja": "tpp-mod と、DSX または DSY が必要です",
+            "ko": "tpp-mod와 DSX 또는 DSY가 필요합니다",
+            "pt": "Requer tpp-mod e DSX ou DSY",
+            "ru": "Требуются tpp-mod и DSX или DSY",
+            "vi": "Cần tpp-mod và DSX hoặc DSY",
+            "zh": "需要 tpp-mod 以及 DSX 或 DSY"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -1696,6 +2408,21 @@
         "mgsdelta-win64-shipping.exe"
       ],
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "Metro 2033 Redux",
+      "normalized": "metro2033redux",
+      "adaptiveTriggers": true,
+      "hapticFeedback": false,
+      "profile": "standard",
+      "steamAppId": 286690,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/286690/7c276efe09b88ba437ab80331c5ca3095e6f936d/library_capsule_2x.jpg?t=1792681167",
+      "executables": [
+        "metro.exe",
+        "metro2033.exe"
+      ],
+      "addedAt": "2026-11-07"
     },
     {
       "title": "Metro Exodus",
@@ -1851,7 +2578,7 @@
       "addedAt": "2026-09-01"
     },
     {
-      "title": "Off The Grid",
+      "title": "Off the Grid",
       "normalized": "offthegrid",
       "adaptiveTriggers": true,
       "hapticFeedback": false,
@@ -1881,6 +2608,48 @@
         "onimushawots_demo.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use the Onimusha DualSense mod.",
+          "links": [
+            {
+              "label": "Onimusha DualSense",
+              "url": "https://github.com/AInine9/Onimusha-DualSense"
+            }
+          ],
+          "tools": [],
+          "translations": {
+            "es": "Usa el mod Onimusha DualSense.",
+            "fr": "Utilisez le mod Onimusha DualSense.",
+            "ja": "Onimusha DualSense MOD を使用してください。",
+            "ko": "Onimusha DualSense 모드를 사용하세요.",
+            "pt": "Use o mod Onimusha DualSense.",
+            "ru": "Используйте мод Onimusha DualSense.",
+            "vi": "Dùng bản mod Onimusha DualSense.",
+            "zh": "使用 Onimusha DualSense MOD。"
+          }
+        },
+        "hapticFeedback": {
+          "note": "Use the Onimusha DualSense mod.",
+          "links": [
+            {
+              "label": "Onimusha DualSense",
+              "url": "https://github.com/AInine9/Onimusha-DualSense"
+            }
+          ],
+          "tools": [],
+          "translations": {
+            "es": "Usa el mod Onimusha DualSense.",
+            "fr": "Utilisez le mod Onimusha DualSense.",
+            "ja": "Onimusha DualSense MOD を使用してください。",
+            "ko": "Onimusha DualSense 모드를 사용하세요.",
+            "pt": "Use o mod Onimusha DualSense.",
+            "ru": "Используйте мод Onimusha DualSense.",
+            "vi": "Dùng bản mod Onimusha DualSense.",
+            "zh": "使用 Onimusha DualSense MOD。"
+          }
+        }
+      },
       "addedAt": "2026-09-11"
     },
     {
@@ -1929,6 +2698,17 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "addedAt": "2026-09-01"
+    },
+    {
+      "title": "Phantom Blade Zero",
+      "normalized": "phantombladezero",
+      "adaptiveTriggers": true,
+      "hapticFeedback": true,
+      "profile": "standard",
+      "steamAppId": 4115450,
+      "steamAppIdVerified": true,
+      "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4115450/471e77854910665c03eb9a53ad06f2ac12903acd/library_capsule_2x.jpg?t=1793261976",
+      "addedAt": "2026-10-30"
     },
     {
       "title": "Pragmata",
@@ -2012,6 +2792,44 @@
         "rdr2.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/reddeadredemption2/mods/2187",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX).",
+            "fr": "Configuration personnalisée (nécessite DSX).",
+            "ja": "カスタム設定（DSX が必要）。",
+            "ko": "사용자 지정 설정(DSX 필요).",
+            "pt": "Configuração personalizada (requer DSX).",
+            "ru": "Пользовательская конфигурация (требуется DSX).",
+            "vi": "Cấu hình tùy chỉnh (cần DSX).",
+            "zh": "自定义配置（需要 DSX）。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -2029,6 +2847,45 @@
         "re5dx9.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX and Steam).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX y Steam).",
+            "fr": "Configuration personnalisée (nécessite DSX et Steam).",
+            "ja": "カスタム設定（DSX と Steam が必要）。",
+            "ko": "사용자 지정 설정(DSX와 Steam 필요).",
+            "pt": "Configuração personalizada (requer DSX e Steam).",
+            "ru": "Пользовательская конфигурация (требуются DSX и Steam).",
+            "vi": "Cấu hình tùy chỉnh (cần DSX và Steam).",
+            "zh": "自定义配置（需要 DSX 和 Steam）。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -2040,6 +2897,9 @@
       "steamAppId": 3764200,
       "steamAppIdVerified": true,
       "iconUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3764200/ed3b2cae7d15f598f41006f5f1e605ec5517b5e4/library_capsule_2x.jpg?t=1779840172",
+      "executables": [
+        "re9.exe"
+      ],
       "addedAt": "2026-09-01"
     },
     {
@@ -2115,6 +2975,45 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX).",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://github.com/josealissonbr/DualSenseAT",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX",
+            "DualSenseAT"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX).",
+            "fr": "Configuration personnalisée (nécessite DSX).",
+            "ja": "カスタム設定（DSX が必要）。",
+            "ko": "사용자 지정 설정(DSX 필요).",
+            "pt": "Configuração personalizada (requer DSX).",
+            "ru": "Пользовательская конфигурация (требуется DSX).",
+            "vi": "Cấu hình tùy chỉnh (cần DSX).",
+            "zh": "自定义配置（需要 DSX）。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -2575,6 +3474,44 @@
         "skyrimse.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Custom config (requires DSX). Adaptive Triggers for weapons.",
+          "links": [
+            {
+              "label": "Custom config",
+              "url": "https://www.nexusmods.com/skyrimspecialedition/mods/66165/",
+              "translations": {
+                "es": "Configuración personalizada",
+                "fr": "Configuration personnalisée",
+                "ja": "カスタム設定",
+                "ko": "사용자 지정 설정",
+                "pt": "Configuração personalizada",
+                "ru": "Пользовательская конфигурация",
+                "vi": "Cấu hình tùy chỉnh",
+                "zh": "自定义配置"
+              }
+            },
+            {
+              "label": "DSX",
+              "url": "https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX"
+            }
+          ],
+          "tools": [
+            "DSX"
+          ],
+          "translations": {
+            "es": "Configuración personalizada (requiere DSX). Gatillos adaptativos para las armas.",
+            "fr": "Configuration personnalisée (nécessite DSX). Gâchettes adaptatives pour les armes.",
+            "ja": "カスタム設定（DSX が必要）。武器にアダプティブトリガーを適用します。",
+            "ko": "사용자 지정 설정(DSX 필요). 무기에 적응형 트리거를 적용합니다.",
+            "pt": "Configuração personalizada (requer DSX). Gatilhos adaptativos para as armas.",
+            "ru": "Пользовательская конфигурация (требуется DSX). Адаптивные триггеры для оружия.",
+            "vi": "Cấu hình tùy chỉnh (cần DSX). Cò thích ứng cho vũ khí.",
+            "zh": "自定义配置（需要 DSX）。为武器提供自适应扳机。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -2721,6 +3658,48 @@
       "steamAppIdVerified": false,
       "iconUrl": "",
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "adaptiveTriggers": {
+          "note": "Use Tomb Raider DualSense Mod",
+          "links": [
+            {
+              "label": "Tomb Raider DualSense Mod",
+              "url": "https://www.nexusmods.com/tombraider2013/mods/125"
+            }
+          ],
+          "tools": [],
+          "translations": {
+            "es": "Usa el mod Tomb Raider DualSense",
+            "fr": "Utilisez le mod Tomb Raider DualSense",
+            "ja": "Tomb Raider DualSense MOD を使用してください",
+            "ko": "Tomb Raider DualSense 모드를 사용하세요",
+            "pt": "Use o mod Tomb Raider DualSense",
+            "ru": "Используйте мод Tomb Raider DualSense",
+            "vi": "Dùng bản mod Tomb Raider DualSense",
+            "zh": "使用 Tomb Raider DualSense MOD"
+          }
+        },
+        "hapticFeedback": {
+          "note": "Use Tomb Raider DualSense Mod",
+          "links": [
+            {
+              "label": "Tomb Raider DualSense Mod",
+              "url": "https://www.nexusmods.com/tombraider2013/mods/125"
+            }
+          ],
+          "tools": [],
+          "translations": {
+            "es": "Usa el mod Tomb Raider DualSense",
+            "fr": "Utilisez le mod Tomb Raider DualSense",
+            "ja": "Tomb Raider DualSense MOD を使用してください",
+            "ko": "Tomb Raider DualSense 모드를 사용하세요",
+            "pt": "Use o mod Tomb Raider DualSense",
+            "ru": "Используйте мод Tomb Raider DualSense",
+            "vi": "Dùng bản mod Tomb Raider DualSense",
+            "zh": "使用 Tomb Raider DualSense MOD"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     },
     {
@@ -2944,6 +3923,23 @@
         "zenlesszonezero.exe"
       ],
       "requiresManualFix": true,
+      "manualFixDetails": {
+        "hapticFeedback": {
+          "note": "Wired only. Requires manual configuration on the controller's audio device.",
+          "links": [],
+          "tools": [],
+          "translations": {
+            "es": "Solo con cable. Requiere configuración manual en el dispositivo de audio del mando.",
+            "fr": "Filaire uniquement. Nécessite une configuration manuelle du périphérique audio de la manette.",
+            "ja": "有線接続のみ。コントローラーのオーディオデバイスの手動設定が必要です。",
+            "ko": "유선 연결만 지원합니다. 컨트롤러의 오디오 장치를 수동으로 설정해야 합니다.",
+            "pt": "Somente com fio. Requer configuração manual no dispositivo de áudio do controle.",
+            "ru": "Только по проводу. Требуется ручная настройка аудиоустройства контроллера.",
+            "vi": "Chỉ hỗ trợ có dây. Cần cấu hình thủ công thiết bị âm thanh của tay cầm.",
+            "zh": "仅支持有线连接。需要手动配置手柄的音频设备。"
+          }
+        }
+      },
       "addedAt": "2026-09-01"
     }
   ]

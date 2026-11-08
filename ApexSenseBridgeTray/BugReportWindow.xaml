@@ -76,6 +76,27 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+            <Style x:Key="LinkButton" TargetType="Button">
+                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
             <Style x:Key="ScreenshotChip" TargetType="ListBoxItem">
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="Template">
@@ -112,12 +133,12 @@
             <DockPanel Grid.Row="0" Margin="26,20,16,14" Background="Transparent" MouseLeftButtonDown="OnWindowDrag">
                 <Button DockPanel.Dock="Right" Content="&#x2715;" Style="{StaticResource WindowCloseBtn}"
                         VerticalAlignment="Top" Click="OnCloseClick"/>
-                <Border Style="{StaticResource IconBubble}" Width="44" Height="44" CornerRadius="22" Margin="0,0,14,0" Background="#33F59E0B">
-                    <Path Data="M 8,8 C 8,5.8 9.8,4 12,4 C 14.2,4 16,5.8 16,8 M 6,10 L 18,10 L 18,15 C 18,18.3 15.3,21 12,21 C 8.7,21 6,18.3 6,15 Z M 12,10 L 12,21 M 3,13 L 6,13 M 18,13 L 21,13 M 4,19 L 6.5,17.5 M 20,19 L 17.5,17.5 M 4,7 L 6.5,8.5 M 20,7 L 17.5,8.5"
+                <Border x:Name="BubbleHeader" Style="{StaticResource IconBubble}" Width="44" Height="44" CornerRadius="22" Margin="0,0,14,0" Background="#33F59E0B">
+                    <Path x:Name="IconHeader" Data="{StaticResource GeoReportBug}"
                           Style="{StaticResource IconPath}" Stroke="#FBBF24" Width="19" Height="19"/>
                 </Border>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{DynamicResource Loc_BugReportWindowTitle}" FontSize="19" FontWeight="SemiBold" Foreground="White"/>
+                    <TextBlock x:Name="TxtHeaderTitle" Text="{DynamicResource Loc_BugReportWindowTitle}" FontSize="19" FontWeight="SemiBold" Foreground="White"/>
                     <TextBlock Text="{DynamicResource Loc_BugReportWindowSubtitle}" FontSize="12"
                                Foreground="{DynamicResource TextMuted}" Margin="0,3,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
@@ -125,13 +146,20 @@
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="26,4,26,8">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource Loc_BugReportTitleLabel}" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock x:Name="LblReportTitle" Text="{DynamicResource Loc_BugReportTitleLabel}" Style="{StaticResource FieldLabel}"/>
                     <Border Style="{StaticResource InputShell}">
                         <TextBox x:Name="TxtReportTitle" Style="{StaticResource ReportTextBox}" MaxLength="120"
                                  TextChanged="OnRequiredFieldChanged"/>
                     </Border>
 
-                    <TextBlock Text="{DynamicResource Loc_BugReportDescriptionLabel}" Style="{StaticResource FieldLabel}"/>
+                    <StackPanel x:Name="PnlGameInfo" Visibility="Collapsed">
+                        <TextBlock Text="{DynamicResource Loc_ReportGameInfoLabel}" Style="{StaticResource FieldLabel}"/>
+                        <Border Style="{StaticResource InputShell}">
+                            <TextBox x:Name="TxtGameInfo" Style="{StaticResource ReportTextBox}" MaxLength="200"/>
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock x:Name="LblReportDescription" Text="{DynamicResource Loc_BugReportDescriptionLabel}" Style="{StaticResource FieldLabel}"/>
                     <Border Style="{StaticResource InputShell}">
                         <TextBox x:Name="TxtReportDescription" Style="{StaticResource ReportTextBox}"
                                  Height="130" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap"
@@ -177,7 +205,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SectionCard}" Padding="18,16">
+                    <Border x:Name="PnlDiagnosticsCard" Style="{StaticResource SectionCard}" Padding="18,16">
                         <StackPanel>
                             <DockPanel LastChildFill="True">
                                 <Button Content="{DynamicResource Loc_BtnPreviewDiagnostics}" Style="{StaticResource BtnSecondary}"
@@ -202,20 +230,39 @@
                         </StackPanel>
                     </Border>
 
-                    <CheckBox x:Name="ChkConsent" Style="{StaticResource ConsentCheckBox}" Margin="4,4,0,0"
-                              Checked="OnConsentChanged" Unchecked="OnConsentChanged">
-                        <TextBlock Text="{DynamicResource Loc_BugReportConsent}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextPrimary}" FontSize="12.5"/>
-                    </CheckBox>
-                    <TextBlock Text="{DynamicResource Loc_BugReportPrivacyHint}" FontSize="11"
-                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="40,6,0,0"/>
+                    <StackPanel x:Name="PnlAttachLogs">
+                        <CheckBox x:Name="ChkAttachLogs" Style="{StaticResource ConsentCheckBox}" Margin="4,4,0,0">
+                            <TextBlock Text="{DynamicResource Loc_ReportAttachLogs}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextPrimary}" FontSize="12.5"/>
+                        </CheckBox>
+                        <TextBlock Text="{DynamicResource Loc_ReportAttachLogsHint}" FontSize="11"
+                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="40,6,0,12"/>
+                    </StackPanel>
+
+                    <StackPanel x:Name="PnlConsent">
+                        <CheckBox x:Name="ChkConsent" Style="{StaticResource ConsentCheckBox}" Margin="4,4,0,0"
+                                  Checked="OnConsentChanged" Unchecked="OnConsentChanged">
+                            <TextBlock Text="{DynamicResource Loc_BugReportConsent}" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextPrimary}" FontSize="12.5"/>
+                        </CheckBox>
+                        <TextBlock Text="{DynamicResource Loc_BugReportPrivacyHint}" FontSize="11"
+                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="40,6,0,0"/>
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
 
-            <DockPanel Grid.Row="2" LastChildFill="True" Margin="26,12,26,22">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <StackPanel Grid.Row="2" Margin="26,10,26,22">
+                <TextBlock x:Name="TxtValidationHint" Text="{DynamicResource Loc_BugReportRequiredHint}"
+                           Foreground="{DynamicResource TextMuted}" FontSize="11.5"
+                           TextWrapping="Wrap" Margin="4,0,0,12"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="{DynamicResource Loc_Cancel}" Style="{StaticResource BtnSecondary}"
-                            Margin="0,0,10,0" Click="OnCloseClick"/>
+                            Margin="0,0,18,0" Click="OnCloseClick"/>
+                    <Button x:Name="BtnSendAnonymous" Style="{StaticResource LinkButton}" IsEnabled="False"
+                            Margin="0,0,18,0" VerticalAlignment="Center" Click="OnSendAnonymouslyClick"
+                            ToolTip="{DynamicResource Loc_ReportNoAccountHint}">
+                        <TextBlock Text="{DynamicResource Loc_ReportNoAccountExport}" TextDecorations="Underline"/>
+                    </Button>
                     <Button x:Name="BtnContinueGithub" Style="{StaticResource BtnPrimary}" IsEnabled="False"
                             Click="OnContinueGithubClick">
                         <StackPanel Orientation="Horizontal">
@@ -225,10 +272,7 @@
                         </StackPanel>
                     </Button>
                 </StackPanel>
-                <TextBlock x:Name="TxtValidationHint" Text="{DynamicResource Loc_BugReportRequiredHint}"
-                           Foreground="{DynamicResource TextMuted}" FontSize="11.5"
-                           VerticalAlignment="Center" TextWrapping="Wrap" Margin="4,0,16,0"/>
-            </DockPanel>
+            </StackPanel>
         </Grid>
     </Border>
 </Window>

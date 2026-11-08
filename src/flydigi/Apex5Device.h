@@ -2,7 +2,9 @@
 
 #include "core/DeviceInfo.h"
 #include "core/TriggerEffect.h"
+#include "flydigi/Apex4WritePacing.h"
 #include "flydigi/Apex5Identity.h"
+#include "flydigi/Apex6Imu.h"
 #include "flydigi/Apex6Protocol.h"
 #include "platform/HidTransport.h"
 
@@ -38,12 +40,19 @@ struct AsyncWriteStats {
 struct AsyncWritePolicy {
     std::chrono::milliseconds spacing{};
     std::chrono::milliseconds rumbleHoldoffAfterTrigger{};
+    bool rumbleStopFirst = false;
 };
 
 struct FeedbackWriteStats {
     std::uint64_t writes = 0;
     std::uint64_t slowWrites = 0;
     std::uint64_t maximumWriteUs = 0;
+};
+
+enum class Apex6InfoPoll {
+    Pending,
+    Reply,
+    Failed,
 };
 
 class Apex5Device {
@@ -63,6 +72,8 @@ public:
     [[nodiscard]] static std::optional<Apex5Device> open(const HidDeviceInfo& info, std::string& error);
 
     [[nodiscard]] bool isOpen() const noexcept;
+    bool reopen(const HidDeviceInfo& info, std::string& error);
+    void closeTransport() noexcept;
     [[nodiscard]] const HidDeviceInfo& info() const;
     [[nodiscard]] const std::optional<Apex5Identity>& identity() const noexcept;
 
@@ -78,12 +89,19 @@ public:
                    std::uint8_t highFrequencyMotor,
                    std::string& error);
     bool stopRumble(std::string& error);
-    bool enableApex6Haptics(std::string& error);
+    bool enableApex6Haptics(std::string& error, bool realtimeGrips = true,
+                            apex6::TriggerRoute triggerSide = apex6::TriggerRoute::Both);
+    bool setApex6TriggerSide(apex6::TriggerRoute side, std::string& error);
+    bool writeApex6TriggerEnable(apex6::TriggerRoute side, bool enable, std::string& error);
+    bool writeApex6TriggerFirmwareEffect(apex6::TriggerRoute side,
+                                         const apex6::TriggerFirmwareEffect& effect,
+                                         std::string& error);
     bool writeApex6Haptics(const apex6::MotorBlock& block,
                            apex6::TriggerRoute route,
                            bool enableTrigger,
                            bool enableGrips,
-                           std::string& error);
+                           std::string& error,
+                           bool interpolate = true);
     bool disableApex6Haptics(std::string& error);
     bool readRgbConfig(std::uint8_t slot,
                        std::array<std::uint8_t, kRgbConfigSize>& outConfig,
@@ -96,13 +114,26 @@ public:
                              std::uint8_t packetCount,
                              std::span<const std::uint8_t> payload,
                              std::string& error);
+    bool readApex6Ram(std::uint8_t ramId, std::vector<std::uint8_t>& data,
+                      std::string& error);
+    bool writeApex6Ram(std::uint8_t ramId, std::span<const std::uint8_t> data,
+                       std::string& error);
     bool readProfileStatus(ProfileStatus& status, std::string& error);
     bool applyProfile(std::uint8_t slot, std::string& error);
     bool readInputTransportStatus(InputTransportStatus& status,
                                   std::string& error);
     bool setInputTransport(bool controllerData, bool rawData,
                            std::string& error);
+    bool readApex6TransportStatus(apex6::TransportStatus& status,
+                                  std::string& error);
+    bool setApex6RawDataRouting(bool enable, std::string& error);
+    bool apex6OperatorStreamActive(std::chrono::milliseconds window,
+                                   std::string& error);
     bool requestBatteryRefresh(std::string& error);
+    bool requestApex6Info(std::string& error);
+    Apex6InfoPoll pollApex6Info(std::size_t maximumReads,
+                                std::optional<Apex5Identity>& reading,
+                                std::string& error);
 
     // Support diagnostic only. Reads the verified vendor HID stream without
     // interpreting or modifying controller state/profile configuration.
@@ -133,24 +164,33 @@ private:
     [[nodiscard]] bool mayWriteEffects(std::string& error) const;
     [[nodiscard]] bool mayWriteApex6Haptics(std::string& error) const;
     [[nodiscard]] bool mayControlProfiles(std::string& error) const;
+    [[nodiscard]] bool mayControlProfileSlots(std::string& error) const;
     [[nodiscard]] bool usesApex4Protocol() const noexcept;
     [[nodiscard]] bool usesApex6Protocol() const noexcept;
     [[nodiscard]] std::unique_lock<std::recursive_mutex> acquireWriteLock() const noexcept;
     [[nodiscard]] bool writeSpacedOutputReport(std::span<const std::uint8_t> report,
+                                               Apex4WriteKind kind,
                                                std::string& error);
     [[nodiscard]] bool writeFeedbackReport(std::span<const std::uint8_t> report,
                                            bool trigger,
                                            std::string& error);
     void waitForAsyncWriteSpacing() const;
+    void pauseForApex6ProfileSpacing() const;
     void recordVendorWrite() noexcept;
+    [[nodiscard]] std::optional<std::vector<std::uint8_t>> apex6RamExchange(
+        const apex6::Report& request, std::uint8_t command, std::uint8_t mode,
+        std::string& error);
     void writerLoop();
 
     TransportPtr transport_{};
+    HidDeviceInfo lastInfo_{};
     std::optional<Apex5Identity> identity_{};
     bool identityUnanswered_ = false;
     mutable std::unique_ptr<std::recursive_mutex> writeMutex_{std::make_unique<std::recursive_mutex>()};
     std::chrono::steady_clock::time_point lastVendorWriteAt_{};
     std::chrono::steady_clock::time_point lastTriggerWriteAt_{};
+    std::chrono::steady_clock::time_point lastApex6ProfileExchangeAt_{};
+    Apex4WritePacer apex4Pacer_{configuredApex4RumbleSpacing().spacing};
     AsyncWritePolicy asyncPolicy_{};
     std::thread writer_{};
     std::atomic<bool> asyncWritesRunning_{false};

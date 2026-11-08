@@ -325,6 +325,7 @@ namespace ApexSenseBridgeTray
         {
             if (!isInitialized) return;
             bool isManual = ChkManualBridge.IsChecked == true;
+            monitorService.CancelPreparedLaunch();
             settings.ForcedProfile = isManual ? "standard" : "none";
             settings.Save();
 

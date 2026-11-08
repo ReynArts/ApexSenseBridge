@@ -5,14 +5,36 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.1.0. Leave empty for a plain test run.'
+        required: false
+        default: ''
+        type: string
+      publish:
+        description: 'Publish a GitHub Release signed with the self-signed test certificate (needs a tag).'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
   build-and-release:
     runs-on: windows-2022
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      PUBLISH_RELEASE: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.tag != '') }}
     steps:
+      - name: Validate the release request
+        shell: powershell
+        run: |
+          if ($env:PUBLISH_RELEASE -eq 'true' -and $env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$') {
+            throw "The release tag '$($env:RELEASE_TAG)' must look like v1.2.3."
+          }
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
@@ -22,7 +44,11 @@ jobs:
       - name: Verify source version matches release tag
         shell: powershell
         run: |
-          .\scripts\verify-version-consistency.ps1
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_TAG)) {
+            .\scripts\verify-version-consistency.ps1
+          } else {
+            .\scripts\verify-version-consistency.ps1 -ExpectedVersion $env:RELEASE_TAG
+          }
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v3
@@ -37,6 +63,33 @@ jobs:
           go-version: '1.26.5'
           cache: false
 
+      - name: Validate SignPath configuration
+        shell: powershell
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && vars.SIGNPATH_RELEASE_SIGNING_POLICY_SLUG || vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
+          SIGNPATH_PAYLOAD_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_PAYLOAD_ARTIFACT_CONFIGURATION_SLUG }}
+          SIGNPATH_UNINSTALLER_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_UNINSTALLER_ARTIFACT_CONFIGURATION_SLUG }}
+          SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG }}
+        run: |
+          $required = @(
+            'SIGNPATH_API_TOKEN',
+            'SIGNPATH_ORGANIZATION_ID',
+            'SIGNPATH_PROJECT_SLUG',
+            'SIGNPATH_SIGNING_POLICY_SLUG',
+            'SIGNPATH_PAYLOAD_ARTIFACT_CONFIGURATION_SLUG',
+            'SIGNPATH_UNINSTALLER_ARTIFACT_CONFIGURATION_SLUG',
+            'SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG'
+          )
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "$name is required for release signing."
+            }
+          }
+          Write-Host "SignPath configuration is present."
+
       - name: Build Patched VIIPER
         shell: powershell
         run: |
@@ -47,36 +100,133 @@ jobs:
             .\scripts\build-libviiper-windows.ps1
           }
 
-      - name: Build Engine, Playnite Extension and Offline Installer
+      - name: Build unsigned release payload
         shell: powershell
-        env:
-          ASB_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ASB_SIGNING_CERTIFICATE_BASE64 }}
-          ASB_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.ASB_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          $buildParams = @{}
-          if (-not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_BASE64)) {
-            $buildParams["Sign"] = $true
-          }
-          .\scripts\build-installer.ps1 @buildParams
+          .\scripts\build-windows.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\scripts\build-playnite-extension.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\scripts\build-tray-app.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\scripts\build-updater.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\scripts\prepare-signpath-payload.ps1
 
-      - name: Test and verify release artifacts
+      - name: Upload unsigned release payload
+        id: upload-unsigned-payload
+        uses: actions/upload-artifact@v7
+        with:
+          name: ApexSenseBridge-unsigned-payload
+          path: build-signpath/unsigned-payload/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign release payload with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && vars.SIGNPATH_RELEASE_SIGNING_POLICY_SLUG || vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_PAYLOAD_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-payload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signpath-signed-payload
+
+      - name: Apply signed payload and prepare the Inno Setup uninstaller
         shell: powershell
-        env:
-          ASB_SIGNING_CERTIFICATE_BASE64: ${{ secrets.ASB_SIGNING_CERTIFICATE_BASE64 }}
+        run: |
+          .\scripts\apply-signpath-payload.ps1 -SignedDirectory "${{ runner.temp }}\signpath-signed-payload"
+          .\scripts\prepare-signpath-uninstaller.ps1
+
+      - name: Upload unsigned Inno Setup uninstaller
+        id: upload-unsigned-uninstaller
+        uses: actions/upload-artifact@v7
+        with:
+          name: ApexSenseBridge-unsigned-uninstaller
+          path: build-signpath/unsigned-uninstaller/ApexSenseBridge-Uninstaller.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Inno Setup uninstaller with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && vars.SIGNPATH_RELEASE_SIGNING_POLICY_SLUG || vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_UNINSTALLER_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-uninstaller.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signpath-signed-uninstaller
+
+      - name: Apply signed uninstaller and build release packages
+        shell: powershell
+        run: |
+          .\scripts\apply-signpath-uninstaller.ps1 -SignedDirectory "${{ runner.temp }}\signpath-signed-uninstaller"
+          .\scripts\build-installer.ps1 -SkipBuild -SignPath
+
+      - name: Upload unsigned installer
+        id: upload-unsigned-installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: ApexSenseBridge-unsigned-installer
+          path: dist/ApexSenseBridge-Setup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign installer with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && vars.SIGNPATH_RELEASE_SIGNING_POLICY_SLUG || vars.SIGNPATH_TEST_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signpath-signed-installer
+
+      - name: Apply signed installer
+        shell: powershell
+        run: |
+          $matches = @(Get-ChildItem -LiteralPath "${{ runner.temp }}\signpath-signed-installer" `
+            -Recurse -File -Filter "ApexSenseBridge-Setup.exe")
+          if ($matches.Count -ne 1) {
+            throw "Expected exactly one signed installer, found $($matches.Count)."
+          }
+          Copy-Item -LiteralPath $matches[0].FullName `
+            -Destination "dist\ApexSenseBridge-Setup.exe" -Force
+          .\scripts\finalize-release-artifacts.ps1
+
+      - name: Test and verify signed release artifacts
+        shell: powershell
         run: |
           ctest --test-dir .\build-win -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $verifyParams = @{ CheckArtifacts = $true }
-          if (-not [string]::IsNullOrWhiteSpace($env:ASB_SIGNING_CERTIFICATE_BASE64)) {
-            $verifyParams["RequireSignatures"] = $true
+          $verify = @{
+            CheckArtifacts = $true
+            RequireSignatures = $true
+            RequireSignedUninstaller = $true
           }
-          .\scripts\verify-version-consistency.ps1 @verifyParams
+          if ($env:GITHUB_EVENT_NAME -ne 'push' -or
+              -not $env:GITHUB_REF.StartsWith('refs/tags/')) {
+            $verify['AllowUntrustedSignatures'] = $true
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_TAG)) {
+            $verify['ExpectedVersion'] = $env:RELEASE_TAG
+          }
+          .\scripts\verify-version-consistency.ps1 @verify
 
       - name: Extract Release Notes from CHANGELOG
         shell: powershell
         run: |
           $raw = Get-Content -LiteralPath "CHANGELOG.md" -Raw
-          $tag = $env:GITHUB_REF_NAME
+          $tag = $env:RELEASE_TAG
           if ([string]::IsNullOrWhiteSpace($tag) -and $env:GITHUB_REF -and $env:GITHUB_REF.StartsWith("refs/tags/")) {
             $tag = $env:GITHUB_REF.Substring("refs/tags/".Length)
           }
@@ -106,18 +256,38 @@ jobs:
             }
           }
           $notes = ($extracted -join [Environment]::NewLine).Trim()
+          if ($env:GITHUB_EVENT_NAME -ne 'push') {
+            $notice = "> **This release is signed with a self-signed test certificate.** Windows shows the publisher as an unknown test certificate and SmartScreen may warn on first launch. Verify the downloads against ``SHA256SUMS.txt``. Releases signed by SignPath Foundation start with 1.1.1, and updating from this version to a signed release is supported."
+            $notes = $notice + [Environment]::NewLine + [Environment]::NewLine + $notes
+          }
           [System.IO.File]::WriteAllText("dist/release-notes.md", $notes, (New-Object System.Text.UTF8Encoding($false)))
           Write-Host "Extracted release notes ($($notes.Length) characters) to dist/release-notes.md"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
+        if: env.PUBLISH_RELEASE == 'true'
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           body_path: dist/release-notes.md
           files: |
             dist/ApexSenseBridge-Setup.exe
             dist/ApexSenseBridge-Portable.zip
+            dist/ApexSenseBridge-Update.zip
             dist/*.pext
+            dist/SHA256SUMS.txt
           generate_release_notes: false
           draft: false
-          prerelease: ${{ github.ref_name == 'v1.0.2' || contains(github.ref_name, '-') }}
+          prerelease: ${{ env.RELEASE_TAG == 'v1.0.2' || contains(env.RELEASE_TAG, '-') }}
+
+  # Releases created with GITHUB_TOKEN do not trigger a separate release workflow.
+  # Call it explicitly after publication; manual publications use its release event.
+  issue-followup:
+    needs: build-and-release
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.tag != '')
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/release-issue-followup.yml
+    with:
+      release_tag: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}

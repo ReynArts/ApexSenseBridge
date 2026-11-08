@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace ApexSenseBridge.Security
@@ -10,7 +11,7 @@ namespace ApexSenseBridge.Security
     public static class ReleaseSecurity
     {
         private const string ExpectedAssetName = "ApexSenseBridge-Setup.exe";
-        private const string ExpectedDownloadPrefix =
+        private const string ExpectedProductName = "ApexSenseBridge";        private const string ExpectedDownloadPrefix =
             "/ReynArts/ApexSenseBridge/releases/download/";
 
         private static readonly Guid WinTrustActionGenericVerifyV2 =
@@ -83,26 +84,17 @@ namespace ApexSenseBridge.Security
             }
 
             var versionInfo = FileVersionInfo.GetVersionInfo(installerPath);
-            if (!string.Equals(versionInfo.ProductName, "ApexSenseBridge",
-                StringComparison.OrdinalIgnoreCase))
+            if (!IsExpectedProductName(versionInfo.ProductName))
             {
                 error = "The downloaded executable is not an ApexSenseBridge setup.";
                 return false;
             }
 
-            if (!string.IsNullOrWhiteSpace(expectedVersion))
+            if (!string.IsNullOrWhiteSpace(expectedVersion) &&
+                !MatchesReleaseVersion(versionInfo.ProductVersion, expectedVersion))
             {
-                Version expected;
-                Version actual;
-                if (!Version.TryParse(expectedVersion.TrimStart('v', 'V'), out expected) ||
-                    !Version.TryParse(versionInfo.ProductVersion, out actual) ||
-                    expected.Major != actual.Major ||
-                    expected.Minor != actual.Minor ||
-                    expected.Build != actual.Build)
-                {
-                    error = "The setup version does not match the selected GitHub release.";
-                    return false;
-                }
+                error = "The setup version does not match the selected GitHub release.";
+                return false;
             }
 
             if (!HasTrustedAuthenticodeSignature(installerPath))
@@ -122,12 +114,14 @@ namespace ApexSenseBridge.Security
 
                 using (var installerCertificate = new X509Certificate2(
                     X509Certificate.CreateFromSignedFile(installerPath)))
-                using (var currentCertificate = new X509Certificate2(
-                    X509Certificate.CreateFromSignedFile(currentBinaryPath)))
                 {
-                    if (!string.Equals(installerCertificate.Subject,
-                        currentCertificate.Subject,
-                        StringComparison.OrdinalIgnoreCase))
+                    string currentSubject = HasTrustedAuthenticodeSignature(currentBinaryPath)
+                        ? ReadSignerSubject(currentBinaryPath)
+                        : string.Empty;
+                    bool accepted = string.IsNullOrEmpty(currentSubject)
+                        ? !string.IsNullOrEmpty(installerCertificate.Subject)
+                        : IsSamePublisher(installerCertificate.Subject, currentSubject);
+                    if (!accepted)
                     {
                         error = "The setup signer differs from the installed ApexSenseBridge publisher.";
                         return false;
@@ -143,7 +137,98 @@ namespace ApexSenseBridge.Security
             return true;
         }
 
-        private static bool HasTrustedAuthenticodeSignature(string path)
+        internal static string NormalizeVersionField(string value)
+        {
+            if (value == null)
+            {
+                return string.Empty;
+            }
+
+            int start = 0;
+            int end = value.Length;
+            while (start < end && IsFieldPadding(value[start]))
+            {
+                start++;
+            }
+
+            while (end > start && IsFieldPadding(value[end - 1]))
+            {
+                end--;
+            }
+
+            return value.Substring(start, end - start);
+        }
+
+        internal static bool IsExpectedProductName(string productName)
+        {
+            return string.Equals(NormalizeVersionField(productName),
+                ExpectedProductName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool MatchesReleaseVersion(
+            string productVersion, string expectedVersion)
+        {
+            Version expected;
+            Version actual;
+            return Version.TryParse(
+                       NormalizeVersionField(expectedVersion).TrimStart('v', 'V'),
+                       out expected) &&
+                   Version.TryParse(NormalizeVersionField(productVersion), out actual) &&
+                   expected.Major == actual.Major &&
+                   expected.Minor == actual.Minor &&
+                   expected.Build == actual.Build;
+        }
+
+        internal static bool IsSamePublisher(
+            string installerSubject, string installedSubject)
+        {
+            return !string.IsNullOrEmpty(installerSubject) &&
+                   string.Equals(installerSubject, installedSubject,
+                       StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool IsGithubReleaseDownloadUrl(string downloadUrl)
+        {
+            Uri uri;
+            return Uri.TryCreate(downloadUrl, UriKind.Absolute, out uri) &&
+                   string.Equals(uri.Scheme, Uri.UriSchemeHttps,
+                       StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(uri.Host, "github.com",
+                       StringComparison.OrdinalIgnoreCase) &&
+                   uri.AbsolutePath.StartsWith(ExpectedDownloadPrefix,
+                       StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static string ReadSignerSubject(string path)
+        {
+            try
+            {
+                using (var certificate = new X509Certificate2(
+                    X509Certificate.CreateFromSignedFile(path)))
+                {
+                    return certificate.Subject;
+                }
+            }
+            catch (CryptographicException)
+            {
+                return string.Empty;
+            }
+        }
+
+        internal static bool IsAcceptedPublisher(
+            string signerSubject, string installedSubject)
+        {
+            return string.IsNullOrEmpty(installedSubject)
+                ? !string.IsNullOrEmpty(signerSubject)
+                : IsSamePublisher(signerSubject, installedSubject);
+        }
+
+        private static bool IsFieldPadding(char value)
+        {
+            return value == '\0' || char.IsWhiteSpace(value);
+        }
+
+        internal static bool HasTrustedAuthenticodeSignature(string path)
         {
             var fileInfo = new WinTrustFileInfo
             {

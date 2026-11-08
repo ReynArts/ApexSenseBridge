@@ -12,6 +12,9 @@ namespace ApexSenseBridgeTray.Models
         public int HapticThresholdPercent { get; set; } = 12;
         public bool EnableRumble { get; set; } = true;
         public bool SyncLightbar { get; set; }
+        // Upper limit for the synchronized lightbar. The engine uses the lower
+        // of this and the brightness saved in Flydigi Space Station.
+        public int LightbarBrightnessPercent { get; set; } = 100;
         public int GyroStrengthPercent { get; set; } = 100;
         public int GyroYawStrengthPercent { get; set; } = 100;
 
@@ -20,9 +23,34 @@ namespace ApexSenseBridgeTray.Models
             TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent));
             VibrationStrengthPercent = Math.Max(0, Math.Min(model == "apex6" ? 100 : 200, VibrationStrengthPercent));
             HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
-            SyncLightbar = model == "apex5" && SyncLightbar;
+            SyncLightbar = (model == "apex5" || model == "apex6") && SyncLightbar;
+            LightbarBrightnessPercent = model == "apex5" || model == "apex6" ? Math.Max(0, Math.Min(100, LightbarBrightnessPercent)) : 100;
             GyroStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroStrengthPercent)) : 100;
             GyroYawStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroYawStrengthPercent)) : 100;
+        }
+    }
+
+    public sealed class GameTuning
+    {
+        public int TriggerStrengthPercent { get; set; }
+        public int VibrationStrengthPercent { get; set; }
+        public int HapticThresholdPercent { get; set; }
+
+        public GameTuning()
+        {
+            TriggerStrengthPercent = 100;
+            VibrationStrengthPercent = 100;
+            HapticThresholdPercent = 12;
+        }
+
+        public GameTuning Clone()
+        {
+            return new GameTuning
+            {
+                TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent)),
+                VibrationStrengthPercent = Math.Max(0, Math.Min(200, VibrationStrengthPercent)),
+                HapticThresholdPercent = Math.Max(0, Math.Min(95, HapticThresholdPercent))
+            };
         }
     }
 
@@ -34,6 +62,8 @@ namespace ApexSenseBridgeTray.Models
         public bool EnableNotifications { get; set; }
         public bool EnableRumble { get; set; }
         public bool SyncLightbar { get; set; }
+        public bool ZoneEmulation { get; set; }
+        public bool Apex6Rate2kHz { get; set; }
         public int HapticThresholdPercent { get; set; }
         public int TriggerStrengthPercent { get; set; }
         public int VibrationStrengthPercent { get; set; }
@@ -47,14 +77,20 @@ namespace ApexSenseBridgeTray.Models
         [ScriptIgnore]
         public string ForcedProfile { get; set; }
         public string Language { get; set; }
+        public bool SendVersionStats { get; set; }
+        public string InstallId { get; set; }
         // The support callout is introduced once, then never again.
         public bool SupportHintShown { get; set; }
         public List<string> ExcludedGames { get; set; }
         public List<string> ManualFixAllowedGames { get; set; }
         public Dictionary<string, int> ApexProfileSlots { get; set; }
+        public Dictionary<string, GameTuning> GameTunings { get; set; }
         // Legacy scalar preferences remain for migration, not as an active
         // cross-model calibration. Never persist the last connected model.
         public Dictionary<string, ControllerCalibration> ControllerCalibrations { get; set; }
+        public string SelectedControllerKey { get; set; }
+        public string UpdateAttemptVersion { get; set; }
+        public string UpdatePackageFailedVersion { get; set; }
 
         public static bool IsCalibrationModel(string model)
         {
@@ -79,7 +115,7 @@ namespace ApexSenseBridgeTray.Models
                         VibrationStrengthPercent = VibrationStrengthPercent,
                         HapticThresholdPercent = HapticThresholdPercent,
                         EnableRumble = EnableRumble,
-                        SyncLightbar = SyncLightbar,
+                        SyncLightbar = model == "apex5" && SyncLightbar,
                         GyroStrengthPercent = Apex4GyroStrengthPercent,
                         GyroYawStrengthPercent = Apex4GyroYawStrengthPercent
                     };
@@ -90,19 +126,29 @@ namespace ApexSenseBridgeTray.Models
             }
         }
 
-        internal string BuildControllerCalibrationArguments()
+        internal string BuildControllerCalibrationArguments(GameTuning gameTuning = null)
         {
             lock (this)
             {
                 var result = new System.Text.StringBuilder();
+                var tuning = gameTuning != null ? gameTuning.Clone() : null;
                 foreach (var model in new[] { "apex4", "apex5", "apex6" })
                 {
                     var c = GetControllerCalibration(model);
+                    int trigger = c.TriggerStrengthPercent;
+                    int vibration = c.VibrationStrengthPercent;
+                    int threshold = c.HapticThresholdPercent;
+                    if (tuning != null)
+                    {
+                        trigger = tuning.TriggerStrengthPercent;
+                        vibration = Math.Min(model == "apex6" ? 100 : 200, tuning.VibrationStrengthPercent);
+                        if (model != "apex6") threshold = tuning.HapticThresholdPercent;
+                    }
                     result.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
-                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}",
-                        model, c.TriggerStrengthPercent, c.VibrationStrengthPercent,
-                        c.HapticThresholdPercent, c.EnableRumble ? 1 : 0, c.SyncLightbar ? 1 : 0,
-                        c.GyroStrengthPercent, c.GyroYawStrengthPercent);
+                        " --controller-calibration {0}:{1}:{2}:{3}:{4}:{5}:{6}:{7}:{8}",
+                        model, trigger, vibration,
+                        threshold, c.EnableRumble ? 1 : 0, c.SyncLightbar ? 1 : 0,
+                        c.GyroStrengthPercent, c.GyroYawStrengthPercent, c.LightbarBrightnessPercent);
                 }
                 return result.ToString();
             }
@@ -116,6 +162,8 @@ namespace ApexSenseBridgeTray.Models
             EnableNotifications = true;
             EnableRumble = true;
             SyncLightbar = false;
+            ZoneEmulation = true;
+            Apex6Rate2kHz = false;
             HapticThresholdPercent = 12;
             TriggerStrengthPercent = 100;
             VibrationStrengthPercent = 100;
@@ -125,9 +173,47 @@ namespace ApexSenseBridgeTray.Models
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";
             Language = "auto";
+            SendVersionStats = true;
             ExcludedGames = new List<string>();
             ManualFixAllowedGames = new List<string>();
             ApexProfileSlots = new Dictionary<string, int>();
+            GameTunings = new Dictionary<string, GameTuning>();
+        }
+
+        public GameTuning GetGameTuning(string normalizedOrTitle)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedOrTitle)) return null;
+            lock (this)
+            {
+                if (GameTunings == null) return null;
+                foreach (var item in GameTunings)
+                {
+                    if (item.Value != null &&
+                        string.Equals(item.Key, normalizedOrTitle.Trim(), StringComparison.OrdinalIgnoreCase))
+                        return item.Value.Clone();
+                }
+                return null;
+            }
+        }
+
+        public void SetGameTuning(string normalized, string title, GameTuning tuning)
+        {
+            lock (this)
+            {
+                if (GameTunings == null) GameTunings = new Dictionary<string, GameTuning>();
+                foreach (var key in new[] { normalized, title })
+                {
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    var trimmed = key.Trim();
+                    string existing = null;
+                    foreach (var current in GameTunings.Keys)
+                    {
+                        if (string.Equals(current, trimmed, StringComparison.OrdinalIgnoreCase)) { existing = current; break; }
+                    }
+                    if (existing != null) GameTunings.Remove(existing);
+                    if (tuning != null) GameTunings[trimmed] = tuning.Clone();
+                }
+            }
         }
 
         public bool IsGameExcluded(string normalizedOrTitle)
@@ -236,6 +322,83 @@ namespace ApexSenseBridgeTray.Models
             if (slot != 0) ApexProfileSlots[normalizedOrTitle.Trim()] = slot;
         }
 
+        public string EnsureInstallId()
+        {
+            string id;
+            bool created = false;
+            lock (this)
+            {
+                Guid parsed;
+                if (string.IsNullOrEmpty(InstallId) || InstallId.Length != 32 ||
+                    !Guid.TryParseExact(InstallId, "N", out parsed))
+                {
+                    InstallId = Guid.NewGuid().ToString("N");
+                    created = true;
+                }
+                id = InstallId;
+            }
+            if (created) Save();
+            return id;
+        }
+
+        public void SetSendVersionStats(bool enabled)
+        {
+            lock (this)
+            {
+                SendVersionStats = enabled;
+                if (!enabled) InstallId = null;
+            }
+        }
+
+        public bool IsUpdatePackageBlocked(string version)
+        {
+            string normalized = UpdateLaunchPolicy.NormalizeVersion(version);
+            lock (this)
+            {
+                return normalized != null && normalized == UpdateLaunchPolicy.NormalizeVersion(UpdatePackageFailedVersion);
+            }
+        }
+
+        public void BeginUpdateAttempt(string version)
+        {
+            lock (this)
+            {
+                UpdateAttemptVersion = UpdateLaunchPolicy.NormalizeVersion(version);
+            }
+        }
+
+        public void AbandonUpdateAttempt()
+        {
+            lock (this)
+            {
+                UpdateAttemptVersion = null;
+            }
+        }
+
+        public string ResolveUpdateAttempt(string currentVersion)
+        {
+            string failed = null;
+            lock (this)
+            {
+                string attempted = UpdateLaunchPolicy.NormalizeVersion(UpdateAttemptVersion);
+                if (string.IsNullOrEmpty(UpdateAttemptVersion))
+                {
+                    return null;
+                }
+                UpdateAttemptVersion = null;
+                if (attempted != null && !UpdateLaunchPolicy.IsSameOrNewer(currentVersion, attempted))
+                {
+                    UpdatePackageFailedVersion = attempted;
+                    failed = attempted;
+                }
+                else if (attempted != null && IsUpdatePackageBlocked(attempted))
+                {
+                    UpdatePackageFailedVersion = null;
+                }
+            }
+            return failed;
+        }
+
         internal void ResetTransientState()
         {
             ForcedProfile = "none";
@@ -325,6 +488,7 @@ namespace ApexSenseBridgeTray.Models
                         {
                             settings.ApexProfileSlots = new Dictionary<string, int>();
                         }
+                        if (settings.GameTunings == null) settings.GameTunings = new Dictionary<string, GameTuning>();
                         return settings;
                     }
                 }
@@ -351,6 +515,86 @@ namespace ApexSenseBridgeTray.Models
             }
             catch
             {
+            }
+        }
+    }
+
+    internal static class UpdateLaunchPolicy
+    {
+        internal const string UpdaterFileName = "ApexSenseBridgeUpdater.exe";
+        internal const long MaxPackageBytes = 200L * 1024 * 1024;
+
+        internal static string NormalizeVersion(string version)
+        {
+            Version parsed;
+            if (string.IsNullOrWhiteSpace(version) ||
+                !Version.TryParse(version.Trim().TrimStart('v', 'V'), out parsed))
+            {
+                return null;
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{0}.{1}.{2}", parsed.Major, parsed.Minor, Math.Max(parsed.Build, 0));
+        }
+
+        internal static bool IsSameOrNewer(string candidate, string reference)
+        {
+            Version left;
+            Version right;
+            return Version.TryParse(NormalizeVersion(candidate), out left) &&
+                   Version.TryParse(NormalizeVersion(reference), out right) &&
+                   left >= right;
+        }
+
+        internal static bool ShouldTryPackage(string packageUrl, string latestVersion,
+            string failedVersion, bool updaterPresent, bool enginePresent)
+        {
+            string latest = NormalizeVersion(latestVersion);
+            return !string.IsNullOrWhiteSpace(packageUrl) &&
+                   latest != null &&
+                   latest != NormalizeVersion(failedVersion) &&
+                   updaterPresent &&
+                   enginePresent;
+        }
+
+        internal static string BuildUpdaterArguments(string packagePath, string installDirectory,
+            string version, int waitProcessId)
+        {
+            string expected = NormalizeVersion(version);
+            if (expected == null || waitProcessId <= 0 ||
+                !IsQuotablePath(packagePath) || !IsQuotablePath(installDirectory))
+            {
+                return null;
+            }
+            string trimmedDirectory = installDirectory.TrimEnd('\\', '/');
+            if (trimmedDirectory.Length < 3)
+            {
+                return null;
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "--package \"{0}\" --install-dir \"{1}\" --expected-version {2} --wait-pid {3} --relaunch-tray",
+                packagePath, trimmedDirectory, expected, waitProcessId);
+        }
+
+        private static bool IsQuotablePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+            foreach (char c in path)
+            {
+                if (c == '"' || c < ' ')
+                {
+                    return false;
+                }
+            }
+            try
+            {
+                return Path.IsPathRooted(path);
+            }
+            catch (ArgumentException)
+            {
+                return false;
             }
         }
     }

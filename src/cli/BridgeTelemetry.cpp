@@ -30,6 +30,49 @@ void writeOptionalTriggerEntry(std::ostream& output,
     else output << "null";
 }
 
+void writeVirtualStartupProbes(
+    std::ostream& output,
+    const std::vector<asb::dualsense::VirtualDualSenseProbeReport>& probes) {
+    output << "  \"virtual_startup_probes\": [";
+    for (std::size_t index = 0; index < probes.size(); ++index) {
+        const auto& probe = probes[index];
+        output << (index == 0 ? "\n" : ",\n")
+               << "    {\"attempt\": " << probe.attempt
+               << ", \"outcome\": \""
+               << asb::dualsense::virtualDualSenseProbeOutcomeName(probe.outcome)
+               << "\", \"elapsed_ms\": " << probe.elapsedMilliseconds
+               << ", \"deadline_ms\": " << probe.deadlineMilliseconds
+               << ", \"extended\": " << (probe.extended ? "true" : "false")
+               << ", \"first_new_ms\": " << probe.firstNewInterfaceMilliseconds
+               << ", \"enumerations\": " << probe.enumerations
+               << ", \"enumeration_failures\": " << probe.enumerationFailures
+               << ", \"baseline\": " << probe.baselineInterfaces
+               << ", \"baseline_vanished\": " << probe.baselineVanished
+               << ", \"baseline_reappeared\": " << probe.baselineReappeared
+               << ", \"new_gamepad\": " << probe.newGamepadInterfaces
+               << ", \"new_unreadable\": " << probe.newUnreadableInterfaces
+               << ", \"new_other\": " << probe.newOtherInterfaces
+               << ", \"candidate_failures\": " << probe.candidateFailures
+               << ", \"last_error\": \"" << jsonEscape(probe.lastError)
+               << "\", \"interfaces\": [";
+        for (std::size_t entryIndex = 0; entryIndex < probe.interfaces.size(); ++entryIndex) {
+            const auto& entry = probe.interfaces[entryIndex];
+            output << (entryIndex == 0 ? "" : ", ")
+                   << "{\"state\": \"" << jsonEscape(entry.state)
+                   << "\", \"interface\": \"" << jsonEscape(entry.interfaceNumber)
+                   << "\", \"usage_page\": " << entry.usagePage
+                   << ", \"usage\": " << entry.usage
+                   << ", \"input_report_length\": " << entry.inputReportLength
+                   << ", \"feature_report_length\": " << entry.featureReportLength
+                   << ", \"first_seen_ms\": " << entry.firstSeenMilliseconds
+                   << ", \"detail\": \"" << jsonEscape(entry.detail)
+                   << "\", \"path\": \"" << jsonEscape(entry.path) << "\"}";
+        }
+        output << "]}";
+    }
+    output << (probes.empty() ? "],\n" : "\n  ],\n");
+}
+
 } // namespace
 
 void writeAdaptiveTriggerDiagnostics(std::ostream& output,
@@ -44,7 +87,20 @@ void writeAdaptiveTriggerDiagnostics(std::ostream& output,
         output << (index == 0 ? "" : ",") << "0x" << std::hex << static_cast<unsigned>(type)
                << std::dec << ':' << count;
     }
-    output << '\n';
+    output << '\n'
+           << "zone_profiles=" << stats.zoneProfiles << '\n'
+           << "zone_transitions=" << stats.zoneTransitions << '\n'
+           << "periodic_profiles=" << stats.periodicProfiles << '\n'
+           << "periodic_transitions=" << stats.periodicTransitions << '\n'
+           << "zone_latency_samples=" << stats.zoneLatencySamples << '\n'
+           << "zone_latency_avg_us="
+           << (stats.zoneLatencySamples != 0 ? stats.zoneLatencyTotalUs / stats.zoneLatencySamples : 0) << '\n'
+           << "zone_latency_max_us=" << stats.zoneLatencyMaxUs << '\n'
+           << "periodic_lateness_samples=" << stats.periodicLatenessSamples << '\n'
+           << "periodic_lateness_avg_us="
+           << (stats.periodicLatenessSamples != 0
+                   ? stats.periodicLatenessTotalUs / stats.periodicLatenessSamples : 0) << '\n'
+           << "periodic_lateness_max_us=" << stats.periodicLatenessMaxUs << '\n';
     for (std::size_t index = 0; index < stats.leftBlocks.size(); ++index) {
         output << "trigger_block_lt_" << index << '=' << stats.leftBlocks[index] << '\n';
     }
@@ -66,6 +122,19 @@ void writeApex6TriggerTrace(std::ostream& output,
     print("apex6_last_active_rt", stats.lastActiveRight);
     print("apex6_last_rejected_lt", stats.lastRejectedLeft);
     print("apex6_last_rejected_rt", stats.lastRejectedRight);
+    output << "apex6_report_signature_overflow=" << stats.reportSignatureOverflow << '\n';
+    for (std::size_t index = 0; index < stats.reportSignatureCount; ++index) {
+        const auto& entry = stats.reportSignatures[index];
+        output << "apex6_report_signature_" << index << "={\"flags\": ["
+               << static_cast<unsigned>(entry.enableBits1) << ", "
+               << static_cast<unsigned>(entry.enableBits2) << ", "
+               << static_cast<unsigned>(entry.enableBits3) << "], \"left_mode\": "
+               << static_cast<unsigned>(entry.leftMode) << ", \"right_mode\": "
+               << static_cast<unsigned>(entry.rightMode) << ", \"rumble\": "
+               << (entry.rumble ? "true" : "false") << ", \"count\": " << entry.count
+               << ", \"first_ms\": " << entry.firstMilliseconds
+               << ", \"last_ms\": " << entry.lastMilliseconds << "}\n";
+    }
     output << "apex6_trigger_trace_overwritten=" << stats.triggerTraceOverwritten << '\n';
     for (std::size_t index = 0; index < stats.triggerTraceCount; ++index) {
         output << "apex6_trigger_trace_" << index << '=';
@@ -88,11 +157,14 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << telemetry.independentTriggerStartupRecoveries << ",\n"
            << "  \"independent_trigger_runtime_recoveries\": "
            << telemetry.independentTriggerRuntimeRecoveries << ",\n"
+           << "  \"physical_reattaches\": " << telemetry.physicalReattaches << ",\n"
+           << "  \"physical_lost_ms\": " << telemetry.physicalLostMilliseconds << ",\n"
            << "  \"virtual_input_monitor\": \""
            << (telemetry.virtualInputMonitorEnabled ? "enabled" : "disabled")
            << "\",\n"
-           << "  \"virtual_startup_attempts\": " << telemetry.startupAttempts << ",\n"
-           << "  \"initialization_ms\": " << telemetry.initializationMilliseconds << ",\n"
+           << "  \"virtual_startup_attempts\": " << telemetry.startupAttempts << ",\n";
+    writeVirtualStartupProbes(output, telemetry.virtualStartupProbes);
+    output << "  \"initialization_ms\": " << telemetry.initializationMilliseconds << ",\n"
            << "  \"initialization_physical_input_ms\": "
            << telemetry.physicalInputInitializationMilliseconds << ",\n"
            << "  \"initialization_virtual_input_ms\": "
@@ -163,6 +235,13 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << "  \"battery_percent\": "
            << static_cast<unsigned>(telemetry.batteryPercent) << ",\n"
            << "  \"charge_state\": " << static_cast<unsigned>(telemetry.chargeState) << ",\n"
+           << "  \"battery_known\": " << (telemetry.batteryKnown ? "true" : "false") << ",\n"
+           << "  \"battery_source\": \"" << telemetry.batterySource << "\",\n"
+           << "  \"battery_refreshes\": " << telemetry.batteryRefreshes << ",\n"
+           << "  \"battery_refresh_failures\": " << telemetry.batteryRefreshFailures << ",\n"
+           << "  \"battery_refresh_slow_calls\": " << telemetry.batteryRefreshSlowCalls << ",\n"
+           << "  \"battery_refresh_max_call_us\": " << telemetry.batteryRefreshMaxCallMicroseconds << ",\n"
+           << "  \"battery_refresh_disabled\": " << (telemetry.batteryRefreshDisabled ? "true" : "false") << ",\n"
            << "  \"cpu_percent_total\": " << telemetry.cpuPercent << ",\n"
            << "  \"working_set_mib\": "
            << static_cast<double>(telemetry.processUsage.workingSetBytes) /
@@ -202,10 +281,21 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
                << "    \"waveform_threshold_policy\": \"native-pcm-preserved\",\n"
                << "    \"pcm_gain_percent\": " << stats.pcmGainPercent << ",\n"
                << "    \"pcm_gain_policy\": \"bounded-companding-opt-in\",\n"
+               << "    \"grip_duck_percent\": " << stats.gripDuckPercent << ",\n"
+               << "    \"grip_ducked_blocks\": " << stats.gripDuckedBlocks << ",\n"
+               << "    \"trigger_ceiling_percent\": " << stats.triggerCeilingPercent << ",\n"
+               << "    \"trigger_limited_samples\": " << stats.triggerLimitedSamples << ",\n"
                << "    \"haptic_threshold_percent\": 0,\n"
                << "    \"pcm_output_left_peak\": " << stats.pcmOutputLeftPeak << ",\n"
                << "    \"pcm_output_right_peak\": " << stats.pcmOutputRightPeak << ",\n"
                << "    \"rumble_updates\": " << stats.rumbleUpdates << ",\n"
+               << "    \"rumble_active_updates\": " << stats.rumbleActiveUpdates << ",\n"
+               << "    \"rumble_ignored_reports\": " << stats.rumbleIgnoredReports << ",\n"
+               << "    \"rumble_ignored_last_flags\": "
+               << static_cast<unsigned>(stats.lastIgnoredRumbleEnableBits) << ",\n"
+               << "    \"grip_rumble_frames\": " << stats.gripRumbleFrames << ",\n"
+               << "    \"grip_rumble_masked_frames\": " << stats.gripRumbleMaskedFrames << ",\n"
+               << "    \"grip_envelope_frames\": " << stats.gripEnvelopeFrames << ",\n"
                << "    \"audio_envelope_reports\": " << stats.audioEnvelopeReports << ",\n"
                << "    \"waveform_blocks\": " << stats.waveformBlocks << ",\n"
                << "    \"waveform_left_active\": " << stats.waveformLeftActiveBlocks << ",\n"

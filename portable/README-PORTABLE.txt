@@ -20,6 +20,28 @@ found, it stops with a clear message instead of entering USBip's known nested-
 uninstaller hang. Uninstall the old USBip package in Windows Settings, restart,
 then run this helper again. Details are written to driver-install.log.
 
+While usbip-win2 installs, Windows restarts every USB 3.0 hub: all connected USB
+devices (keyboard, mouse, controller, drives) stop working for a short time and
+then resume. Close file transfers and calls first, do not unplug or power off
+during that step, and consider creating a Windows restore point beforehand, as
+the usbip-win2 project recommends.
+
+The helper only starts those two vendor installers. It never removes, repairs
+or disables drivers, devices, services or USB controllers, and it never
+terminates an installer that is still running. It copies the two installers to a
+temporary folder, checks their SHA-256 again, runs them from there (so the
+package can sit on a removable, network or mapped drive that an administrator
+session cannot read) and copies the log back to driver-install.log.
+
+The helper can be run again at any time. Components that are already installed
+are skipped, so if HidHide could not be installed (for example because antivirus
+or Windows security blocked its installer, Windows error 1223) the next run
+continues with HidHide only. In that case allow Drivers\HidHide_1.5.230_x64.exe
+in your security product, or right-click it and choose Run as administrator,
+then run Install-Drivers.cmd once more to verify it. If the helper reports that
+the -File argument does not exist, copy the whole folder to a local drive such
+as C:\ApexSenseBridge-Portable and run it from there.
+
 Keep every EXE and DLL, plus the Resources, Data, Drivers, and Licenses folders
 together. libVIIPER.dll is the default backend; viiper.exe is its automatic
 compatibility fallback.

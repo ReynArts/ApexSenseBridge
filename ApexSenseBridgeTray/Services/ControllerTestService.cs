@@ -139,12 +139,42 @@ namespace ApexSenseBridgeTray.Services
         }
 
         private Process activeTestProcess;
+        private readonly Func<string> selectedControllerKey;
+        private const string DeviceSlot = "@device@";
+
+        public ControllerTestService() : this(null) { }
+
+        public ControllerTestService(Func<string> selectedControllerKey)
+        {
+            this.selectedControllerKey = selectedControllerKey;
+        }
+
+        private string DeviceIndexSlot()
+        {
+            string argument = ControllerSelection.DeviceIndexArgument(selectedControllerKey != null ? selectedControllerKey() : null);
+            return argument.Length == 0 ? string.Empty : argument.Substring(1) + " ";
+        }
         private volatile string lastCliError;
 
         public string LastCliError
         {
             get { return lastCliError; }
             private set { lastCliError = value; }
+        }
+
+        private volatile bool lastFailureWasActiveSession;
+
+        public bool LastFailureWasActiveSession
+        {
+            get { return lastFailureWasActiveSession; }
+            private set { lastFailureWasActiveSession = value; }
+        }
+
+        internal static string UnavailableInputMessageKey(bool sessionActive)
+        {
+            return sessionActive
+                ? "Loc_ControllerTestInputSessionActive"
+                : "Loc_ControllerTestInputXInputOnly";
         }
 
         private readonly object processLock = new object();
@@ -199,28 +229,28 @@ namespace ApexSenseBridgeTray.Services
 
         public Task<bool> TestTriggerAsync(string side, string mode, int level, int seconds)
         {
-            string args = string.Format("test-trigger --side {0} --mode {1} --level {2} --seconds {3}",
+            string args = "test-trigger " + DeviceSlot + string.Format("--side {0} --mode {1} --level {2} --seconds {3}",
                 side.ToLowerInvariant(), mode.ToLowerInvariant(), level, seconds);
             return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 
         public Task<bool> TestRumbleAsync(int left, int right, int seconds)
         {
-            string args = string.Format("test-rumble --left {0} --right {1} --seconds {2}", left, right, seconds);
+            string args = "test-rumble " + DeviceSlot + string.Format("--left {0} --right {1} --seconds {2}", left, right, seconds);
             return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 
         public Task<bool> TestRgbAsync(byte r, byte g, byte b, int seconds)
         {
             string hex = string.Format("#{0:X2}{1:X2}{2:X2}", r, g, b);
-            string args = string.Format("test-rgb {0}", hex);
+            string args = "test-rgb " + DeviceSlot + hex;
             return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 
         public Task<bool> ResetAllEffectsAsync()
         {
             KillActiveTestProcess();
-            return RunCliCommandAsync("clear");
+            return RunCliCommandAsync("clear " + DeviceSlot);
         }
 
         public Task<LatencyTestResult> TestNativeLatencyAsync(int seconds, CancellationToken cancellationToken)
@@ -416,7 +446,7 @@ namespace ApexSenseBridgeTray.Services
             return -1;
         }
 
-        private static bool IsBridgeSessionActive()
+        internal static bool IsBridgeSessionActive()
         {
             try
             {
@@ -505,8 +535,16 @@ namespace ApexSenseBridgeTray.Services
             return Task.Run(() =>
             {
                 LastCliError = null;
+                LastFailureWasActiveSession = false;
+                if (IsBridgeSessionActive())
+                {
+                    LastFailureWasActiveSession = true;
+                    LastCliError = "A bridge session is active. Stop it before testing the controller.";
+                    return false;
+                }
                 var engine = InstallLocator.ResolveEngine();
                 if (string.IsNullOrWhiteSpace(engine) || !File.Exists(engine)) return false;
+                arguments = arguments.Replace(DeviceSlot, DeviceIndexSlot()).Trim();
 
                 KillActiveTestProcess();
 
@@ -600,7 +638,7 @@ namespace ApexSenseBridgeTray.Services
                 return result;
             }
 
-            string args = string.Format("test-gyro --seconds {0} --json", seconds);
+            string args = string.Format("test-gyro {0}--seconds {1} --json", await Task.Run(() => DeviceIndexSlot()), seconds);
             try
             {
                 var start = new ProcessStartInfo(engine, args)
@@ -682,7 +720,7 @@ namespace ApexSenseBridgeTray.Services
                     token.ThrowIfCancellationRequested();
                     string error;
                     long lastDelivery = 0;
-                    session = BridgeSession.TryStart(engine, "test-gyro --stream",
+                    session = BridgeSession.TryStart(engine, "test-gyro " + DeviceIndexSlot() + "--stream",
                         TimeSpan.FromSeconds(8), line => {
                             if (token.IsCancellationRequested) return;
                             const string prefix = "[bridge] ";
@@ -852,12 +890,13 @@ namespace ApexSenseBridgeTray.Services
             StopGyroStream();
             KillActiveTestProcess();
             StopLatencyTest();
+            if (IsBridgeSessionActive()) return;
             try
             {
                 var engine = InstallLocator.ResolveEngine();
                 if (!string.IsNullOrWhiteSpace(engine) && File.Exists(engine))
                 {
-                    var start = new ProcessStartInfo(engine, "clear")
+                    var start = new ProcessStartInfo(engine, ("clear " + DeviceIndexSlot()).Trim())
                     {
                         CreateNoWindow = true,
                         UseShellExecute = false

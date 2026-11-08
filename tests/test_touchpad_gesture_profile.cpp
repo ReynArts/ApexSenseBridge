@@ -93,6 +93,41 @@ int main() {
     simultaneousPhoto.transform(input, start + 20ms);
     assert(input.touch1Active && input.touch1X == 320);
 
+    // Alan Wake 2: Xbox View tap opens the Mind Place (right-side click) and
+    // View hold goes straight to the map (left-side click while held).
+    assert(parseTouchpadGestureProfile("alan-wake-2") == TouchpadGestureProfile::AlanWake2);
+    assert(touchpadGestureProfileName(TouchpadGestureProfile::AlanWake2) == "alan-wake-2");
+    TouchpadGestureMapper alan(TouchpadGestureProfile::AlanWake2);
+    input = {};
+    input.buttons = button::kTouchpadClick;
+    alan.transform(input, start);
+    assert((input.buttons & button::kTouchpadClick) == 0 && !input.touch1Active);
+    input = {};
+    alan.transform(input, start + 100ms);
+    assert((input.buttons & button::kTouchpadClick) != 0);
+    assert(input.touch1Active && input.touch1X == 1600 && input.touch1Y == 540);
+    input = {};
+    alan.transform(input, start + 140ms);
+    assert((input.buttons & button::kTouchpadClick) == 0 && !input.touch1Active);
+    assert(alan.stats().replayedTaps == 1);
+
+    const auto alanHold = start + 1s;
+    input = {};
+    input.buttons = button::kTouchpadClick | button::kCross;
+    alan.transform(input, alanHold);
+    assert(input.buttons == button::kCross && !input.touch1Active);
+    for (const auto elapsed : {400ms, 900ms, 3000ms}) {
+        input = {};
+        input.buttons = button::kTouchpadClick;
+        alan.transform(input, alanHold + elapsed);
+        assert((input.buttons & button::kTouchpadClick) != 0);
+        assert(input.touch1Active && input.touch1X == 320 && input.touch1Y == 540);
+    }
+    input = {};
+    alan.transform(input, alanHold + 3010ms);
+    assert(input.buttons == 0 && !input.touch1Active);
+    assert(alan.stats().swipes == 0);
+
     // Miles preserves View tap as touchpad click and maps View hold to the
     // documented right-to-left FNSM swipe.
     TouchpadGestureMapper miles(TouchpadGestureProfile::MilesMorales);

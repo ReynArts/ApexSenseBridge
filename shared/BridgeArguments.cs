@@ -15,7 +15,10 @@ namespace ApexSenseBridge.Common
             int triggerStrengthPercent = 100,
             int vibrationStrengthPercent = 100,
             int apex4GyroStrengthPercent = 100,
-            int apex4GyroYawStrengthPercent = 100)
+            int apex4GyroYawStrengthPercent = 100,
+            bool zoneEmulation = true,
+            int lightbarBrightnessPercent = 100,
+            bool apex6Rate2k = false)
         {
             var arguments = new List<string>
             {
@@ -41,9 +44,26 @@ namespace ApexSenseBridge.Common
                     .ToString(CultureInfo.InvariantCulture));
             }
 
+            if (apex6Rate2k)
+            {
+                arguments.Add("--apex6-rate");
+                arguments.Add("2000");
+            }
+
             if (syncLightbar)
             {
                 arguments.Add("--sync-lightbar");
+                var brightness = Math.Max(0, Math.Min(100, lightbarBrightnessPercent));
+                if (brightness < 100)
+                {
+                    arguments.Add("--lightbar-brightness");
+                    arguments.Add(brightness.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+
+            if (!zoneEmulation)
+            {
+                arguments.Add("--no-zone-emulation");
             }
 
             if (apexProfileSlot >= 1 && apexProfileSlot <= 4)
@@ -64,6 +84,7 @@ namespace ApexSenseBridge.Common
                 case "ghost-of-tsushima":
                 case "warframe":
                 case "death-stranding-2":
+                case "alan-wake-2":
                     return profile.Trim().ToLowerInvariant();
                 default:
                     return "none";

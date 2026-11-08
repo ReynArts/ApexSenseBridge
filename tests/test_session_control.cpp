@@ -127,6 +127,10 @@ int main(int argc, char** argv) {
     control->markProgress(SessionProgress::IsolationVerified);
     control->markProgress(SessionProgress::RuntimeReady);
     assert(progress->stages == 15);
+    control->markProgress(SessionProgress::PhysicalLost);
+    assert(progress->stages == 31);
+    control->clearProgress(SessionProgress::PhysicalLost);
+    assert(progress->stages == 15);
     control->markInterrupted(SessionInterruption::PhysicalDisconnected);
     assert(progress->interruption == 1);
     assert(control->publish(SessionPhase::Failed, 11, "Cleanup failed after disconnect", error));

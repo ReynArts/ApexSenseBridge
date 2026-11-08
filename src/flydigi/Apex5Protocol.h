@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 
 namespace asb::flydigi {
 
@@ -33,16 +34,26 @@ constexpr std::uint8_t kCmdWriteRgbPack = 0xA9;
 constexpr std::uint8_t kRgbPacketSize = 20;
 constexpr std::uint8_t kRgbPacketCount = 19;
 constexpr std::size_t kRgbConfigSize = 380;
+// Header byte of the RGB configuration holding the LED brightness (0..100).
+constexpr std::size_t kRgbBrightnessOffset = 6;
 constexpr std::size_t kApex5LedCount = 12;
 constexpr std::uint8_t kProfileSlotCount = 4;
 constexpr std::size_t kReportSize = 32;
 
 using Report = std::array<std::uint8_t, kReportSize>;
 
+struct ProfileChecksums {
+    std::array<std::uint16_t, kProfileSlotCount> slots{};
+    std::uint16_t global = 0;
+
+    bool operator==(const ProfileChecksums&) const = default;
+};
+
 struct ProfileStatus {
     std::uint8_t rawSlot = 0;
     std::uint8_t slot = 0;
     bool switchBank = false;
+    std::optional<ProfileChecksums> checksums{};
 };
 
 struct TransportFlag {
@@ -85,6 +96,7 @@ struct InputTransportStatus {
     std::span<const std::uint8_t> report) noexcept;
 [[nodiscard]] std::optional<InputTransportStatus> parseInputTransportStatus(
     std::span<const std::uint8_t> report) noexcept;
+[[nodiscard]] std::string describeInputTransport(const InputTransportStatus& status);
 [[nodiscard]] bool isControllerProduct(std::uint16_t productId) noexcept;
 
 } // namespace asb::flydigi

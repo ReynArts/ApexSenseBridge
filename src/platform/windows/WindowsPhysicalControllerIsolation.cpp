@@ -1384,9 +1384,9 @@ RestoreOutcome restoreApexProfile(const detail::ApexSettingsRestore& settings,
         std::string openError;
         auto device = flydigi::Apex5Device::open(selected, openError);
         if (!device || !device->verifyIdentity(openError) ||
-            !device->identity() || !device->identity()->isApex5()) {
+            !device->identity() || !device->identity()->supportsProfileSlots()) {
             lastError = openError.empty()
-                ? "The saved recovery interface is not a verified Apex 5"
+                ? "The saved recovery interface is not a verified Apex 5 or Apex 6 Pro"
                 : openError;
             if (attempt < attempts) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -1873,11 +1873,94 @@ bool TemporaryPhysicalControllerIsolation::confirmApexProfileRestored(
     }
 }
 
-bool TemporaryPhysicalControllerIsolation::restore(std::string& error) noexcept {
+bool TemporaryPhysicalControllerIsolation::refreshTargets(
+    const HidDeviceInfo& apexInterface, std::string& error) noexcept {
+    if (!impl_ || !impl_->active) return true;
+    try {
+        std::vector<std::wstring> required;
+        if (!apexGameDevicePaths(apexInterface, required, error)) return false;
+        std::vector<std::wstring> flydigiProxyPaths;
+        if (!flydigiVirtualGamepadPaths(flydigiProxyPaths, error)) return false;
+        required.insert(required.end(), flydigiProxyPaths.begin(),
+                        flydigiProxyPaths.end());
+
+        RecoverySnapshot snapshot{};
+        bool markerExists = false;
+        if (!readRecoverySnapshot(snapshot, markerExists, error)) return false;
+        if (!markerExists || snapshot.ownerProcessId != GetCurrentProcessId() ||
+            snapshot.phase != kPhaseConfigurationMayHaveChanged) {
+            error = "The controller recovery marker no longer belongs to this "
+                    "session; refusing to change HidHide for the reconnected "
+                    "controller.";
+            return false;
+        }
+
+        ScopedHandle device;
+        if (!openHidHide(device, error, detail::kHidHideRefreshOpenWindow)) {
+            return false;
+        }
+        bool hidHideActive = false;
+        bool hidHideInverse = false;
+        std::vector<std::wstring> blacklist;
+        if (!getBoolean(device.get(), kIoctlGetActive, hidHideActive,
+                        "active state", error) ||
+            !getBoolean(device.get(), kIoctlGetInverse, hidHideInverse,
+                        "inverse state", error) ||
+            !getList(device.get(), kIoctlGetBlacklist, blacklist,
+                     "device list", error)) {
+            return false;
+        }
+        if (!hidHideActive || hidHideInverse) {
+            error = "HidHide is no longer active or was switched to inverse mode "
+                    "during the session; ApexSenseBridge will not re-enable it to "
+                    "hide the reconnected controller.";
+            return false;
+        }
+
+        const auto merged = detail::mergeMissingIsolationTargets(blacklist, required);
+        if (!merged) return true;
+        if (!setList(device.get(), kIoctlSetBlacklist, *merged, "device list",
+                     error)) {
+            return false;
+        }
+
+        bool effectiveActive = false;
+        bool effectiveInverse = false;
+        std::vector<std::wstring> effectiveBlacklist;
+        if (!getBoolean(device.get(), kIoctlGetActive, effectiveActive,
+                        "active state after refresh", error) ||
+            !getBoolean(device.get(), kIoctlGetInverse, effectiveInverse,
+                        "inverse state after refresh", error) ||
+            !getList(device.get(), kIoctlGetBlacklist, effectiveBlacklist,
+                     "device list after refresh", error)) {
+            return false;
+        }
+        const bool blacklistComplete = std::all_of(
+            merged->begin(), merged->end(),
+            [&effectiveBlacklist](const auto& path) {
+                return containsCaseInsensitive(effectiveBlacklist, path);
+            });
+        if (!effectiveActive || effectiveInverse || !blacklistComplete) {
+            error = "HidHide did not retain the refreshed controller isolation "
+                    "targets; the reconnected controller may be visible to games.";
+            return false;
+        }
+        return true;
+    } catch (...) {
+        error = "Unexpected failure while refreshing the controller isolation targets.";
+        return false;
+    }
+}
+
+bool TemporaryPhysicalControllerIsolation::restore(std::string& error,
+                                                   bool controllerAbsent) noexcept {
     if (!impl_ || (!impl_->active && !recoveryMarkerExists())) return true;
     try {
         ControllerRecoveryReport report;
-        if (!recoverPendingImpl(detail::ApexRecoveryMode::OwnSession, report, error)) {
+        const auto mode = controllerAbsent
+            ? detail::ApexRecoveryMode::OwnSessionControllerAbsent
+            : detail::ApexRecoveryMode::OwnSession;
+        if (!recoverPendingImpl(mode, report, error)) {
             return false;
         }
     } catch (...) {
@@ -1919,9 +2002,9 @@ bool TemporaryPhysicalControllerIsolation::applyDeferredApexRestore(
             !detail::deferredApexRestoreBlocksSession(*deferred, device.info())) {
             return true;
         }
-        if (!device.identity() || !device.identity()->isApex5()) {
-            error = "The controller matching the deferred Apex 5 settings is not a "
-                    "verified Apex 5.";
+        if (!device.identity() || !device.identity()->supportsProfileSlots()) {
+            error = "The controller matching the deferred Apex settings is not a "
+                    "verified Apex 5 or Apex 6 Pro.";
             return false;
         }
         std::string restoreError;
@@ -2138,6 +2221,19 @@ bool deferredApexRestoreBlocksSession(
     const ApexSettingsRestore& deferred,
     const HidDeviceInfo& sessionInterface) noexcept {
     return matchesApexRestoreTarget(deferred, sessionInterface);
+}
+
+std::optional<std::vector<std::wstring>> mergeMissingIsolationTargets(
+    const std::vector<std::wstring>& current,
+    const std::vector<std::wstring>& required) {
+    auto merged = current;
+    for (const auto& path : required) {
+        if (!path.empty() && !containsCaseInsensitive(merged, path)) {
+            merged.push_back(path);
+        }
+    }
+    if (merged.size() == current.size()) return std::nullopt;
+    return merged;
 }
 
 namespace {

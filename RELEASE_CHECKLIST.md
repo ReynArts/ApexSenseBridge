@@ -4,12 +4,47 @@ Use this checklist for every public installer release. Driver lifecycle tests
 must run in disposable Windows virtual machines with a snapshot and a recovery
 input path; do not test USB filter removal on a development workstation.
 
+## Self-signed release (1.1.0 only)
+
+- Run the "Release ApexSenseBridge" workflow manually from `dev` with the tag
+  (for example `v1.1.0`). Manual runs always use the self-signed
+  `test-signing` policy. Run it once with "publish" unchecked, then again with
+  "publish" checked to create the release.
+- The workflow creates the tag itself; a tag created that way does not start the
+  tag-triggered run. Never push a `v*` tag by hand before the SignPath production
+  certificate is imported: that run uses `release-signing` and fails without it.
+- An installed version whose signature is missing or not trusted (the 1.1.0
+  self-signed build) accepts an update when every file in it is trusted by
+  Windows and all files share one signer; the download source and product name
+  checks still apply. Once the installed build is trusted, only the same
+  publisher is accepted.
+
 ## Automated release gates
 
+- The SignPath account is created, the OSS organization invitation is accepted,
+  and only then is the CI user email confirmation completed.
+- The SignPath GitHub App has access to this repository and the SignPath project
+  is linked to the predefined GitHub.com trusted build system.
+- SignPath contains the three artifact configurations from
+  `signpath/payload-artifact-configuration.xml` and
+  `signpath/uninstaller-artifact-configuration.xml` and
+  `signpath/installer-artifact-configuration.xml`. Record their slugs in the
+  repository variables listed below.
+- GitHub Actions secret `SIGNPATH_API_TOKEN` contains the CI user's SignPath API
+  token. Repository variables `SIGNPATH_ORGANIZATION_ID`,
+  `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_TEST_SIGNING_POLICY_SLUG`,
+  `SIGNPATH_RELEASE_SIGNING_POLICY_SLUG`,
+  `SIGNPATH_PAYLOAD_ARTIFACT_CONFIGURATION_SLUG` and
+  `SIGNPATH_UNINSTALLER_ARTIFACT_CONFIGURATION_SLUG` and
+  `SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG` match the SignPath project.
+- A manual `workflow_dispatch` run succeeds with the self-signed test policy.
+  SignPath must approve the project and provision the production certificate
+  before `SIGNPATH_RELEASE_SIGNING_POLICY_SLUG` is used by a release tag.
 - Tag is exactly `v<major>.<minor>.<patch>` and matches every source manifest:
   `powershell -File .\scripts\verify-version-consistency.ps1 -ExpectedVersion vX.Y.Z`.
-- Release build completes with signing required:
-  `powershell -File .\scripts\build-installer.ps1 -RequireSigning`.
+- The workflow signs the six Windows payload files, Inno Setup's generated
+  uninstaller, and then the final installer through SignPath. No release is
+  published if any signing request fails.
 - All native and installer contract tests pass:
   `ctest --test-dir .\build-win -C Release --output-on-failure`.
 - Final artifacts, SHA-256 file and Authenticode publisher agree:

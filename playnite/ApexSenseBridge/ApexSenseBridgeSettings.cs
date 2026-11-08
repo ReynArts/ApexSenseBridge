@@ -18,7 +18,8 @@ namespace ApexSenseBridge
         GhostOfTsushima,
         Warframe,
         Disabled,
-        DeathStranding2
+        DeathStranding2,
+        AlanWake2
     }
 
     public enum BridgeActivationMode
@@ -36,7 +37,8 @@ namespace ApexSenseBridge
         MilesMorales,
         GhostOfTsushima,
         Warframe,
-        DeathStranding2
+        DeathStranding2,
+        AlanWake2
     }
 
     public class GameBridgeProfile : ObservableObject
@@ -120,6 +122,8 @@ namespace ApexSenseBridge
                     return "Warframe (layout Xbox par défaut)";
                 case BridgeProfileType.DeathStranding2:
                     return "Death Stranding 2: On the Beach";
+                case BridgeProfileType.AlanWake2:
+                    return "Alan Wake 2";
                 case BridgeProfileType.Disabled:
                     return "Désactivé (override manuel)";
                 default:
@@ -156,6 +160,8 @@ namespace ApexSenseBridge
                     return "Warframe";
                 case TouchpadRemappingMode.DeathStranding2:
                     return "Death Stranding 2: On the Beach";
+                case TouchpadRemappingMode.AlanWake2:
+                    return "Alan Wake 2";
                 default:
                     return "Automatique";
             }
@@ -167,6 +173,8 @@ namespace ApexSenseBridge
         private string bridgeExecutablePath = string.Empty;
         private bool enableRumble = true;
         private bool syncLightbar = false;
+        private int lightbarBrightnessPercent = 100;
+        private bool zoneEmulation = true;
         private int hapticThresholdPercent = 12;
         private int vibrationStrengthPercent = 100;
         private int apex4GyroStrengthPercent = 100;
@@ -174,6 +182,8 @@ namespace ApexSenseBridge
         private int initializationTimeoutSeconds = 20;
         private string xinputIndex = string.Empty;
         private bool autoCheckUpdates = true;
+        private bool sendVersionStats = true;
+        private string installId = string.Empty;
         private bool enableAutomaticProfiles = true;
         private DateTime? lastUpdateCheckUtc;
         private List<GameBridgeProfile> profiles = new List<GameBridgeProfile>();
@@ -183,6 +193,8 @@ namespace ApexSenseBridge
         public string BridgeExecutablePath { get => bridgeExecutablePath; set => SetValue(ref bridgeExecutablePath, value); }
         public bool EnableRumble { get => enableRumble; set => SetValue(ref enableRumble, value); }
         public bool SyncLightbar { get => syncLightbar; set => SetValue(ref syncLightbar, value); }
+        public int LightbarBrightnessPercent { get => lightbarBrightnessPercent; set => SetValue(ref lightbarBrightnessPercent, value); }
+        public bool ZoneEmulation { get => zoneEmulation; set => SetValue(ref zoneEmulation, value); }
         public int HapticThresholdPercent { get => hapticThresholdPercent; set => SetValue(ref hapticThresholdPercent, value); }
         public int VibrationStrengthPercent { get => vibrationStrengthPercent; set => SetValue(ref vibrationStrengthPercent, value); }
         public int Apex4GyroStrengthPercent { get => apex4GyroStrengthPercent; set => SetValue(ref apex4GyroStrengthPercent, value); }
@@ -190,6 +202,16 @@ namespace ApexSenseBridge
         public int InitializationTimeoutSeconds { get => initializationTimeoutSeconds; set => SetValue(ref initializationTimeoutSeconds, value); }
         public string XInputIndex { get => xinputIndex; set => SetValue(ref xinputIndex, value); }
         public bool AutoCheckUpdates { get => autoCheckUpdates; set => SetValue(ref autoCheckUpdates, value); }
+        public bool SendVersionStats
+        {
+            get => sendVersionStats;
+            set
+            {
+                SetValue(ref sendVersionStats, value);
+                if (!value) InstallId = string.Empty;
+            }
+        }
+        public string InstallId { get => installId; set => SetValue(ref installId, value); }
         public bool EnableAutomaticProfiles { get => enableAutomaticProfiles; set => SetValue(ref enableAutomaticProfiles, value); }
         public DateTime? LastUpdateCheckUtc { get => lastUpdateCheckUtc; set => SetValue(ref lastUpdateCheckUtc, value); }
         public List<GameBridgeProfile> Profiles
@@ -348,6 +370,8 @@ namespace ApexSenseBridge
                     return TouchpadRemappingMode.Warframe;
                 case BridgeProfileType.DeathStranding2:
                     return TouchpadRemappingMode.DeathStranding2;
+                case BridgeProfileType.AlanWake2:
+                    return TouchpadRemappingMode.AlanWake2;
                 default:
                     // Standard already auto-detected special remappings in 0.6.1.
                     return TouchpadRemappingMode.Automatic;
@@ -368,6 +392,8 @@ namespace ApexSenseBridge
                     return BridgeProfileType.Warframe;
                 case TouchpadRemappingMode.DeathStranding2:
                     return BridgeProfileType.DeathStranding2;
+                case TouchpadRemappingMode.AlanWake2:
+                    return BridgeProfileType.AlanWake2;
                 default:
                     return BridgeProfileType.StandardDualSense;
             }
@@ -386,6 +412,7 @@ namespace ApexSenseBridge
         private bool isUpdateAvailable;
         private string availableUpdateVersion = string.Empty;
         private string availableUpdateSetupUrl = string.Empty;
+        private string availableUpdatePackageUrl = string.Empty;
         private bool isDownloadingUpdate;
         private double downloadProgress;
 
@@ -493,6 +520,18 @@ namespace ApexSenseBridge
             OnPropertyChanged(nameof(InstallationStatus));
         }
 
+        internal string StatsInstallId()
+        {
+            if (!Settings.SendVersionStats) return null;
+            Guid parsed;
+            if (string.IsNullOrEmpty(Settings.InstallId) || !Guid.TryParseExact(Settings.InstallId, "N", out parsed))
+            {
+                Settings.InstallId = Guid.NewGuid().ToString("N");
+                SaveNow();
+            }
+            return Settings.InstallId;
+        }
+
         public async Task CheckForUpdatesAsync()
         {
             if (IsCheckingForUpdate) return;
@@ -502,7 +541,7 @@ namespace ApexSenseBridge
 
             try
             {
-                var result = await UpdateManager.CheckForUpdateAsync();
+                var result = await UpdateManager.CheckForUpdateAsync(null, StatsInstallId());
                 Settings.LastUpdateCheckUtc = DateTime.UtcNow;
 
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
@@ -510,11 +549,17 @@ namespace ApexSenseBridge
                     UpdateCheckStatus = result.ErrorMessage;
                     IsUpdateAvailable = false;
                 }
+                else if (result.IsUpdateAvailable && UpdateManager.IsRestartPending)
+                {
+                    IsUpdateAvailable = false;
+                    UpdateCheckStatus = "Mise à jour déjà appliquée. Redémarrez Playnite pour finaliser.";
+                }
                 else if (result.IsUpdateAvailable)
                 {
                     IsUpdateAvailable = true;
                     AvailableUpdateVersion = result.TagName;
                     AvailableUpdateSetupUrl = result.SetupDownloadUrl;
+                    availableUpdatePackageUrl = result.UpdatePackageUrl;
                     UpdateCheckStatus = $"Mise à jour disponible : {result.TagName}";
                 }
                 else
@@ -540,7 +585,7 @@ namespace ApexSenseBridge
 
             IsDownloadingUpdate = true;
             DownloadProgress = 0;
-            UpdateCheckStatus = "Téléchargement de l'installateur...";
+            UpdateCheckStatus = "Préparation de la mise à jour...";
 
             try
             {
@@ -549,21 +594,33 @@ namespace ApexSenseBridge
                     DownloadProgress = p;
                     UpdateCheckStatus = $"Téléchargement en cours : {p:0}%";
                 });
+                var status = new Progress<string>(text => UpdateCheckStatus = text);
 
-                var installerPath = await UpdateManager.DownloadSetupAsync(AvailableUpdateSetupUrl, AvailableUpdateVersion, progress);
-                UpdateCheckStatus = "Lancement de l'installation silencieuse...";
+                var outcome = await UpdateManager.InstallUpdateAsync(
+                    AvailableUpdateVersion,
+                    AvailableUpdateSetupUrl,
+                    availableUpdatePackageUrl,
+                    plugin.ResolveBridgeExecutable(Settings),
+                    plugin.HasActiveBridgeSession,
+                    progress,
+                    status);
 
-                string error;
-                if (UpdateManager.ExecuteInstallerSilently(installerPath, out error))
+                switch (outcome.Outcome)
                 {
-                    UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
-                    plugin.PlayniteApi.Dialogs.ShowMessage(
-                        "La mise à jour d'ApexSenseBridge a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
-                        "ApexSenseBridge - Mise à jour");
-                }
-                else
-                {
-                    UpdateCheckStatus = error ?? "Échec du lancement de l'installation.";
+                    case UpdateInstallOutcome.Installed:
+                        UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
+                        plugin.PlayniteApi.Dialogs.ShowMessage(
+                            "La mise à jour d'ApexSenseBridge a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
+                            "ApexSenseBridge - Mise à jour");
+                        break;
+                    case UpdateInstallOutcome.InstalledRestartRequired:
+                        IsUpdateAvailable = false;
+                        UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
+                        plugin.PlayniteApi.Dialogs.ShowMessage(outcome.Message, "ApexSenseBridge - Mise à jour");
+                        break;
+                    default:
+                        UpdateCheckStatus = outcome.Message ?? "Échec du lancement de l'installation.";
+                        break;
                 }
             }
             catch (Exception ex)
@@ -609,6 +666,10 @@ namespace ApexSenseBridge
             if (Settings.VibrationStrengthPercent < 0 || Settings.VibrationStrengthPercent > 200)
             {
                 errors.Add("La force des vibrations doit être comprise entre 0 et 200 (APEX 6 limité à 100).");
+            }
+            if (Settings.LightbarBrightnessPercent < 0 || Settings.LightbarBrightnessPercent > 100)
+            {
+                errors.Add("La luminosité maximale de la barre lumineuse doit être comprise entre 0 et 100.");
             }
             if (Settings.Apex4GyroStrengthPercent < 25 ||
                 Settings.Apex4GyroStrengthPercent > 400)

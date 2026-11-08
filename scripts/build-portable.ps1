@@ -52,6 +52,7 @@ foreach ($name in @(
     "ApexSenseBridgeControl.exe",
     "ApexSenseBridgeTray.exe",
     "ApexSenseBridgeTray.exe.config",
+    "ApexSenseBridgeUpdater.exe",
     "libVIIPER.dll",
     "viiper.exe"
 )) {
@@ -60,7 +61,7 @@ foreach ($name in @(
 
 Copy-RequiredFile (Join-Path $projectRoot "data\supported_games.json") `
     (Join-Path $stagingFull "Data\supported_games.json")
-foreach ($document in @("APEX6_DUALSENSE_VALIDATION.md", "RELEASE_NOTES_1.0.0.md")) {
+foreach ($document in @("APEX6_DUALSENSE_VALIDATION.md", "RELEASE_NOTES_1.1.0.md")) {
     Copy-RequiredFile (Join-Path $projectRoot $document) (Join-Path $stagingFull "Docs\$document")
 }
 Copy-RequiredFile (Join-Path $projectRoot "assets\app.ico") `
@@ -87,6 +88,14 @@ foreach ($name in @(
         (Join-Path $stagingFull "Drivers\$name")
 }
 
+$driverManifest = Get-Content -LiteralPath (Join-Path $projectRoot "installer\driver-manifest.json") -Raw |
+    ConvertFrom-Json
+foreach ($package in @($driverManifest.'usbip-win2', $driverManifest.HidHide)) {
+    $packaged = Join-Path $stagingFull ("Drivers\" + $package.installer)
+    if ((Get-FileHash -LiteralPath $packaged -Algorithm SHA256).Hash -ne $package.sha256) {
+        Fail "$($package.installer) does not match the SHA-256 pinned in installer\driver-manifest.json"
+    }
+}
 foreach ($name in @(
     "Install-Drivers.cmd",
     "Install-Drivers.ps1",

@@ -33,6 +33,8 @@ int main() {
     telemetry.inputBackend = "hid\\vendor";
     telemetry.independentTriggerStartupRecoveries = 1;
     telemetry.independentTriggerRuntimeRecoveries = 1;
+    telemetry.physicalReattaches = 2;
+    telemetry.physicalLostMilliseconds = 4500;
     telemetry.virtualInputMonitorEnabled = true;
     telemetry.startupAttempts = 2;
     telemetry.runtimeMilliseconds = 3000;
@@ -45,6 +47,13 @@ int main() {
     telemetry.maximumSimultaneousTriggers = 2;
     telemetry.batteryPercent = 83;
     telemetry.chargeState = 1;
+    telemetry.batteryKnown = true;
+    telemetry.batterySource = "apex6";
+    telemetry.batteryRefreshes = 7;
+    telemetry.batteryRefreshFailures = 2;
+    telemetry.batteryRefreshSlowCalls = 1;
+    telemetry.batteryRefreshMaxCallMicroseconds = 8400;
+    telemetry.batteryRefreshDisabled = true;
     telemetry.cpuPercent = 1.25;
     telemetry.processUsage.workingSetBytes = 3ULL * 1024ULL * 1024ULL;
     telemetry.processUsage.peakWorkingSetBytes = 4ULL * 1024ULL * 1024ULL;
@@ -70,15 +79,65 @@ int main() {
     assert(json.find(",\n}\n") == std::string::npos);
     assert(json.find("\"independent_trigger_startup_recoveries\": 1") != std::string::npos);
     assert(json.find("\"independent_trigger_runtime_recoveries\": 1") != std::string::npos);
+    assert(json.find("\"physical_reattaches\": 2") != std::string::npos);
+    assert(json.find("\"physical_lost_ms\": 4500") != std::string::npos);
     assert(json.find("\"physical_trigger_source_switches\": 23,") != std::string::npos);
     assert(json.find("\"physical_vendor_max_gap_ms\": 64,") != std::string::npos);
     assert(json.find("\"physical_r2_oscillations\": 24,") != std::string::npos);
     assert(json.find("\"physical_bounced_buttons\": 1056,") != std::string::npos);
+    assert(json.find("\"virtual_startup_probes\": [],\n") != std::string::npos);
+
+    asb::dualsense::VirtualDualSenseProbeReport failedProbe{};
+    failedProbe.attempt = 1;
+    failedProbe.outcome = asb::dualsense::VirtualDualSenseProbeOutcome::NotFound;
+    failedProbe.elapsedMilliseconds = 4001;
+    failedProbe.deadlineMilliseconds = 4000;
+    failedProbe.enumerations = 81;
+    failedProbe.baselineInterfaces = 1;
+    failedProbe.baselineVanished = 1;
+    failedProbe.lastError = "The newly-created \"virtual\" DualSense firmware interface was not found.";
+    asb::dualsense::VirtualDualSenseProbeInterface staleInterface{};
+    staleInterface.state = "baseline-vanished";
+    staleInterface.interfaceNumber = "MI_03";
+    staleInterface.usagePage = 1;
+    staleInterface.usage = 5;
+    staleInterface.inputReportLength = 64;
+    staleInterface.featureReportLength = 64;
+    staleInterface.firstSeenMilliseconds = 0;
+    staleInterface.path = "\\\\?\\hid#vid_054c&pid_0ce6&mi_03#stale";
+    failedProbe.interfaces.push_back(staleInterface);
+    asb::dualsense::VirtualDualSenseProbeReport readyProbe{};
+    readyProbe.attempt = 2;
+    readyProbe.outcome = asb::dualsense::VirtualDualSenseProbeOutcome::Ready;
+    readyProbe.extended = true;
+    readyProbe.firstNewInterfaceMilliseconds = 812;
+    readyProbe.newGamepadInterfaces = 1;
+    telemetry.virtualStartupProbes = {failedProbe, readyProbe};
+    std::ostringstream probeOutput;
+    asb::cli::writeBridgeTelemetry(probeOutput, telemetry);
+    const auto probeJson = probeOutput.str();
+    assert(probeJson.find("\"virtual_startup_probes\": [\n    {\"attempt\": 1, \"outcome\": \"not-found\", "
+                          "\"elapsed_ms\": 4001, \"deadline_ms\": 4000, \"extended\": false") !=
+           std::string::npos);
+    assert(probeJson.find("\"enumerations\": 81") != std::string::npos);
+    assert(probeJson.find("\"baseline\": 1, \"baseline_vanished\": 1") != std::string::npos);
+    assert(probeJson.find("\"last_error\": \"The newly-created \\\"virtual\\\" DualSense") !=
+           std::string::npos);
+    assert(probeJson.find("{\"state\": \"baseline-vanished\", \"interface\": \"MI_03\", "
+                          "\"usage_page\": 1, \"usage\": 5") != std::string::npos);
+    assert(probeJson.find("\"path\": \"\\\\\\\\?\\\\hid#vid_054c&pid_0ce6&mi_03#stale\"") !=
+           std::string::npos);
+    assert(probeJson.find("{\"attempt\": 2, \"outcome\": \"ready\"") != std::string::npos);
+    assert(probeJson.find("\"extended\": true, \"first_new_ms\": 812") != std::string::npos);
+    assert(probeJson.find("\"interfaces\": []}\n  ],\n  \"initialization_ms\"") !=
+           std::string::npos);
+    assert(probeJson.find(",\n}\n") == std::string::npos);
+    telemetry.virtualStartupProbes.clear();
 
     constexpr std::array requiredKeys{
         "schema", "virtual_backend", "input_mode", "input_backend",
         "virtual_input_monitor",
-        "virtual_startup_attempts", "initialization_ms",
+        "virtual_startup_attempts", "virtual_startup_probes", "initialization_ms",
         "initialization_physical_input_ms", "initialization_virtual_input_ms",
         "initialization_firmware_ms", "initialization_isolation_ms",
         "backend_initialization_bootstrap_us", "backend_initialization_server_us",
@@ -99,6 +158,8 @@ int main() {
         "coalesced_reports", "maximum_simultaneous_triggers",
         "simultaneous_trigger_reports", "virtual_maximum_simultaneous_triggers",
         "virtual_simultaneous_trigger_reports", "battery_percent", "charge_state",
+        "battery_known", "battery_source", "battery_refreshes", "battery_refresh_failures",
+        "battery_refresh_slow_calls", "battery_refresh_max_call_us", "battery_refresh_disabled",
         "cpu_percent_total", "working_set_mib", "peak_working_set_mib",
         "audio_haptics_received", "dualsense_output_reports",
         "dualsense_trigger_reports", "dualsense_rumble_reports",
@@ -117,10 +178,20 @@ int main() {
         asb::platform::HapticAudioFormatStatus::Quadraphonic, 4, 0x33, 0x33};
     telemetry.apex6Stats->bowBreaks = 3;
     telemetry.apex6Stats->pcmGainPercent = 150;
+    telemetry.apex6Stats->gripDuckPercent = 35;
+    telemetry.apex6Stats->gripDuckedBlocks = 12;
+    telemetry.apex6Stats->triggerCeilingPercent = 80;
+    telemetry.apex6Stats->triggerLimitedSamples = 34;
     telemetry.apex6Stats->pcmOutputLeftPeak = 48;
     telemetry.apex6Stats->pcmOutputRightPeak = 47;
     telemetry.apex6Stats->hidReports = 17;
     telemetry.apex6Stats->waveformLeftActiveBlocks = 9;
+    telemetry.apex6Stats->rumbleActiveUpdates = 21;
+    telemetry.apex6Stats->rumbleIgnoredReports = 5;
+    telemetry.apex6Stats->lastIgnoredRumbleEnableBits = 0x02;
+    telemetry.apex6Stats->gripRumbleFrames = 64;
+    telemetry.apex6Stats->gripRumbleMaskedFrames = 11;
+    telemetry.apex6Stats->gripEnvelopeFrames = 3;
     telemetry.apex6Stats->triggerMalformed = 2;
     telemetry.apex6Stats->rawAudioMeasuredBlocks = 1;
     telemetry.apex6Stats->rawAudioPeaks = {1234, 5678, 10000, 32768};
@@ -140,12 +211,29 @@ int main() {
     assert(apex6Output.str().find("\"audio_channel_mask\": 51") != std::string::npos);
     assert(apex6Output.str().find("\"bow_breaks\": 3") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_gain_percent\": 150") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_duck_percent\": 35") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_ducked_blocks\": 12") != std::string::npos);
+    assert(apex6Output.str().find("\"trigger_ceiling_percent\": 80") != std::string::npos);
+    assert(apex6Output.str().find("\"trigger_limited_samples\": 34") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_known\": true") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_source\": \"apex6\"") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refreshes\": 7") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_failures\": 2") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_slow_calls\": 1") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_max_call_us\": 8400") != std::string::npos);
+    assert(apex6Output.str().find("\"battery_refresh_disabled\": true") != std::string::npos);
     assert(apex6Output.str().find("\"haptic_threshold_percent\": 0") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_output_left_peak\": 48") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_output_right_peak\": 47") != std::string::npos);
     assert(apex6Output.str().find("\"pcm_gain_policy\": \"bounded-companding-opt-in\"") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_threshold_policy\": \"native-pcm-preserved\"") != std::string::npos);
     assert(apex6Output.str().find("\"waveform_left_active\": 9") != std::string::npos);
+    assert(apex6Output.str().find("\"rumble_active_updates\": 21") != std::string::npos);
+    assert(apex6Output.str().find("\"rumble_ignored_reports\": 5") != std::string::npos);
+    assert(apex6Output.str().find("\"rumble_ignored_last_flags\": 2") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_rumble_frames\": 64") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_rumble_masked_frames\": 11") != std::string::npos);
+    assert(apex6Output.str().find("\"grip_envelope_frames\": 3") != std::string::npos);
     assert(apex6Output.str().find("\"trigger_malformed\": 2") != std::string::npos);
     assert(apex6Output.str().find("\"raw_audio_measured_blocks\": 1") != std::string::npos);
     assert(apex6Output.str().find("\"raw_haptic_right_peak\": 32768") != std::string::npos);

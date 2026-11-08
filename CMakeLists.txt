@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ApexSenseBridge VERSION 1.0.2 LANGUAGES CXX)
+project(ApexSenseBridge VERSION 1.1.0 LANGUAGES CXX)
 set(ASB_RELEASE_LABEL "${PROJECT_VERSION}")
 add_compile_definitions(ASB_RELEASE_LABEL="${ASB_RELEASE_LABEL}")
 
@@ -35,15 +35,20 @@ add_library(asb_core STATIC
     src/haptics/HapticProcessor.cpp
     src/platform/Apex6InputFusion.cpp
     src/platform/AudioEndpointProtection.cpp
+    src/platform/CompetingHapticsEngines.cpp
     src/platform/HidTransport.cpp
     src/platform/PhysicalInputSource.h
     src/platform/SessionControl.cpp
     src/platform/XInputMapping.cpp
     src/flydigi/Apex4Input.cpp
     src/flydigi/Apex4Protocol.cpp
+    src/flydigi/Apex4WritePacing.cpp
     src/flydigi/Apex5Identity.cpp
     src/flydigi/Apex5Input.cpp
     src/flydigi/Apex5Protocol.cpp
+    src/flydigi/Apex6BatteryRefresher.cpp
+    src/flydigi/Apex6Imu.cpp
+    src/flydigi/Apex6Lighting.cpp
     src/flydigi/Apex6Protocol.cpp
     src/flydigi/Apex5Device.cpp
 )
@@ -58,6 +63,7 @@ if(WIN32)
         src/platform/windows/WindowsXInputGamepad.cpp
         src/platform/windows/WindowsPhysicalControllerIsolation.cpp
         src/platform/windows/WindowsPhysicalInputSource.cpp
+        src/platform/windows/WindowsRunningProcesses.cpp
         src/platform/windows/WindowsSessionControl.cpp
     )
     target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput ole32)
@@ -69,6 +75,7 @@ else()
         src/platform/UnsupportedXInputGamepad.cpp
         src/platform/UnsupportedPhysicalControllerIsolation.cpp
         src/platform/UnsupportedPhysicalInputSource.cpp
+        src/platform/UnsupportedRunningProcesses.cpp
         src/platform/UnsupportedSessionControl.cpp
     )
 endif()
@@ -181,6 +188,55 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME apex6_protocol COMMAND ApexSenseBridgeApex6ProtocolTests)
 
+    add_executable(ApexSenseBridgeApex6ImuTests
+        tests/test_apex6_imu.cpp
+        src/flydigi/Apex6Imu.cpp
+        src/flydigi/Apex6Protocol.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex6ImuTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6ImuTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6ImuTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_imu COMMAND ApexSenseBridgeApex6ImuTests)
+
+    add_executable(ApexSenseBridgeApex6LightingTests
+        tests/test_apex6_lighting.cpp
+        src/flydigi/Apex6Lighting.cpp
+        src/flydigi/Apex6Protocol.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex6LightingTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6LightingTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6LightingTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_lighting COMMAND ApexSenseBridgeApex6LightingTests)
+
+    add_executable(ApexSenseBridgeMotionTiltTests
+        tests/test_motion_tilt.cpp
+    )
+    target_include_directories(ApexSenseBridgeMotionTiltTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeMotionTiltTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeMotionTiltTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME motion_tilt COMMAND ApexSenseBridgeMotionTiltTests)
+
+    add_executable(ApexSenseBridgeCompetingHapticsEnginesTests
+        tests/test_competing_haptics_engines.cpp
+        src/platform/CompetingHapticsEngines.cpp
+    )
+    target_include_directories(ApexSenseBridgeCompetingHapticsEnginesTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeCompetingHapticsEnginesTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeCompetingHapticsEnginesTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME competing_haptics_engines COMMAND ApexSenseBridgeCompetingHapticsEnginesTests)
+
     add_executable(ApexSenseBridgeDiagnosticTests
         tests/test_hid_diagnostics.cpp
         src/diagnostics/HidDiagnostics.cpp
@@ -223,6 +279,24 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeIdentityTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME identity_guard COMMAND ApexSenseBridgeIdentityTests)
+
+    add_executable(ApexSenseBridgeApex6MotionGuardTests tests/test_apex6_motion_guard.cpp)
+    target_link_libraries(ApexSenseBridgeApex6MotionGuardTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6MotionGuardTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6MotionGuardTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_motion_guard COMMAND ApexSenseBridgeApex6MotionGuardTests)
+
+    add_executable(ApexSenseBridgeApex6ProfileTests tests/test_apex6_profile.cpp)
+    target_link_libraries(ApexSenseBridgeApex6ProfileTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6ProfileTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6ProfileTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_profile COMMAND ApexSenseBridgeApex6ProfileTests)
 
     add_executable(ApexSenseBridgeVirtualDualSenseTests
         tests/test_virtual_dualsense.cpp
@@ -270,6 +344,15 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME apex_feedback_writer COMMAND ApexSenseBridgeFeedbackWriterTests)
 
+    add_executable(ApexSenseBridgeApex4WritePacingTests tests/test_apex4_write_pacing.cpp)
+    target_link_libraries(ApexSenseBridgeApex4WritePacingTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex4WritePacingTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex4WritePacingTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex4_write_pacing COMMAND ApexSenseBridgeApex4WritePacingTests)
+
     add_executable(ApexSenseBridgeRumbleTests tests/test_rumble_bridge.cpp)
     target_link_libraries(ApexSenseBridgeRumbleTests PRIVATE asb_core)
     if(MSVC)
@@ -289,6 +372,17 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeApex6HapticTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME apex6_haptic_bridge COMMAND ApexSenseBridgeApex6HapticTests)
+
+    add_executable(ApexSenseBridgeApex6DualTriggerTests
+        tests/test_apex6_dual_trigger.cpp
+    )
+    target_link_libraries(ApexSenseBridgeApex6DualTriggerTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6DualTriggerTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6DualTriggerTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_dual_trigger COMMAND ApexSenseBridgeApex6DualTriggerTests)
 
     add_executable(ApexSenseBridgeHapticProcessorTests
         tests/test_haptic_processor.cpp
@@ -411,10 +505,32 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME device_open_retry COMMAND ApexSenseBridgeDeviceOpenRetryTests)
 
+    add_executable(ApexSenseBridgePhysicalReattachTests tests/test_physical_reattach.cpp)
+    target_include_directories(ApexSenseBridgePhysicalReattachTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgePhysicalReattachTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgePhysicalReattachTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME physical_reattach COMMAND ApexSenseBridgePhysicalReattachTests)
+
+    add_executable(ApexSenseBridgeFeedbackRouterTests
+        tests/test_feedback_router.cpp
+        src/dualsense/DualSenseFeedback.cpp
+    )
+    target_include_directories(ApexSenseBridgeFeedbackRouterTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeFeedbackRouterTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeFeedbackRouterTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME feedback_router COMMAND ApexSenseBridgeFeedbackRouterTests)
+
     add_executable(ApexSenseBridgeBridgeTelemetryTests
         tests/test_bridge_telemetry.cpp
         src/cli/BridgeTelemetry.cpp
         src/cli/JsonSupport.cpp
+        src/dualsense/VirtualDualSenseStartup.cpp
         src/platform/AudioEndpointProtection.cpp
     )
     target_include_directories(ApexSenseBridgeBridgeTelemetryTests PRIVATE src)
@@ -500,6 +616,14 @@ if(BUILD_TESTING)
                          -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test-watchdog-lifecycle.ps1
                          -Engine $<TARGET_FILE:ApexSenseBridge>)
         set_tests_properties(recovery_watchdog_lifecycle PROPERTIES TIMEOUT 45)
+        add_test(NAME portable_driver_helper_contract
+                 COMMAND powershell -NoProfile -NonInteractive
+                         -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_portable_driver_helper.ps1)
+        add_test(NAME updater_identity_contract
+                 COMMAND powershell -NoProfile -NonInteractive
+                         -ExecutionPolicy Bypass
+                         -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_updater_identity_contract.ps1)
         add_test(NAME release_version_contract
                  COMMAND powershell -NoProfile -NonInteractive
                          -ExecutionPolicy Bypass

@@ -4,6 +4,7 @@
 #include "dualsense/AdaptiveTriggerBridge.h"
 #include "dualsense/Apex6HapticBridge.h"
 #include "dualsense/VirtualDualSense.h"
+#include "dualsense/VirtualDualSenseStartup.h"
 #include "platform/PhysicalInputSource.h"
 #include "platform/AudioEndpointProtection.h"
 
@@ -12,6 +13,7 @@
 #include <iosfwd>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace asb::cli {
 
@@ -24,8 +26,11 @@ struct BridgeTelemetry {
     std::string inputBackend;
     unsigned int independentTriggerStartupRecoveries = 0;
     unsigned int independentTriggerRuntimeRecoveries = 0;
+    unsigned int physicalReattaches = 0;
+    std::int64_t physicalLostMilliseconds = 0;
     bool virtualInputMonitorEnabled = false;
     std::size_t startupAttempts = 0;
+    std::vector<asb::dualsense::VirtualDualSenseProbeReport> virtualStartupProbes;
     std::int64_t initializationMilliseconds = 0;
     std::int64_t physicalInputInitializationMilliseconds = 0;
     std::int64_t virtualInputInitializationMilliseconds = 0;
@@ -48,6 +53,13 @@ struct BridgeTelemetry {
     std::uint64_t virtualSimultaneousTriggerReports = 0;
     std::uint8_t batteryPercent = 0;
     std::uint8_t chargeState = 0;
+    bool batteryKnown = false;
+    std::string batterySource = "none";
+    std::uint64_t batteryRefreshes = 0;
+    std::uint64_t batteryRefreshFailures = 0;
+    std::uint64_t batteryRefreshSlowCalls = 0;
+    std::uint64_t batteryRefreshMaxCallMicroseconds = 0;
+    bool batteryRefreshDisabled = false;
     double cpuPercent = 0.0;
 };
 

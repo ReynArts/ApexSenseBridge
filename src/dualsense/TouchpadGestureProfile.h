@@ -19,6 +19,7 @@ enum class TouchpadGestureProfile {
     GhostOfTsushima,
     Warframe,
     DeathStranding2,
+    AlanWake2,
 };
 
 enum class TouchpadSwipeDirection : std::size_t {
@@ -70,6 +71,7 @@ private:
         Pending,
         TapPulse,
         WaitForRelease,
+        Held,
     };
 
     struct HoldState {
@@ -92,6 +94,8 @@ private:
     void transformWarframe(DualSenseInputState& state,
                            Clock::time_point now) noexcept;
     void transformDeathStranding(DualSenseInputState& state) noexcept;
+    void transformAlanWake(DualSenseInputState& state,
+                           Clock::time_point now) noexcept;
     bool startSwipe(TouchpadSwipeDirection direction,
                     Clock::time_point now) noexcept;
     void emitSwipe(DualSenseInputState& state,
@@ -101,6 +105,7 @@ private:
     TouchpadGestureProfileStats stats_{};
     HoldState viewHold_{};
     HoldState dpadUpHold_{};
+    HoldState alanWakeHold_{};
     SwipeState swipe_{};
     bool spiderManCameraOpen_ = false;
     bool deathStrandingPhotoChord_ = false;

@@ -4,7 +4,9 @@
 #include <array>
 #include <cstdint>
 #include <initializer_list>
+#include <iomanip>
 #include <span>
+#include <sstream>
 
 namespace asb::flydigi {
 namespace {
@@ -167,7 +169,7 @@ std::array<std::uint8_t, kRgbConfigSize> buildStaticRgbPayload(
     payload[3] = 0x00;
     payload[4] = 0x00;
     payload[5] = 0x00;
-    payload[6] = brightness;
+    payload[kRgbBrightnessOffset] = brightness;
     payload[7] = static_cast<std::uint8_t>(kApex5LedCount);
     payload[8] = 0x04;
     payload[9] = 0x00;
@@ -246,6 +248,21 @@ std::optional<InputTransportStatus> parseInputTransportStatus(
         TransportFlag{report[9]},
         TransportFlag{report[10]},
     };
+}
+
+std::string describeInputTransport(const InputTransportStatus& status) {
+    const auto flagText = [](TransportFlag flag) {
+        if (const auto value = flag.value()) return std::string(*value ? "1" : "0");
+        std::ostringstream text;
+        text << "unknown(0x" << std::hex << std::uppercase << std::setw(2)
+             << std::setfill('0') << static_cast<unsigned>(flag.raw) << ')';
+        return text.str();
+    };
+    return "controller_data=" + std::string(status.controllerData ? "1" : "0") +
+           ", raw_data=" + std::string(status.rawData ? "1" : "0") +
+           ", keyboard_data=" + flagText(status.keyboardData) +
+           ", mouse_data=" + flagText(status.mouseData) +
+           ", third_party_control=" + flagText(status.thirdPartyControl);
 }
 
 } // namespace asb::flydigi

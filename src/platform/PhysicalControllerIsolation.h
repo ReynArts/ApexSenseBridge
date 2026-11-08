@@ -43,7 +43,9 @@ public:
                                       bool originalRawData,
                                       std::string& error) noexcept;
     bool confirmApexProfileRestored(std::string& error) noexcept;
-    bool restore(std::string& error) noexcept;
+    bool refreshTargets(const HidDeviceInfo& apexInterface,
+                        std::string& error) noexcept;
+    bool restore(std::string& error, bool controllerAbsent = false) noexcept;
     [[nodiscard]] bool active() const noexcept;
     [[nodiscard]] bool recoveredStaleIsolation() const noexcept;
 
@@ -114,7 +116,12 @@ enum class ApexRestoreTarget { Present, Absent, Unknown };
 
 enum class ApexRestoreOutcome { Restored, Absent, Unresponsive, Failed, NotAttempted };
 
-enum class ApexRecoveryMode { OwnSession, StaleSession, SessionActivation };
+enum class ApexRecoveryMode {
+    OwnSession,
+    OwnSessionControllerAbsent,
+    StaleSession,
+    SessionActivation,
+};
 
 inline constexpr std::wstring_view kRecoveryRegistryKey =
     L"Software\\ApexSenseBridge\\PhysicalControllerIsolation";
@@ -146,6 +153,10 @@ inline constexpr std::wstring_view kDeferredApexRestoreRegistryKey =
     const ApexSettingsRestore& deferred,
     const HidDeviceInfo& sessionInterface) noexcept;
 
+[[nodiscard]] std::optional<std::vector<std::wstring>> mergeMissingIsolationTargets(
+    const std::vector<std::wstring>& current,
+    const std::vector<std::wstring>& required);
+
 // HidHide's control device accepts one client at a time, so another
 // application that configures HidHide (DSX, DS4Windows, the HidHide
 // Configuration Client...) makes every open fail with ERROR_ACCESS_DENIED.
@@ -165,6 +176,7 @@ inline constexpr std::string_view kHidHideBusyMarker = "HidHide is busy: ";
 // device within seconds, so activation waits this long before giving up.
 inline constexpr std::chrono::milliseconds kHidHideActivationOpenWindow{10000};
 inline constexpr std::chrono::milliseconds kHidHideRecoveryOpenWindow{400};
+inline constexpr std::chrono::milliseconds kHidHideRefreshOpenWindow{3000};
 
 // Backoff before the next open attempt (100 ms doubling to 500 ms, clamped to
 // the remaining window); zero once the window is spent.

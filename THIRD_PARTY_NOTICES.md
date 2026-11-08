@@ -197,3 +197,17 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+## Xbox controller button glyphs
+
+The View, Menu, D-pad and bumper (LB/RB) shapes drawn in the Tray touchpad
+remapping panel (`ApexSenseBridgeTray/GameListWindow.xaml.cs`) are redrawn from
+vector files on Wikimedia Commons (`Xbox View button.svg`, `Xbox Menu button.svg`,
+`Xbox D-pad (U).svg`, `Xbox D-pad (R).svg`, `Xbox LB bumper.svg`,
+`Xbox RB bumper.svg`):
+
+- Source: https://commons.wikimedia.org/wiki/Category:Xbox_controller_buttons
+- Author: Mliu92
+- License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+- Changes: path data copied into WPF geometry and scaled; the LB/RB label is
+  drawn as text instead of the original SVG text element.

@@ -19,6 +19,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function ConvertTo-VersionField($Value) {
+    if ($null -eq $Value) { return "" }
+    return ([string]$Value).Trim([char[]](0, 9, 10, 11, 12, 13, 32, 133, 160))
+}
+
+function Test-SetupProductName($ProductName) {
+    return (ConvertTo-VersionField $ProductName) -eq "ApexSenseBridge"
+}
+
 $repo = "ReynArts/ApexSenseBridge"
 $apiUrl = "https://api.github.com/repos/$repo/releases/latest"
 
@@ -35,13 +44,13 @@ if (Test-Path $regPath) {
 if ($installedVersion -eq "0.0.0") {
     $localExe = Join-Path $PSScriptRoot "..\build-win\Release\ApexSenseBridge.exe"
     if (Test-Path $localExe) {
-        $info = (Get-Item $localExe).VersionInfo.ProductVersion
-        if ($info) { $installedVersion = $info.Trim() }
+        $info = ConvertTo-VersionField (Get-Item $localExe).VersionInfo.ProductVersion
+        if ($info) { $installedVersion = $info }
     }
 }
 
 if ($installedVersion -eq "0.0.0") {
-    $installedVersion = "1.0.2"
+    $installedVersion = "1.1.0"
 }
 
 Write-Host "Installed Version : v$installedVersion"
@@ -119,8 +128,8 @@ if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid)
 
 function Test-SameReleaseVersion([string]$v1, [string]$v2) {
     try {
-        $a = [System.Version]::Parse($v1.TrimStart('v', 'V'))
-        $b = [System.Version]::Parse($v2.TrimStart('v', 'V'))
+        $a = [System.Version]::Parse((ConvertTo-VersionField $v1).TrimStart('v', 'V'))
+        $b = [System.Version]::Parse((ConvertTo-VersionField $v2).TrimStart('v', 'V'))
         return $a.Major -eq $b.Major -and
                $a.Minor -eq $b.Minor -and
                $a.Build -eq $b.Build
@@ -129,8 +138,8 @@ function Test-SameReleaseVersion([string]$v1, [string]$v2) {
     }
 }
 $setupInfo = (Get-Item -LiteralPath $tempInstaller).VersionInfo
-$setupVersion = $setupInfo.ProductVersion
-if ($setupInfo.ProductName -ne "ApexSenseBridge") {
+$setupVersion = ConvertTo-VersionField $setupInfo.ProductVersion
+if (-not (Test-SetupProductName $setupInfo.ProductName)) {
     Remove-Item -LiteralPath $tempInstaller -Force -ErrorAction SilentlyContinue
     throw "Downloaded executable is not an ApexSenseBridge setup."
 }
@@ -142,8 +151,13 @@ if (-not (Test-SameReleaseVersion $setupVersion $latestTag)) {
 $installedExecutable = Join-Path ${env:ProgramFiles} "ApexSenseBridge\ApexSenseBridge.exe"
 if (Test-Path -LiteralPath $installedExecutable) {
     $installedSignature = Get-AuthenticodeSignature -LiteralPath $installedExecutable
-    if ($installedSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
-        $installedSignature.SignerCertificate.Subject -ne $signature.SignerCertificate.Subject) {
+    $installedIsTrusted = $installedSignature.Status -eq [System.Management.Automation.SignatureStatus]::Valid
+    $publisherAccepted = if (-not $installedIsTrusted) {
+        -not [string]::IsNullOrEmpty($signature.SignerCertificate.Subject)
+    } else {
+        $installedSignature.SignerCertificate.Subject -eq $signature.SignerCertificate.Subject
+    }
+    if (-not $publisherAccepted) {
         Remove-Item -LiteralPath $tempInstaller -Force -ErrorAction SilentlyContinue
         throw "Downloaded setup publisher differs from the installed ApexSenseBridge publisher."
     }

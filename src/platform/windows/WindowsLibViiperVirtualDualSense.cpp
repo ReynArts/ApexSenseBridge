@@ -267,7 +267,8 @@ public:
             return false;
         }
         const auto input = buildViiperInput(
-            state, options_.captureAudioHapticsWaveform);
+            state, options_.captureAudioHapticsWaveform,
+            options_.captureAudioHapticsWaveform2k);
         std::lock_guard inputLock(inputMutex_);
         const auto updateStartedAt = std::chrono::steady_clock::now();
         if (!setInputState_(deviceHandle_, input.data(),
@@ -346,7 +347,8 @@ private:
             return;
         }
         const std::uint8_t frameType = frame[0];
-        if (frameType != 0x01 && frameType != 0x02 && frameType != 0x03) {
+        if (frameType != 0x01 && frameType != 0x02 && frameType != 0x03 &&
+            frameType != 0x04) {
             unknownFrames_.fetch_add(1, std::memory_order_relaxed);
             return;
         }
@@ -372,7 +374,8 @@ private:
             return;
         }
 
-        if (feedback.kind == FeedbackKind::AudioHapticWaveform) {
+        if (feedback.kind == FeedbackKind::AudioHapticWaveform ||
+            feedback.kind == FeedbackKind::AudioHapticWaveform2k) {
             audioHapticsFrames_.fetch_add(1, std::memory_order_relaxed);
             deliver(feedback);
             audioHapticsDelivered_.fetch_add(1, std::memory_order_relaxed);

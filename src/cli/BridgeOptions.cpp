@@ -20,6 +20,22 @@ std::optional<asb::dualsense::VirtualDualSenseBackend> parseBackend(
     return std::nullopt;
 }
 
+bool parseBoundedPercent(const char* text, unsigned minimum, unsigned maximum,
+                         unsigned& result) noexcept {
+    if (!text || text[0] == '\0' || text[0] == '-') return false;
+    try {
+        std::size_t consumed = 0;
+        const auto parsed = std::stoul(text, &consumed);
+        if (consumed != std::string_view(text).size() || parsed < minimum || parsed > maximum) {
+            return false;
+        }
+        result = static_cast<unsigned>(parsed);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 } // namespace
 
 bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
@@ -27,34 +43,38 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
     for (int i = 2; i < argc; ++i) {
         const std::string_view value = argv[i];
         if (value == "--controller-calibration") {
-            error = "--controller-calibration expects apex4|apex5|apex6:trigger:vibration:threshold:rumble:rgb:gyro:yaw.";
+            error = "--controller-calibration expects apex4|apex5|apex6:trigger:vibration:threshold:rumble:rgb:gyro:yaw[:rgbbrightness].";
             if (++i >= argc) return false;
             std::istringstream input(argv[i]);
             std::string model;
             std::getline(input, model, ':');
             const int index = model == "apex4" ? 0 : model == "apex5" ? 1 : model == "apex6" ? 2 : -1;
             if (index < 0 || options.controllerCalibrations[index]) return false;
-            std::array<unsigned, 7> fields{};
+            std::array<unsigned, 8> fields{};
+            fields[7] = 100;
             for (std::size_t field = 0; field < fields.size(); ++field) {
+                // The RGB brightness limit is optional for older launchers.
+                if (field == 7 && input.eof()) break;
                 std::string token;
                 if (!std::getline(input, token, ':') || token.empty() ||
                     token.find_first_not_of("0123456789") != std::string::npos) return false;
                 try {
                     const auto parsed = std::stoul(token);
-                    const unsigned minimum = field >= 5 ? 25 : 0;
-                    const unsigned maximum = field >= 5 ? 400 : field >= 3 ? 1 : field == 2 ? 95 :
-                        field == 1 && index != 2 ? 200 : 100;
+                    const unsigned minimum = field == 5 || field == 6 ? 25 : 0;
+                    const unsigned maximum = field == 7 ? 100 : field >= 5 ? 400 : field >= 3 ? 1 :
+                        field == 2 ? 95 : field == 1 && index != 2 ? 200 : 100;
                     if (parsed < minimum || parsed > maximum) return false;
                     fields[field] = static_cast<unsigned>(parsed);
                 } catch (...) { return false; }
             }
             // Reject trailing separators / extra fields, rather than partial parses.
             if (!input.eof()) return false;
-            if ((index != 1 && fields[4] != 0) ||
+            if ((index != 1 && (fields[4] != 0 || fields[7] != 100)) ||
                 (index == 2 && fields[2] != 0) ||
                 (index != 0 && (fields[5] != 100 || fields[6] != 100))) return false;
             options.controllerCalibrations[index] = ControllerCalibration{
-                fields[0], fields[1], fields[2], fields[3] != 0, fields[4] != 0, fields[5], fields[6]};
+                fields[0], fields[1], fields[2], fields[3] != 0, fields[4] != 0, fields[5], fields[6],
+                fields[7]};
         } else if (value == "--seconds") {
             if (++i >= argc) {
                 error = "--seconds requires an integer from 1 to 86400.";
@@ -70,6 +90,25 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 options.duration = std::chrono::seconds(seconds);
             } catch (...) {
                 error = "--seconds requires an integer from 1 to 86400.";
+                return false;
+            }
+        } else if (value == "--reattach-seconds") {
+            const auto rangeError = "--reattach-seconds requires an integer from 0 to " +
+                                    std::to_string(kMaximumReattachWindow.count()) + ".";
+            if (++i >= argc) {
+                error = rangeError;
+                return false;
+            }
+            try {
+                std::size_t parsedCharacters = 0;
+                const auto seconds = std::stoul(argv[i], &parsedCharacters);
+                if (parsedCharacters != std::string_view(argv[i]).size() || argv[i][0] == '-' ||
+                    seconds > static_cast<unsigned long>(kMaximumReattachWindow.count())) {
+                    throw std::out_of_range("reattach-seconds");
+                }
+                options.reattachWindow = std::chrono::seconds(seconds);
+            } catch (...) {
+                error = rangeError;
                 return false;
             }
         } else if (value == "--viiper") {
@@ -102,6 +141,26 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             options.routeRumble = true;
         } else if (value == "--sync-lightbar") {
             options.syncLightbar = true;
+        } else if (value == "--lightbar-brightness") {
+            if (++i >= argc) {
+                error = "--lightbar-brightness requires an integer percentage from 0 to 100.";
+                return false;
+            }
+            try {
+                std::size_t consumed = 0;
+                const auto parsed = std::stoul(argv[i], &consumed);
+                if (consumed != std::string_view(argv[i]).size() || parsed > 100 || argv[i][0] == '-') {
+                    throw std::out_of_range("lightbar-brightness");
+                }
+                options.lightbarBrightnessPercent = static_cast<unsigned int>(parsed);
+            } catch (...) {
+                error = "--lightbar-brightness requires an integer percentage from 0 to 100.";
+                return false;
+            }
+        } else if (value == "--zone-emulation") {
+            options.zoneEmulation = true;
+        } else if (value == "--no-zone-emulation") {
+            options.zoneEmulation = false;
         } else if (value == "--haptic-threshold") {
             if (++i >= argc) {
                 error = "--haptic-threshold requires an integer percentage from 0 to 95.";
@@ -155,6 +214,33 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 error = "--apex6-haptic-gain requires an integer percentage from 100 to 200.";
                 return false;
             }
+        } else if (value == "--apex6-rate") {
+            if (++i >= argc) {
+                error = "--apex6-rate requires 1000 or 2000.";
+                return false;
+            }
+            const std::string_view rate = argv[i];
+            if (rate == "1000") {
+                options.apex6SampleRateHz = 1000;
+            } else if (rate == "2000") {
+                options.apex6SampleRateHz = 2000;
+            } else {
+                error = "--apex6-rate requires 1000 or 2000.";
+                return false;
+            }
+            options.apex6SampleRateExplicit = true;
+        } else if (kApex6ShapingOptionsEnabled && value == "--apex6-grip-duck") {
+            if (++i >= argc || !parseBoundedPercent(argv[i], 0, 100, options.apex6GripDuckPercent)) {
+                error = "--apex6-grip-duck requires an integer percentage from 0 to 100.";
+                return false;
+            }
+            options.apex6GripDuckExplicit = true;
+        } else if (kApex6ShapingOptionsEnabled && value == "--apex6-trigger-ceiling") {
+            if (++i >= argc || !parseBoundedPercent(argv[i], 20, 100, options.apex6TriggerCeilingPercent)) {
+                error = "--apex6-trigger-ceiling requires an integer percentage from 20 to 100.";
+                return false;
+            }
+            options.apex6TriggerCeilingExplicit = true;
         } else if (value == "--apex4-gyro-strength" ||
                    value == "--apex4-gyro-yaw-strength") {
             if (++i >= argc) {
@@ -182,13 +268,13 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             options.verifyVirtualInput = true;
         } else if (value == "--touchpad-profile") {
             if (++i >= argc) {
-                error = "--touchpad-profile requires one of: none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, death-stranding-2.";
+                error = "--touchpad-profile requires one of: none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, death-stranding-2, alan-wake-2.";
                 return false;
             }
             const auto profile = asb::dualsense::parseTouchpadGestureProfile(argv[i]);
             if (!profile || *profile ==
                                 asb::dualsense::TouchpadGestureProfile::LegacyViewHoldSwipeUp) {
-                error = "Unknown --touchpad-profile. Expected none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, or death-stranding-2.";
+                error = "Unknown --touchpad-profile. Expected none, spider-man-2, miles-morales, ghost-of-tsushima, warframe, death-stranding-2, or alan-wake-2.";
                 return false;
             }
             options.touchpadProfile = *profile;
@@ -287,18 +373,30 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
         error = "--apex6-haptic-gain requires --rumble.";
         return false;
     }
+    if (options.apex6GripDuckExplicit && !options.routeRumble) {
+        error = "--apex6-grip-duck requires --rumble.";
+        return false;
+    }
+    const bool calibrationSupplied = options.controllerCalibrations[0] ||
+                                     options.controllerCalibrations[1] ||
+                                     options.controllerCalibrations[2];
+    if (options.apex6SampleRateHz == 2000 && !options.routeRumble && !calibrationSupplied) {
+        error = "--apex6-rate 2000 requires --rumble.";
+        return false;
+    }
     error.clear();
     return true;
 }
 
 std::string_view bridgeCommandUsage() noexcept {
     return "Usage: ApexSenseBridge bridge-triggers [index] [--seconds N] "
-           "[--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
+           "[--reattach-seconds 0..3600] [--viiper PATH] [--virtual-backend auto|integrated|sidecar] "
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
-           "[--sync-lightbar] [--haptic-threshold 0..95] "
+           "[--no-zone-emulation] [--sync-lightbar] [--lightbar-brightness 0..100] "
+           "[--haptic-threshold 0..95] "
            "[--trigger-strength 0..100] [--vibration-strength 0..200] "
-           "[--apex6-haptic-gain 100..200] "
-           "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW] "
+           "[--apex6-haptic-gain 100..200] [--apex6-rate 1000|2000] "
+           "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW[:RGBBRIGHTNESS]] "
            "[--apex4-gyro-strength 25..400] "
            "[--apex4-gyro-yaw-strength 25..400] "
            "[--verify-virtual-input] [--touchpad-profile NAME] "
@@ -328,12 +426,21 @@ bool applyControllerCalibration(BridgeCommandOptions& options,
     options.hapticThresholdPercent = c.threshold;
     options.routeRumble = c.rumble;
     options.syncLightbar = c.rgb;
+    options.lightbarBrightnessPercent = c.rgbBrightness;
     options.apex4GyroStrengthPercent = c.gyro;
     options.apex4GyroYawStrengthPercent = c.gyroYaw;
-    if (index != 1) options.apexProfileSlot.reset();
+    if (index == 0) options.apexProfileSlot.reset();
     if (options.apex6HapticGainExplicit && !options.routeRumble) {
         error = "--apex6-haptic-gain requires grip haptics in the selected calibration.";
         return false;
+    }
+    if (options.apex6GripDuckExplicit && !options.routeRumble) {
+        error = "--apex6-grip-duck requires grip haptics in the selected calibration.";
+        return false;
+    }
+    if (options.apex6SampleRateHz == 2000 && (index != 2 || !options.routeRumble)) {
+        options.apex6SampleRateHz = 1000;
+        options.apex6SampleRateExplicit = false;
     }
     return true;
 }

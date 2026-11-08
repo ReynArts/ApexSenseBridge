@@ -11,6 +11,7 @@ enum class FeedbackKind {
     HidOutput,
     AudioHaptics,
     AudioHapticWaveform,
+    AudioHapticWaveform2k,
 };
 
 struct DualSenseFeedback {
@@ -36,6 +37,8 @@ struct DualSenseFeedback {
     // from the virtual DualSense's 48 kHz haptic-audio endpoint.
     std::array<std::int16_t, 8> leftHapticSamples{};
     std::array<std::int16_t, 8> rightHapticSamples{};
+    std::array<std::int16_t, 16> leftHapticSamples2k{};
+    std::array<std::int16_t, 16> rightHapticSamples2k{};
 
     // Optional asb13 diagnostics, measured before 48 kHz -> 1 kHz filtering.
     // Channel order: speaker L/R, haptic L/R. Older backends omit the trailer.

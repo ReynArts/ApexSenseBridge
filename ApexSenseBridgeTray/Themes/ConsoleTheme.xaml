@@ -592,6 +592,34 @@
         </Setter>
     </Style>
 
+    <Style x:Key="BtnResetDefault" TargetType="Button">
+        <Setter Property="Width" Value="26"/>
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="Background" Value="#1FFFFFFF"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="13">
+                        <Path x:Name="glyph" Data="M 3,12 A 9,9 0 1 0 6,5.3 M 3,3 L 3,8 L 8,8" Style="{StaticResource IconPath}"
+                              Stroke="{DynamicResource TextSecondary}" StrokeThickness="2" Width="13" Height="13"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bg" Property="Background" Value="#38FFFFFF"/>
+                            <Setter TargetName="glyph" Property="Stroke" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="BtnDanger" TargetType="Button">
         <Setter Property="Background" Value="#24EF4444"/>
         <Setter Property="Foreground" Value="#FF8A8A"/>
@@ -641,8 +669,7 @@
                         <!-- Pulsing crisp outline detached from the pill (no blur that gets cut off). -->
                         <Border x:Name="Halo" Margin="-4" CornerRadius="23" BorderBrush="{DynamicResource SupportGradient}"
                                 BorderThickness="2" Opacity="0.45" IsHitTestVisible="False"/>
-                        <Border x:Name="bg" CornerRadius="19" Padding="6,0,16,0" Background="{DynamicResource SupportGradient}"
-                                BorderBrush="#59FFFFFF" BorderThickness="1">
+                        <Border x:Name="bg" CornerRadius="19" Padding="6,0,16,0" Background="{DynamicResource SupportGradient}">
                             <ContentPresenter VerticalAlignment="Center">
                                 <ContentPresenter.Effect>
                                     <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Color="#5A0A1E" Opacity="0.6"/>
@@ -800,6 +827,11 @@
     </Style>
     <Geometry x:Key="GeoChevronLeft">M 7,1 L 1,7 L 7,13</Geometry>
     <Geometry x:Key="GeoChevronRight">M 1,1 L 7,7 L 1,13</Geometry>
+
+    <Geometry x:Key="GeoReportBug">M 8,8 C 8,5.8 9.8,4 12,4 C 14.2,4 16,5.8 16,8 M 6,10 L 18,10 L 18,15 C 18,18.3 15.3,21 12,21 C 8.7,21 6,18.3 6,15 Z M 12,10 L 12,21 M 3,13 L 6,13 M 18,13 L 21,13 M 4,19 L 6.5,17.5 M 20,19 L 17.5,17.5 M 4,7 L 6.5,8.5 M 20,7 L 17.5,8.5</Geometry>
+    <Geometry x:Key="GeoReportFeature">M 9,18 L 15,18 M 10,21 L 14,21 M 12,3 C 8.7,3 6,5.5 6,8.8 C 6,11 7.2,12.4 8.4,13.6 C 9.1,14.3 9.5,15 9.5,16 L 14.5,16 C 14.5,15 14.9,14.3 15.6,13.6 C 16.8,12.4 18,11 18,8.8 C 18,5.5 15.3,3 12,3 Z</Geometry>
+    <Geometry x:Key="GeoReportGame">M 6,8 L 18,8 C 20.5,8 22,10 22,13 L 22,15 C 22,17 20.5,18 19,18 C 17.5,18 16.5,17 16,16 L 8,16 C 7.5,17 6.5,18 5,18 C 3.5,18 2,17 2,15 L 2,13 C 2,10 3.5,8 6,8 Z M 7,10.5 L 7,13.5 M 5.5,12 L 8.5,12 M 16,11 L 16.01,11 M 18,13 L 18.01,13</Geometry>
+    <Geometry x:Key="GeoReportLogs">M 12,4 L 12,15 M 7,10.5 L 12,15.5 L 17,10.5 M 5,19 L 19,19</Geometry>
 
     <!-- "New" ribbon for recently added games (issue #29). Height 22 → radius 11. -->
     <Style x:Key="NewBadge" TargetType="Border">

@@ -8,7 +8,8 @@ if ([Threading.Thread]::CurrentThread.ApartmentState -ne "STA") {
 }
 $TrayAssembly = (Resolve-Path -LiteralPath $TrayAssembly).Path
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-[void][Reflection.Assembly]::LoadFrom($TrayAssembly)
+$trayResourceAssembly = [Reflection.Assembly]::LoadFrom($TrayAssembly)
+[System.Windows.Application]::ResourceAssembly = $trayResourceAssembly
 $app = New-Object ApexSenseBridgeTray.App
 $app.InitializeComponent()
 [ApexSenseBridgeTray.Common.LocalizationManager]::Initialize("en")
@@ -34,8 +35,8 @@ try {
     # Only the identified model's capabilities are reachable with the D-pad.
     $expected = @{
         "apex4" = "RowTriggerStrength,RowVibrationStrength,RowGyroStrength,RowGyroYawStrength,RowVibrationThreshold,RowGripVibrations"
-        "apex5" = "TileSettingSyncLightbar,RowTriggerStrength,RowVibrationStrength,RowVibrationThreshold,RowGripVibrations"
-        "apex6" = "RowTriggerStrength,RowVibrationStrength,RowGripVibrations"
+        "apex5" = "TileSettingSyncLightbar,RowLightbarBrightness,TileSettingZoneEmulation,RowTriggerStrength,RowVibrationStrength,RowVibrationThreshold,RowGripVibrations"
+        "apex6" = "TileSettingSyncLightbar,RowLightbarBrightness,TileSettingApex6Rate2kHz,RowTriggerStrength,RowVibrationStrength,RowGripVibrations"
         "disconnected" = ""
     }
     foreach ($status in @("apex4", "apex5", "apex6", "disconnected")) {

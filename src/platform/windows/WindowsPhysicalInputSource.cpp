@@ -14,6 +14,7 @@
 #include "flydigi/Apex5Identity.h"
 #include "flydigi/Apex5Input.h"
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex6Imu.h"
 #include "flydigi/Apex6Protocol.h"
 #include "platform/Apex6InputFusion.h"
 #include "platform/HidTransport.h"
@@ -524,13 +525,136 @@ private:
     std::atomic<std::uint8_t> currentChargeState_{0};
 };
 
+class Apex6MotionStream {
+public:
+    static constexpr auto kFreshness = std::chrono::milliseconds(250);
+
+    static std::unique_ptr<Apex6MotionStream> open(
+        const HidDeviceInfo& vendorInterface) {
+        if (!flydigi::apex6::isProduct(vendorInterface.vendorId, vendorInterface.productId) ||
+            vendorInterface.usagePage != flydigi::apex6::kUsagePage ||
+            vendorInterface.inputReportLength < flydigi::apex6::kReportSize ||
+            vendorInterface.path.empty()) {
+            return {};
+        }
+        HANDLE handle = CreateFileW(
+            vendorInterface.path.c_str(), GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+            FILE_FLAG_OVERLAPPED, nullptr);
+        if (handle == INVALID_HANDLE_VALUE) return {};
+        auto stream = std::unique_ptr<Apex6MotionStream>(
+            new Apex6MotionStream(vendorInterface, handle));
+        if (!stream->event_) return {};
+        return stream;
+    }
+
+    ~Apex6MotionStream() {
+        if (handle_ != INVALID_HANDLE_VALUE) {
+            if (readPending_ && !cancelOverlappedIo(handle_, overlapped_)) {
+                (void)io_.release();
+            }
+            CloseHandle(handle_);
+        }
+    }
+
+    [[nodiscard]] bool available() const noexcept { return !unavailable_; }
+    [[nodiscard]] HANDLE event() const noexcept { return event_; }
+
+    bool ensureReadPending() noexcept {
+        if (unavailable_) return false;
+        if (readPending_) return true;
+        ResetEvent(event_);
+        std::fill(report_.begin(), report_.end(), std::uint8_t{0});
+        if (ReadFile(handle_, report_.data(), static_cast<DWORD>(report_.size()),
+                     nullptr, &overlapped_)) {
+            SetEvent(event_);
+            readPending_ = true;
+            return true;
+        }
+        if (GetLastError() == ERROR_IO_PENDING) {
+            readPending_ = true;
+            return true;
+        }
+        unavailable_ = true;
+        ++readFailures_;
+        return false;
+    }
+
+    void drain(std::chrono::steady_clock::time_point now) noexcept {
+        constexpr unsigned int kMaximumDrainedReports = 64;
+        for (unsigned int drained = 0; drained < kMaximumDrainedReports; ++drained) {
+            if (!ensureReadPending()) return;
+            if (WaitForSingleObject(event_, 0) != WAIT_OBJECT_0) return;
+
+            DWORD bytesRead = 0;
+            readPending_ = false;
+            if (!GetOverlappedResult(handle_, &overlapped_, &bytesRead, FALSE)) {
+                unavailable_ = true;
+                ++readFailures_;
+                return;
+            }
+            ++reports_;
+            flydigi::apex6::RawMotion raw{};
+            switch (flydigi::apex6::parseOperatorReport(
+                std::span<const std::uint8_t>(report_.data(), bytesRead), raw)) {
+            case flydigi::apex6::OperatorParse::Motion:
+                latest_ = flydigi::apex6::convertMotion(raw);
+                lastAt_ = now;
+                ++states_;
+                break;
+            case flydigi::apex6::OperatorParse::InvalidChecksum:
+                ++parseFailures_;
+                break;
+            case flydigi::apex6::OperatorParse::NotOperatorFrame:
+                break;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<flydigi::apex6::MotionSample> sample(
+        std::chrono::steady_clock::time_point now) const noexcept {
+        if (!lastAt_) return std::nullopt;
+        if (now - *lastAt_ > kFreshness) return flydigi::apex6::MotionSample{};
+        return latest_;
+    }
+
+    void addStats(PhysicalInputSourceStats& stats) const noexcept {
+        stats.vendorReports = reports_;
+        stats.vendorStates = states_;
+        stats.vendorParseFailures = parseFailures_;
+        stats.vendorReadFailures = readFailures_;
+    }
+
+private:
+    Apex6MotionStream(const HidDeviceInfo& info, HANDLE handle)
+        : handle_(handle),
+          io_(std::make_unique<OverlappedIo>(info.inputReportLength)),
+          event_(io_->event), overlapped_(io_->overlapped), report_(io_->buffer) {}
+
+    HANDLE handle_ = INVALID_HANDLE_VALUE;
+    std::unique_ptr<OverlappedIo> io_;
+    HANDLE event_;
+    OVERLAPPED& overlapped_;
+    std::vector<std::uint8_t>& report_;
+    bool readPending_ = false;
+    bool unavailable_ = false;
+    flydigi::apex6::MotionSample latest_{};
+    std::optional<std::chrono::steady_clock::time_point> lastAt_;
+    std::uint64_t reports_ = 0;
+    std::uint64_t states_ = 0;
+    std::uint64_t parseFailures_ = 0;
+    std::uint64_t readFailures_ = 0;
+};
+
 class Apex6HybridPhysicalInputSource final : public PhysicalInputSource {
 public:
     Apex6HybridPhysicalInputSource(
         std::unique_ptr<HidPhysicalInputSource> mappedGamepad,
-        std::unique_ptr<XInputGamepad> xinputGamepad)
+        std::unique_ptr<XInputGamepad> xinputGamepad,
+        std::unique_ptr<Apex6MotionStream> motionStream = {})
         : mappedGamepad_(std::move(mappedGamepad)),
-          xinputGamepad_(std::move(xinputGamepad)) {}
+          xinputGamepad_(std::move(xinputGamepad)),
+          motionStream_(std::move(motionStream)) {}
 
     PhysicalInputStatus waitForState(
         dualsense::DualSenseInputState& state,
@@ -556,13 +680,36 @@ public:
 
             dualsense::DualSenseInputState mappedState{};
             std::string mappedError;
-            const auto mappedStatus = mappedGamepad_->waitForState(
-                mappedState, waitSlice, mappedError);
+            auto mappedStatus = PhysicalInputStatus::Timeout;
+            if (motionStream_ && motionStream_->ensureReadPending()) {
+                if (!mappedGamepad_->prepareRead(mappedError)) {
+                    mappedStatus = PhysicalInputStatus::Error;
+                } else {
+                    const std::array<HANDLE, 2> events{
+                        mappedGamepad_->readEvent(), motionStream_->event()};
+                    const DWORD waitResult = WaitForMultipleObjects(
+                        static_cast<DWORD>(events.size()), events.data(), FALSE,
+                        waitMilliseconds(waitSlice));
+                    if (waitResult == WAIT_OBJECT_0) {
+                        mappedStatus = mappedGamepad_->completePreparedRead(
+                            mappedState, mappedError);
+                    } else if (waitResult == WAIT_FAILED) {
+                        const auto code = GetLastError();
+                        mappedError = "Waiting for the Apex 6 input streams failed (" +
+                                      std::to_string(code) + ": " + win32Error(code) + ").";
+                        mappedStatus = PhysicalInputStatus::Error;
+                    }
+                }
+            } else {
+                mappedStatus = mappedGamepad_->waitForState(
+                    mappedState, waitSlice, mappedError);
+            }
             if (mappedStatus == PhysicalInputStatus::Disconnected ||
                 mappedStatus == PhysicalInputStatus::Error) {
                 error = std::move(mappedError);
                 return mappedStatus;
             }
+            if (motionStream_) motionStream_->drain(std::chrono::steady_clock::now());
 
             dualsense::DualSenseInputState xinputState{};
             std::string xinputError;
@@ -577,7 +724,10 @@ public:
                 mappedStatus == PhysicalInputStatus::State
                     ? std::optional<dualsense::DualSenseInputState>(mappedState)
                     : std::nullopt,
-                xinputState, observedAt);
+                xinputState,
+                motionStream_ ? motionStream_->sample(observedAt)
+                              : std::optional<flydigi::apex6::MotionSample>{},
+                observedAt);
             if (fused) {
                 state = *fused;
                 ++stats_.reports;
@@ -593,13 +743,16 @@ public:
     }
 
     std::string_view backendName() const noexcept override {
-        return "apex6-hid+xinput-triggers";
+        return motionStream_ ? "apex6-hid+xinput-triggers+vendor-imu"
+                             : "apex6-hid+xinput-triggers";
     }
     bool eventDriven() const noexcept override { return true; }
     PhysicalInputSourceStats stats() const noexcept override {
         auto result = stats_;
         const auto mappedStats = mappedGamepad_->stats();
         result.parseFailures = mappedStats.parseFailures;
+        result.mappedReports = mappedStats.reports;
+        if (motionStream_) motionStream_->addStats(result);
         return result;
     }
     void setBatteryState(std::uint8_t batteryPercent,
@@ -610,6 +763,7 @@ public:
 private:
     std::unique_ptr<HidPhysicalInputSource> mappedGamepad_;
     std::unique_ptr<XInputGamepad> xinputGamepad_;
+    std::unique_ptr<Apex6MotionStream> motionStream_;
     Apex6InputFusion fusion_;
     PhysicalInputSourceStats stats_{};
 };
@@ -1216,7 +1370,8 @@ std::unique_ptr<PhysicalInputSource> openPhysicalInputSource(
                 }
                 error.clear();
                 return std::make_unique<Apex6HybridPhysicalInputSource>(
-                    std::move(mappedGamepad), std::move(xinputGamepad));
+                    std::move(mappedGamepad), std::move(xinputGamepad),
+                    Apex6MotionStream::open(apexVendorInterface));
             }
             error = "Apex 6 mapped HID input unavailable (" + apex6Error + "); ";
         }

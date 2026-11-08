@@ -1,4 +1,5 @@
 #include "flydigi/Apex5Device.h"
+#include "flydigi/Apex6Lighting.h"
 
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Protocol.h"
@@ -9,6 +10,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iomanip>
 #include <iterator>
 #include <sstream>
@@ -25,6 +27,21 @@ constexpr std::string_view kApex5UnresponsiveHint =
     "The APEX 5 vendor interface did not answer. Wake the controller and close "
     "Flydigi Space Station, then retry; if it persists in XInput mode, switch "
     "the controller to DInput/Switch mode";
+
+constexpr auto kApex4IdentityRequestSpacing = std::chrono::milliseconds(1500);
+std::atomic<std::chrono::steady_clock::rep> gLastUnansweredApex4IdentityRequest{0};
+
+bool waitForApex4IdentitySlot(std::chrono::steady_clock::time_point nextRequest,
+                              const std::function<bool()>& shouldStop) {
+    for (;;) {
+        if (shouldStop && shouldStop()) return false;
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= nextRequest) return true;
+        std::this_thread::sleep_for((std::min)(
+            nextRequest - now,
+            std::chrono::steady_clock::duration(std::chrono::milliseconds(25))));
+    }
+}
 
 bool isApex4Candidate(const HidDeviceInfo& info) noexcept {
     return isApex4Product(info.vendorId, info.productId) &&
@@ -91,11 +108,14 @@ struct Apex4IdentityObservation {
     std::vector<std::string> samples;
 };
 
+using ReplyMatcher = bool (*)(std::span<const std::uint8_t>, std::uint8_t) noexcept;
+
 std::optional<std::vector<std::uint8_t>> exchangeCommand(
     platform::HidTransport& transport,
-    const Report& request,
+    std::span<const std::uint8_t> request,
     std::uint8_t command,
-    std::string& error) {
+    std::string& error,
+    ReplyMatcher isReply = isProfileCommandReply) {
     const auto bufferSize = std::max<std::size_t>(
         kReportSize, transport.info().inputReportLength);
     std::vector<std::uint8_t> input(bufferSize, 0);
@@ -144,7 +164,7 @@ std::optional<std::vector<std::uint8_t>> exchangeCommand(
             return std::nullopt;
         }
         const auto bytes = std::span<const std::uint8_t>(input.data(), bytesRead);
-        if (isProfileCommandReply(bytes, command)) {
+        if (isReply(bytes, command)) {
             return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
         }
     }
@@ -165,7 +185,9 @@ void TransportDeleter::operator()(platform::HidTransport* transport) const noexc
 }
 
 Apex5Device::Apex5Device(TransportPtr transport)
-    : transport_(std::move(transport)) {}
+    : transport_(std::move(transport)) {
+    if (transport_) lastInfo_ = transport_->info();
+}
 
 Apex5Device::~Apex5Device() {
     stopAsyncWrites();
@@ -180,12 +202,14 @@ Apex5Device& Apex5Device::operator=(Apex5Device&& other) noexcept {
     stopAsyncWrites();
     other.stopAsyncWrites();
     transport_ = std::move(other.transport_);
+    lastInfo_ = std::move(other.lastInfo_);
     identity_ = std::move(other.identity_);
     identityUnanswered_ = other.identityUnanswered_;
     writeMutex_ = std::move(other.writeMutex_);
     if (!writeMutex_) writeMutex_ = std::make_unique<std::recursive_mutex>();
     lastVendorWriteAt_ = other.lastVendorWriteAt_;
     lastTriggerWriteAt_ = other.lastTriggerWriteAt_;
+    apex4Pacer_ = other.apex4Pacer_;
     asyncPolicy_ = other.asyncPolicy_;
     {
         std::scoped_lock statsLock(feedbackStatsMutex_, other.feedbackStatsMutex_);
@@ -223,8 +247,30 @@ bool Apex5Device::isOpen() const noexcept {
     return transport_ && transport_->isOpen();
 }
 
+bool Apex5Device::reopen(const HidDeviceInfo& info, std::string& error) {
+    stopAsyncWrites();
+    TransportPtr transport(platform::createHidTransport(info, error));
+    if (!transport || !transport->isOpen()) return false;
+    const auto lock = acquireWriteLock();
+    transport_ = std::move(transport);
+    lastInfo_ = transport_->info();
+    identity_.reset();
+    identityUnanswered_ = false;
+    lastVendorWriteAt_ = {};
+    lastTriggerWriteAt_ = {};
+    apex4Pacer_ = Apex4WritePacer{configuredApex4RumbleSpacing().spacing};
+    return true;
+}
+
+void Apex5Device::closeTransport() noexcept {
+    stopAsyncWrites();
+    const auto lock = acquireWriteLock();
+    if (transport_) lastInfo_ = transport_->info();
+    transport_.reset();
+}
+
 const HidDeviceInfo& Apex5Device::info() const {
-    return transport_->info();
+    return transport_ ? transport_->info() : lastInfo_;
 }
 
 const std::optional<Apex5Identity>& Apex5Device::identity() const noexcept {
@@ -288,9 +334,18 @@ bool Apex5Device::verifyIdentity(std::string& error,
     // first shared vendor-interface reply. Retry Apex 5 identity exchanges so
     // that this benign race does not abort a bridge session. Apex 6 uses a
     // different dedicated interface and retains its single exchange.
-    const std::size_t maximumAttempts = apex4 ? 30 : (apex6Pro ? 1 : 3);
+    const std::size_t maximumAttempts = apex6Pro ? 1 : 3;
     Apex4IdentityObservation apex4Observation;
+    std::chrono::steady_clock::time_point lastApex4Request{
+        std::chrono::steady_clock::duration(
+            gLastUnansweredApex4IdentityRequest.load(std::memory_order_acquire))};
     for (std::size_t attempt = 0; attempt < maximumAttempts; ++attempt) {
+        if (apex4 && lastApex4Request.time_since_epoch().count() != 0 &&
+            !waitForApex4IdentitySlot(lastApex4Request + kApex4IdentityRequestSpacing,
+                                      shouldStop)) {
+            error = "Identity check cancelled by a stop request";
+            return false;
+        }
         if (shouldStop && shouldStop()) {
             error = "Identity check cancelled by a stop request";
             return false;
@@ -305,6 +360,7 @@ bool Apex5Device::verifyIdentity(std::string& error,
             if (!apex4 && !apex6Pro) error += "; " + std::string(kApex5UnresponsiveHint);
             return false;
         }
+        if (apex4) lastApex4Request = std::chrono::steady_clock::now();
 
         const auto deadline = std::chrono::steady_clock::now() +
             (apex4 ? kApex4AttemptTimeout : kApex5AttemptTimeout);
@@ -362,13 +418,16 @@ bool Apex5Device::verifyIdentity(std::string& error,
                 return false;
             }
             identity_ = *parsed;
+            if (apex4) gLastUnansweredApex4IdentityRequest.store(0, std::memory_order_release);
             return true;
         }
     }
 
     identityUnanswered_ = true;
     if (apex4) {
-        error = "No valid command 0xEC Apex 4 identity reply arrived after 30 attempts;" +
+        gLastUnansweredApex4IdentityRequest.store(
+            lastApex4Request.time_since_epoch().count(), std::memory_order_release);
+        error = "No valid command 0xEC Apex 4 identity reply arrived after 3 attempts spaced 1.5 s apart;" +
                 apex4Observation.describe() +
                 "; use USB/dongle DInput mode and close Flydigi Space Station before retrying";
     } else if (apex6Pro) {
@@ -411,6 +470,23 @@ bool Apex5Device::mayControlProfiles(std::string& error) const {
     return true;
 }
 
+bool Apex5Device::mayControlProfileSlots(std::string& error) const {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_) {
+        error = "Profile command refused: device identity was not verified";
+        return false;
+    }
+    if (!identity_->supportsProfileSlots()) {
+        error = "Profile command refused: this diagnostic currently supports only "
+                "a verified Apex 5 or Apex 6 Pro";
+        return false;
+    }
+    return true;
+}
+
 std::unique_lock<std::recursive_mutex> Apex5Device::acquireWriteLock() const noexcept {
     return writeMutex_ ? std::unique_lock(*writeMutex_) : std::unique_lock<std::recursive_mutex>();
 }
@@ -438,17 +514,14 @@ bool Apex5Device::usesApex6Protocol() const noexcept {
 }
 
 bool Apex5Device::writeSpacedOutputReport(
-    std::span<const std::uint8_t> report, std::string& error) {
-    constexpr auto kVendorWriteSpacing = std::chrono::milliseconds(25);
+    std::span<const std::uint8_t> report, Apex4WriteKind kind, std::string& error) {
     const auto lock = acquireWriteLock();
-    if (lastVendorWriteAt_.time_since_epoch().count() != 0) {
-        const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
-        if (since < kVendorWriteSpacing) {
-            std::this_thread::sleep_for(kVendorWriteSpacing - since);
-        }
-    }
+    const auto readyAt = apex4Pacer_.earliest(kind);
+    const auto now = std::chrono::steady_clock::now();
+    if (now < readyAt) std::this_thread::sleep_for(readyAt - now);
     const bool ok = transport_->writeOutputReport(report, error);
     lastVendorWriteAt_ = std::chrono::steady_clock::now();
+    apex4Pacer_.record(kind, lastVendorWriteAt_);
     return ok;
 }
 
@@ -460,6 +533,15 @@ void Apex5Device::waitForAsyncWriteSpacing() const {
     const auto since = std::chrono::steady_clock::now() - lastVendorWriteAt_;
     if (since < asyncPolicy_.spacing) {
         std::this_thread::sleep_for(asyncPolicy_.spacing - since);
+    }
+}
+
+void Apex5Device::pauseForApex6ProfileSpacing() const {
+    constexpr auto kMinimumSpacing = std::chrono::milliseconds(200);
+    if (lastApex6ProfileExchangeAt_.time_since_epoch().count() == 0) return;
+    const auto since = std::chrono::steady_clock::now() - lastApex6ProfileExchangeAt_;
+    if (since < kMinimumSpacing) {
+        std::this_thread::sleep_for(kMinimumSpacing - since);
     }
 }
 
@@ -495,7 +577,8 @@ bool Apex5Device::setTrigger(const TriggerEffect& effect, std::string& error) {
     }
     const auto lock = acquireWriteLock();
     if (identity_->isApex4()) {
-        return writeSpacedOutputReport(buildApex4ForceTrigger(effect), error);
+        return writeSpacedOutputReport(buildApex4ForceTrigger(effect), Apex4WriteKind::Trigger,
+                                       error);
     }
     const auto report = buildForceTrigger(effect, true);
     return writeFeedbackReport(report, true, error);
@@ -511,7 +594,8 @@ bool Apex5Device::setTriggerRaw(const ForceTriggerCommand& command, std::string&
     }
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
-        ? writeSpacedOutputReport(buildApex4ForceTriggerRaw(command), error)
+        ? writeSpacedOutputReport(buildApex4ForceTriggerRaw(command), Apex4WriteKind::Trigger,
+                                  error)
         : writeFeedbackReport(buildForceTriggerRaw(command, true), true, error);
 }
 
@@ -525,7 +609,7 @@ bool Apex5Device::clearTrigger(TriggerSide side, std::string& error) {
     }
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
-        ? writeSpacedOutputReport(buildApex4Normal(side), error)
+        ? writeSpacedOutputReport(buildApex4Normal(side), Apex4WriteKind::Trigger, error)
         : writeFeedbackReport(buildNormal(side), true, error);
 }
 
@@ -565,7 +649,8 @@ bool Apex5Device::setRumble(std::uint8_t lowFrequencyMotor,
     const auto lock = acquireWriteLock();
     return identity_->isApex4()
         ? writeSpacedOutputReport(
-              buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor), error)
+              buildApex4Rumble(lowFrequencyMotor, highFrequencyMotor),
+              Apex4WriteKind::Rumble, error)
         : writeFeedbackReport(
               buildRumble(lowFrequencyMotor, highFrequencyMotor), false, error);
 }
@@ -574,11 +659,20 @@ bool Apex5Device::stopRumble(std::string& error) {
     return setRumble(0, 0, error);
 }
 
-bool Apex5Device::enableApex6Haptics(std::string& error) {
+bool Apex5Device::enableApex6Haptics(std::string& error, bool realtimeGrips,
+                                     apex6::TriggerRoute triggerSide) {
     if (!mayWriteApex6Haptics(error)) return false;
     const auto lock = acquireWriteLock();
     bool wroteAny = false;
-    for (const auto& report : apex6::buildMotorEnable()) {
+    auto enableReports = std::vector<apex6::Report>{};
+    const auto base = apex6::buildMotorEnable(realtimeGrips);
+    if (triggerSide == apex6::TriggerRoute::Left || triggerSide == apex6::TriggerRoute::Right) {
+        const auto side = apex6::buildTriggerSideEnable(triggerSide);
+        enableReports = {side[0], side[1], base[1]};
+    } else {
+        enableReports = {base[0], base[1]};
+    }
+    for (const auto& report : enableReports) {
         if (!transport_->writeOutputReport(report, error)) {
             if (wroteAny) {
                 std::string ignored;
@@ -593,16 +687,54 @@ bool Apex5Device::enableApex6Haptics(std::string& error) {
     return true;
 }
 
+bool Apex5Device::setApex6TriggerSide(apex6::TriggerRoute side, std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    const auto lock = acquireWriteLock();
+    if (side == apex6::TriggerRoute::Left || side == apex6::TriggerRoute::Right) {
+        for (const auto& report : apex6::buildTriggerSideEnable(side)) {
+            if (!transport_->writeOutputReport(report, error)) return false;
+        }
+        return true;
+    }
+    return transport_->writeOutputReport(apex6::buildMotorEnable(true)[0], error);
+}
+
+bool Apex5Device::writeApex6TriggerEnable(apex6::TriggerRoute side, bool enable,
+                                          std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    if (side == apex6::TriggerRoute::Mute) {
+        error = "APEX 6 trigger enable needs a side";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    return transport_->writeOutputReport(
+        enable ? apex6::buildTriggerEnable(side) : apex6::buildTriggerDisable(side), error);
+}
+
+bool Apex5Device::writeApex6TriggerFirmwareEffect(apex6::TriggerRoute side,
+                                                  const apex6::TriggerFirmwareEffect& effect,
+                                                  std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    const auto report = apex6::buildTriggerFirmwareEffect(side, effect);
+    if (!report) {
+        error = "APEX 6 firmware trigger effect needs one side";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    return transport_->writeOutputReport(*report, error);
+}
+
 bool Apex5Device::writeApex6Haptics(const apex6::MotorBlock& block,
                                     apex6::TriggerRoute route,
                                     bool enableTrigger,
                                     bool enableGrips,
-                                    std::string& error) {
+                                    std::string& error,
+                                    bool interpolate) {
     if (!mayWriteApex6Haptics(error)) return false;
     const auto lock = acquireWriteLock();
     return transport_->writeOutputReport(
         apex6::buildRealtimeMotor(
-            block, route, enableTrigger, enableGrips, enableGrips),
+            block, route, enableTrigger, enableGrips, enableGrips, interpolate),
         error);
 }
 
@@ -635,7 +767,30 @@ bool Apex5Device::disableApex6Haptics(std::string& error) {
 }
 
 bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {
-    if (!mayControlProfiles(error)) return false;
+    if (!mayControlProfileSlots(error)) return false;
+    if (identity_->isApex6()) {
+        const auto lock = acquireWriteLock();
+        pauseForApex6ProfileSpacing();
+        const auto reply = exchangeCommand(
+            *transport_, apex6::buildProfileStatusRequest(),
+            apex6::kCmdProfileStatus, error, apex6::isValidFrame);
+        lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+        if (!reply) return false;
+        const auto parsed = apex6::parseProfileState(*reply, apex6::kCmdProfileStatus);
+        if (!parsed) {
+            error = "The Apex 6 Pro returned a malformed or unknown profile status";
+            return false;
+        }
+        const bool switchBank = parsed->rawSlot >= kProfileSlotCount;
+        status = ProfileStatus{
+            parsed->rawSlot,
+            static_cast<std::uint8_t>(
+                switchBank ? parsed->rawSlot - kProfileSlotCount : parsed->rawSlot),
+            switchBank,
+            ProfileChecksums{parsed->slotChecksums, parsed->globalChecksum},
+        };
+        return true;
+    }
     const auto reply = exchangeCommand(
         *transport_, buildProfileStatusRequest(), kCmdProfileStatus, error);
     if (!reply) return false;
@@ -649,7 +804,32 @@ bool Apex5Device::readProfileStatus(ProfileStatus& status, std::string& error) {
 }
 
 bool Apex5Device::applyProfile(std::uint8_t slot, std::string& error) {
-    if (!mayControlProfiles(error)) return false;
+    if (!mayControlProfileSlots(error)) return false;
+    if (identity_->isApex6()) {
+        const auto apex6Request = apex6::buildApplyProfile(slot);
+        if (!apex6Request) {
+            error = "Profile slot must be in the range 1..4";
+            return false;
+        }
+        const auto lock = acquireWriteLock();
+        pauseForApex6ProfileSpacing();
+        const auto reply = exchangeCommand(
+            *transport_, *apex6Request, apex6::kCmdApplyProfile, error,
+            apex6::isValidFrame);
+        lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+        if (!reply) return false;
+        const auto parsed = apex6::parseProfileState(*reply, apex6::kCmdApplyProfile);
+        if (!parsed) {
+            error = "The Apex 6 Pro returned an error or malformed reply to the profile command";
+            return false;
+        }
+        if (parsed->rawSlot != slot) {
+            error = "The Apex 6 Pro acknowledged the profile command but reported raw slot " +
+                    std::to_string(parsed->rawSlot);
+            return false;
+        }
+        return true;
+    }
     const auto request = buildApplyProfile(slot);
     if (!request) {
         error = "Profile slot must be in the range 1..4";
@@ -692,10 +872,159 @@ bool Apex5Device::setInputTransport(bool controllerData, bool rawData,
     if (!readInputTransportStatus(effective, error)) return false;
     if (effective.controllerData != controllerData ||
         effective.rawData != rawData) {
-        error = "The Apex 5 did not retain the requested physical-input routing";
+        error = "The Apex 5 did not retain the requested physical-input routing "
+                "(requested controller_data=" + std::to_string(controllerData ? 1 : 0) +
+                ", raw_data=" + std::to_string(rawData ? 1 : 0) +
+                "; controller reported " + describeInputTransport(effective) + ")";
         return false;
     }
     return true;
+}
+
+namespace {
+
+std::optional<std::vector<std::uint8_t>> exchangeApex6Command(
+    platform::HidTransport& transport,
+    const apex6::Report& request,
+    std::uint8_t command,
+    std::string& error) {
+    std::vector<std::uint8_t> input(
+        std::max<std::size_t>(apex6::kReportSize, transport.info().inputReportLength), 0);
+
+    constexpr std::size_t kMaximumDrainReports = 128;
+    for (std::size_t count = 0; count < kMaximumDrainReports; ++count) {
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport.readInputReport(
+            input, std::chrono::milliseconds(0), bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not drain stale HID input before Apex 6 command: " + readError;
+            return std::nullopt;
+        }
+    }
+
+    std::string writeError;
+    if (!transport.writeOutputReport(request, writeError)) {
+        std::ostringstream text;
+        text << "Could not send Apex 6 command 0x" << std::hex << std::uppercase
+             << static_cast<unsigned int>(command) << ": " << writeError;
+        error = text.str();
+        return std::nullopt;
+    }
+
+    constexpr auto kReplyTimeout = std::chrono::milliseconds(750);
+    constexpr std::size_t kMaximumReplies = 4096;
+    const auto deadline = std::chrono::steady_clock::now() + kReplyTimeout;
+    for (std::size_t count = 0; count < kMaximumReplies; ++count) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) break;
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - now);
+        if (remaining.count() == 0) remaining = std::chrono::milliseconds(1);
+
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport.readInputReport(
+            input, remaining, bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not read the Apex 6 command reply: " + readError;
+            return std::nullopt;
+        }
+        const auto bytes = std::span<const std::uint8_t>(input.data(), bytesRead);
+        if (apex6::isValidFrame(bytes, command)) {
+            return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+        }
+    }
+
+    std::ostringstream text;
+    text << "No Apex 6 command 0x" << std::hex << std::uppercase
+         << static_cast<unsigned int>(command)
+         << " reply arrived within 750 ms; wake the controller and close "
+            "Flydigi Space Station before retrying";
+    error = text.str();
+    return std::nullopt;
+}
+
+} // namespace
+
+bool Apex5Device::readApex6TransportStatus(apex6::TransportStatus& status,
+                                           std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "Transport status is supported on a verified Apex 6 only";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    const auto reply = exchangeApex6Command(
+        *transport_, apex6::buildReadTransport(), apex6::kCmdReadTransport, error);
+    if (!reply) return false;
+    const auto parsed = apex6::parseTransportStatus(*reply);
+    if (!parsed) {
+        error = "The Apex 6 returned a malformed transport status";
+        return false;
+    }
+    status = *parsed;
+    return true;
+}
+
+bool Apex5Device::setApex6RawDataRouting(bool enable, std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "Raw motion routing is supported on a verified Apex 6 only";
+        return false;
+    }
+    if (!apex6::hasImu(identity_->features())) {
+        error = "This Apex 6 does not advertise an IMU (GetInfo capability bit 0 is clear)";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    waitForAsyncWriteSpacing();
+    const bool written = transport_->writeOutputReport(
+        apex6::buildSetRawDataRouting(enable), error);
+    recordVendorWrite();
+    return written;
+}
+
+bool Apex5Device::apex6OperatorStreamActive(std::chrono::milliseconds window,
+                                            std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    std::vector<std::uint8_t> input(
+        std::max<std::size_t>(apex6::kReportSize, transport_->info().inputReportLength), 0);
+    const auto deadline = std::chrono::steady_clock::now() + window;
+    for (std::size_t count = 0; count < 4096; ++count) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) return false;
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - now);
+        if (remaining.count() == 0) remaining = std::chrono::milliseconds(1);
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport_->readInputReport(
+            input, remaining, bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) return false;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not read the Apex 6 operator stream: " + readError;
+            return false;
+        }
+        apex6::RawMotion motion{};
+        if (apex6::parseOperatorReport(
+                std::span<const std::uint8_t>(input.data(), bytesRead), motion) ==
+            apex6::OperatorParse::Motion) {
+            return true;
+        }
+    }
+    return false;
 }
 
 platform::HidReadStatus Apex5Device::readRawInputReport(
@@ -858,10 +1187,70 @@ bool Apex5Device::requestBatteryRefresh(std::string& error) {
     return ok;
 }
 
+bool Apex5Device::requestApex6Info(std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "Identity refresh is supported on a verified Apex 6 only";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    waitForAsyncWriteSpacing();
+    const bool written = transport_->writeOutputReport(apex6::buildGetInfo(), error);
+    recordVendorWrite();
+    return written;
+}
+
+Apex6InfoPoll Apex5Device::pollApex6Info(std::size_t maximumReads,
+                                         std::optional<Apex5Identity>& reading,
+                                         std::string& error) {
+    reading.reset();
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return Apex6InfoPoll::Failed;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "Identity refresh is supported on a verified Apex 6 only";
+        return Apex6InfoPoll::Failed;
+    }
+    std::vector<std::uint8_t> input(
+        std::max<std::size_t>(apex6::kReportSize, transport_->info().inputReportLength), 0);
+    constexpr std::size_t kMaximumStreamReports = 512;
+    std::size_t streamReports = 0;
+    for (std::size_t count = 0; count < maximumReads; ++count) {
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport_->readInputReport(
+            input, std::chrono::milliseconds(0), bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) return Apex6InfoPoll::Pending;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not read the Apex 6 identity refresh: " + readError;
+            return Apex6InfoPoll::Failed;
+        }
+        apex6::RawMotion streamMotion{};
+        if (apex6::parseOperatorReport(
+                std::span<const std::uint8_t>(input.data(), bytesRead), streamMotion) !=
+                apex6::OperatorParse::NotOperatorFrame &&
+            streamReports++ < kMaximumStreamReports) {
+            --count;
+            continue;
+        }
+        const auto parsed = Apex5Identity::parseApex6Reply(
+            std::span<const std::uint8_t>(input.data(), bytesRead));
+        if (!parsed || parsed->deviceType() != identity_->deviceType()) continue;
+        reading = *parsed;
+        return Apex6InfoPoll::Reply;
+    }
+    return Apex6InfoPoll::Pending;
+}
+
 std::optional<AsyncWritePolicy> Apex5Device::asyncWritePolicy() const noexcept {
     if (!identity_) return std::nullopt;
     if (identity_->isApex4()) {
-        return AsyncWritePolicy{std::chrono::milliseconds(25), std::chrono::milliseconds(0)};
+        return AsyncWritePolicy{(std::min)(apex4Pacer_.rumbleSpacing(), kApex4TriggerWriteSpacing),
+                                std::chrono::milliseconds(0), true};
     }
     if (identity_->isApex5() && !identity_->isWired()) {
         return AsyncWritePolicy{std::chrono::milliseconds(10), std::chrono::milliseconds(30)};
@@ -1003,26 +1392,46 @@ void Apex5Device::writerLoop() {
         std::optional<std::pair<std::uint8_t, std::uint8_t>> rumble;
         auto queuedAt = std::chrono::steady_clock::time_point{};
         auto rumbleHeldUntil = std::chrono::steady_clock::time_point{};
+        auto pacedUntil = std::chrono::steady_clock::time_point{};
+        bool pacedStop = false;
         {
             std::lock_guard lock(queueMutex_);
             if (writerStopping_) return;
             // Triggers go ahead of rumble unless rumble has waited too long.
             constexpr auto kRumbleMaximumWait = std::chrono::milliseconds(100);
             const auto now = std::chrono::steady_clock::now();
-            const bool rumbleFirst = !(pendingLeftTrigger_ || pendingRightTrigger_) ||
+            const bool rumbleStop = asyncPolicy_.rumbleStopFirst && pendingRumble_ &&
+                pendingRumble_->first == 0 && pendingRumble_->second == 0;
+            const bool rumbleFirst = rumbleStop ||
+                !(pendingLeftTrigger_ || pendingRightTrigger_) ||
                 now - rumblePendingSince_ > kRumbleMaximumWait;
             const auto holdoffEnds = (std::min)(
                 lastTriggerWriteAt_ + asyncPolicy_.rumbleHoldoffAfterTrigger,
                 rumblePendingSince_ + kRumbleMaximumWait);
             if (pendingRumble_ && now < holdoffEnds) rumbleHeldUntil = holdoffEnds;
+            const unsigned firstSlot =
+                rumbleStop && rumbleHeldUntil == std::chrono::steady_clock::time_point{}
+                    ? 2u : nextSlot_;
+            const bool apex4 = identity_ && identity_->isApex4();
+            const auto pacingHolds = [&](Apex4WriteKind kind, bool stop) {
+                if (!apex4) return false;
+                const auto readyAt = apex4Pacer_.earliest(kind);
+                if (now >= readyAt) return false;
+                pacedUntil = readyAt;
+                pacedStop = stop;
+                return true;
+            };
             for (unsigned attempt = 0; attempt < 3; ++attempt) {
-                const unsigned slot = (nextSlot_ + attempt) % 3;
+                const unsigned slot = (firstSlot + attempt) % 3;
                 if (slot == 0 && pendingLeftTrigger_) {
+                    if (pacingHolds(Apex4WriteKind::Trigger, false)) break;
                     trigger = std::exchange(pendingLeftTrigger_, std::nullopt);
                 } else if (slot == 1 && pendingRightTrigger_) {
+                    if (pacingHolds(Apex4WriteKind::Trigger, false)) break;
                     trigger = std::exchange(pendingRightTrigger_, std::nullopt);
                 } else if (slot == 2 && pendingRumble_ && rumbleFirst &&
                            rumbleHeldUntil == std::chrono::steady_clock::time_point{}) {
+                    if (pacingHolds(Apex4WriteKind::Rumble, rumbleStop)) break;
                     rumble = std::exchange(pendingRumble_, std::nullopt);
                 } else {
                     continue;
@@ -1035,6 +1444,14 @@ void Apex5Device::writerLoop() {
         if (!trigger && !rumble) {
             if (writeLock.owns_lock()) writeLock.unlock();
             std::unique_lock lock(queueMutex_);
+            if (pacedUntil != std::chrono::steady_clock::time_point{}) {
+                queueSignal_.wait_until(lock, pacedUntil, [this, pacedStop] {
+                    return writerStopping_ ||
+                           (!pacedStop && asyncPolicy_.rumbleStopFirst && pendingRumble_ &&
+                            pendingRumble_->first == 0 && pendingRumble_->second == 0);
+                });
+                continue;
+            }
             queueSignal_.wait_until(lock, rumbleHeldUntil, [this] {
                 return writerStopping_ || pendingLeftTrigger_ || pendingRightTrigger_;
             });
@@ -1086,6 +1503,168 @@ void Apex5Device::writerLoop() {
         asyncWriteFailed_.store(true, std::memory_order_release);
         consecutiveFailures = 0;
     }
+}
+
+std::optional<std::vector<std::uint8_t>> Apex5Device::apex6RamExchange(
+    const apex6::Report& request, std::uint8_t command, std::uint8_t mode,
+    std::string& error) {
+    constexpr auto kSpacing = std::chrono::milliseconds(220);
+    std::chrono::steady_clock::time_point last;
+    {
+        const auto lock = acquireWriteLock();
+        last = lastApex6ProfileExchangeAt_;
+    }
+    if (last.time_since_epoch().count() != 0) {
+        const auto since = std::chrono::steady_clock::now() - last;
+        if (since < kSpacing) std::this_thread::sleep_for(kSpacing - since);
+    }
+
+    const auto lock = acquireWriteLock();
+    const auto bufferSize = std::max<std::size_t>(
+        kReportSize, transport_->info().inputReportLength);
+    std::vector<std::uint8_t> input(bufferSize, 0);
+    constexpr std::size_t kMaximumDrainReports = 128;
+    for (std::size_t count = 0; count < kMaximumDrainReports; ++count) {
+        std::size_t bytesRead = 0;
+        std::string drainError;
+        const auto status = transport_->readInputReport(
+            input, std::chrono::milliseconds(0), bytesRead, drainError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not drain stale HID input before an Apex 6 RAM request: " + drainError;
+            return std::nullopt;
+        }
+    }
+
+    waitForAsyncWriteSpacing();
+    const bool sent = transport_->writeOutputReport(request, error);
+    recordVendorWrite();
+    lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+    if (!sent) return std::nullopt;
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(750);
+    for (std::size_t count = 0; count < 4096; ++count) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) break;
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+        if (remaining.count() == 0) remaining = std::chrono::milliseconds(1);
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport_->readInputReport(input, remaining, bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not read the Apex 6 RAM reply: " + readError;
+            return std::nullopt;
+        }
+        if (auto payload = apex6::ramReplyPayload(
+                std::span<const std::uint8_t>(input.data(), bytesRead), command, mode)) {
+            lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+            return payload;
+        }
+    }
+    error = "No Apex 6 RAM reply arrived within 750 ms";
+    return std::nullopt;
+}
+
+bool Apex5Device::readApex6Ram(std::uint8_t ramId, std::vector<std::uint8_t>& data,
+                               std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "RAM access is only available on a verified Apex 6 Pro";
+        return false;
+    }
+    const auto infoReply = apex6RamExchange(
+        apex6::buildRamInfoRequest(ramId), apex6::kCmdRamRead, 1, error);
+    if (!infoReply) return false;
+    const auto info = apex6::parseRamInfo(*infoReply);
+    if (!info || info->status != 0 || info->ramId != ramId || info->length == 0 ||
+        info->length > apex6::kRamMaximumSize) {
+        error = "The Apex 6 Pro refused the RAM " + std::to_string(ramId) + " information request";
+        return false;
+    }
+    std::vector<std::uint8_t> collected;
+    collected.reserve(info->length);
+    for (std::size_t index = 0; collected.size() < info->length; ++index) {
+        if (index > 255) {
+            error = "The Apex 6 Pro RAM block count exceeded the protocol limit";
+            return false;
+        }
+        const auto reply = apex6RamExchange(
+            apex6::buildRamReadRequest(ramId, static_cast<std::uint8_t>(index)),
+            apex6::kCmdRamRead, 0, error);
+        if (!reply) return false;
+        const auto block = apex6::parseRamBlock(*reply);
+        if (!block || block->status != 0 || block->ramId != ramId ||
+            block->index != index || block->data.empty()) {
+            error = "The Apex 6 Pro returned an invalid RAM block " + std::to_string(index);
+            return false;
+        }
+        const auto wanted = std::min<std::size_t>(block->data.size(), info->length - collected.size());
+        collected.insert(collected.end(), block->data.begin(), block->data.begin() + wanted);
+    }
+    if (apex6::crc32(collected) != info->crc32) {
+        error = "The Apex 6 Pro RAM " + std::to_string(ramId) + " content failed its CRC32 check";
+        return false;
+    }
+    data = std::move(collected);
+    return true;
+}
+
+bool Apex5Device::writeApex6Ram(std::uint8_t ramId, std::span<const std::uint8_t> data,
+                                std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "RAM access is only available on a verified Apex 6 Pro";
+        return false;
+    }
+    if (data.empty() || data.size() > apex6::kRamMaximumSize) {
+        error = "The Apex 6 Pro RAM payload size is not valid";
+        return false;
+    }
+    const auto length = static_cast<std::uint16_t>(data.size());
+    const auto crc = apex6::crc32(data);
+    const auto abortWrite = [this] {
+        const auto lock = acquireWriteLock();
+        std::string ignored;
+        (void)transport_->writeOutputReport(apex6::buildRamWriteAbort(), ignored);
+        recordVendorWrite();
+    };
+    const auto accepted = [](const std::optional<std::vector<std::uint8_t>>& reply) {
+        return reply && reply->size() > 1 && (*reply)[1] == 0;
+    };
+
+    if (!accepted(apex6RamExchange(apex6::buildRamWriteBegin(ramId, length, crc),
+                                   apex6::kCmdRamWrite, 0, error))) {
+        if (error.empty()) error = "The Apex 6 Pro refused to start the RAM write";
+        abortWrite();
+        return false;
+    }
+    for (std::size_t offset = 0; offset < data.size(); offset += apex6::kRamChunkSize) {
+        const auto size = std::min<std::size_t>(apex6::kRamChunkSize, data.size() - offset);
+        if (!accepted(apex6RamExchange(
+                apex6::buildRamWriteChunk(static_cast<std::uint16_t>(offset),
+                                          data.subspan(offset, size)),
+                apex6::kCmdRamWrite, 1, error))) {
+            if (error.empty()) error = "The Apex 6 Pro refused a RAM write block";
+            abortWrite();
+            return false;
+        }
+    }
+    const auto reply = apex6RamExchange(apex6::buildRamWriteCommit(length, crc),
+                                        apex6::kCmdRamWrite, 2, error);
+    const auto commit = reply ? apex6::parseRamCommit(*reply) : std::nullopt;
+    if (!commit || commit->length != length || commit->crc32 != crc) {
+        if (error.empty()) error = "The Apex 6 Pro RAM write commit did not match the data sent";
+        abortWrite();
+        return false;
+    }
+    return true;
 }
 
 } // namespace asb::flydigi

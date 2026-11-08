@@ -16,6 +16,32 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/ApexSenseBridgeTray;component/Themes/ConsoleTheme.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="HeaderControllerButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <ContentPresenter/>
+                                <Border x:Name="Hover" CornerRadius="17" Background="#18FFFFFF" Opacity="0" IsHitTestVisible="False"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Hover" Property="Opacity" Value="1"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Cursor" Value="Arrow"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -75,15 +101,21 @@
                                 </StackPanel>
                             </Button>
 
-                            <Border x:Name="BadgeHeaderController" CornerRadius="17" Height="34"
-                                    Background="#14FFFFFF" Padding="14,0" Margin="0,0,14,0" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path x:Name="IconHeaderController" Style="{StaticResource ControllerIconPath}"
-                                          Stroke="{DynamicResource TextMuted}" Margin="0,0,8,0"/>
-                                    <TextBlock x:Name="TxtHeaderController" Text="APEX" FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Border>
+                            <Button x:Name="BtnHeaderController" Style="{StaticResource HeaderControllerButton}"
+                                    Margin="0,0,14,0" VerticalAlignment="Center" IsEnabled="False" Click="OnHeaderControllerClick">
+                                <Border x:Name="BadgeHeaderController" CornerRadius="17" Height="34"
+                                        Background="#14FFFFFF" Padding="14,0">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path x:Name="IconHeaderController" Style="{StaticResource ControllerIconPath}"
+                                              Stroke="{DynamicResource TextMuted}" Margin="0,0,8,0"/>
+                                        <TextBlock x:Name="TxtHeaderController" Text="APEX" FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <Path x:Name="IconHeaderChevron" Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource TextPrimary}"
+                                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Width="8" Height="4" Margin="9,1,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </Border>
+                            </Button>
 
                             <TextBlock x:Name="TxtClock" FontSize="15" Foreground="{DynamicResource TextPrimary}"
                                        VerticalAlignment="Center" Margin="0,0,14,0"/>
@@ -154,9 +186,12 @@
                                         <GradientStop Color="#00000000" Offset="1"/>
                                     </RadialGradientBrush>
                                 </Border.OpacityMask>
-                                <Image x:Name="ImgDashboardActiveCover" Stretch="UniformToFill" Opacity="0.45">
-                                    <Image.Effect><BlurEffect Radius="28"/></Image.Effect>
-                                </Image>
+                                <Border Opacity="0.45">
+                                    <Border.Background>
+                                        <ImageBrush x:Name="BrushDashboardActiveCover" Stretch="UniformToFill"/>
+                                    </Border.Background>
+                                    <Border.Effect><BlurEffect Radius="28"/></Border.Effect>
+                                </Border>
                             </Border>
                             <StackPanel x:Name="PnlDashboardStandbyCover" Visibility="Collapsed"/>
 
@@ -606,22 +641,70 @@
                                                         </StackPanel>
                                                     </Border>
                                                     <Border x:Name="BadgeDetailManualFix" Style="{StaticResource FeaturePill}" Background="#26F59E0B"
-                                                            ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="Collapsed">
-                                                        <TextBlock Text="{DynamicResource Loc_PillManualFix}" Style="{StaticResource FeaturePillText}" Foreground="#FBBF24" FontWeight="SemiBold"/>
+                                                            ToolTip="{DynamicResource Loc_ManualFixHint}" Visibility="Collapsed"
+                                                            Cursor="Hand" MouseLeftButtonUp="OnManualFixBadgeClick">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{DynamicResource Loc_PillManualFix}" Style="{StaticResource FeaturePillText}" Foreground="#FBBF24" FontWeight="SemiBold"/>
+                                                            <Path x:Name="ChevronManualFix" Style="{StaticResource IconPath}" Data="M 1,1 L 5,5 L 9,1"
+                                                                  Width="9" Height="6" Stroke="#FBBF24" StrokeThickness="1.8"
+                                                                  Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
+                                                        </StackPanel>
                                                     </Border>
                                                     <Border x:Name="BadgeDetailManualFixApplied" Style="{StaticResource FeaturePill}" Background="#2634D399"
-                                                            ToolTip="{DynamicResource Loc_ManualFixAppliedHint}" Visibility="Collapsed">
-                                                        <TextBlock Text="{DynamicResource Loc_PillManualFixApplied}" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource BadgeActiveFg}" FontWeight="SemiBold"/>
+                                                            ToolTip="{DynamicResource Loc_ManualFixAppliedHint}" Visibility="Collapsed"
+                                                            Cursor="Hand" MouseLeftButtonUp="OnManualFixBadgeClick">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{DynamicResource Loc_PillManualFixApplied}" Style="{StaticResource FeaturePillText}" Foreground="{DynamicResource BadgeActiveFg}" FontWeight="SemiBold"/>
+                                                            <Path x:Name="ChevronManualFixApplied" Style="{StaticResource IconPath}" Data="M 1,1 L 5,5 L 9,1"
+                                                                  Width="9" Height="6" Stroke="{DynamicResource BadgeActiveFg}" StrokeThickness="1.8"
+                                                                  Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
+                                                        </StackPanel>
                                                     </Border>
-                                                    <Border x:Name="BadgeDetailTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed">
+                                                    <Border x:Name="BadgeDetailTouchpad" Style="{StaticResource FeaturePill}" Visibility="Collapsed"
+                                                            Cursor="Hand" MouseLeftButtonUp="OnTouchpadBadgeClick">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Image Source="{StaticResource IconTouchpad}" Style="{StaticResource FeaturePillIcon}"/>
                                                             <TextBlock Text="{DynamicResource Loc_PillTouchpad}" Style="{StaticResource FeaturePillText}"/>
+                                                            <Path x:Name="ChevronTouchpad" Style="{StaticResource IconPath}" Data="M 1,1 L 5,5 L 9,1"
+                                                                  Width="9" Height="6" Stroke="{DynamicResource BadgeStandbyFg}" StrokeThickness="1.8"
+                                                                  Margin="7,1,0,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </WrapPanel>
                                             </StackPanel>
                                         </Grid>
+
+                                        <Border x:Name="PnlTouchpadGuide" Style="{StaticResource SettingRow}" Margin="0,-6,0,14"
+                                                Visibility="Collapsed">
+                                            <StackPanel x:Name="PnlTouchpadEntries"/>
+                                        </Border>
+
+                                        <Border x:Name="PnlManualFixGuide" Style="{StaticResource SettingRow}" Margin="0,-6,0,14"
+                                                Visibility="Collapsed">
+                                            <StackPanel>
+                                                <StackPanel x:Name="PnlManualFixEntries"/>
+                                                <TextBlock x:Name="TxtManualFixNoNote" Text="{DynamicResource Loc_ManualFixNoNote}" FontSize="11.5"
+                                                           TextWrapping="Wrap" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8"
+                                                           Visibility="Collapsed"/>
+                                                <Button x:Name="BtnManualFixOpenPage" Style="{StaticResource BtnSecondary}"
+                                                        HorizontalAlignment="Left" Margin="0,0,0,10" Click="OnManualFixOpenPageClick">
+                                                    <TextBlock Text="{DynamicResource Loc_ManualFixOpenPage}" FontSize="11.5"/>
+                                                </Button>
+                                                <TextBlock Text="{DynamicResource Loc_ManualFixCompatWarning}" FontSize="11" TextWrapping="Wrap"
+                                                           Foreground="#FBBF24" Margin="0,0,0,12"/>
+                                                <Button x:Name="BtnDetailToggleManualFix" Style="{StaticResource BtnSecondary}"
+                                                        MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                                        ToolTip="{DynamicResource Loc_ManualFixAllowHint}" Visibility="Collapsed"
+                                                        Click="OnDetailToggleManualFixClick">
+                                                    <TextBlock x:Name="TxtDetailManualFixAction" Text="{DynamicResource Loc_BtnManualFixAllow}"
+                                                               FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                                                </Button>
+                                                <TextBlock x:Name="TxtDetailManualFixNote" Text="{DynamicResource Loc_ManualFixNote}"
+                                                           Visibility="{Binding Visibility, ElementName=BtnDetailToggleManualFix}"
+                                                           TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                                           Margin="2,0,2,0"/>
+                                            </StackPanel>
+                                        </Border>
 
                                         <!-- APEX profile: D-pad left/right -->
                                         <Border x:Name="PnlApexProfile" CornerRadius="26" Height="52" Background="#12FFFFFF" Padding="8" Margin="0,0,0,10"
@@ -650,8 +733,42 @@
                                                    Visibility="Collapsed" TextWrapping="Wrap" FontSize="11" Foreground="#FBBF24"
                                                    Margin="12,-4,12,10"/>
 
+                                        <StackPanel Margin="0,0,0,10">
+                                            <Button x:Name="BtnGameTuningToggle" Style="{StaticResource BtnSecondary}"
+                                                    MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch"
+                                                    ToolTip="{DynamicResource Loc_GameTuningHint}" Click="OnGameTuningToggleClick">
+                                                <TextBlock x:Name="TxtGameTuningToggle" FontSize="12.5" VerticalAlignment="Center"
+                                                           TextWrapping="Wrap" TextAlignment="Center"/>
+                                            </Button>
+                                            <Border x:Name="PnlGameTuningSliders" Style="{StaticResource SettingRow}" Margin="0,8,0,0"
+                                                    Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <TextBlock x:Name="TxtGameTrigger" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                        <TextBlock Text="{DynamicResource Loc_TriggerStrength}" Style="{StaticResource RowLabel}"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderGameTrigger" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100"
+                                                            TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnGameTuningChanged" Margin="0,4,0,10"/>
+                                                    <DockPanel>
+                                                        <TextBlock x:Name="TxtGameVibration" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                        <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Style="{StaticResource RowLabel}"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderGameVibration" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="200"
+                                                            TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnGameTuningChanged" Margin="0,4,0,0"/>
+                                                    <StackPanel x:Name="PnlGameThresholdRow" Margin="0,10,0,0">
+                                                        <DockPanel>
+                                                            <TextBlock x:Name="TxtGameThreshold" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                            <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Style="{StaticResource RowLabel}"/>
+                                                        </DockPanel>
+                                                        <Slider x:Name="SliderGameThreshold" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="95"
+                                                                TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnGameTuningChanged" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+
                                         <Button x:Name="BtnDetailToggleExclude" Style="{StaticResource BtnSecondary}"
-                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,10"
+                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,18"
                                                 Click="OnDetailToggleExcludeClick">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                 <Border Style="{StaticResource XboxBtnX}" Margin="0,0,8,0">
@@ -662,24 +779,16 @@
                                             </StackPanel>
                                         </Button>
 
-                                        <Button x:Name="BtnDetailToggleManualFix" Style="{StaticResource BtnSecondary}"
-                                                MinHeight="42" Padding="14,0" HorizontalAlignment="Stretch" Margin="0,0,0,18"
-                                                ToolTip="{DynamicResource Loc_ManualFixAllowHint}" Visibility="Collapsed"
-                                                Click="OnDetailToggleManualFixClick">
-                                            <TextBlock x:Name="TxtDetailManualFixAction" Text="{DynamicResource Loc_BtnManualFixAllow}"
-                                                       FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-                                        </Button>
 
                                         <!-- Advanced: optional executable association -->
                                         <TextBlock Text="{DynamicResource Loc_GameExecutable}" ToolTip="{DynamicResource Loc_GameExecutableHint}"
                                                    FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" Margin="4,0,0,6"/>
-                                        <ComboBox x:Name="CmbGameExecutable" Style="{StaticResource ExecutableCombo}" DisplayMemberPath="Label"
-                                                  SelectionChanged="OnGameExecutableChanged" Margin="0,0,0,6"
-                                                  ToolTip="{Binding SelectedItem.Path, RelativeSource={RelativeSource Self}}"/>
                                         <TextBlock x:Name="TxtExecutablePath" Foreground="{DynamicResource TextMuted}" FontSize="10.5"
-                                                   TextWrapping="Wrap" Margin="4,0,0,8"/>
-                                        <Button Content="{DynamicResource Loc_BrowseExecutable}" Style="{StaticResource BtnSecondary}"
-                                                HorizontalAlignment="Left" FontSize="11.5" Click="OnBrowseGameExecutable"/>
+                                                   TextWrapping="Wrap" Margin="4,0,0,8" Visibility="Collapsed"/>
+                                        <Button x:Name="BtnGameExecutable" Style="{StaticResource BtnSecondary}"
+                                                HorizontalAlignment="Left" FontSize="11.5" Click="OnGameExecutableButtonClick">
+                                            <TextBlock x:Name="TxtGameExecutableAction" FontSize="11.5"/>
+                                        </Button>
                                     </StackPanel>
                                 </ScrollViewer>
                             </Grid>
@@ -928,6 +1037,21 @@
                                             </DockPanel>
                                         </Border>
 
+                                        <Border x:Name="TileSettingVersionStats" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                MouseLeftButtonDown="OnSettingVersionStatsToggled" ToolTip="{DynamicResource Loc_VersionStatsHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingVersionStats" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingVersionStats" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 5,19 L 5,12 M 12,19 L 12,5 M 19,19 L 19,9"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_VersionStats}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
                                         <Border x:Name="TileSettingLanguage" Style="{StaticResource SettingRow}" Cursor="Hand"
                                                 MouseLeftButtonDown="OnLanguagePickerClick" ToolTip="{DynamicResource Loc_LanguageHint}">
                                             <DockPanel>
@@ -1009,10 +1133,53 @@
                                             </DockPanel>
                                         </Border>
 
+                                        <Border x:Name="RowLightbarBrightness" Style="{StaticResource SettingRow}" Visibility="Collapsed"
+                                                ToolTip="{DynamicResource Loc_LightbarBrightnessHint}">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <TextBlock x:Name="TxtLightbarBrightness" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
+                                                    <TextBlock Text="{DynamicResource Loc_LightbarBrightness}" Style="{StaticResource RowLabel}"/>
+                                                </DockPanel>
+                                                <Slider x:Name="SliderLightbarBrightness" Style="{StaticResource EffectSlider}" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="OnEffectSettingChanged" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border x:Name="TileSettingZoneEmulation" Style="{StaticResource SettingRow}" Cursor="Hand" Visibility="Collapsed"
+                                                MouseLeftButtonDown="OnSettingZoneEmulationToggled" ToolTip="{DynamicResource Loc_ZoneEmulationHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingZoneEmulation" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingZoneEmulation" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 2,12 L 6,12 L 9,5 L 13,19 L 16,9 L 18,12 L 22,12"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_ZoneEmulation}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
+                                        <Border x:Name="TileSettingApex6Rate2kHz" Style="{StaticResource SettingRow}" Cursor="Hand" Visibility="Collapsed"
+                                                MouseLeftButtonDown="OnSettingApex6Rate2kHzToggled" ToolTip="{DynamicResource Loc_Apex6Rate2kHzHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingApex6Rate2kHz" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingApex6Rate2kHz" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 2,12 L 4,12 L 6,6 L 8,18 L 10,6 L 12,18 L 14,6 L 16,18 L 18,12 L 22,12"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_Apex6Rate2kHz}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
                                         <StackPanel x:Name="PnlControllerEffects" Visibility="Collapsed">
                                             <Border x:Name="RowTriggerStrength" Style="{StaticResource SettingRow}">
                                                 <StackPanel>
                                                     <DockPanel>
+                                                        <Button x:Name="BtnResetTrigger" Style="{StaticResource BtnResetDefault}" DockPanel.Dock="Right" Margin="10,0,0,0" Tag="Trigger"
+                                                                ToolTip="{DynamicResource Loc_ResetToDefault}" Click="OnResetEffectClick"/>
                                                         <TextBlock x:Name="TxtTriggerStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
                                                         <TextBlock Text="{DynamicResource Loc_TriggerStrength}" Style="{StaticResource RowLabel}"/>
                                                     </DockPanel>
@@ -1022,6 +1189,8 @@
                                             <Border x:Name="RowVibrationStrength" Style="{StaticResource SettingRow}" ToolTip="{DynamicResource Loc_VibrationStrengthHint}">
                                                 <StackPanel>
                                                     <DockPanel>
+                                                        <Button x:Name="BtnResetVibration" Style="{StaticResource BtnResetDefault}" DockPanel.Dock="Right" Margin="10,0,0,0" Tag="Vibration"
+                                                                ToolTip="{DynamicResource Loc_ResetToDefault}" Click="OnResetEffectClick"/>
                                                         <TextBlock x:Name="TxtVibrationStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
                                                         <TextBlock Text="{DynamicResource Loc_VibrationStrength}" Style="{StaticResource RowLabel}"/>
                                                     </DockPanel>
@@ -1032,6 +1201,8 @@
                                                 <Border x:Name="RowGyroStrength" Style="{StaticResource SettingRow}">
                                                     <StackPanel>
                                                         <DockPanel>
+                                                            <Button x:Name="BtnResetGyro" Style="{StaticResource BtnResetDefault}" DockPanel.Dock="Right" Margin="10,0,0,0" Tag="Gyro"
+                                                                    ToolTip="{DynamicResource Loc_ResetToDefault}" Click="OnResetEffectClick"/>
                                                             <TextBlock x:Name="TxtApex4GyroStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
                                                             <TextBlock Text="{DynamicResource Loc_Apex4GyroStrength}" Style="{StaticResource RowLabel}"/>
                                                         </DockPanel>
@@ -1041,6 +1212,8 @@
                                                 <Border x:Name="RowGyroYawStrength" Style="{StaticResource SettingRow}">
                                                     <StackPanel>
                                                         <DockPanel>
+                                                            <Button x:Name="BtnResetGyroYaw" Style="{StaticResource BtnResetDefault}" DockPanel.Dock="Right" Margin="10,0,0,0" Tag="GyroYaw"
+                                                                    ToolTip="{DynamicResource Loc_ResetToDefault}" Click="OnResetEffectClick"/>
                                                             <TextBlock x:Name="TxtApex4GyroYawStrength" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
                                                             <TextBlock Text="{DynamicResource Loc_Apex4GyroYawStrength}" Style="{StaticResource RowLabel}"/>
                                                         </DockPanel>
@@ -1052,6 +1225,8 @@
                                                 <Border x:Name="RowVibrationThreshold" Style="{StaticResource SettingRow}" ToolTip="{DynamicResource Loc_EffectsHint}">
                                                     <StackPanel>
                                                         <DockPanel>
+                                                            <Button x:Name="BtnResetThreshold" Style="{StaticResource BtnResetDefault}" DockPanel.Dock="Right" Margin="10,0,0,0" Tag="Threshold"
+                                                                    ToolTip="{DynamicResource Loc_ResetToDefault}" Click="OnResetEffectClick"/>
                                                             <TextBlock x:Name="TxtVibrationThreshold" DockPanel.Dock="Right" Style="{StaticResource ValueLabel}"/>
                                                             <TextBlock Text="{DynamicResource Loc_VibrationThreshold}" Style="{StaticResource RowLabel}"/>
                                                         </DockPanel>
@@ -1090,6 +1265,10 @@
                             <StackPanel x:Name="HudFilter" Style="{StaticResource GamepadActionItem}" Visibility="Collapsed">
                                 <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="&#x29C9;" Style="{StaticResource GamepadBadgeText}"/></Border>
                                 <TextBlock Text="{DynamicResource Loc_Gamepad_Filter}" Style="{StaticResource GamepadActionLabel}"/>
+                            </StackPanel>
+                            <StackPanel x:Name="HudController" Style="{StaticResource GamepadActionItem}" Visibility="Collapsed">
+                                <Border Style="{StaticResource GamepadBadgePill}"><TextBlock Text="&#x29C9;" Style="{StaticResource GamepadBadgeText}"/></Border>
+                                <TextBlock Text="{DynamicResource Loc_Gamepad_Controller}" Style="{StaticResource GamepadActionLabel}"/>
                             </StackPanel>
                             <StackPanel x:Name="HudActionY" Style="{StaticResource GamepadActionItem}">
                                 <Border Style="{StaticResource XboxBtnY}"><Rectangle Style="{StaticResource XboxTextY}"/></Border>

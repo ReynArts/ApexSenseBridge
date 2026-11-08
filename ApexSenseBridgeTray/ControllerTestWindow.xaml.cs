@@ -33,6 +33,8 @@ namespace ApexSenseBridgeTray
         private static readonly Brush ConnectedBadgeBg = Frozen(Color.FromArgb(50, 46, 187, 79));
         private static readonly Brush ConnectedBadgeFg = Frozen(Color.FromRgb(46, 187, 79));
         private bool? lastConnected;
+        private bool? unavailableInputSession;
+        private int unavailableInputTicks;
         private int lastL2 = -1;
         private int lastR2 = -1;
         private readonly SolidColorBrush activeBtnBrush = new SolidColorBrush(Color.FromRgb(41, 121, 255));
@@ -45,7 +47,7 @@ namespace ApexSenseBridgeTray
             InitializeComponent();
             WindowCorners.ApplyRounded(this);
 
-            testService = new ControllerTestService();
+            testService = new ControllerTestService(() => this.settings.SelectedControllerKey);
 
             pollTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
@@ -120,6 +122,18 @@ namespace ApexSenseBridgeTray
             Close();
         }
 
+        private void UpdateUnavailableInputHint()
+        {
+            if (unavailableInputSession.HasValue && ++unavailableInputTicks < 30) return;
+            unavailableInputTicks = 0;
+            if (latencyTestCancellation != null) return;
+            bool sessionActive = ControllerTestService.IsBridgeSessionActive();
+            if (unavailableInputSession == sessionActive) return;
+            unavailableInputSession = sessionActive;
+            TxtTestFeedback.Text = LocalizationManager.Get(
+                ControllerTestService.UnavailableInputMessageKey(sessionActive));
+        }
+
         private void OnPollTick(object sender, EventArgs e)
         {
             if (!IsVisible || WindowState == WindowState.Minimized) return;
@@ -143,6 +157,8 @@ namespace ApexSenseBridgeTray
                     TxtControllerStatus.Text = "○ " + LocalizationManager.Get("Loc_ControllerDisconnectedBadge");
                 }
             }
+            if (state.Connected) unavailableInputSession = null;
+            else UpdateUnavailableInputHint();
 
             // Triggers L2 / R2: travel gauges under the controller + overlay glow on the drawing
             if (lastL2 != state.LeftTrigger)
@@ -359,9 +375,26 @@ namespace ApexSenseBridgeTray
 
         private string FailureText(string key)
         {
+            if (testService.LastFailureWasActiveSession)
+                return LocalizationManager.Get("Loc_ControllerTestSessionActive");
             string text = LocalizationManager.Get(key);
             string detail = testService.LastCliError;
-            return string.IsNullOrWhiteSpace(detail) ? text : text + " " + detail;
+            return string.IsNullOrWhiteSpace(detail) ? text : text + " " + EngineErrorText(detail);
+        }
+
+        private static string EngineErrorText(string error)
+        {
+            int count;
+            return ControllerDetectionService.TryParseSeveralControllers(error, out count)
+                ? LocalizationManager.Format("Loc_ControllerTestMultiple", Math.Max(2, count))
+                : error;
+        }
+
+        private string ResetText(bool ok, string successKey)
+        {
+            return !ok && testService.LastFailureWasActiveSession
+                ? LocalizationManager.Get("Loc_ControllerTestSessionActive")
+                : LocalizationManager.Get(successKey);
         }
 
         private async void OnApplyTriggerClick(object sender, RoutedEventArgs e)
@@ -374,6 +407,14 @@ namespace ApexSenseBridgeTray
             if (RadModeWeapon.IsChecked == true) mode = "weapon";
             else if (RadModeVibration.IsChecked == true) mode = "vibration";
             else if (RadModeBow.IsChecked == true) mode = "bow";
+            else
+            {
+                foreach (var child in PanelTriggerPresets.Children)
+                {
+                    var preset = child as RadioButton;
+                    if (preset != null && preset.IsChecked == true) mode = (string)preset.Tag;
+                }
+            }
 
             int level = 2;
             if (RadLevel1.IsChecked == true) level = 1;
@@ -385,7 +426,7 @@ namespace ApexSenseBridgeTray
 
             try
             {
-                bool ok = await testService.TestTriggerAsync(side, mode, level, 3);
+                bool ok = await testService.TestTriggerAsync(side, mode, level, 5);
                 TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_TriggerTestSuccess") : FailureText("Loc_TriggerTestFailed");
             }
             catch (Exception ex)
@@ -401,8 +442,8 @@ namespace ApexSenseBridgeTray
         private async void OnResetTriggerClick(object sender, RoutedEventArgs e)
         {
             TxtTestFeedback.Text = LocalizationManager.Get("Loc_ResettingTriggers");
-            await testService.ResetAllEffectsAsync();
-            TxtTestFeedback.Text = LocalizationManager.Get("Loc_TriggersNormal");
+            bool ok = await testService.ResetAllEffectsAsync();
+            TxtTestFeedback.Text = ResetText(ok, "Loc_TriggersNormal");
         }
 
         #endregion
@@ -460,8 +501,8 @@ namespace ApexSenseBridgeTray
         private async void OnStopVibeClick(object sender, RoutedEventArgs e)
         {
             TxtTestFeedback.Text = LocalizationManager.Get("Loc_StoppingVibration");
-            await testService.ResetAllEffectsAsync();
-            TxtTestFeedback.Text = LocalizationManager.Get("Loc_VibrationStopped");
+            bool ok = await testService.ResetAllEffectsAsync();
+            TxtTestFeedback.Text = ResetText(ok, "Loc_VibrationStopped");
         }
 
         #endregion
@@ -530,9 +571,9 @@ namespace ApexSenseBridgeTray
         private async void OnRestoreRgbClick(object sender, RoutedEventArgs e)
         {
             TxtTestFeedback.Text = LocalizationManager.Get("Loc_RestoringProfileLighting");
-            await testService.ResetAllEffectsAsync();
+            bool ok = await testService.ResetAllEffectsAsync();
             UpdateColorPreview(Color.FromRgb(0, 55, 145)); // Reset to standard PlayStation Blue
-            TxtTestFeedback.Text = LocalizationManager.Get("Loc_ProfileLightingRestored");
+            TxtTestFeedback.Text = ResetText(ok, "Loc_ProfileLightingRestored");
         }
 
         #endregion
@@ -706,7 +747,7 @@ namespace ApexSenseBridgeTray
                     LocalizationManager.Get("Loc_LatencyFailed"),
                     string.IsNullOrWhiteSpace(result.Error)
                         ? LocalizationManager.Get("Loc_LatencyNoResult")
-                        : result.Error);
+                        : EngineErrorText(result.Error));
                 return;
             }
 
@@ -769,7 +810,7 @@ namespace ApexSenseBridgeTray
             if (!sample.Connected)
             {
                 TxtGyroMotion.Text = LocalizationManager.Get("Loc_StatusUnavailable");
-                TxtTestFeedback.Text = sample.Error ?? LocalizationManager.Get("Loc_ControllerUnavailable");
+                TxtTestFeedback.Text = sample.Error != null ? EngineErrorText(sample.Error) : LocalizationManager.Get("Loc_ControllerUnavailable");
                 return;
             }
 
@@ -835,7 +876,7 @@ namespace ApexSenseBridgeTray
                 var res = await testService.TestGyroAsync(3);
                 if (!string.IsNullOrWhiteSpace(res.Error))
                 {
-                    TxtTestFeedback.Text = res.Error;
+                    TxtTestFeedback.Text = EngineErrorText(res.Error);
                     return;
                 }
                 string stateStr = res.MotionDetected

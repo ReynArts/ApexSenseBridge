@@ -8,7 +8,8 @@ if ([Threading.Thread]::CurrentThread.ApartmentState -ne "STA") {
 }
 $TrayAssembly = (Resolve-Path -LiteralPath $TrayAssembly).Path
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-[void][Reflection.Assembly]::LoadFrom($TrayAssembly)
+$trayResourceAssembly = [Reflection.Assembly]::LoadFrom($TrayAssembly)
+[System.Windows.Application]::ResourceAssembly = $trayResourceAssembly
 $app = New-Object ApexSenseBridgeTray.App
 $app.InitializeComponent()
 [ApexSenseBridgeTray.Common.LocalizationManager]::Initialize("en")
@@ -39,7 +40,11 @@ try {
         foreach ($control in @("SliderApex4GyroStrength", "SliderApex4GyroYawStrength")) {
             if ((Get-Control $control).IsEnabled -ne ($status -eq "apex4")) { throw "Gyro tuning unlocked for $status" }
         }
-        if ((Get-Control "TileSettingSyncLightbar").IsEnabled -ne ($status -eq "apex5")) { throw "RGB unlocked for $status" }
+        if ((Get-Control "TileSettingSyncLightbar").IsEnabled -ne ($status -in @("apex5", "apex6"))) { throw "RGB unlocked for $status" }
+        if ((Get-Control "SliderLightbarBrightness").IsEnabled -ne ($status -in @("apex5", "apex6"))) { throw "Lightbar brightness unlocked for $status" }
+        if (((Get-Control "RowLightbarBrightness").Visibility -eq "Visible") -ne ($status -in @("apex5", "apex6"))) { throw "Lightbar brightness shown for $status" }
+        if ((Get-Control "TileSettingZoneEmulation").IsEnabled -ne ($status -eq "apex5")) { throw "Trigger emulation unlocked for $status" }
+        if ((Get-Control "TileSettingApex6Rate2kHz").IsEnabled -ne ($status -eq "apex6")) { throw "2 kHz haptics unlocked for $status" }
         if ((Get-Control "SliderVibrationThreshold").IsEnabled -ne ($connected -and $status -ne "apex6")) {
             throw "Incorrect threshold availability for $status"
         }
@@ -58,12 +63,15 @@ try {
     $settings.GetControllerCalibration("apex6").TriggerStrengthPercent = 80
     $settings.GetControllerCalibration("apex5").VibrationStrengthPercent = 175
     $settings.GetControllerCalibration("apex6").VibrationStrengthPercent = 200
+    $settings.GetControllerCalibration("apex5").LightbarBrightnessPercent = 40
     foreach ($model in @("apex5", "apex6", "apex5")) {
         $statusMethod.Invoke($window, @($model))
         $expected = if ($model -eq "apex5") { 35 } else { 80 }
         if ((Get-Control "SliderTriggerStrength").Value -ne $expected) { throw "UI did not restore $model calibration" }
         $expectedVibration = if ($model -eq "apex5") { 175 } else { 100 }
         if ((Get-Control "SliderVibrationStrength").Value -ne $expectedVibration) { throw "UI lost the independent gain for $model" }
+        $expectedBrightness = if ($model -eq "apex5") { 40 } else { 100 }
+        if ((Get-Control "SliderLightbarBrightness").Value -ne $expectedBrightness) { throw "UI lost the lightbar brightness limit for $model" }
         $count++
     }
     [string]$catalog = (@{ games = @([ordered]@{ title = "Profile Test"; normalized = "profiletest"; adaptiveTriggers = $true; hapticFeedback = $true }) } | ConvertTo-Json -Depth 4 -Compress)
@@ -76,12 +84,13 @@ try {
     $settings.SetApexProfileSlot($game.Normalized, 2)
     $game.SelectedApexProfileSlot = 2
     $windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, @())
+    if ((Get-Control "TxtDetailManualFixNote").Visibility -eq "Visible") { throw "Manual fix note is shown for a game without a manual fix" }
     $lockedText = [ApexSenseBridgeTray.Common.LocalizationManager]::Get("Loc_ApexProfileApex5Only")
     $hintText = [ApexSenseBridgeTray.Common.LocalizationManager]::Get("Loc_ApexProfileHint")
     if ($lockedText -eq "Loc_ApexProfileApex5Only" -or $lockedText -eq $hintText) { throw "APEX 5 only hint is not localized" }
     foreach ($status in @("apex4", "apex6", "unsupported", "apex5", "disconnected", "unavailable", "apex4", "apex5")) {
         $statusMethod.Invoke($window, @($status))
-        $locked = $status -in @("apex4", "apex6", "unsupported")
+        $locked = $status -in @("apex4", "unsupported")
         foreach ($button in @("BtnProfileLeft", "BtnProfileRight")) {
             if ((Get-Control $button).IsEnabled -eq $locked) { throw "Profile selector $button has the wrong state for $status" }
         }
@@ -121,6 +130,21 @@ try {
     $windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, @())
     if (-not (Get-Control "BtnDetailToggleManualFix").IsEnabled) { throw "Manual fix toggle is disabled on an included game" }
     $count++
+    $noteKey = "Loc_ManualFixNote"
+    $englishNote = $null
+    foreach ($language in [ApexSenseBridgeTray.Common.LocalizationManager]::SupportedLanguages) {
+        [ApexSenseBridgeTray.Common.LocalizationManager]::SetLanguage($language)
+        $windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, @())
+        $note = Get-Control "TxtDetailManualFixNote"
+        $noteText = [ApexSenseBridgeTray.Common.LocalizationManager]::Get($noteKey)
+        if ($noteText -eq $noteKey -or [string]::IsNullOrWhiteSpace($noteText)) { throw "Manual fix note is missing for $language" }
+        if ($language -eq "en") { $englishNote = $noteText } elseif ($noteText -eq $englishNote) { throw "Manual fix note is not translated for $language" }
+        if ($note.Visibility -ne "Visible" -or $note.Text -ne $noteText) { throw "Manual fix note is not shown for $language" }
+        $note.Measure((New-Object Windows.Size(320, [double]::PositiveInfinity)))
+        if ($note.DesiredSize.Width -gt 320 -or $note.DesiredSize.Height -le 0) { throw "Manual fix note overflows for $language" }
+        $count++
+    }
+    [ApexSenseBridgeTray.Common.LocalizationManager]::SetLanguage("en")
     Write-Output "PASS: $count controller calibration/hot-swap UI scenarios; no user settings written."
 } finally {
     if ($window) { $window.Close() }

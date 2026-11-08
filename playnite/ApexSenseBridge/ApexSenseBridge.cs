@@ -5,6 +5,7 @@ using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using ApexSenseBridge.Common;
@@ -35,6 +36,8 @@ namespace ApexSenseBridge
         {
             base.OnApplicationStarted(args);
 
+            Task.Run(() => UpdateManager.CleanupUpdateLeftovers());
+
             if (settings.Settings.AutoCheckUpdates)
             {
                 Task.Run(async () =>
@@ -43,7 +46,7 @@ namespace ApexSenseBridge
                     {
                         await Task.Delay(3000);
 
-                        var result = await UpdateManager.CheckForUpdateAsync();
+                        var result = await UpdateManager.CheckForUpdateAsync(null, settings.StatsInstallId());
                         settings.Settings.LastUpdateCheckUtc = DateTime.UtcNow;
 
                         if (result.IsUpdateAvailable && !string.IsNullOrWhiteSpace(result.SetupDownloadUrl))
@@ -81,23 +84,40 @@ namespace ApexSenseBridge
                         progressArgs.CurrentProgressValue = p;
                         progressArgs.Text = $"Téléchargement : {p:0}%";
                     });
+                    var status = new Progress<string>(text =>
+                    {
+                        progressArgs.Text = text;
+                    });
 
                     try
                     {
-                        var installerPath = UpdateManager.DownloadSetupAsync(result.SetupDownloadUrl, result.TagName, progress).GetAwaiter().GetResult();
-                        progressArgs.Text = "Installation en arrière-plan...";
+                        var outcome = UpdateManager.InstallUpdateAsync(
+                            result.TagName,
+                            result.SetupDownloadUrl,
+                            result.UpdatePackageUrl,
+                            ResolveBridgeExecutable(settings.Settings),
+                            HasActiveBridgeSession,
+                            progress,
+                            status).GetAwaiter().GetResult();
 
-                        string error;
-                        if (UpdateManager.ExecuteInstallerSilently(installerPath, out error))
+                        switch (outcome.Outcome)
                         {
-                            PlayniteApi.Notifications.Remove(UpdateNotificationId);
-                            PlayniteApi.Dialogs.ShowMessage(
-                                $"La mise à jour {result.TagName} a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
-                                "ApexSenseBridge - Mise à jour");
-                        }
-                        else if (!string.IsNullOrWhiteSpace(error))
-                        {
-                            PlayniteApi.Dialogs.ShowErrorMessage(error, "ApexSenseBridge");
+                            case UpdateInstallOutcome.Installed:
+                                PlayniteApi.Notifications.Remove(UpdateNotificationId);
+                                PlayniteApi.Dialogs.ShowMessage(
+                                    $"La mise à jour {result.TagName} a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
+                                    "ApexSenseBridge - Mise à jour");
+                                break;
+                            case UpdateInstallOutcome.InstalledRestartRequired:
+                                PlayniteApi.Notifications.Remove(UpdateNotificationId);
+                                PlayniteApi.Dialogs.ShowMessage(outcome.Message, "ApexSenseBridge - Mise à jour");
+                                break;
+                            default:
+                                if (!string.IsNullOrWhiteSpace(outcome.Message))
+                                {
+                                    PlayniteApi.Dialogs.ShowErrorMessage(outcome.Message, "ApexSenseBridge");
+                                }
+                                break;
                         }
                     }
                     catch (Exception ex)
@@ -227,7 +247,8 @@ namespace ApexSenseBridge
                 TouchpadRemappingMode.MilesMorales,
                 TouchpadRemappingMode.GhostOfTsushima,
                 TouchpadRemappingMode.Warframe,
-                TouchpadRemappingMode.DeathStranding2
+                TouchpadRemappingMode.DeathStranding2,
+                TouchpadRemappingMode.AlanWake2
             })
             {
                 var selectedChoice = choice;
@@ -333,6 +354,26 @@ namespace ApexSenseBridge
             return InstallLocator.ResolveEngine(value?.BridgeExecutablePath);
         }
 
+        internal bool HasActiveBridgeSession()
+        {
+            if (!Monitor.TryEnter(sessionLock))
+            {
+                return true;
+            }
+            try
+            {
+                if (activeSession != null)
+                {
+                    return true;
+                }
+            }
+            finally
+            {
+                Monitor.Exit(sessionLock);
+            }
+            return BridgeSession.ReadActiveSession() != null;
+        }
+
         internal void SaveSettings(ApexSenseBridgeSettings value)
         {
             SavePluginSettings(value);
@@ -358,6 +399,9 @@ namespace ApexSenseBridge
                 case BridgeProfileType.DeathStranding2:
                     gestureProfile = "death-stranding-2";
                     break;
+                case BridgeProfileType.AlanWake2:
+                    gestureProfile = "alan-wake-2";
+                    break;
                 default:
                     gestureProfile = "none";
                     break;
@@ -371,7 +415,9 @@ namespace ApexSenseBridge
                 100,
                 settings.Settings.VibrationStrengthPercent,
                 settings.Settings.Apex4GyroStrengthPercent,
-                settings.Settings.Apex4GyroYawStrengthPercent);
+                settings.Settings.Apex4GyroYawStrengthPercent,
+                settings.Settings.ZoneEmulation,
+                settings.Settings.LightbarBrightnessPercent);
         }
 
         private static string Mark(bool selected)

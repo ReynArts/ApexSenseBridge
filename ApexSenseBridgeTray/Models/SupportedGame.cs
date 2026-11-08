@@ -1,7 +1,38 @@
 using System;
+using System.Collections.Generic;
 
 namespace ApexSenseBridgeTray.Models
 {
+    public sealed class ManualFixLink
+    {
+        public string Label { get; set; }
+        public string Url { get; set; }
+        public Dictionary<string, string> Translations { get; set; }
+
+        public ManualFixLink()
+        {
+            Label = string.Empty;
+            Url = string.Empty;
+            Translations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    public sealed class ManualFixDetail
+    {
+        public string Note { get; set; }
+        public ManualFixLink[] Links { get; set; }
+        public string[] Tools { get; set; }
+        public Dictionary<string, string> Translations { get; set; }
+
+        public ManualFixDetail()
+        {
+            Note = string.Empty;
+            Links = new ManualFixLink[0];
+            Tools = new string[0];
+            Translations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
     public class SupportedGame
     {
         public string Title { get; set; }
@@ -15,6 +46,8 @@ namespace ApexSenseBridgeTray.Models
             get { return AdaptiveTriggersManualFix || HapticFeedbackManualFix; }
         }
         public string ManualFixUrl { get; set; }
+        public ManualFixDetail AdaptiveTriggersFix { get; set; }
+        public ManualFixDetail HapticFeedbackFix { get; set; }
         public string Profile { get; set; }
         public string IconUrl { get; set; }
         public int SteamAppId { get; set; }

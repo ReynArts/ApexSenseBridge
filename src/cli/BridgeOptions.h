@@ -14,6 +14,10 @@
 
 namespace asb::cli {
 
+inline constexpr std::chrono::seconds kDefaultReattachWindow{600};
+inline constexpr std::chrono::seconds kMaximumReattachWindow{3600};
+inline constexpr bool kApex6ShapingOptionsEnabled = false;
+
 struct ControllerCalibration {
     unsigned triggerStrength = 100;
     unsigned vibrationStrength = 100;
@@ -22,16 +26,22 @@ struct ControllerCalibration {
     bool rgb = false;
     unsigned gyro = 100;
     unsigned gyroYaw = 100;
+    unsigned rgbBrightness = 100;
 };
 
 struct BridgeCommandOptions {
     std::optional<std::size_t> deviceIndex;
     std::optional<std::chrono::seconds> duration;
+    std::chrono::seconds reattachWindow = kDefaultReattachWindow;
     std::filesystem::path viiperExecutable;
     asb::dualsense::VirtualDualSenseBackend virtualBackend =
         asb::dualsense::VirtualDualSenseBackend::Auto;
     bool routeRumble = false;
     bool syncLightbar = false;
+    // Upper limit for the synchronized lightbar; the saved profile brightness
+    // is kept when lower.
+    unsigned int lightbarBrightnessPercent = 100;
+    bool zoneEmulation = true;
     bool verifyVirtualInput = false;
     asb::dualsense::TouchpadGestureProfile touchpadProfile =
         asb::dualsense::TouchpadGestureProfile::None;
@@ -40,6 +50,12 @@ struct BridgeCommandOptions {
     unsigned int vibrationStrengthPercent = 100;
     unsigned int apex6HapticGainPercent = 100;
     bool apex6HapticGainExplicit = false;
+    unsigned int apex6SampleRateHz = 1000;
+    bool apex6SampleRateExplicit = false;
+    unsigned int apex6GripDuckPercent = 0;
+    bool apex6GripDuckExplicit = false;
+    unsigned int apex6TriggerCeilingPercent = 100;
+    bool apex6TriggerCeilingExplicit = false;
     unsigned int apex4GyroStrengthPercent = 100;
     unsigned int apex4GyroYawStrengthPercent = 100;
     bool hapticThresholdExplicit = false;

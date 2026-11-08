@@ -28,6 +28,117 @@ namespace ApexSenseBridgeTray.Services
             "tray_detection.log"
         };
 
+        private const long MaximumLogBytes = 8L * 1024L * 1024L;
+
+        public static string NewReportId()
+        {
+            return "ASB-" + DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + "-" +
+                   Guid.NewGuid().ToString("N").Substring(0, 6).ToUpperInvariant();
+        }
+
+        public static string SuggestedBundleName(string reportId)
+        {
+            return "ApexSenseBridge-" + (string.IsNullOrWhiteSpace(reportId) ? NewReportId() : reportId) + ".zip";
+        }
+
+        public static void CreateSupportBundle(
+            string zipPath,
+            string reportText,
+            IEnumerable<string> screenshotPaths,
+            bool includeLogs)
+        {
+            if (File.Exists(zipPath)) File.Delete(zipPath);
+            using (var archive = new System.IO.Compression.ZipArchive(
+                new FileStream(zipPath, FileMode.Create, FileAccess.Write), System.IO.Compression.ZipArchiveMode.Create))
+            {
+                AddTextEntry(archive, "report.md", reportText ?? string.Empty);
+
+                if (includeLogs)
+                {
+                    foreach (string path in EnumerateLogFiles())
+                    {
+                        string text = ReadSanitizedLog(path);
+                        if (text != null) AddTextEntry(archive, "logs/" + Path.GetFileName(path), text);
+                    }
+                }
+
+                int index = 1;
+                foreach (string path in screenshotPaths ?? Enumerable.Empty<string>())
+                {
+                    try
+                    {
+                        if (!File.Exists(path)) continue;
+                        var entry = archive.CreateEntry(
+                            "screenshots/" + (index++).ToString(CultureInfo.InvariantCulture) + "-" + Path.GetFileName(path),
+                            System.IO.Compression.CompressionLevel.NoCompression);
+                        using (var target = entry.Open())
+                        using (var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                            source.CopyTo(target);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        private static IEnumerable<string> EnumerateLogFiles()
+        {
+            var files = new List<string>();
+            try
+            {
+                if (Directory.Exists(AppLog.DefaultDirectory))
+                    files.AddRange(Directory.GetFiles(AppLog.DefaultDirectory, "*.log"));
+                string viiper = Path.Combine(Path.GetDirectoryName(AppLog.DefaultDirectory) ?? string.Empty, "viiper.log");
+                if (File.Exists(viiper)) files.Add(viiper);
+            }
+            catch
+            {
+            }
+            return files.OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+
+        private static string ReadSanitizedLog(string path)
+        {
+            try
+            {
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    long start = Math.Max(0, stream.Length - MaximumLogBytes);
+                    stream.Seek(start, SeekOrigin.Begin);
+                    using (var reader = new StreamReader(stream, Encoding.UTF8, true))
+                    {
+                        if (start > 0) reader.ReadLine();
+                        string text = reader.ReadToEnd();
+                        if (start > 0) text = "[Older lines omitted: only the last " + (MaximumLogBytes / 1024 / 1024) + " MB are included]\r\n" + text;
+                        return SanitizeLogText(text);
+                    }
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string SanitizeLogText(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            string user = Environment.UserName;
+            if (!string.IsNullOrEmpty(user) && user.Length >= 3) text = ReplaceIgnoreCase(text, user, "<user>");
+            text = ReplaceIgnoreCase(text, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "%USERPROFILE%");
+            text = ReplaceIgnoreCase(text, Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "%LOCALAPPDATA%");
+            text = ReplaceIgnoreCase(text, AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/'), "<install-directory>");
+            return text;
+        }
+
+        private static void AddTextEntry(System.IO.Compression.ZipArchive archive, string name, string text)
+        {
+            var entry = archive.CreateEntry(name, System.IO.Compression.CompressionLevel.Optimal);
+            using (var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false)))
+                writer.Write(text);
+        }
+
         public static string BuildMarkdown(
             TraySettings settings,
             EngineSessionManager sessionManager,
@@ -323,6 +434,8 @@ namespace ApexSenseBridgeTray.Services
             if (string.Equals(status, "apex4", StringComparison.OrdinalIgnoreCase)) return "Flydigi Apex 4";
             if (string.Equals(status, "apex5", StringComparison.OrdinalIgnoreCase)) return "Flydigi Apex 5";
             if (string.Equals(status, "apex6", StringComparison.OrdinalIgnoreCase)) return "Flydigi Apex 6 Pro";
+            if (string.Equals(status, ControllerDetectionService.Multiple, StringComparison.Ordinal))
+                return "several APEX vendor interfaces (the bridge drives the first one that answers, one controller at a time)";
             return Safe(string.IsNullOrWhiteSpace(status) ? "unavailable" : status);
         }
 
