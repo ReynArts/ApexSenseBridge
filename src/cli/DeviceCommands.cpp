@@ -579,6 +579,12 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
         auto bytes = asb::dualsense::makeApex6TestTriggerEffect(
             effect, level, customStart, customForce);
         if (mode == "cod") bytes = {0x25, 0x90, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0};
+        if (mode == "codauto") bytes = {0x26, 0xF0, 0x03, 0x00, 0xB0, 0x6D, 0x1B, 0, 0, 12, 0};
+        if (mode == "codauto3") bytes = {0x26, 0xF0, 0x03, 0x00, 0x20, 0x49, 0x12, 0, 0, 12, 0};
+        if (mode == "cod1") bytes = {0x25, 0x90, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0};
+        if (mode == "spider") bytes = {0x21, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0, 0};
+        if (mode == "spidercombo") bytes = {0x26, 0xFF, 0x03, 73, 146, 36, 9, 0, 0, 180, 0};
+        if (mode == "codauto1") bytes = {0x26, 0xF0, 0x03, 0x00, 0x00, 0x00, 0x00, 0, 0, 12, 0};
         if (g_apex6TestVibrationHz != 0 && bytes[0] == 0x26) {
             bytes[9] = static_cast<std::uint8_t>((std::min)(g_apex6TestVibrationHz, 255U));
         }
@@ -591,6 +597,12 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                 feedback.enableBits1 = static_cast<std::uint8_t>(feedback.enableBits1 | kRightTriggerEnable);
                 feedback.rightTriggerEffect = bytes;
             }
+        }
+        if (mode == "spidercombo") {
+            asb::dualsense::DualSenseFeedback resistance{};
+            resistance.enableBits1 = static_cast<std::uint8_t>(kRightTriggerEnable);
+            resistance.rightTriggerEffect = {0x21, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0, 0};
+            bridge.handle(resistance);
         }
         bridge.handle(feedback);
     }
@@ -621,7 +633,15 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
     asb::dualsense::DualSenseFeedback emulatedEffect{};
     emulatedEffect.enableBits1 = static_cast<std::uint8_t>(kLeftTriggerEnable | kRightTriggerEnable);
     emulatedEffect.leftTriggerEffect = {0x05};
-    emulatedEffect.rightTriggerEffect = {0x25, 0x90, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0};
+    emulatedEffect.rightTriggerEffect = mode == "codauto"
+        ? std::array<std::uint8_t, 11>{0x26, 0xF0, 0x03, 0x00, 0xB0, 0x6D, 0x1B, 0, 0, 12, 0}
+        : mode == "codauto1"
+        ? std::array<std::uint8_t, 11>{0x26, 0xF0, 0x03, 0x00, 0x00, 0x00, 0x00, 0, 0, 12, 0}
+        : mode == "cod1"
+        ? std::array<std::uint8_t, 11>{0x25, 0x90, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0}
+        : mode == "codauto3"
+        ? std::array<std::uint8_t, 11>{0x26, 0xF0, 0x03, 0x00, 0x20, 0x49, 0x12, 0, 0, 12, 0}
+        : std::array<std::uint8_t, 11>{0x25, 0x90, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0};
     asb::dualsense::DualSenseFeedback emulatedClear{};
     emulatedClear.enableBits1 = 0xFC;
     auto lastEmulated = std::chrono::steady_clock::now();
@@ -651,7 +671,7 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                 bridge.handle(emulatedClear);
                 emulatedClearPending = false;
             } else if (!emulatedClearPending && now - lastEmulated >= std::chrono::milliseconds(35)) {
-                if (mode == "cod") bridge.handle(emulatedEffect);
+                if (mode == "cod" || mode == "cod1" || mode == "codauto" || mode == "codauto1" || mode == "codauto3") bridge.handle(emulatedEffect);
                 emulatedClearPending = g_apex6TestEmulateClears;
                 lastEmulated = now;
             }
@@ -840,8 +860,28 @@ int runTestTrigger(asb::flydigi::Apex5Device& device,
 
     asb::TriggerResetGuard resetOnExit(device);
 
+    std::optional<std::array<std::uint8_t, 11>> nativeEffect;
+    if (mode == "spider-feedback") {
+        nativeEffect = std::array<std::uint8_t, 11>{0x21, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0, 0};
+    } else if (mode == "spider-vibration") {
+        nativeEffect = std::array<std::uint8_t, 11>{0x26, 0xFF, 0x03, 73, 146, 36, 9, 0, 0, 180, 0};
+    }
     for (auto targetSide : targets) {
         cmd.side = targetSide;
+        if (nativeEffect) {
+            const auto translated = asb::dualsense::translateAdaptiveTrigger(targetSide, *nativeEffect, 0);
+            if (!translated) {
+                std::cerr << "The native effect could not be translated.\n";
+                return 4;
+            }
+            cmd = *translated;
+            std::cout << "Native effect translated to mode " << static_cast<unsigned>(cmd.mode)
+                      << " params " << static_cast<unsigned>(cmd.params[0]) << ' '
+                      << static_cast<unsigned>(cmd.params[1]) << ' '
+                      << static_cast<unsigned>(cmd.params[2]) << ' '
+                      << static_cast<unsigned>(cmd.params[3]) << ' '
+                      << static_cast<unsigned>(cmd.params[4]) << '\n';
+        }
         if (!device.setTriggerRaw(cmd, error)) {
             std::cerr << "Write failed for " << (targetSide == asb::TriggerSide::Left ? "LT" : "RT") << ": " << error << "\n";
             return 4;
