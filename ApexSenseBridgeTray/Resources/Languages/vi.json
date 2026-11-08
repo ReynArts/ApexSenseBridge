@@ -129,6 +129,8 @@
   "Loc_SectionSystemPreferences": "Hệ thống & Tùy chọn",
   "Loc_Notifications": "Thông báo",
   "Loc_NotificationsHint": "Thông báo Windows khi cầu nối được kích hoạt",
+  "Loc_VersionStats": "Thống kê phiên bản ẩn danh",
+  "Loc_VersionStatsHint": "Chỉ gửi phiên bản ứng dụng và mã cài đặt ngẫu nhiên khi kiểm tra cập nhật. Không lưu địa chỉ IP.",
   "Loc_SyncLightbar": "Đồng bộ thanh sáng DualSense (RGB)",
   "Loc_SyncLightbarHint": "Đồng bộ đèn LED tay cầm với màu sắc thanh sáng DualSense trong trò chơi",
   "Loc_LightbarBrightness": "Độ sáng tối đa của dải đèn",

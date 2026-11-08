@@ -26,6 +26,23 @@ detail; in short:
   (`--apex6-rate 2000` or a Tray switch) that keeps the 500 to 1000 Hz content
   of native game haptics.
 
+### Anonymous version statistics (on by default, can be turned off)
+
+- The Tray and the Playnite extension now ask the project's Cloudflare relay
+  (`GET /v1/latest`) for the latest release instead of calling the GitHub API
+  directly. The relay caches the release for 15 minutes, which also removes the
+  60-requests-per-hour GitHub limit for shared IP addresses, and falls back to
+  GitHub when it is unreachable.
+- The request carries the component, its version and a random installation ID.
+  The relay stores a monthly salted hash of that ID with the version in
+  a D1 database, so distinct installations per version can be counted without
+  following an installation across months. No IP address is stored.
+- A switch in the Tray (**Settings** > **Anonymous version statistics**, nine
+  languages) and a checkbox in the Playnite settings turn it off. Turning it off
+  deletes the installation ID and checks GitHub directly.
+- Installers are still downloaded from GitHub Releases, so release download
+  counts are unchanged, and the installer identity checks are unchanged.
+
 ### APEX 6 Pro: experimental 2 kHz grip haptics (off by default)
 
 - The APEX 6 Pro plays its haptic stream at 2000 samples per second, but the

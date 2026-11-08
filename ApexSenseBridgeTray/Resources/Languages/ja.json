@@ -129,6 +129,8 @@
   "Loc_SectionSystemPreferences": "システムと環境設定",
   "Loc_Notifications": "通知",
   "Loc_NotificationsHint": "ブリッジのアクティブ化時にWindows通知を表示",
+  "Loc_VersionStats": "匿名のバージョン統計",
+  "Loc_VersionStatsHint": "更新の確認時に、アプリのバージョンとランダムなインストールIDのみを送信します。IPアドレスは保存されません。",
   "Loc_SyncLightbar": "DualSenseライトバー同期 (RGB)",
   "Loc_SyncLightbarHint": "ゲーム内のDualSenseライトバー色イベントとコントローラーLEDを同期",
   "Loc_LightbarBrightness": "ライトバー最大輝度",

@@ -18,6 +18,36 @@ is authored by the bot. The App key never reaches the application.
 - Setting the variable `ENABLED` to `false` stops all submissions; the Tray then
   offers to save the report as a file.
 
+## Version statistics
+
+- `GET /v1/latest` returns the trimmed latest GitHub release (`tag_name`, `name`,
+  `html_url`, `body`, `assets[].name|browser_download_url|size`), cached for 15 minutes in the
+  `REPORTS` KV namespace (the Cache API does not work on `workers.dev` domains).
+  It uses the GitHub App installation token when available and falls back to an
+  unauthenticated call.
+- When the request has `X-ASB-Client: tray/<x.y.z>` or `playnite/<x.y.z>` and
+  `X-ASB-Install: <32 hex characters>`, one row per installation and month is upserted in the
+  D1 binding `VERSIONS` (table `installs`, created on first use): `hash` = SHA-256 of
+  `<month>|<salt>|<install id>` (salt is `TELEMETRY_SALT`, or `ADMIN_TOKEN` when unset),
+  `component`, latest `version`, `first_seen`, `last_seen`.
+  The raw ID and the IP address are never stored. Without the binding, nothing is recorded.
+- Downloads are not proxied: assets stay on `github.com/.../releases/download/`.
+
+To enable: create a D1 database (for example `asb_versions`), then **Settings → Bindings → Add →
+D1 database**, variable `VERSIONS`, then deploy `worker.js`.
+
+Example query, in the D1 **Console** of the dashboard:
+
+```sql
+SELECT component, version, COUNT(*) AS installations
+FROM installs
+WHERE month = '2026-11'
+GROUP BY component, version
+ORDER BY installations DESC;
+```
+
+Rows older than a year can be deleted: `DELETE FROM installs WHERE month < '2025-11';`.
+
 ## Deploy (Cloudflare dashboard, no Node.js needed)
 
 1. Create the Worker with **Start with Hello World!** (not "Import a repository").

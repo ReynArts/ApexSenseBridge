@@ -129,6 +129,8 @@
   "Loc_SectionSystemPreferences": "系统与偏好",
   "Loc_Notifications": "桌面通知",
   "Loc_NotificationsHint": "桥接激活时显示 Windows 通知气泡",
+  "Loc_VersionStats": "匿名版本统计",
+  "Loc_VersionStatsHint": "检查更新时仅发送应用版本和随机安装 ID，不保存 IP 地址。",
   "Loc_SyncLightbar": "DualSense 灯条同步 (RGB)",
   "Loc_SyncLightbarHint": "根据游戏中 DualSense 灯条色彩事件同步手柄 LED 灯带",
   "Loc_LightbarBrightness": "灯条最大亮度",

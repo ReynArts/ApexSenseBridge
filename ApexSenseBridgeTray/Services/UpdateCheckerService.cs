@@ -1,4 +1,5 @@
 using ApexSenseBridgeTray.Common;
+using ApexSenseBridgeTray.Models;
 using ApexSenseBridge.Security;
 using System;
 using System.Collections;
@@ -8,6 +9,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows;
@@ -28,8 +30,42 @@ namespace ApexSenseBridgeTray.Services
     {
         private const string GitHubApiLatestRelease = "https://api.github.com/repos/ReynArts/ApexSenseBridge/releases/latest";
         private const string GitHubReleasesPage = "https://github.com/ReynArts/ApexSenseBridge/releases";
+        private const string RelayLatestRelease = "https://asb-reports.reynarts.workers.dev/v1/latest";
+
+        private readonly TraySettings settings;
 
         public event Action<UpdateInfo> UpdateAvailable;
+
+        public UpdateCheckerService(TraySettings settings = null)
+        {
+            this.settings = settings;
+        }
+
+        private async Task<HttpResponseMessage> RequestLatestAsync(HttpClient client)
+        {
+            if (settings != null && settings.SendVersionStats)
+            {
+                try
+                {
+                    using (CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
+                    using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, RelayLatestRelease))
+                    {
+                        request.Headers.Add("X-ASB-Client", "tray/" + GetCurrentVersion());
+                        request.Headers.Add("X-ASB-Install", settings.EnsureInstallId());
+                        HttpResponseMessage relayed = await client.SendAsync(request, timeout.Token);
+                        if (relayed.IsSuccessStatusCode)
+                        {
+                            return relayed;
+                        }
+                        relayed.Dispose();
+                    }
+                }
+                catch
+                {
+                }
+            }
+            return await client.GetAsync(GitHubApiLatestRelease);
+        }
 
         public string GetCurrentVersion()
         {
@@ -61,7 +97,7 @@ namespace ApexSenseBridgeTray.Services
                     client.Timeout = TimeSpan.FromSeconds(10);
                     client.DefaultRequestHeaders.Add("User-Agent", "ApexSenseBridgeTray/1.0");
 
-                    HttpResponseMessage response = await client.GetAsync(GitHubApiLatestRelease);
+                    HttpResponseMessage response = await RequestLatestAsync(client);
                     if (!response.IsSuccessStatusCode)
                     {
                         if (!silent)

@@ -43,7 +43,7 @@ namespace ApexSenseBridge
                     {
                         await Task.Delay(3000);
 
-                        var result = await UpdateManager.CheckForUpdateAsync();
+                        var result = await UpdateManager.CheckForUpdateAsync(null, settings.StatsInstallId());
                         settings.Settings.LastUpdateCheckUtc = DateTime.UtcNow;
 
                         if (result.IsUpdateAvailable && !string.IsNullOrWhiteSpace(result.SetupDownloadUrl))

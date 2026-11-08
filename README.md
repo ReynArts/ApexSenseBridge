@@ -256,6 +256,14 @@ a command also opens the Tray app.
 - Right-click any game in Playnite > **ApexSenseBridge** to customize trigger remapping, touchpad gesture profiles, onboard APEX 5 hardware slots, or 0–200% grip rumble gain.
 - Do not run the Tray and Playnite automation for the same game. ApexSenseBridge protects the active session from being killed, but selecting one owner avoids duplicate notifications and ambiguous start/stop events.
 
+### Update checks and anonymous version statistics
+
+The Tray (at startup) and the Playnite extension (at Playnite startup) ask the project's relay which release is the latest. The request carries only the component and its version (for example `tray/1.1.0`) and a random installation ID generated on first use, never derived from your hardware or your account. The relay stores the version and a hash of that ID that changes every month, so installations cannot be followed from one month to the next, and it does not store IP addresses. The statistics only tell the maintainer which versions are still in use.
+
+- On by default. Turn it off with **Settings** > **Anonymous version statistics** in the Tray, or the matching checkbox in the Playnite extension settings. The installation ID is then deleted and update checks query GitHub directly.
+- If the relay is unreachable, the check falls back to GitHub.
+- Installers are still downloaded straight from GitHub Releases and checked as before (Authenticode signature, product name, version and publisher).
+
 ---
 
 ## App Settings & Recovery

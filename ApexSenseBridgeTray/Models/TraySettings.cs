@@ -77,6 +77,8 @@ namespace ApexSenseBridgeTray.Models
         [ScriptIgnore]
         public string ForcedProfile { get; set; }
         public string Language { get; set; }
+        public bool SendVersionStats { get; set; }
+        public string InstallId { get; set; }
         // The support callout is introduced once, then never again.
         public bool SupportHintShown { get; set; }
         public List<string> ExcludedGames { get; set; }
@@ -169,6 +171,7 @@ namespace ApexSenseBridgeTray.Models
             InitializationTimeoutSeconds = 20;
             ForcedProfile = "none";
             Language = "auto";
+            SendVersionStats = true;
             ExcludedGames = new List<string>();
             ManualFixAllowedGames = new List<string>();
             ApexProfileSlots = new Dictionary<string, int>();
@@ -315,6 +318,34 @@ namespace ApexSenseBridgeTray.Models
             }
             if (existingKey != null) ApexProfileSlots.Remove(existingKey);
             if (slot != 0) ApexProfileSlots[normalizedOrTitle.Trim()] = slot;
+        }
+
+        public string EnsureInstallId()
+        {
+            string id;
+            bool created = false;
+            lock (this)
+            {
+                Guid parsed;
+                if (string.IsNullOrEmpty(InstallId) || InstallId.Length != 32 ||
+                    !Guid.TryParseExact(InstallId, "N", out parsed))
+                {
+                    InstallId = Guid.NewGuid().ToString("N");
+                    created = true;
+                }
+                id = InstallId;
+            }
+            if (created) Save();
+            return id;
+        }
+
+        public void SetSendVersionStats(bool enabled)
+        {
+            lock (this)
+            {
+                SendVersionStats = enabled;
+                if (!enabled) InstallId = null;
+            }
         }
 
         internal void ResetTransientState()

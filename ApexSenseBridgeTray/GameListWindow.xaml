@@ -1002,6 +1002,21 @@
                                             </DockPanel>
                                         </Border>
 
+                                        <Border x:Name="TileSettingVersionStats" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                MouseLeftButtonDown="OnSettingVersionStatsToggled" ToolTip="{DynamicResource Loc_VersionStatsHint}">
+                                            <DockPanel>
+                                                <Border x:Name="BadgeSettingVersionStats" DockPanel.Dock="Right" CornerRadius="12" Width="44" Height="24"
+                                                        Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                        BorderThickness="1.5" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="DotSettingVersionStats" Width="16" Height="16" HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                             Fill="{DynamicResource TextMuted}"/>
+                                                </Border>
+                                                <Path DockPanel.Dock="Left" Data="M 5,19 L 5,12 M 12,19 L 12,5 M 19,19 L 19,9"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_VersionStats}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
                                         <Border x:Name="TileSettingLanguage" Style="{StaticResource SettingRow}" Cursor="Hand"
                                                 MouseLeftButtonDown="OnLanguagePickerClick" ToolTip="{DynamicResource Loc_LanguageHint}">
                                             <DockPanel>

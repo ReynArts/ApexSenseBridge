@@ -465,7 +465,7 @@ namespace ApexSenseBridgeTray
             var items = new FrameworkElement[]
             {
                 TileSettingAutoDetect, TileSettingAdaptive, TileSettingHaptic,
-                TileSettingNotifications, TileSettingLanguage,
+                TileSettingNotifications, TileSettingVersionStats, TileSettingLanguage,
                 BtnOpenControllerTest, BtnPreparedLaunch, BtnReportBug, BtnCheckUpdates
             }.Where(item => item != null);
             return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
@@ -1045,6 +1045,7 @@ namespace ApexSenseBridgeTray
                 else if (item == TileSettingAdaptive) OnSettingAdaptiveToggled(null, null);
                 else if (item == TileSettingHaptic) OnSettingHapticToggled(null, null);
                 else if (item == TileSettingNotifications) OnSettingNotificationsToggled(null, null);
+                else if (item == TileSettingVersionStats) OnSettingVersionStatsToggled(null, null);
                 else if (item == TileSettingSyncLightbar) OnSettingSyncLightbarToggled(null, null);
                 else if (item == TileSettingZoneEmulation) OnSettingZoneEmulationToggled(null, null);
                 else if (item == TileSettingApex6Rate2kHz) OnSettingApex6Rate2kHzToggled(null, null);
@@ -2934,6 +2935,7 @@ namespace ApexSenseBridgeTray
             UpdateSettingToggle(BadgeSettingAdaptive, DotSettingAdaptive, settings.TriggerOnAdaptiveTriggers);
             UpdateSettingToggle(BadgeSettingHaptic, DotSettingHaptic, settings.TriggerOnHapticFeedback);
             UpdateSettingToggle(BadgeSettingNotifications, DotSettingNotifications, settings.EnableNotifications);
+            UpdateSettingToggle(BadgeSettingVersionStats, DotSettingVersionStats, settings.SendVersionStats);
             UpdateSettingToggle(BadgeSettingSyncLightbar, DotSettingSyncLightbar, displayed.SyncLightbar);
             UpdateSettingToggle(BadgeSettingZoneEmulation, DotSettingZoneEmulation, settings.ZoneEmulation);
             UpdateSettingToggle(BadgeSettingApex6Rate2kHz, DotSettingApex6Rate2kHz, settings.Apex6Rate2kHz);
@@ -3118,6 +3120,14 @@ namespace ApexSenseBridgeTray
         {
             if (settings == null) return;
             settings.EnableNotifications = !settings.EnableNotifications;
+            settings.Save();
+            UpdateSettingsView();
+        }
+
+        private void OnSettingVersionStatsToggled(object sender, MouseButtonEventArgs e)
+        {
+            if (settings == null) return;
+            settings.SetSendVersionStats(!settings.SendVersionStats);
             settings.Save();
             UpdateSettingsView();
         }

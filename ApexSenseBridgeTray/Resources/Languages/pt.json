@@ -129,6 +129,8 @@
   "Loc_SectionSystemPreferences": "Sistema e Preferências",
   "Loc_Notifications": "Notificações",
   "Loc_NotificationsHint": "Notificação do Windows quando a ponte for ativada",
+  "Loc_VersionStats": "Estatísticas anônimas de versão",
+  "Loc_VersionStatsHint": "Envia apenas a versão do aplicativo e um identificador de instalação aleatório ao verificar atualizações. Nenhum endereço IP é armazenado.",
   "Loc_SyncLightbar": "Sincronização de Lightbar DualSense (RGB)",
   "Loc_SyncLightbarHint": "Sincronizar LEDs do controle com eventos de cor da barra de luz do DualSense no jogo",
   "Loc_LightbarBrightness": "Brilho máximo da barra de luz",

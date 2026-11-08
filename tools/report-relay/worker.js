@@ -25,12 +25,18 @@ const LIMITS = {
 };
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
+const CLIENT_PATTERN = /^(tray|playnite)\/(\d{1,3}\.\d{1,3}\.\d{1,5})$/;
+const INSTALL_PATTERN = /^[0-9a-f]{32}$/;
+const LATEST_TTL = 900;
+const SCHEMA = 'CREATE TABLE IF NOT EXISTS installs (month TEXT NOT NULL, hash TEXT NOT NULL, component TEXT NOT NULL, version TEXT NOT NULL, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, PRIMARY KEY (month, hash, component))';
+const UPSERT = 'INSERT INTO installs (month, hash, component, version, first_seen, last_seen) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT (month, hash, component) DO UPDATE SET version = excluded.version, last_seen = excluded.last_seen';
+let schemaReady = false;
 let cachedToken = null;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     try {
-      return await route(request, env);
+      return await route(request, env, ctx);
     } catch (error) {
       console.error('relay error', error && error.message);
       return json({ ok: false, error: 'internal' }, 500);
@@ -38,14 +44,82 @@ export default {
   }
 };
 
-async function route(request, env) {
+async function route(request, env, ctx) {
   const url = new URL(request.url);
 
+  if (request.method === 'GET' && url.pathname === '/v1/latest') return latest(request, env, ctx);
   if (request.method === 'POST' && url.pathname === '/v1/report') return submit(request, env);
   if (request.method === 'GET' && url.pathname.startsWith('/f/')) return serveScreenshot(url, env);
   if (request.method === 'GET' && url.pathname.startsWith('/logs/')) return serveLogs(request, url, env);
   if (request.method === 'GET' && url.pathname === '/') return new Response('ApexSenseBridge report relay', { status: 200 });
   return json({ ok: false, error: 'not_found' }, 404);
+}
+
+async function latest(request, env, ctx) {
+  const release = await latestRelease(env, ctx);
+  if (!release) return json({ ok: false, error: 'github' }, 502);
+  recordVersion(request, env, ctx);
+  return json(release);
+}
+
+async function latestRelease(env, ctx) {
+  const hit = await env.REPORTS.get('cache:latest', 'json');
+  if (hit) return hit;
+
+  let token = null;
+  try {
+    token = await installationToken(env);
+  } catch (error) {
+    console.error('latest token failed', error && error.message);
+  }
+
+  const owner = env.REPO_OWNER || 'ReynArts';
+  const repo = env.REPO_NAME || 'ApexSenseBridge';
+  const response = await fetch('https://api.github.com/repos/' + owner + '/' + repo + '/releases/latest', {
+    headers: token ? githubHeaders(token) : { Accept: 'application/vnd.github+json', 'User-Agent': 'asb-report-relay' }
+  });
+  if (!response.ok) {
+    console.error('latest release failed', response.status);
+    return null;
+  }
+
+  const data = await response.json();
+  const release = {
+    tag_name: data.tag_name,
+    name: data.name,
+    html_url: data.html_url,
+    body: data.body,
+    prerelease: !!data.prerelease,
+    draft: !!data.draft,
+    assets: (data.assets || []).map(asset => ({
+      name: asset.name,
+      browser_download_url: asset.browser_download_url,
+      size: asset.size
+    }))
+  };
+  ctx.waitUntil(env.REPORTS.put('cache:latest', JSON.stringify(release), { expirationTtl: LATEST_TTL }));
+  return release;
+}
+
+function recordVersion(request, env, ctx) {
+  if (!env.VERSIONS) return;
+  const client = CLIENT_PATTERN.exec(request.headers.get('X-ASB-Client') || '');
+  const install = request.headers.get('X-ASB-Install') || '';
+  if (!client || !INSTALL_PATTERN.test(install)) return;
+  ctx.waitUntil((async () => {
+    try {
+      const now = new Date().toISOString();
+      const month = now.slice(0, 7);
+      const who = await sha256Hex(month + '|' + (env.TELEMETRY_SALT || env.ADMIN_TOKEN || '') + '|' + install);
+      if (!schemaReady) {
+        await env.VERSIONS.prepare(SCHEMA).run();
+        schemaReady = true;
+      }
+      await env.VERSIONS.prepare(UPSERT).bind(month, who, client[1], client[2], now, now).run();
+    } catch (error) {
+      console.error('version record failed', error && error.message);
+    }
+  })());
 }
 
 async function submit(request, env) {

@@ -129,6 +129,8 @@
   "Loc_SectionSystemPreferences": "System & Preferences",
   "Loc_Notifications": "Notifications",
   "Loc_NotificationsHint": "Windows notification when the bridge is activated",
+  "Loc_VersionStats": "Anonymous version statistics",
+  "Loc_VersionStatsHint": "Sends only the app version and a random installation ID when checking for updates. No IP address is stored.",
   "Loc_SyncLightbar": "DualSense Lightbar sync (RGB)",
   "Loc_SyncLightbarHint": "Synchronize controller LEDs with in-game DualSense lightbar color events",
   "Loc_LightbarBrightness": "Lightbar max brightness",

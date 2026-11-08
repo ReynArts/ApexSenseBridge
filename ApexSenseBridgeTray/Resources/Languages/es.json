@@ -129,6 +129,8 @@
   "Loc_SectionSystemPreferences": "Sistema y preferencias",
   "Loc_Notifications": "Notificaciones",
   "Loc_NotificationsHint": "Notificación de Windows al activar el puente",
+  "Loc_VersionStats": "Estadísticas anónimas de versión",
+  "Loc_VersionStatsHint": "Solo envía la versión de la aplicación y un identificador de instalación aleatorio al buscar actualizaciones. No se guarda ninguna dirección IP.",
   "Loc_SyncLightbar": "Sincronización de barra de luz (RGB)",
   "Loc_SyncLightbarHint": "Sincroniza las tiras LED del mando con los colores del juego",
   "Loc_LightbarBrightness": "Brillo máximo de la barra de luz",

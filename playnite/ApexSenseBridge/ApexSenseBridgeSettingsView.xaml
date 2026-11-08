@@ -71,6 +71,10 @@
                           IsChecked="{Binding Settings.AutoCheckUpdates}"
                           Content="Vérifier automatiquement les mises à jour GitHub au démarrage de Playnite" />
 
+                <CheckBox Margin="0,0,0,6"
+                          IsChecked="{Binding Settings.SendVersionStats}"
+                          Content="Statistiques de version anonymes (version de l'extension et identifiant d'installation aléatoire, sans adresse IP)" />
+
                 <!-- Update Status Message -->
                 <TextBlock Text="{Binding UpdateCheckStatus}" TextWrapping="Wrap" Margin="0,4,0,6"
                            FontStyle="Italic" Opacity="0.85" />

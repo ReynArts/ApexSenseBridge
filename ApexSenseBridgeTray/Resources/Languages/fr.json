@@ -129,6 +129,8 @@
   "Loc_SectionSystemPreferences": "Système et préférences",
   "Loc_Notifications": "Notifications",
   "Loc_NotificationsHint": "Alerte Windows lors de l'activation du pont",
+  "Loc_VersionStats": "Statistiques de version anonymes",
+  "Loc_VersionStatsHint": "N'envoie que la version de l'application et un identifiant d'installation aléatoire lors de la recherche de mises à jour. Aucune adresse IP n'est conservée.",
   "Loc_SyncLightbar": "Synchronisation barre lumineuse (RVB)",
   "Loc_SyncLightbarHint": "Synchronise les bandes LED de la manette avec les couleurs du jeu",
   "Loc_LightbarBrightness": "Luminosité max. de la barre lumineuse",

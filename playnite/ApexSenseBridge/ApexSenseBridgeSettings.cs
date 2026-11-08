@@ -182,6 +182,8 @@ namespace ApexSenseBridge
         private int initializationTimeoutSeconds = 20;
         private string xinputIndex = string.Empty;
         private bool autoCheckUpdates = true;
+        private bool sendVersionStats = true;
+        private string installId = string.Empty;
         private bool enableAutomaticProfiles = true;
         private DateTime? lastUpdateCheckUtc;
         private List<GameBridgeProfile> profiles = new List<GameBridgeProfile>();
@@ -200,6 +202,16 @@ namespace ApexSenseBridge
         public int InitializationTimeoutSeconds { get => initializationTimeoutSeconds; set => SetValue(ref initializationTimeoutSeconds, value); }
         public string XInputIndex { get => xinputIndex; set => SetValue(ref xinputIndex, value); }
         public bool AutoCheckUpdates { get => autoCheckUpdates; set => SetValue(ref autoCheckUpdates, value); }
+        public bool SendVersionStats
+        {
+            get => sendVersionStats;
+            set
+            {
+                SetValue(ref sendVersionStats, value);
+                if (!value) InstallId = string.Empty;
+            }
+        }
+        public string InstallId { get => installId; set => SetValue(ref installId, value); }
         public bool EnableAutomaticProfiles { get => enableAutomaticProfiles; set => SetValue(ref enableAutomaticProfiles, value); }
         public DateTime? LastUpdateCheckUtc { get => lastUpdateCheckUtc; set => SetValue(ref lastUpdateCheckUtc, value); }
         public List<GameBridgeProfile> Profiles
@@ -507,6 +519,18 @@ namespace ApexSenseBridge
             OnPropertyChanged(nameof(InstallationStatus));
         }
 
+        internal string StatsInstallId()
+        {
+            if (!Settings.SendVersionStats) return null;
+            Guid parsed;
+            if (string.IsNullOrEmpty(Settings.InstallId) || !Guid.TryParseExact(Settings.InstallId, "N", out parsed))
+            {
+                Settings.InstallId = Guid.NewGuid().ToString("N");
+                SaveNow();
+            }
+            return Settings.InstallId;
+        }
+
         public async Task CheckForUpdatesAsync()
         {
             if (IsCheckingForUpdate) return;
@@ -516,7 +540,7 @@ namespace ApexSenseBridge
 
             try
             {
-                var result = await UpdateManager.CheckForUpdateAsync();
+                var result = await UpdateManager.CheckForUpdateAsync(null, StatsInstallId());
                 Settings.LastUpdateCheckUtc = DateTime.UtcNow;
 
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))

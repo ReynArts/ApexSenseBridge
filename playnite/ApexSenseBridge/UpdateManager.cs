@@ -11,6 +11,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ApexSenseBridge
@@ -71,6 +72,34 @@ namespace ApexSenseBridge
         private const string GitHubOwner = "ReynArts";
         private const string GitHubRepo = "ApexSenseBridge";
         private const string ReleasesLatestUrl = "https://api.github.com/repos/" + GitHubOwner + "/" + GitHubRepo + "/releases/latest";
+        private const string RelayLatestUrl = "https://asb-reports.reynarts.workers.dev/v1/latest";
+
+        private static async Task<HttpResponseMessage> RequestLatestAsync(HttpClient client, Version currentVersion, string installId)
+        {
+            if (!string.IsNullOrEmpty(installId))
+            {
+                try
+                {
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, RelayLatestUrl))
+                    {
+                        request.Headers.Add("X-ASB-Client", "playnite/" + currentVersion.ToString(3));
+                        request.Headers.Add("X-ASB-Install", installId);
+                        var relayed = await client.SendAsync(request, timeout.Token).ConfigureAwait(false);
+                        if (relayed.IsSuccessStatusCode)
+                        {
+                            return relayed;
+                        }
+                        relayed.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Debug(ex, "Update relay unavailable, falling back to GitHub.");
+                }
+            }
+            return await client.GetAsync(ReleasesLatestUrl).ConfigureAwait(false);
+        }
 
         public static Version GetCurrentVersion()
         {
@@ -112,7 +141,7 @@ namespace ApexSenseBridge
             return null;
         }
 
-        public static async Task<UpdateCheckResult> CheckForUpdateAsync(Version currentVersion = null)
+        public static async Task<UpdateCheckResult> CheckForUpdateAsync(Version currentVersion = null, string installId = null)
         {
             currentVersion = currentVersion ?? GetCurrentVersion();
             var result = new UpdateCheckResult
@@ -127,7 +156,7 @@ namespace ApexSenseBridge
                     client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("ApexSenseBridge-PlaynitePlugin", currentVersion.ToString()));
                     client.Timeout = TimeSpan.FromSeconds(15);
 
-                    var response = await client.GetAsync(ReleasesLatestUrl).ConfigureAwait(false);
+                    var response = await RequestLatestAsync(client, currentVersion, installId).ConfigureAwait(false);
                     if (!response.IsSuccessStatusCode)
                     {
                         result.ErrorMessage = $"Erreur HTTP {(int)response.StatusCode} lors de la requête GitHub.";

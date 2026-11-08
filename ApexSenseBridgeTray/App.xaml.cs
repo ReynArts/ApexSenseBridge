@@ -100,7 +100,7 @@ namespace ApexSenseBridgeTray
                 monitorService = new ProcessMonitorService(
                     gameListService, sessionManager, learningService, settings);
                 gameListService.GamesUpdated += monitorService.ForceCheck;
-                updateChecker = new UpdateCheckerService();
+                updateChecker = new UpdateCheckerService(settings);
 
                 StartupDiagnostics.Mark("learning");
                 learningService.InitializeAsync();
