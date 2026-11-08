@@ -44,6 +44,7 @@ Remove-Item -LiteralPath $cacheNameFile -Force -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -eq 0) {
     Fail "Inno Setup unexpectedly completed without requesting an external uninstaller signature"
 }
+$global:LASTEXITCODE = 0
 
 $candidates = @(Get-ChildItem -LiteralPath $cacheDirectory -File -Filter "*.e32")
 if ($candidates.Count -ne 1) {
