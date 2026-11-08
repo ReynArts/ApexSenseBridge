@@ -34,6 +34,9 @@ internal static class TrayLearningTests
         try
         {
             TestReleaseAssetPolicy();
+            TestUpdateLaunchPolicy();
+            TestUpdateAttemptMarker();
+            TestUpdateFlowContractAndLocalization();
             TestLatencyStatisticsAndTelemetry();
             TestGyroStreamParsing();
             TestControllerTestRefusedDuringBridgeSession();
@@ -133,6 +136,151 @@ internal static class TrayLearningTests
             "ApexSenseBridge-Setup.exe",
             "https://github.com.evil.example/ReynArts/ApexSenseBridge/releases/download/v0.6.3/ApexSenseBridge-Setup.exe"),
             "a lookalike GitHub host must be rejected");
+    }
+
+    private static void TestUpdateLaunchPolicy()
+    {
+        Assert(UpdateLaunchPolicy.NormalizeVersion("v1.2.3") == "1.2.3" &&
+               UpdateLaunchPolicy.NormalizeVersion("1.2.3.4") == "1.2.3" &&
+               UpdateLaunchPolicy.NormalizeVersion("1.2") == "1.2.0" &&
+               UpdateLaunchPolicy.NormalizeVersion(" V2.0.1 ") == "2.0.1",
+            "release versions must normalize to Major.Minor.Build");
+        Assert(UpdateLaunchPolicy.NormalizeVersion(null) == null &&
+               UpdateLaunchPolicy.NormalizeVersion("") == null &&
+               UpdateLaunchPolicy.NormalizeVersion("latest") == null &&
+               UpdateLaunchPolicy.NormalizeVersion("1.2.3-beta") == null,
+            "unparsable versions must not normalize");
+        Assert(UpdateLaunchPolicy.IsSameOrNewer("1.2.0.0", "1.2.0") &&
+               UpdateLaunchPolicy.IsSameOrNewer("1.3.0", "1.2.9") &&
+               !UpdateLaunchPolicy.IsSameOrNewer("1.1.9", "1.2.0") &&
+               !UpdateLaunchPolicy.IsSameOrNewer("garbage", "1.2.0"),
+            "version ordering for the update marker is wrong");
+
+        const string url = "https://github.com/ReynArts/ApexSenseBridge/releases/download/v1.2.0/ApexSenseBridge-Update.zip";
+        Assert(UpdateLaunchPolicy.ShouldTryPackage(url, "1.2.0", null, true, true),
+            "a usable package with the updater and engine present must be tried");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(null, "1.2.0", null, true, true) &&
+               !UpdateLaunchPolicy.ShouldTryPackage("", "1.2.0", null, true, true),
+            "a release without a package asset must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "1.2.0", null, false, true),
+            "a portable copy without the updater must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "1.2.0", null, true, false),
+            "an install without a co-located engine must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "not-a-version", null, true, true),
+            "an unparsable release version must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "v1.2.0", "1.2.0", true, true),
+            "a version whose package updater failed must use the full setup");
+        Assert(UpdateLaunchPolicy.ShouldTryPackage(url, "1.3.0", "1.2.0", true, true),
+            "a failure on one version must not block the next release");
+
+        Assert(UpdateLaunchPolicy.BuildUpdaterArguments(
+                   @"C:\Temp\ApexSenseBridge-Update-abc.zip", @"C:\Program Files\ApexSenseBridge", "v1.2.0", 4321) ==
+               "--package \"C:\\Temp\\ApexSenseBridge-Update-abc.zip\" --install-dir \"C:\\Program Files\\ApexSenseBridge\" " +
+               "--expected-version 1.2.0 --wait-pid 4321 --relaunch-tray",
+            "the updater command line does not match the shared contract");
+        var trailing = UpdateLaunchPolicy.BuildUpdaterArguments(
+            @"C:\Temp\u.zip", @"C:\Program Files\ApexSenseBridge\", "1.2.0", 7);
+        Assert(trailing != null && trailing.Contains("--install-dir \"C:\\Program Files\\ApexSenseBridge\" "),
+            "a trailing backslash would escape the closing quote of the install directory");
+        Assert(!UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\Program Files\ApexSenseBridge", "1.2.0", 7)
+                   .Contains("--force") &&
+               !UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\Program Files\ApexSenseBridge", "1.2.0", 7)
+                   .Contains("--silent"),
+            "the Tray must never force the updater past an active session");
+        Assert(UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u"".zip", @"C:\App", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\App""x", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"u.zip", @"C:\App", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\App", "bogus", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\App", "1.2.0", 0) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments("C:\\Temp\\u\r\n.zip", @"C:\App", "1.2.0", 7) == null,
+            "unsafe or incomplete updater arguments must be refused");
+    }
+
+    private static void TestUpdateAttemptMarker()
+    {
+        var settings = new TraySettings();
+        Assert(string.IsNullOrEmpty(settings.UpdateAttemptVersion) &&
+               string.IsNullOrEmpty(settings.UpdatePackageFailedVersion) &&
+               !settings.IsUpdatePackageBlocked("1.2.0") &&
+               settings.ResolveUpdateAttempt("1.1.0") == null,
+            "a fresh profile must have no update marker");
+
+        settings.BeginUpdateAttempt("v1.2.0");
+        Assert(settings.UpdateAttemptVersion == "1.2.0", "the attempted version was not recorded normalized");
+        Assert(settings.ResolveUpdateAttempt("1.2.0.0") == null &&
+               string.IsNullOrEmpty(settings.UpdateAttemptVersion) &&
+               !settings.IsUpdatePackageBlocked("1.2.0"),
+            "a start on the attempted version is a success and must clear the marker");
+
+        settings.BeginUpdateAttempt("1.2.0");
+        Assert(settings.ResolveUpdateAttempt("1.1.0") == "1.2.0",
+            "a start on the old version after an attempt is a failed update");
+        Assert(string.IsNullOrEmpty(settings.UpdateAttemptVersion) &&
+               settings.IsUpdatePackageBlocked("1.2.0") && settings.IsUpdatePackageBlocked("v1.2.0.0") &&
+               !settings.IsUpdatePackageBlocked("1.3.0"),
+            "a failed attempt must block the package for that version only");
+        Assert(settings.ResolveUpdateAttempt("1.1.0") == null && settings.IsUpdatePackageBlocked("1.2.0"),
+            "the failure marker must survive later starts without a new attempt");
+
+        settings.BeginUpdateAttempt("1.2.0");
+        settings.AbandonUpdateAttempt();
+        Assert(string.IsNullOrEmpty(settings.UpdateAttemptVersion) && settings.ResolveUpdateAttempt("1.1.0") == null,
+            "an abandoned attempt (UAC cancelled, launch failure) must not count as a failure");
+
+        settings.BeginUpdateAttempt("1.2.0");
+        Assert(settings.ResolveUpdateAttempt("1.2.0") == null && !settings.IsUpdatePackageBlocked("1.2.0"),
+            "a later successful update to the blocked version must lift the block");
+
+        settings.BeginUpdateAttempt("1.4.0");
+        Assert(settings.ResolveUpdateAttempt("1.3.0") == "1.4.0" && settings.IsUpdatePackageBlocked("1.4.0"),
+            "a failed attempt on a newer version must be recorded");
+
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(restored.UpdatePackageFailedVersion == "1.4.0" && restored.IsUpdatePackageBlocked("1.4.0"),
+            "the failure marker must survive a settings round trip");
+    }
+
+    private static void TestUpdateFlowContractAndLocalization()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", ".."));
+        var service = File.ReadAllText(Path.Combine(root, "ApexSenseBridgeTray", "Services", "UpdateCheckerService.cs"), Encoding.UTF8);
+        Assert(service.Contains("UpdatePackage.IsExpectedUpdateAsset(") &&
+               service.Contains("psi.Verb = \"runas\";") &&
+               service.Contains("UacCancelledErrorCode = 1223") &&
+               service.Contains("UpdatePackage.ReadManifest(") &&
+               service.Contains("UpdatePackage.DriversMatchInstalled(") &&
+               service.Contains("ReleaseSecurity.VerifyInstaller("),
+            "the Tray update flow lost one of its required steps");
+        Assert(!service.Contains("--force") && !service.Contains("Process.GetProcessesByName"),
+            "the Tray must not force the updater or kill processes itself");
+
+        var directory = Path.Combine(root, "ApexSenseBridgeTray", "Resources", "Languages");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        var english = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(directory, "en.json"), Encoding.UTF8));
+        var keys = new[]
+        {
+            "Loc_UpdateDownloadingPackage", "Loc_UpdateDownloadingSetup", "Loc_UpdateRestarting",
+            "Loc_UpdateCancelled", "Loc_UpdateSessionActive", "Loc_UpdateAttemptFailedTitle", "Loc_UpdateAttemptFailedBody"
+        };
+        foreach (var language in new[] { "en", "es", "fr", "ja", "ko", "pt", "ru", "vi", "zh" })
+        {
+            var entries = serializer.Deserialize<Dictionary<string, object>>(
+                File.ReadAllText(Path.Combine(directory, language + ".json"), Encoding.UTF8));
+            foreach (var key in keys)
+            {
+                object value;
+                Assert(entries.TryGetValue(key, out value) && !string.IsNullOrWhiteSpace(value as string),
+                    language + " has no " + key + ".");
+                Assert(language == "en" || (string)value != (string)english[key],
+                    language + " reuses the English " + key + ".");
+            }
+            foreach (var key in new[] { "Loc_UpdateDownloadingPackage", "Loc_UpdateDownloadingSetup", "Loc_UpdateRestarting", "Loc_UpdateAttemptFailedBody" })
+                Assert(((string)entries[key]).Contains("{0}"), language + " dropped the version placeholder of " + key + ".");
+            Assert(((string)entries["Loc_UpdateRestarting"]).Contains("ApexSenseBridge"),
+                language + " translated the product name in the restart text.");
+        }
     }
 
     private static int TestGyroHardwareLifecycle()

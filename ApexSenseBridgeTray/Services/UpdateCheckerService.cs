@@ -4,6 +4,7 @@ using ApexSenseBridge.Security;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -24,6 +25,8 @@ namespace ApexSenseBridgeTray.Services
         public string ReleaseNotes { get; set; }
         public string ReleaseUrl { get; set; }
         public string InstallerUrl { get; set; }
+        public string UpdatePackageUrl { get; set; }
+        public bool RestartRequested { get; set; }
     }
 
     public class UpdateCheckerService
@@ -34,7 +37,13 @@ namespace ApexSenseBridgeTray.Services
 
         private readonly TraySettings settings;
 
+        private const int UacCancelledErrorCode = 1223;
+
+        private int updateBusy;
+
         public event Action<UpdateInfo> UpdateAvailable;
+        public event Action<string> UpdateStatusChanged;
+        public event Action RestartRequested;
 
         public UpdateCheckerService(TraySettings settings = null)
         {
@@ -149,10 +158,15 @@ namespace ApexSenseBridgeTray.Services
                                             asset["browser_download_url"] != null
                                             ? asset["browser_download_url"].ToString()
                                             : string.Empty;
-                                        if (ReleaseSecurity.IsExpectedSetupAsset(name, downloadUrl))
+                                        if (string.IsNullOrEmpty(info.InstallerUrl) &&
+                                            ReleaseSecurity.IsExpectedSetupAsset(name, downloadUrl))
                                         {
                                             info.InstallerUrl = downloadUrl;
-                                            break;
+                                        }
+                                        else if (string.IsNullOrEmpty(info.UpdatePackageUrl) &&
+                                            UpdatePackage.IsExpectedUpdateAsset(name, downloadUrl))
+                                        {
+                                            info.UpdatePackageUrl = downloadUrl;
                                         }
                                     }
                                 }
@@ -199,7 +213,7 @@ namespace ApexSenseBridgeTray.Services
 
                     if (result == MessageBoxResult.Yes)
                     {
-                        DownloadOrOpenRelease(info);
+                        await DownloadOrOpenReleaseAsync(info);
                     }
                 }
             }
@@ -217,6 +231,246 @@ namespace ApexSenseBridgeTray.Services
 
         public void DownloadOrOpenRelease(UpdateInfo info)
         {
+            Task ignored = DownloadOrOpenReleaseAsync(info);
+        }
+
+        public async Task DownloadOrOpenReleaseAsync(UpdateInfo info)
+        {
+            if (Interlocked.CompareExchange(ref updateBusy, 1, 0) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                if (await TryApplyUpdatePackageAsync(info))
+                {
+                    return;
+                }
+                if (await TryRunSetupAsync(info))
+                {
+                    return;
+                }
+                OpenReleasePage(info);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref updateBusy, 0);
+            }
+        }
+
+        private void RaiseStatus(string text)
+        {
+            Action<string> handler = UpdateStatusChanged;
+            if (handler != null)
+            {
+                handler(text);
+            }
+        }
+
+        private async Task<bool> TryApplyUpdatePackageAsync(UpdateInfo info)
+        {
+            if (info == null)
+            {
+                return false;
+            }
+
+            string installDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            if (string.IsNullOrEmpty(installDirectory))
+            {
+                return false;
+            }
+            string updaterPath = Path.Combine(installDirectory, UpdateLaunchPolicy.UpdaterFileName);
+            string enginePath = Path.Combine(installDirectory, "ApexSenseBridge.exe");
+            string failedVersion = settings != null ? settings.UpdatePackageFailedVersion : null;
+            if (!UpdateLaunchPolicy.ShouldTryPackage(
+                info.UpdatePackageUrl, info.LatestVersion, failedVersion,
+                File.Exists(updaterPath), File.Exists(enginePath)))
+            {
+                return false;
+            }
+
+            if (ControllerTestService.IsBridgeSessionActive())
+            {
+                MessageBox.Show(
+                    LocalizationManager.Get("Loc_UpdateSessionActive"),
+                    LocalizationManager.Get("Loc_UpdateDialogTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return true;
+            }
+
+            DeleteStaleUpdateFiles();
+            string packagePath = Path.Combine(
+                Path.GetTempPath(),
+                "ApexSenseBridge-Update-" + Guid.NewGuid().ToString("N") + ".zip");
+            bool launched = false;
+            try
+            {
+                RaiseStatus(LocalizationManager.Format("Loc_UpdateDownloadingPackage", info.LatestVersion));
+                if (!await DownloadPackageAsync(info.UpdatePackageUrl, packagePath))
+                {
+                    return false;
+                }
+
+                UpdatePackageManifest manifest;
+                string error;
+                if (!UpdatePackage.ReadManifest(packagePath, out manifest, out error) || manifest == null)
+                {
+                    return false;
+                }
+                string manifestVersion = UpdateLaunchPolicy.NormalizeVersion(manifest.Version);
+                if (manifestVersion == null ||
+                    manifestVersion != UpdateLaunchPolicy.NormalizeVersion(info.LatestVersion) ||
+                    !IsNewerVersion(manifestVersion, info.CurrentVersion))
+                {
+                    return false;
+                }
+                string driversReason;
+                if (!UpdatePackage.DriversMatchInstalled(manifest, out driversReason))
+                {
+                    return false;
+                }
+
+                string arguments = UpdateLaunchPolicy.BuildUpdaterArguments(
+                    packagePath, installDirectory, info.LatestVersion, Process.GetCurrentProcess().Id);
+                if (arguments == null)
+                {
+                    return false;
+                }
+
+                ProcessStartInfo psi = new ProcessStartInfo(updaterPath, arguments);
+                psi.WorkingDirectory = installDirectory;
+                psi.UseShellExecute = true;
+                psi.Verb = "runas";
+
+                if (settings != null)
+                {
+                    settings.BeginUpdateAttempt(info.LatestVersion);
+                    settings.Save();
+                }
+                try
+                {
+                    Process.Start(psi);
+                    launched = true;
+                }
+                catch (Win32Exception ex)
+                {
+                    if (settings != null)
+                    {
+                        settings.AbandonUpdateAttempt();
+                        settings.Save();
+                    }
+                    if (ex.NativeErrorCode == UacCancelledErrorCode)
+                    {
+                        MessageBox.Show(
+                            LocalizationManager.Get("Loc_UpdateCancelled"),
+                            LocalizationManager.Get("Loc_UpdateDialogTitle"),
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                        return true;
+                    }
+                    return false;
+                }
+                catch (Exception)
+                {
+                    if (settings != null)
+                    {
+                        settings.AbandonUpdateAttempt();
+                        settings.Save();
+                    }
+                    return false;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (!launched)
+                {
+                    try { File.Delete(packagePath); } catch { }
+                }
+            }
+
+            info.RestartRequested = true;
+            RaiseStatus(LocalizationManager.Format("Loc_UpdateRestarting", info.LatestVersion));
+            Action restart = RestartRequested;
+            if (restart != null)
+            {
+                restart();
+            }
+            return true;
+        }
+
+        private static async Task<bool> DownloadPackageAsync(string url, string destination)
+        {
+            using (HttpClient client = new HttpClient())
+            using (CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
+            {
+                client.Timeout = Timeout.InfiniteTimeSpan;
+                client.DefaultRequestHeaders.Add("User-Agent", "ApexSenseBridgeTray/1.0");
+                using (HttpResponseMessage response = await client.GetAsync(
+                    url, HttpCompletionOption.ResponseHeadersRead, timeout.Token))
+                {
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        return false;
+                    }
+                    long? length = response.Content.Headers.ContentLength;
+                    if (length.HasValue && length.Value > UpdateLaunchPolicy.MaxPackageBytes)
+                    {
+                        return false;
+                    }
+
+                    using (Stream source = await response.Content.ReadAsStreamAsync())
+                    using (FileStream target = new FileStream(
+                        destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        byte[] buffer = new byte[81920];
+                        long total = 0;
+                        int read;
+                        while ((read = await source.ReadAsync(buffer, 0, buffer.Length, timeout.Token)) > 0)
+                        {
+                            total += read;
+                            if (total > UpdateLaunchPolicy.MaxPackageBytes)
+                            {
+                                return false;
+                            }
+                            await target.WriteAsync(buffer, 0, read, timeout.Token);
+                        }
+                        return total > 0;
+                    }
+                }
+            }
+        }
+
+        private static void DeleteStaleUpdateFiles()
+        {
+            try
+            {
+                foreach (string file in Directory.GetFiles(Path.GetTempPath(), "ApexSenseBridge-Update-*.zip"))
+                {
+                    try
+                    {
+                        if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-1))
+                        {
+                            File.Delete(file);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task<bool> TryRunSetupAsync(UpdateInfo info)
+        {
             if (info != null && !string.IsNullOrEmpty(info.InstallerUrl))
             {
                 try
@@ -224,9 +478,10 @@ namespace ApexSenseBridgeTray.Services
                     string tempPath = Path.Combine(
                         Path.GetTempPath(),
                         "ApexSenseBridge-Setup-" + Guid.NewGuid().ToString("N") + ".exe");
+                    RaiseStatus(LocalizationManager.Format("Loc_UpdateDownloadingSetup", info.LatestVersion));
                     using (WebClient wc = new WebClient())
                     {
-                        wc.DownloadFile(info.InstallerUrl, tempPath);
+                        await wc.DownloadFileTaskAsync(info.InstallerUrl, tempPath);
                     }
 
                     string verificationError;
@@ -239,7 +494,7 @@ namespace ApexSenseBridgeTray.Services
                         ProcessStartInfo psi = new ProcessStartInfo(tempPath);
                         psi.UseShellExecute = true;
                         Process.Start(psi);
-                        return;
+                        return true;
                     }
                     try { File.Delete(tempPath); } catch { }
                     MessageBox.Show(
@@ -258,7 +513,11 @@ namespace ApexSenseBridgeTray.Services
                         MessageBoxImage.Warning);
                 }
             }
+            return false;
+        }
 
+        private static void OpenReleasePage(UpdateInfo info)
+        {
             string targetUrl = (info != null && !string.IsNullOrEmpty(info.ReleaseUrl)) ? info.ReleaseUrl : GitHubReleasesPage;
             try
             {

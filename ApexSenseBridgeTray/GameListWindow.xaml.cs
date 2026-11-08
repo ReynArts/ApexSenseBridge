@@ -3357,9 +3357,22 @@ namespace ApexSenseBridgeTray
             if (BtnCheckUpdates != null) BtnCheckUpdates.IsEnabled = false;
             if (TxtUpdateStatus != null) TxtUpdateStatus.Text = LocalizationManager.Get("Loc_SoftwareUpdate") + "…";
 
+            Action<string> onUpdateStatus = text =>
+            {
+                Action apply = () =>
+                {
+                    if (TxtUpdateStatus != null) TxtUpdateStatus.Text = text;
+                };
+                if (Dispatcher.CheckAccess()) apply(); else Dispatcher.BeginInvoke(apply);
+            };
+            updateChecker.UpdateStatusChanged += onUpdateStatus;
+            bool restarting = false;
+
             try
             {
                 var info = await updateChecker.CheckForUpdatesAsync(false);
+                restarting = info != null && info.RestartRequested;
+                if (restarting) return;
                 if (info != null && info.HasUpdate)
                 {
                     if (TxtUpdateStatus != null)
@@ -3387,7 +3400,8 @@ namespace ApexSenseBridgeTray
             }
             finally
             {
-                if (BtnCheckUpdates != null) BtnCheckUpdates.IsEnabled = true;
+                updateChecker.UpdateStatusChanged -= onUpdateStatus;
+                if (BtnCheckUpdates != null) BtnCheckUpdates.IsEnabled = !restarting;
             }
         }
 

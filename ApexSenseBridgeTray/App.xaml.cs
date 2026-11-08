@@ -101,6 +101,9 @@ namespace ApexSenseBridgeTray
                     gameListService, sessionManager, learningService, settings);
                 gameListService.GamesUpdated += monitorService.ForceCheck;
                 updateChecker = new UpdateCheckerService(settings);
+                bool updateAttemptPending = !string.IsNullOrEmpty(settings.UpdateAttemptVersion);
+                string failedUpdateVersion = settings.ResolveUpdateAttempt(updateChecker.GetCurrentVersion());
+                if (updateAttemptPending) settings.Save();
 
                 StartupDiagnostics.Mark("learning");
                 learningService.InitializeAsync();
@@ -288,6 +291,41 @@ namespace ApexSenseBridgeTray
                         catch { }
                     }));
                 };
+
+                updateChecker.UpdateStatusChanged += (text) =>
+                {
+                    Action show = () =>
+                    {
+                        try
+                        {
+                            if (notifyIcon != null)
+                            {
+                                notifyIcon.ShowBalloonTip(
+                                    5000,
+                                    LocalizationManager.Get("Loc_UpdateDialogTitle"),
+                                    text,
+                                    ToolTipIcon.Info);
+                            }
+                        }
+                        catch { }
+                    };
+                    if (Dispatcher.CheckAccess()) show(); else Dispatcher.BeginInvoke(show);
+                };
+
+                updateChecker.RestartRequested += () => Dispatcher.BeginInvoke(new Action(ExitApplication));
+
+                if (!string.IsNullOrEmpty(failedUpdateVersion) && notifyIcon != null)
+                {
+                    try
+                    {
+                        notifyIcon.ShowBalloonTip(
+                            8000,
+                            LocalizationManager.Get("Loc_UpdateAttemptFailedTitle"),
+                            LocalizationManager.Format("Loc_UpdateAttemptFailedBody", failedUpdateVersion),
+                            ToolTipIcon.Warning);
+                    }
+                    catch { }
+                }
 
                 ThreadPool.QueueUserWorkItem(async _ =>
                 {

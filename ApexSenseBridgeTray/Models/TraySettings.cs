@@ -89,6 +89,8 @@ namespace ApexSenseBridgeTray.Models
         // cross-model calibration. Never persist the last connected model.
         public Dictionary<string, ControllerCalibration> ControllerCalibrations { get; set; }
         public string SelectedControllerKey { get; set; }
+        public string UpdateAttemptVersion { get; set; }
+        public string UpdatePackageFailedVersion { get; set; }
 
         public static bool IsCalibrationModel(string model)
         {
@@ -348,6 +350,55 @@ namespace ApexSenseBridgeTray.Models
             }
         }
 
+        public bool IsUpdatePackageBlocked(string version)
+        {
+            string normalized = UpdateLaunchPolicy.NormalizeVersion(version);
+            lock (this)
+            {
+                return normalized != null && normalized == UpdateLaunchPolicy.NormalizeVersion(UpdatePackageFailedVersion);
+            }
+        }
+
+        public void BeginUpdateAttempt(string version)
+        {
+            lock (this)
+            {
+                UpdateAttemptVersion = UpdateLaunchPolicy.NormalizeVersion(version);
+            }
+        }
+
+        public void AbandonUpdateAttempt()
+        {
+            lock (this)
+            {
+                UpdateAttemptVersion = null;
+            }
+        }
+
+        public string ResolveUpdateAttempt(string currentVersion)
+        {
+            string failed = null;
+            lock (this)
+            {
+                string attempted = UpdateLaunchPolicy.NormalizeVersion(UpdateAttemptVersion);
+                if (string.IsNullOrEmpty(UpdateAttemptVersion))
+                {
+                    return null;
+                }
+                UpdateAttemptVersion = null;
+                if (attempted != null && !UpdateLaunchPolicy.IsSameOrNewer(currentVersion, attempted))
+                {
+                    UpdatePackageFailedVersion = attempted;
+                    failed = attempted;
+                }
+                else if (attempted != null && IsUpdatePackageBlocked(attempted))
+                {
+                    UpdatePackageFailedVersion = null;
+                }
+            }
+            return failed;
+        }
+
         internal void ResetTransientState()
         {
             ForcedProfile = "none";
@@ -464,6 +515,86 @@ namespace ApexSenseBridgeTray.Models
             }
             catch
             {
+            }
+        }
+    }
+
+    internal static class UpdateLaunchPolicy
+    {
+        internal const string UpdaterFileName = "ApexSenseBridgeUpdater.exe";
+        internal const long MaxPackageBytes = 200L * 1024 * 1024;
+
+        internal static string NormalizeVersion(string version)
+        {
+            Version parsed;
+            if (string.IsNullOrWhiteSpace(version) ||
+                !Version.TryParse(version.Trim().TrimStart('v', 'V'), out parsed))
+            {
+                return null;
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{0}.{1}.{2}", parsed.Major, parsed.Minor, Math.Max(parsed.Build, 0));
+        }
+
+        internal static bool IsSameOrNewer(string candidate, string reference)
+        {
+            Version left;
+            Version right;
+            return Version.TryParse(NormalizeVersion(candidate), out left) &&
+                   Version.TryParse(NormalizeVersion(reference), out right) &&
+                   left >= right;
+        }
+
+        internal static bool ShouldTryPackage(string packageUrl, string latestVersion,
+            string failedVersion, bool updaterPresent, bool enginePresent)
+        {
+            string latest = NormalizeVersion(latestVersion);
+            return !string.IsNullOrWhiteSpace(packageUrl) &&
+                   latest != null &&
+                   latest != NormalizeVersion(failedVersion) &&
+                   updaterPresent &&
+                   enginePresent;
+        }
+
+        internal static string BuildUpdaterArguments(string packagePath, string installDirectory,
+            string version, int waitProcessId)
+        {
+            string expected = NormalizeVersion(version);
+            if (expected == null || waitProcessId <= 0 ||
+                !IsQuotablePath(packagePath) || !IsQuotablePath(installDirectory))
+            {
+                return null;
+            }
+            string trimmedDirectory = installDirectory.TrimEnd('\\', '/');
+            if (trimmedDirectory.Length < 3)
+            {
+                return null;
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "--package \"{0}\" --install-dir \"{1}\" --expected-version {2} --wait-pid {3} --relaunch-tray",
+                packagePath, trimmedDirectory, expected, waitProcessId);
+        }
+
+        private static bool IsQuotablePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+            foreach (char c in path)
+            {
+                if (c == '"' || c < ' ')
+                {
+                    return false;
+                }
+            }
+            try
+            {
+                return Path.IsPathRooted(path);
+            }
+            catch (ArgumentException)
+            {
+                return false;
             }
         }
     }
