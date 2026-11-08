@@ -264,6 +264,7 @@ The Tray (at startup) and the Playnite extension (at Playnite startup) ask the p
 - On by default. Turn it off with **Settings** > **Anonymous version statistics** in the Tray, or the matching checkbox in the Playnite extension settings. The installation ID is then deleted and update checks query GitHub directly.
 - If the relay is unreachable, the check falls back to GitHub.
 - Installers are still downloaded straight from GitHub Releases and checked as before (Authenticode signature, product name, version and publisher).
+- Each release also publishes `ApexSenseBridge-Update.zip` (application files, Playnite extension files and a manifest with the SHA-256 of every file). The Tray and the Playnite extension can use it instead of the setup once the elevated updater is installed (planned for 1.1.1); until then every update goes through the full setup.
 
 ---
 

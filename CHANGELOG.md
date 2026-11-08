@@ -43,6 +43,27 @@ detail; in short:
 - Installers are still downloaded from GitHub Releases, so release download
   counts are unchanged, and the installer identity checks are unchanged.
 
+### Updates without the setup (groundwork)
+
+- Each release now also publishes `ApexSenseBridge-Update.zip`: the application
+  files, a `manifest.json` (version, SHA-256 and size of every file, USBip and
+  HidHide versions) and the Playnite extension files. It is downloaded from
+  GitHub Releases like the setup, and has its own download counter.
+- This is the first release whose Tray and Playnite extension can use it. They
+  apply it only when the package is available, the drivers are unchanged and
+  `ApexSenseBridgeUpdater.exe` is installed next to the Tray; the updater itself
+  ships in 1.1.1, so 1.1.0 installs keep updating through the full setup, which
+  is also the fallback in every doubtful case.
+  Every `.exe` and `.dll` in the package must carry a valid Authenticode
+  signature from the same publisher as the installed engine, every file must
+  match the manifest, and unsafe paths, unlisted files and older versions are
+  rejected.
+- The Playnite extension swaps its own files by renaming the loaded DLL, then
+  asks for a Playnite restart. If an update attempt fails, the Tray offers the
+  setup for that version instead of retrying the package.
+- Release scripts: `build-update-package.ps1` builds the package and
+  `verify-version-consistency.ps1` checks it, its hashes and its signatures.
+
 ### APEX 6 Pro: experimental 2 kHz grip haptics (off by default)
 
 - The APEX 6 Pro plays its haptic stream at 2000 samples per second, but the
