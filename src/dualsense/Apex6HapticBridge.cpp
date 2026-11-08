@@ -620,7 +620,18 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
     (left ? lastLeftTriggerType_ : lastRightTriggerType_).store(bytes[0], std::memory_order_relaxed);
     Apex6TriggerDecodeError decodeError{};
     const auto decoded = decodeApex6TriggerEffect(side, bytes, rumbleLow_, &decodeError);
-    const auto next = decoded.value_or(Apex6TriggerEffect{});
+    auto next = decoded.value_or(Apex6TriggerEffect{});
+    const auto triggerNow = Clock::now();
+    const std::size_t feedbackIndex = left ? 0 : 1;
+    if (decoded && next.type == Apex6TriggerType::Feedback) {
+        feedbackSeen_[feedbackIndex] = true;
+        feedbackSeenAt_[feedbackIndex] = triggerNow;
+    } else if (decoded && next.type == Apex6TriggerType::Vibration) {
+        if (feedbackSeen_[feedbackIndex] && triggerNow - feedbackSeenAt_[feedbackIndex] <
+                std::chrono::milliseconds(kApex6TriggerDetentFeedbackWindowMilliseconds)) {
+            next.detent = true;
+        }
+    }
     auto status = next.type == Apex6TriggerType::Off
         ? Apex6TriggerTraceStatus::Off : Apex6TriggerTraceStatus::Active;
     if (!decoded) {
@@ -641,6 +652,7 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
     entry.bytes = bytes;
     if (!decoded) (left ? lastRejectedLeft_ : lastRejectedRight_) = entry;
     else if (next.type != Apex6TriggerType::Off) (left ? lastActiveLeft_ : lastActiveRight_) = entry;
+    if (decoded && next.type == Apex6TriggerType::Vibration) (left ? lastVibrationLeft_ : lastVibrationRight_) = entry;
     auto& lastRequest = left ? lastLeftRequest_ : lastRightRequest_;
     if (!lastRequest || lastRequest->bytes != bytes || lastRequest->status != status) {
         triggerTrace_[triggerTraceNext_] = entry;
@@ -666,6 +678,7 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
     noteTriggerChangeLocked(side);
     if (next.type != Apex6TriggerType::Off) wakeLocked();
     (left ? leftTriggerState_ : rightTriggerState_).retarget();
+    (left ? leftTriggerState_ : rightTriggerState_).detentPending = next.detent;
     if (!decoded) triggerRejectedStops_.fetch_add(1, std::memory_order_relaxed);
     else (next.type == Apex6TriggerType::Off ? triggerStops_ : triggerActiveUpdates_)
         .fetch_add(1, std::memory_order_relaxed);
@@ -1439,6 +1452,8 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
         std::lock_guard lock(stateMutex_);
         result.lastActiveLeft = lastActiveLeft_;
         result.lastActiveRight = lastActiveRight_;
+        result.lastVibrationLeft = lastVibrationLeft_;
+        result.lastVibrationRight = lastVibrationRight_;
         result.lastRejectedLeft = lastRejectedLeft_;
         result.lastRejectedRight = lastRejectedRight_;
         result.triggerTraceCount = triggerTraceCount_;

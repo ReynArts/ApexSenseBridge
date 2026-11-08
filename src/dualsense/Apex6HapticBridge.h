@@ -256,6 +256,8 @@ struct Apex6HapticBridgeStats {
     std::uint64_t primeReports = 0;
     std::optional<Apex6TriggerTraceEntry> lastActiveLeft;
     std::optional<Apex6TriggerTraceEntry> lastActiveRight;
+    std::optional<Apex6TriggerTraceEntry> lastVibrationLeft;
+    std::optional<Apex6TriggerTraceEntry> lastVibrationRight;
     std::optional<Apex6TriggerTraceEntry> lastRejectedLeft;
     std::optional<Apex6TriggerTraceEntry> lastRejectedRight;
     std::array<Apex6TriggerTraceEntry, 64> triggerTrace{};
@@ -339,6 +341,8 @@ private:
     std::int16_t rightPcmPrevious_ = 0;
     std::uint64_t triggerSampleOffset_ = 0;
     std::array<bool, 2> pendingClear_{};
+    std::array<bool, 2> feedbackSeen_{};
+    std::array<Clock::time_point, 2> feedbackSeenAt_{};
     std::array<Clock::time_point, 2> pendingClearAt_{};
     mutable std::mutex stateMutex_;
     std::condition_variable stopSignal_;
@@ -392,6 +396,8 @@ private:
     std::optional<Apex6TriggerTraceEntry> lastRightRequest_;
     std::optional<Apex6TriggerTraceEntry> lastActiveLeft_;
     std::optional<Apex6TriggerTraceEntry> lastActiveRight_;
+    std::optional<Apex6TriggerTraceEntry> lastVibrationLeft_;
+    std::optional<Apex6TriggerTraceEntry> lastVibrationRight_;
     std::optional<Apex6TriggerTraceEntry> lastRejectedLeft_;
     std::optional<Apex6TriggerTraceEntry> lastRejectedRight_;
 

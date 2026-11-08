@@ -120,6 +120,8 @@ void writeApex6TriggerTrace(std::ostream& output,
     };
     print("apex6_last_active_lt", stats.lastActiveLeft);
     print("apex6_last_active_rt", stats.lastActiveRight);
+    print("apex6_last_vibration_lt", stats.lastVibrationLeft);
+    print("apex6_last_vibration_rt", stats.lastVibrationRight);
     print("apex6_last_rejected_lt", stats.lastRejectedLeft);
     print("apex6_last_rejected_rt", stats.lastRejectedRight);
     output << "apex6_report_signature_overflow=" << stats.reportSignatureOverflow << '\n';
