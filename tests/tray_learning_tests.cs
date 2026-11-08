@@ -1139,57 +1139,57 @@ internal static class TrayLearningTests
                               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100";
         Assert(BridgeArguments.Build("none", true, 12, false, 0) == prefix + " --rumble --haptic-threshold 12",
             "The existing rumble arguments changed.");
-        Assert(BridgeArguments.Build("none", true, 12, false, 0, apex6Rate2k: false) ==
-               BridgeArguments.Build("none", true, 12, false, 0),
-            "A disabled 2 kHz rate changed the launch arguments.");
         Assert(BridgeArguments.Build("none", true, 12, false, 0, apex6Rate2k: true) ==
-               prefix + " --rumble --haptic-threshold 12 --apex6-rate 2000",
-            "The 2 kHz rate did not follow the rumble arguments.");
-        Assert(BridgeArguments.Build("none", false, 12, false, 0, apex6Rate2k: true) ==
-               prefix + " --apex6-rate 2000",
-            "The 2 kHz rate depended on the rumble switch.");
-        Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3, 100, 100, 100, 100, false, 40, true) ==
-               "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 " +
-               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100 --rumble --haptic-threshold 12 " +
-               "--apex6-rate 2000 --sync-lightbar --lightbar-brightness 40 --no-zone-emulation --apex-profile 3",
-            "The 2 kHz rate moved relative to the other optional arguments.");
+               BridgeArguments.Build("none", true, 12, false, 0),
+            "The 2 kHz rate is not the default of the launch arguments.");
+        Assert(BridgeArguments.Build("none", true, 12, false, 0, apex6Rate2k: false) ==
+               prefix + " --rumble --haptic-threshold 12 --apex6-rate 1000",
+            "The 1 kHz rate did not follow the rumble arguments.");
+        Assert(BridgeArguments.Build("none", false, 12, false, 0, apex6Rate2k: false) ==
+               prefix + " --apex6-rate 1000",
+            "The 1 kHz rate depended on the rumble switch.");
         Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3, 100, 100, 100, 100, false, 40, false) ==
                "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 " +
                "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100 --rumble --haptic-threshold 12 " +
+               "--apex6-rate 1000 --sync-lightbar --lightbar-brightness 40 --no-zone-emulation --apex-profile 3",
+            "The 1 kHz rate moved relative to the other optional arguments.");
+        Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3, 100, 100, 100, 100, false, 40, true) ==
+               "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 " +
+               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100 --rumble --haptic-threshold 12 " +
                "--sync-lightbar --lightbar-brightness 40 --no-zone-emulation --apex-profile 3",
-            "Existing optional arguments changed when the 2 kHz rate is off.");
+            "Existing optional arguments changed when the 2 kHz rate is on.");
 
         var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
         var settings = new TraySettings();
-        Assert(!settings.Apex6Rate2kHz, "The 2 kHz rate is not disabled by default.");
-        Assert(!serializer.Deserialize<TraySettings>("{\"AutoDetectGames\":true}").Apex6Rate2kHz &&
-               !serializer.Deserialize<TraySettings>("{\"ZoneEmulation\":false}").Apex6Rate2kHz &&
-               !serializer.Deserialize<TraySettings>("{}").Apex6Rate2kHz,
-            "A legacy settings file enabled the 2 kHz rate.");
-        Assert(serializer.Serialize(settings).Contains("\"Apex6Rate2kHz\":false"),
+        Assert(settings.Apex6Rate2kHz, "The 2 kHz rate is not enabled by default.");
+        Assert(serializer.Deserialize<TraySettings>("{\"AutoDetectGames\":true}").Apex6Rate2kHz &&
+               serializer.Deserialize<TraySettings>("{\"ZoneEmulation\":false}").Apex6Rate2kHz &&
+               serializer.Deserialize<TraySettings>("{}").Apex6Rate2kHz,
+            "A legacy settings file disabled the 2 kHz rate.");
+        Assert(serializer.Serialize(settings).Contains("\"Apex6Rate2kHz\":true"),
             "The 2 kHz rate is not part of the persisted settings.");
-        settings.Apex6Rate2kHz = true;
+        settings.Apex6Rate2kHz = false;
         var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
-        Assert(restored.Apex6Rate2kHz, "The enabled 2 kHz rate did not survive serialization.");
+        Assert(!restored.Apex6Rate2kHz, "The disabled 2 kHz rate did not survive serialization.");
         Assert(restored.ZoneEmulation && restored.EnableRumble && restored.AutoDetectGames,
-            "Enabling the 2 kHz rate disturbed other settings.");
-        Assert(!new TraySettings().Apex6Rate2kHz, "Default settings kept the 2 kHz rate enabled.");
-        Assert(serializer.Deserialize<TraySettings>("{\"Apex6Rate2kHz\":true}").Apex6Rate2kHz,
-            "A persisted 2 kHz rate was ignored.");
+            "Disabling the 2 kHz rate disturbed other settings.");
+        Assert(new TraySettings().Apex6Rate2kHz, "Default settings disabled the 2 kHz rate.");
+        Assert(!serializer.Deserialize<TraySettings>("{\"Apex6Rate2kHz\":false}").Apex6Rate2kHz,
+            "A persisted disabled 2 kHz rate was ignored.");
 
         var builder = typeof(EngineSessionManager).GetMethod("BuildArguments", BindingFlags.Static | BindingFlags.NonPublic);
-        var enabled = (string)builder.Invoke(null, new object[] { "standard", settings, 2, "Alpha" });
-        Assert(enabled.Contains(" --rumble") == false && enabled.Contains(" --apex6-rate 2000 --apex-profile 2") &&
-               enabled.IndexOf("--apex6-rate 2000", StringComparison.Ordinal) <
-               enabled.IndexOf("--controller-calibration", StringComparison.Ordinal),
-            "The session launch did not pass the enabled 2 kHz rate.");
-        settings.Apex6Rate2kHz = false;
         var disabled = (string)builder.Invoke(null, new object[] { "standard", settings, 2, "Alpha" });
-        Assert(!disabled.Contains("--apex6-rate"), "The session launch passed a disabled 2 kHz rate.");
+        Assert(disabled.Contains(" --rumble") == false && disabled.Contains(" --apex6-rate 1000 --apex-profile 2") &&
+               disabled.IndexOf("--apex6-rate 1000", StringComparison.Ordinal) <
+               disabled.IndexOf("--controller-calibration", StringComparison.Ordinal),
+            "The session launch did not pass the disabled 2 kHz rate.");
+        settings.Apex6Rate2kHz = true;
+        var enabled = (string)builder.Invoke(null, new object[] { "standard", settings, 2, "Alpha" });
+        Assert(!enabled.Contains("--apex6-rate"), "The session launch passed an explicit rate for the default 2 kHz.");
         var withoutSettings = (string)builder.Invoke(null, new object[] { "standard", null, 2, "Alpha" });
-        Assert(!withoutSettings.Contains("--apex6-rate"), "A session without settings passed the 2 kHz rate.");
-        Assert(enabled.Replace(" --apex6-rate 2000", string.Empty) == disabled,
-            "Only the 2 kHz rate may differ between enabled and disabled session launches.");
+        Assert(!withoutSettings.Contains("--apex6-rate"), "A session without settings passed a rate.");
+        Assert(disabled.Replace(" --apex6-rate 1000", string.Empty) == enabled,
+            "Only the rate may differ between enabled and disabled session launches.");
     }
 
     private static void TestApex6Rate2kHzLocalization()

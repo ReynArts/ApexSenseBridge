@@ -72,7 +72,7 @@ void printUsage() {
         << "                  [--trigger-strength 0..100] [--vibration-strength 0..200]\n"
         << "                  Vibration above 100% boosts APEX 4/5 grip motors only; APEX 6 stays capped at 100%.\n"
         << "                  [--apex6-haptic-gain 100..200] (experimental native grip PCM only)\n"
-        << "                  [--apex6-rate 1000|2000] (experimental 2 kHz grip stream, needs --rumble)\n"
+        << "                  [--apex6-rate 1000|2000] (Apex 6 Pro grip stream; 2000 is the default with --rumble, 1000 restores the previous stream)\n"
         << "                  [--verify-virtual-input]\n"
         << "                  [--virtual-backend auto|integrated|sidecar]\n"
         << "                  [--touchpad-profile NAME]\n"

@@ -18,7 +18,7 @@ namespace ApexSenseBridge.Common
             int apex4GyroYawStrengthPercent = 100,
             bool zoneEmulation = true,
             int lightbarBrightnessPercent = 100,
-            bool apex6Rate2k = false)
+            bool apex6Rate2k = true)
         {
             var arguments = new List<string>
             {
@@ -44,10 +44,10 @@ namespace ApexSenseBridge.Common
                     .ToString(CultureInfo.InvariantCulture));
             }
 
-            if (apex6Rate2k)
+            if (!apex6Rate2k)
             {
                 arguments.Add("--apex6-rate");
-                arguments.Add("2000");
+                arguments.Add("1000");
             }
 
             if (syncLightbar)

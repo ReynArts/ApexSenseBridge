@@ -163,7 +163,7 @@ namespace ApexSenseBridgeTray.Models
             EnableRumble = true;
             SyncLightbar = false;
             ZoneEmulation = true;
-            Apex6Rate2kHz = false;
+            Apex6Rate2kHz = true;
             HapticThresholdPercent = 12;
             TriggerStrengthPercent = 100;
             VibrationStrengthPercent = 100;

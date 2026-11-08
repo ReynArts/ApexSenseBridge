@@ -50,7 +50,7 @@ struct BridgeCommandOptions {
     unsigned int vibrationStrengthPercent = 100;
     unsigned int apex6HapticGainPercent = 100;
     bool apex6HapticGainExplicit = false;
-    unsigned int apex6SampleRateHz = 1000;
+    unsigned int apex6SampleRateHz = 2000;
     bool apex6SampleRateExplicit = false;
     unsigned int apex6GripDuckPercent = 0;
     bool apex6GripDuckExplicit = false;

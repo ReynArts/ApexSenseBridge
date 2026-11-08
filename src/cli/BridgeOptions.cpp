@@ -380,7 +380,8 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
     const bool calibrationSupplied = options.controllerCalibrations[0] ||
                                      options.controllerCalibrations[1] ||
                                      options.controllerCalibrations[2];
-    if (options.apex6SampleRateHz == 2000 && !options.routeRumble && !calibrationSupplied) {
+    if (options.apex6SampleRateHz == 2000 && options.apex6SampleRateExplicit &&
+        !options.routeRumble && !calibrationSupplied) {
         error = "--apex6-rate 2000 requires --rumble.";
         return false;
     }

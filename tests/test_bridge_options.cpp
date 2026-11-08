@@ -158,7 +158,23 @@ int main() {
     assert(!parse({"--rumble", "--apex6-haptic-gain"}).succeeded);
     assert(!parse({"--apex6-haptic-gain", "150"}).succeeded);
     assert(usage.find("--apex6-haptic-gain 100..200") != std::string_view::npos);
-    assert(defaults.options.apex6SampleRateHz == 1000 && !defaults.options.apex6SampleRateExplicit);
+    assert(defaults.options.apex6SampleRateHz == 2000 && !defaults.options.apex6SampleRateExplicit);
+    {
+        const auto slow = parse({"--apex6-rate", "1000"});
+        assert(slow.succeeded && slow.options.apex6SampleRateHz == 1000 &&
+               slow.options.apex6SampleRateExplicit);
+        std::string defaultError;
+        for (const auto model : {"apex4", "apex5", "apex6"}) {
+            auto implicit = parse({"--controller-calibration", "apex4:100:100:12:1:0:100:100",
+                                   "--controller-calibration", "apex5:100:100:12:1:0:100:100",
+                                   "--controller-calibration", "apex6:100:100:0:1:0:100:100"});
+            assert(implicit.succeeded && implicit.options.apex6SampleRateHz == 2000);
+            assert(asb::cli::applyControllerCalibration(implicit.options, model, defaultError));
+            assert(implicit.options.apex6SampleRateHz ==
+                   (std::string_view(model) == "apex6" ? 2000U : 1000U));
+            assert(!implicit.options.apex6SampleRateExplicit);
+        }
+    }
     for (const auto rate : {"1000", "2000"}) {
         const auto parsed = parse({"--rumble", "--apex6-rate", rate});
         assert(parsed.succeeded && parsed.options.apex6SampleRateExplicit);

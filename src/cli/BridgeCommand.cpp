@@ -187,7 +187,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                                      options.controllerCalibrations[2];
     if (calibrationSupplied)
         std::cout << "Controller calibration selected after verification: " << verifiedCalibrationModel << '\n';
-    if (options.apex6SampleRateExplicit && !apex6Pro) {
+    if (options.apex6SampleRateExplicit && options.apex6SampleRateHz == 2000 && !apex6Pro) {
         constexpr std::string_view message =
             "--apex6-rate requires a verified Apex 6 Pro.";
         std::cerr << message << '\n';
@@ -195,7 +195,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (options.apex6SampleRateHz == 2000 &&
         options.virtualBackend == asb::dualsense::VirtualDualSenseBackend::Sidecar) {
-        if (!calibrationSupplied) {
+        if (options.apex6SampleRateExplicit && !calibrationSupplied) {
             constexpr std::string_view message =
                 "--apex6-rate 2000 requires the integrated libVIIPER backend.";
             std::cerr << message << '\n';
@@ -884,7 +884,8 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cout << "apex6_pcm_gain_percent=" << options.apex6HapticGainPercent << std::endl;
         std::cout << "apex6_sample_rate_hz=" << options.apex6SampleRateHz << std::endl;
         if (options.apex6SampleRateHz == 2000) {
-            std::cerr << "Experimental Apex 6 2 kHz haptic stream enabled: native grip PCM is sent "
+            std::cerr << "Apex 6 2 kHz haptic stream enabled (default, --apex6-rate 1000 turns it off; "
+                         "not validated over the long term): native grip PCM is sent "
                          "at 2000 samples per second when the integrated libVIIPER supports it; "
                          "otherwise it falls back to interpolated 1 kHz data. Light stutters are "
                          "possible during long continuous effects.\n";
