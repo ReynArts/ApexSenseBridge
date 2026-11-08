@@ -12,6 +12,9 @@ $fake=Join-Path ([IO.Path]::GetTempPath()) ('asb-usbip-fixture-'+[Guid]::NewGuid
 @'
 $command,$p,$port=$args
 if($command -eq 'port'){
+ if($global:asbTestImportMode -eq 'empty'){ $global:LASTEXITCODE=0; return }
+ if($global:asbTestImportMode -eq 'failure'){ $global:LASTEXITCODE=1; return }
+ if($global:asbTestImportMode -eq 'unknown'){ 'Unexpected output'; $global:LASTEXITCODE=0; return }
  'Imported USB devices'
  if($global:asbTestImportMode -eq 'none'){ $global:LASTEXITCODE=0; return }
  'Port 01: device in use'
@@ -46,6 +49,16 @@ $global:asbTestImportMode='none'
 if($global:asbTestPnpCalls){throw 'WhatIf removed a Windows device'}
 & $helper -InstanceId $id -UsbipPath $fake -PnpUtilPath $fake
 if($global:asbTestPnpCalls -ne 1 -or $global:asbTestDetachCalls -ne 1){throw 'Expected exactly one targeted PnP removal without detaching a port'}
+$global:asbTestRemoved=$false
+foreach($mode in @('failure','unknown')){
+ $global:asbTestImportMode=$mode
+ $caught=$false
+ try { & $helper -InstanceId $id -UsbipPath $fake -PnpUtilPath $fake } catch { $caught=$true }
+ if(-not $caught -or $global:asbTestPnpCalls -ne 1){throw 'Invalid enumeration allowed a removal'}
+}
+$global:asbTestImportMode='empty'
+& $helper -InstanceId $id -UsbipPath $fake -PnpUtilPath $fake
+if($global:asbTestPnpCalls -ne 2 -or $global:asbTestDetachCalls -ne 1){throw 'Successful empty enumeration did not remove only the identified Windows node'}
 try { & $helper -InstanceId 'USB\VID_37D7&PID_2501\physical' -UsbipPath $fake; throw 'Physical controller accepted' } catch { if($_ -notmatch 'Not a DualSense USB root'){throw} }
 'Legacy cleanup safety checks passed.'
 

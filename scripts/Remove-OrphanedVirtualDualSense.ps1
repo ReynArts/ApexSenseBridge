@@ -17,6 +17,9 @@ function Read-Imports {
     $lines = @(& $UsbipPath port 2>&1)
     if ($LASTEXITCODE -ne 0) { throw 'Could not enumerate USBip imports.' }
     Write-Host ("USBip port output:`n" + ($lines -join "`n"))
+    # usbip-win2 prints the header only when at least one import exists.
+    # Successful enumeration with no imports has completely empty output.
+    if ([string]::IsNullOrWhiteSpace(($lines -join "`n"))) { return }
     if (-not ($lines -match '^Imported USB devices\s*$')) { throw 'Unrecognized USBip enumeration; nothing removed.' }
     $entry = $null
     foreach ($line in $lines) {
