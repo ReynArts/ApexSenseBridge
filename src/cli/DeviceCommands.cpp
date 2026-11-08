@@ -631,6 +631,8 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
     std::uint64_t lastWeaponBreaks = 0;
     auto rumbleUntil = std::chrono::steady_clock::now();
     std::uint8_t latestRight = 0;
+    unsigned presses = 0;
+    bool highPress = false;
     const auto startedAt = std::chrono::steady_clock::now();
     const auto deadline = startedAt + std::chrono::seconds(seconds);
     auto sweepOrigin = std::chrono::milliseconds::zero();
@@ -696,6 +698,8 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                 maxLeft = (std::max)(maxLeft, state.l2);
                 maxRight = (std::max)(maxRight, state.r2);
                 latestRight = state.r2;
+                if (state.r2 >= 180 && !highPress) { ++presses; highPress = true; }
+                if (state.r2 <= 100) highPress = false;
                 bridge.updateTriggerPositions(state.l2, state.r2);
             } else if (status != asb::platform::PhysicalInputStatus::Timeout) {
                 std::cout << "Live trigger position stopped (" << readError
@@ -732,7 +736,7 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
               << " both_frames=" << stats.bothTriggerFrames
               << " retargets=" << stats.triggerRetargets
               << " write_failures=" << stats.writeFailures
-              << " deadline_overruns=" << stats.deadlineOverruns << '\n';
+              << " deadline_overruns=" << stats.deadlineOverruns << " presses=" << presses << '\n';
     if (dual) {
         const auto frames = stats.framesWritten == 0 ? 1 : stats.framesWritten;
         std::cout << "Apex 6 dual summary: policy=" << asb::dualsense::apex6DualPolicyName(stats.dualPolicy)
