@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$global:LASTEXITCODE = 0
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $releaseDir = Join-Path $projectRoot "build-win\Release"
