@@ -14,10 +14,10 @@ input path; do not test USB filter removal on a development workstation.
   tag-triggered run. Never push a `v*` tag by hand before the SignPath production
   certificate is imported: that run uses `release-signing` and fails without it.
 - An installed version whose signature is missing or not trusted (the 1.1.0
-  self-signed build) accepts an update only if every file is trusted and signed
-  by SignPath Foundation (`CN` and `O` equal to `SignPath Foundation` in
-  `ReleaseSecurity.IsBootstrapPublisher`). Check that subject against the first
-  production-signed build before releasing 1.1.1.
+  self-signed build) accepts an update when every file in it is trusted by
+  Windows and all files share one signer; the download source and product name
+  checks still apply. Once the installed build is trusted, only the same
+  publisher is accepted.
 
 ## Automated release gates
 

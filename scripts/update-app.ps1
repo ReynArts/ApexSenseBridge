@@ -153,8 +153,7 @@ if (Test-Path -LiteralPath $installedExecutable) {
     $installedSignature = Get-AuthenticodeSignature -LiteralPath $installedExecutable
     $installedIsTrusted = $installedSignature.Status -eq [System.Management.Automation.SignatureStatus]::Valid
     $publisherAccepted = if (-not $installedIsTrusted) {
-        $subject = $signature.SignerCertificate.Subject
-        $subject -match '(^|,\s*)CN=SignPath Foundation(,|$)' -and $subject -match '(^|,\s*)O=SignPath Foundation(,|$)'
+        -not [string]::IsNullOrEmpty($signature.SignerCertificate.Subject)
     } else {
         $installedSignature.SignerCertificate.Subject -eq $signature.SignerCertificate.Subject
     }

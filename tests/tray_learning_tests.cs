@@ -3412,24 +3412,14 @@ internal static class TrayLearningTests
                !ReleaseSecurity.IsSamePublisher(string.Empty, string.Empty),
             "missing signer subjects must be rejected");
 
-        const string bootstrap = "CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US";
-        Assert(ReleaseSecurity.IsBootstrapPublisher(bootstrap) &&
-               ReleaseSecurity.IsBootstrapPublisher(bootstrap.ToLowerInvariant()),
-            "the SignPath Foundation subject must be the accepted first publisher");
-        Assert(!ReleaseSecurity.IsBootstrapPublisher(null) &&
-               !ReleaseSecurity.IsBootstrapPublisher(string.Empty) &&
-               !ReleaseSecurity.IsBootstrapPublisher("CN=SignPath Foundation") &&
-               !ReleaseSecurity.IsBootstrapPublisher("CN=Someone Else, O=SignPath Foundation") &&
-               !ReleaseSecurity.IsBootstrapPublisher("CN=SignPath Foundation, O=Someone Else") &&
-               !ReleaseSecurity.IsBootstrapPublisher("CN=SignPath Foundation Fake, O=SignPath Foundation") &&
-               !ReleaseSecurity.IsBootstrapPublisher(subject),
-            "anything but the exact SignPath Foundation name and organization must be rejected");
-        Assert(ReleaseSecurity.IsAcceptedPublisher(bootstrap, string.Empty) &&
-               ReleaseSecurity.IsAcceptedPublisher(bootstrap, null) &&
-               !ReleaseSecurity.IsAcceptedPublisher(subject, string.Empty) &&
+        const string otherSubject = "CN=Someone Else, O=Someone Else";
+        Assert(ReleaseSecurity.IsAcceptedPublisher(subject, string.Empty) &&
+               ReleaseSecurity.IsAcceptedPublisher(subject, null) &&
+               !ReleaseSecurity.IsAcceptedPublisher(string.Empty, string.Empty) &&
+               !ReleaseSecurity.IsAcceptedPublisher(null, null) &&
                ReleaseSecurity.IsAcceptedPublisher(subject, subject) &&
-               !ReleaseSecurity.IsAcceptedPublisher(bootstrap, subject),
-            "an unsigned install accepts only SignPath Foundation; a signed install accepts only its own publisher");
+               !ReleaseSecurity.IsAcceptedPublisher(otherSubject, subject),
+            "an install without a trusted signature accepts any signer; a signed install accepts only its own publisher");
 
         string innoFixture = FindRepositoryFile(Path.Combine(
             "third_party", "prerequisites", "USBip-0.9.8.0-x64.exe"));

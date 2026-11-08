@@ -177,7 +177,7 @@ namespace ApexSenseBridge.Security
                             continue;
                         }
 
-                        if (!CheckSignature(signedCopy, name, installedSubject,
+                        if (!CheckSignature(signedCopy, name, ref installedSubject,
                             out error))
                         {
                             return false;
@@ -772,7 +772,7 @@ namespace ApexSenseBridge.Security
         }
 
         private static bool CheckSignature(string path, string name,
-            string installedSubject, out string error)
+            ref string expectedSubject, out string error)
         {
             error = null;
             if (!SignatureTrustCheck(path))
@@ -792,10 +792,15 @@ namespace ApexSenseBridge.Security
                 return false;
             }
 
-            if (!ReleaseSecurity.IsAcceptedPublisher(subject, installedSubject))
+            if (!ReleaseSecurity.IsAcceptedPublisher(subject, expectedSubject))
             {
                 error = "The signer differs from the installed ApexSenseBridge publisher: " + name;
                 return false;
+            }
+
+            if (string.IsNullOrEmpty(expectedSubject))
+            {
+                expectedSubject = subject;
             }
 
             return true;

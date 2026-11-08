@@ -11,9 +11,7 @@ namespace ApexSenseBridge.Security
     public static class ReleaseSecurity
     {
         private const string ExpectedAssetName = "ApexSenseBridge-Setup.exe";
-        private const string ExpectedProductName = "ApexSenseBridge";
-        private const string BootstrapPublisherName = "SignPath Foundation";
-        private const string ExpectedDownloadPrefix =
+        private const string ExpectedProductName = "ApexSenseBridge";        private const string ExpectedDownloadPrefix =
             "/ReynArts/ApexSenseBridge/releases/download/";
 
         private static readonly Guid WinTrustActionGenericVerifyV2 =
@@ -121,7 +119,7 @@ namespace ApexSenseBridge.Security
                         ? ReadSignerSubject(currentBinaryPath)
                         : string.Empty;
                     bool accepted = string.IsNullOrEmpty(currentSubject)
-                        ? IsBootstrapPublisher(installerCertificate.Subject)
+                        ? !string.IsNullOrEmpty(installerCertificate.Subject)
                         : IsSamePublisher(installerCertificate.Subject, currentSubject);
                     if (!accepted)
                     {
@@ -217,40 +215,12 @@ namespace ApexSenseBridge.Security
             }
         }
 
-        internal static bool IsBootstrapPublisher(string subject)
-        {
-            return string.Equals(ReadNameComponent(subject, "CN"),
-                       BootstrapPublisherName, StringComparison.OrdinalIgnoreCase) &&
-                   string.Equals(ReadNameComponent(subject, "O"),
-                       BootstrapPublisherName, StringComparison.OrdinalIgnoreCase);
-        }
-
         internal static bool IsAcceptedPublisher(
             string signerSubject, string installedSubject)
         {
             return string.IsNullOrEmpty(installedSubject)
-                ? IsBootstrapPublisher(signerSubject)
+                ? !string.IsNullOrEmpty(signerSubject)
                 : IsSamePublisher(signerSubject, installedSubject);
-        }
-
-        private static string ReadNameComponent(string subject, string key)
-        {
-            if (string.IsNullOrEmpty(subject))
-            {
-                return null;
-            }
-
-            string prefix = key + "=";
-            foreach (string part in subject.Split(','))
-            {
-                string token = part.Trim();
-                if (token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    return token.Substring(prefix.Length).Trim();
-                }
-            }
-
-            return null;
         }
 
         private static bool IsFieldPadding(char value)
