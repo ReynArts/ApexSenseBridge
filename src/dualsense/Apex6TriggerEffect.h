@@ -28,23 +28,26 @@ enum class Apex6TriggerDecodeError : std::uint8_t {
 };
 
 inline constexpr std::uint8_t kApex6TriggerMaximumDrive = 127;
-inline constexpr std::uint8_t kApex6TriggerNativeMaximumDrive = 96;
+inline constexpr std::uint8_t kApex6TriggerNativeMaximumDrive = 112;
+inline constexpr std::uint8_t kApex6TriggerSniperDrive = 96;
 inline constexpr double kApex6TriggerPresetDrivePerGain = 4.0;
 inline constexpr std::size_t kApex6ImpactMaximumSegments = 4;
 inline constexpr double kApex6TriggerCarrierFrequency = 85.0;
-inline constexpr double kApex6TriggerBurstFrequency = 130.0;
+inline constexpr double kApex6TriggerBurstFrequency = 95.0;
 inline constexpr unsigned kApex6TriggerBurstAttackSamples = 1;
 inline constexpr unsigned kApex6TriggerBurstHoldSamples = 40;
 inline constexpr unsigned kApex6TriggerBurstReleaseSamples = 10;
-inline constexpr unsigned kApex6TriggerBurstMinimumDrive = 56;
-inline constexpr unsigned kApex6TriggerBurstFullForce = 64;
+inline constexpr unsigned kApex6TriggerBurstMinimumDrive = 90;
+inline constexpr unsigned kApex6TriggerBurstMaximumDrive = 127;
+inline constexpr unsigned kApex6TriggerBurstFullForce = 24;
 inline constexpr unsigned kApex6TriggerForcePerStrength = 8;
 inline constexpr double kApex6TriggerTailDecayConstants = 4.0;
-inline constexpr double kApex6TriggerFeedbackDrivePerLevel = 8.0;
-inline constexpr double kApex6TriggerVibrationDrivePerLevel = 10.0;
-inline constexpr double kApex6TriggerBowDrivePerLevel = 6.0;
+inline constexpr double kApex6TriggerFeedbackDrivePerLevel = 28.0;
+inline constexpr double kApex6TriggerVibrationDrivePerLevel = 32.0;
+inline constexpr double kApex6TriggerLevelExponent = 0.75;
+inline constexpr double kApex6TriggerBowDrivePerLevel = 10.0;
 inline constexpr double kApex6TriggerBowRampExponent = 1.0;
-inline constexpr double kApex6TriggerMachineDrivePerLevel = 12.0;
+inline constexpr double kApex6TriggerMachineDrivePerLevel = 16.0;
 inline constexpr double kApex6TriggerGallopDrive = 64.0;
 inline constexpr unsigned kApex6TriggerGallopHoldSamples = 20;
 inline constexpr unsigned kApex6TriggerGallopReleaseSamples = 8;
@@ -56,6 +59,7 @@ inline constexpr unsigned kApex6TriggerRhythmReleaseMargin = 6;
 inline constexpr unsigned kApex6TriggerPresetWindowWidth = 10;
 inline constexpr unsigned kApex6TriggerPresetRearmMargin = 6;
 inline constexpr unsigned kApex6TriggerPresetTrainStartPosition = 80;
+
 
 struct Apex6ImpactSegment {
     double frequency = 0.0;

@@ -49,6 +49,11 @@ double zoneLevel(const std::array<std::uint8_t, 10>& strengths,
     return level + (edge - level) * offset / 0.5;
 }
 
+
+double levelCurve(double level) noexcept {
+    return level > 0.0 ? std::pow(level, kApex6TriggerLevelExponent) : 0.0;
+}
+
 double onset(double position, double start) noexcept {
     return (std::clamp)((position - start) / kApex6TriggerOnsetWidth, 0.0, 1.0);
 }
@@ -58,7 +63,7 @@ unsigned burstDriveForForce(unsigned force) noexcept {
     const double fraction = (std::min)(
         1.0, static_cast<double>(force) / kApex6TriggerBurstFullForce);
     const double drive = kApex6TriggerBurstMinimumDrive +
-        (static_cast<double>(kNativeDrive) - kApex6TriggerBurstMinimumDrive) * fraction;
+        (static_cast<double>(kApex6TriggerBurstMaximumDrive) - kApex6TriggerBurstMinimumDrive) * fraction;
     return static_cast<unsigned>(std::lround(drive));
 }
 
@@ -317,15 +322,15 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
         state.burstLength = 0;
         break;
     case Apex6TriggerType::Feedback:
-        envelope.amplitude = kApex6TriggerFeedbackDrivePerLevel *
-                             zoneLevel(effect.zoneStrengths, current);
+        envelope.amplitude = kApex6TriggerFeedbackDrivePerLevel * levelCurve(
+                             zoneLevel(effect.zoneStrengths, current));
         envelope.continuous = true;
         break;
     case Apex6TriggerType::Vibration:
         envelope.continuous = true;
         if (effect.frequency == 0) break;
-        envelope.amplitude = kApex6TriggerVibrationDrivePerLevel *
-                             zoneLevel(effect.zoneStrengths, current);
+        envelope.amplitude = kApex6TriggerVibrationDrivePerLevel * levelCurve(
+                             zoneLevel(effect.zoneStrengths, current));
         envelope.frequency = effect.frequency;
         break;
     case Apex6TriggerType::Weapon: {
@@ -592,6 +597,7 @@ struct PresetRow {
 };
 
 constexpr std::array<double, 4> kPresetLevelScale{0.5, 0.7, 0.85, 1.0};
+constexpr double kTrainDrive = 150.0;
 
 constexpr double sceneDrive(unsigned gain) noexcept {
     return static_cast<double>(gain) * kApex6TriggerPresetDrivePerGain;
@@ -620,18 +626,18 @@ constexpr Apex6ImpactShape kSniperShape{
     .holdSamples = 60, .releaseSamples = 20, .tailSamples = 1000};
 
 constexpr std::array<PresetRow, kApex6WeaponPresetCount> kPresetTable{{
-    {.name = "machinegun", .train = true, .start = 80, .fullDrive = sceneDrive(29),
+    {.name = "machinegun", .train = true, .start = 80, .fullDrive = kTrainDrive,
      .periodSamples = 94,
-     .shape = waveform({segment(0, 48, 62.2, 0.07, 1.01, 2.4, 18.6, 13.0)})},
-    {.name = "rifle", .train = true, .start = 80, .fullDrive = sceneDrive(32),
+     .shape = waveform({segment(0, 48, kApex6TriggerBurstFrequency, 0.07, 1.01, 2.4, 18.6, 13.0)})},
+    {.name = "rifle", .train = true, .start = 80, .fullDrive = kTrainDrive,
      .periodSamples = 84,
-     .shape = waveform({segment(0, 49, 60.0, 0.07, 1.03, 2.3, 16.8, 9.7)})},
-    {.name = "smg", .train = true, .start = 80, .fullDrive = sceneDrive(40),
+     .shape = waveform({segment(0, 49, kApex6TriggerBurstFrequency, 0.07, 1.03, 2.3, 16.8, 9.7)})},
+    {.name = "smg", .train = true, .start = 80, .fullDrive = kTrainDrive,
      .periodSamples = 60,
-     .shape = waveform({segment(0, 35, 56.4, 0.07, 1.02, 1.4, 13.6, 8.5)})},
-    {.name = "lmg", .train = true, .start = 80, .fullDrive = sceneDrive(27),
+     .shape = waveform({segment(0, 35, kApex6TriggerBurstFrequency, 0.07, 1.02, 1.4, 13.6, 8.5)})},
+    {.name = "lmg", .train = true, .start = 80, .fullDrive = kTrainDrive,
      .periodSamples = 94,
-     .shape = waveform({segment(0, 90, 66.0, 0.06, 0.94, 3.4, 37.8, 14.4)})},
+     .shape = waveform({segment(0, 90, kApex6TriggerBurstFrequency, 0.06, 0.94, 3.4, 37.8, 14.4)})},
     {.name = "pistol", .start = 50, .fullDrive = sceneDrive(28),
      .shape = waveform({segment(0, 53, 92.1, 0.95, 1.02, 0.1, 9.2, 11.7),
                         segment(37, 47, 159.8, 0.04, 0.46, 3.4, 31.3, 4.3),
@@ -640,7 +646,7 @@ constexpr std::array<PresetRow, kApex6WeaponPresetCount> kPresetTable{{
      .shape = waveform({segment(0, 54, 72.0, 0.99, 1.15, 3.5, 12.4, 12.6),
                         segment(47, 61, 128.2, 0.12, 0.56, 3.4, 39.0, 4.3),
                         segment(98, 152, 56.0, 0.50, 1.43, 7.7, 11.0, 25.3)})},
-    {.name = "sniperrifle", .start = 178, .fullDrive = kNativeDrive, .shape = kSniperShape},
+    {.name = "sniperrifle", .start = 178, .fullDrive = kApex6TriggerSniperDrive, .shape = kSniperShape},
     {.name = "sword", .start = 80, .fullDrive = sceneDrive(36),
      .shape = waveform({segment(0, 53, 233.7, 0.97, 0.76, 4.1, 39.0, 51.6),
                         segment(51, 40, 222.2, 0.90, 0.41, 2.1, 17.0, 37.5),
