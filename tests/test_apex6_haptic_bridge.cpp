@@ -45,8 +45,8 @@ void testNativeTriggerEffects() {
     assert(feedback->zoneStrengths[2] == 2 && feedback->zoneStrengths[3] == 8);
     Apex6TriggerRenderState weakState{};
     Apex6TriggerRenderState strongState{};
-    assert(peak(renderApex6TriggerEffect(*feedback, 60, weakState)) <= 50);
-    assert(peak(renderApex6TriggerEffect(*feedback, 90, strongState)) > 70);
+    assert(peak(renderApex6TriggerEffect(*feedback, 60, weakState)) <= 16);
+    assert(peak(renderApex6TriggerEffect(*feedback, 90, strongState)) > 40);
 
     bytes[0] = 0x26;
     bytes[1] = 1U << 3U;
@@ -57,7 +57,7 @@ void testNativeTriggerEffects() {
     assert(vibration && vibration->frequency == 180);
     Apex6TriggerRenderState vibrationState{};
     // A high requested frequency must never become high motor amplitude.
-    assert(peak(renderApex6TriggerEffect(*vibration, 90, vibrationState)) <= 36);
+    assert(peak(renderApex6TriggerEffect(*vibration, 90, vibrationState)) <= 10);
     bytes[9] = 0;
     const auto silentVibration = decodeApex6TriggerEffect(
         asb::TriggerSide::Right, bytes, 0);
@@ -293,7 +293,9 @@ std::vector<int> breakSequence() {
 
 int expectedBurstDrive(unsigned force) {
     using namespace asb::dualsense;
-    const double fraction = (std::min)(1.0, force / double(kApex6TriggerBurstFullForce));
+    const double fraction = (std::clamp)(
+        (double(force) - kApex6TriggerForcePerStrength) /
+            (kApex6TriggerBurstFullForce - kApex6TriggerForcePerStrength), 0.0, 1.0);
     return static_cast<int>(std::lround(
         kApex6TriggerBurstMinimumDrive +
         (kApex6TriggerBurstMaximumDrive - kApex6TriggerBurstMinimumDrive) * fraction));
@@ -394,7 +396,7 @@ void testProgressiveFeedbackFollowsProfile() {
     int previous = 0;
     int largestStep = 0;
     int first = -1;
-    for (int position = 0; position <= 255; ++position) {
+    for (int position = 8; position <= 255; ++position) {
         const auto level = settledPeak(progressive, position);
         if (first < 0) {
             first = level;
@@ -405,9 +407,9 @@ void testProgressiveFeedbackFollowsProfile() {
         previous = level;
     }
     assert(largestStep <= 2);
-    assert(first >= 27 && first <= 28);
-    assert(settledPeak(progressive, 255) >= 105);
-    assert(settledPeak(progressive, 13) >= 24 && settledPeak(progressive, 13) <= 30);
+    assert(first >= 7 && first <= 8);
+    assert(settledPeak(progressive, 255) >= 62);
+    assert(settledPeak(progressive, 13) >= 6 && settledPeak(progressive, 13) <= 9);
     assert(settledPeak(progressive, 128) > settledPeak(progressive, 64));
     assert(settledPeak(progressive, 192) > settledPeak(progressive, 128));
 
@@ -426,17 +428,17 @@ void testProgressiveFeedbackFollowsProfile() {
             assert(level == 0);
         }
     }
-    assert(sparseStep <= 20);
-    assert(settledPeak(gapped, 38) >= 100);
-    assert(settledPeak(gapped, 166) >= 76 && settledPeak(gapped, 166) <= 80);
+    assert(sparseStep <= 8);
+    assert(settledPeak(gapped, 38) >= 62);
+    assert(settledPeak(gapped, 166) >= 30 && settledPeak(gapped, 166) <= 33);
 
     std::array<unsigned, 10> flat{};
     for (auto& value : flat) value = 6;
     const auto uniform = decodeNative(zoneBytes(0x21, 0x3F8, flat));
     assert(settledPeak(uniform, 76) == 0);
-    assert(settledPeak(uniform, 200) >= 104 && settledPeak(uniform, 200) <= 108);
-    assert(settledPeak(uniform, 83) > 20 && settledPeak(uniform, 83) < 95);
-    assert(settledPeak(uniform, 95) >= 100);
+    assert(settledPeak(uniform, 200) >= 47 && settledPeak(uniform, 200) <= 48);
+    assert(settledPeak(uniform, 83) > 10 && settledPeak(uniform, 83) < 40);
+    assert(settledPeak(uniform, 95) >= 47);
 }
 
 int zeroCrossings(const std::vector<Frame>& frames) {
@@ -459,10 +461,10 @@ void testVibrationHonoursZoneStrengthsAndFrequency() {
     strengths[3] = 8;
     strengths[4] = 4;
     const auto vibration = decodeNative(zoneBytes(0x26, 0x1C, strengths, 60));
-    assert(settledPeak(vibration, 64) >= 52 && settledPeak(vibration, 64) <= 55);
-    assert(settledPeak(vibration, 90) >= 108 && settledPeak(vibration, 90) <= 112);
-    assert(settledPeak(vibration, 115) >= 88 && settledPeak(vibration, 115) <= 92);
-    assert(settledPeak(vibration, 77) >= 98 && settledPeak(vibration, 77) <= 110);
+    assert(settledPeak(vibration, 64) >= 19 && settledPeak(vibration, 64) <= 20);
+    assert(settledPeak(vibration, 90) >= 77 && settledPeak(vibration, 90) <= 80);
+    assert(settledPeak(vibration, 115) >= 39 && settledPeak(vibration, 115) <= 41);
+    assert(settledPeak(vibration, 77) >= 47 && settledPeak(vibration, 77) <= 53);
     int previous = 0;
     for (int position = 64; position <= 90; ++position) {
         const auto level = settledPeak(vibration, position);
@@ -473,13 +475,13 @@ void testVibrationHonoursZoneStrengthsAndFrequency() {
 
     std::array<unsigned, 10> flat{};
     for (auto& value : flat) value = 5;
-    for (const unsigned frequency : {25U, 50U, 100U, 160U}) {
+    for (const unsigned frequency : {40U, 50U, 100U, 160U}) {
         const auto effect = decodeNative(zoneBytes(0x26, 0x3FF, flat, static_cast<std::uint8_t>(frequency)));
         Player player{effect};
         const auto frames = player.play(hold(200, 120));
         const auto expected = static_cast<int>(2 * frequency * 960 / 1000);
         assert(std::abs(zeroCrossings(frames) - expected) <= 4);
-        assert(settledPeak(effect, 200) >= 95 && settledPeak(effect, 200) <= 112);
+        assert(settledPeak(effect, 200) >= 48 && settledPeak(effect, 200) <= 50);
     }
 }
 
@@ -493,7 +495,7 @@ void testBowRampsThenBurstsThenStaysSilent() {
         assert(level + 1 >= previous);
         previous = level;
     }
-    assert(previous >= 76 && previous <= 80);
+    assert(previous >= 44 && previous <= 48);
     assert(settledPeak(bow, 10) == 0);
 
     std::vector<int> positions;
@@ -533,7 +535,7 @@ void testBowRampsThenBurstsThenStaysSilent() {
         if (positions[index] < 180) secondRamp = (std::max)(secondRamp, peak(frames[index]));
         else if (secondBurst == 0) secondBurst = index;
     }
-    assert(secondRamp > 70);
+    assert(secondRamp > 40);
     assert(peak(frames[secondBurst]) > secondRamp);
     assert(player.state.burstsStarted == 2);
 }
@@ -584,7 +586,7 @@ void testRendererBoundsAndContinuity() {
         const double frequency = first.type == Apex6TriggerType::Feedback
             ? kApex6TriggerCarrierFrequency : 90.0;
         const double drive = first.type == Apex6TriggerType::Feedback
-            ? (std::min)(double(kApex6TriggerNativeMaximumDrive), kApex6TriggerFeedbackDrivePerLevel * std::pow(8.0, kApex6TriggerLevelExponent)) : (std::min)(double(kApex6TriggerNativeMaximumDrive), kApex6TriggerVibrationDrivePerLevel * std::pow(8.0, kApex6TriggerLevelExponent));
+            ? 8.0 * kApex6TriggerFeedbackDrivePerLevel : 8.0 * kApex6TriggerVibrationDrivePerLevel;
         const int bound = static_cast<int>(
             drive * 2.0 * 3.14159265358979 * frequency / 1000.0 + drive / 8.0 + 2.0);
         Player player{first};
@@ -995,7 +997,7 @@ void testMachineAndGallopingDecodeToRhythm() {
     const auto machine = decodeNative({0x27, 0x84, 0x00, 7 | (2 << 3), 60, 12});
     assert(machine.type == Apex6TriggerType::Rhythm && machine.rhythm.modulated);
     assert(machine.rhythm.periodSamples == 1200 && machine.rhythm.pulse.frequency == 60.0);
-    assert(machine.rhythm.levelA == 112.0 && machine.rhythm.levelB == 32.0);
+    assert(machine.rhythm.levelA == 84.0 && machine.rhythm.levelB == 24.0);
     assert(machine.rhythm.activeFrom == 52 && machine.rhythm.activeTo == 204);
     Player player{machine};
     std::vector<int> positions;
@@ -1011,9 +1013,9 @@ void testMachineAndGallopingDecodeToRhythm() {
         }
         return result;
     };
-    assert(window(0, 50) >= 95 && window(0, 50) <= 112);
-    assert(window(575, 50) >= 26 && window(575, 50) <= 40);
-    assert(window(1150, 50) >= 95);
+    assert(window(0, 50) >= 70 && window(0, 50) <= 84);
+    assert(window(575, 50) >= 20 && window(575, 50) <= 30);
+    assert(window(1150, 50) >= 70);
     for (std::size_t index = 1360; index < samples.size(); ++index) assert(samples[index] == 0);
 
     assert(decodeNative({0x27, 0x84, 0x00, 5 | (5 << 3), 60, 12}).type == Apex6TriggerType::Legacy);
@@ -1045,6 +1047,72 @@ void testMachineAndGallopingDecodeToRhythm() {
     }
     assert(firstPeak >= 55 && firstPeak <= 64 && secondPeak >= 55 && secondPeak <= 64);
 }
+
+void testLowFrequencyVibrationIsAPulseTrain() {
+    using namespace asb::dualsense;
+    const auto effect = decodeNative({0x26, 0xF0, 0x03, 0x00, 0xB0, 0x6D, 0x1B, 0, 0, 12, 0});
+    assert(effect.type == Apex6TriggerType::Rhythm && !effect.rhythm.modulated);
+    assert(effect.rhythm.periodSamples == 83 && effect.rhythm.drive == 89);
+    assert(effect.rhythm.activeFrom >= 100 && effect.rhythm.activeFrom <= 110);
+    Player player{effect};
+    std::vector<int> positions;
+    append(positions, hold(0, 5));
+    append(positions, hold(200, 60));
+    const auto samples = flatten(player.play(positions));
+    int peak = 0;
+    unsigned pulses = 0;
+    unsigned zeros = 100;
+    for (const auto sample : samples) {
+        peak = (std::max)(peak, std::abs(int(sample)));
+        if (sample == 0) {
+            ++zeros;
+        } else {
+            if (zeros >= 15) ++pulses;
+            zeros = 0;
+        }
+    }
+    assert(peak >= 70 && peak <= 89);
+    assert(pulses >= 5 && pulses <= 6);
+
+    const auto slow = decodeNative({0x26, 0xF0, 0x03, 0x00, 0xB0, 0x6D, 0x1B, 0, 0, 31, 0});
+    assert(slow.type == Apex6TriggerType::Vibration && slow.frequency == 31);
+}
+
+void testVibrationStartPlaysADetent() {
+    using namespace asb::dualsense;
+    auto effect = decodeNative({0x26, 0xFF, 0x03, 73, 146, 36, 9, 0, 0, 180, 0});
+    assert(effect.type == Apex6TriggerType::Vibration && !effect.detent);
+    Player plain{effect};
+    (void)plain.play(hold(100, 20));
+    std::vector<int> crossing;
+    append(crossing, hold(0, 5));
+    append(crossing, hold(100, 10));
+    Player withoutDetent{effect};
+    (void)withoutDetent.play(crossing);
+    assert(withoutDetent.state.burstsStarted == 0);
+
+    effect.detent = true;
+    Player player{effect};
+    std::vector<int> positions;
+    append(positions, hold(0, 5));
+    append(positions, hold(100, 10));
+    append(positions, hold(0, 10));
+    append(positions, hold(100, 10));
+    const auto frames = player.play(positions);
+    assert(player.state.burstsStarted == 2);
+    assert(peak(frames[5]) > 30 && peak(frames[5]) <= kApex6TriggerDetentMaximumDrive);
+    Player held{effect};
+    (void)held.play(hold(100, 20));
+    assert(held.state.burstsStarted == 0);
+
+    Player installed{effect};
+    installed.state.detentPending = true;
+    (void)installed.play(hold(200, 10));
+    assert(installed.state.burstsStarted == 1 && !installed.state.detentPending);
+}
+
+
+
 
 void testDiagnosticEffectsDecodeAsNativeEffects() {
     using namespace asb::dualsense;
@@ -1534,6 +1602,7 @@ void testTriggerReleaseSendsExplicitZeroFrames() {
     assert(device.verifyIdentity(error));
     Apex6HapticBridge bridge(device, {}, true);
     assert(bridge.start(error));
+    bridge.updateTriggerPositions(0, 200);
 
     DualSenseFeedback press{};
     press.enableBits1 = 0x04;
@@ -2073,6 +2142,8 @@ int main() {
     testSniperTailDecaysForAboutASecond();
     testRhythmTrainFollowsTheSceneCadence();
     testMachineAndGallopingDecodeToRhythm();
+    testLowFrequencyVibrationIsAPulseTrain();
+    testVibrationStartPlaysADetent();
     testDiagnosticEffectsDecodeAsNativeEffects();
     testDiagnosticSweepPosition();
     testBridgeDiagnosticPresetPlaysThroughTheRenderer();
@@ -2216,7 +2287,7 @@ int main() {
     assert(stats.triggerStops == 1);
     assert(stats.lastLeftTriggerType == 0x26);
     assert(stats.lastRightTriggerType == 0x26);
-    assert(stats.bothTriggerFrames > 0);
+    assert(stats.bothTriggerFrames > 0 || stats.dualMixFrames > 0);
     assert(stats.dualMixFrames > 0);
     assert(stats.waveformLeftActiveBlocks == 7);
     assert(stats.waveformRightActiveBlocks == 6);

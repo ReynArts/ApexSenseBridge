@@ -61,8 +61,9 @@ double onset(double position, double start) noexcept {
 
 unsigned burstDriveForForce(unsigned force) noexcept {
     if (force == 0) return 0;
-    const double fraction = (std::min)(
-        1.0, static_cast<double>(force) / kApex6TriggerBurstFullForce);
+    const double fraction = (std::clamp)(
+        (static_cast<double>(force) - kApex6TriggerForcePerStrength) /
+            (kApex6TriggerBurstFullForce - kApex6TriggerForcePerStrength), 0.0, 1.0);
     const double drive = kApex6TriggerBurstMinimumDrive +
         (static_cast<double>(kApex6TriggerBurstMaximumDrive) - kApex6TriggerBurstMinimumDrive) * fraction;
     return static_cast<unsigned>(std::lround(drive));
@@ -285,6 +286,32 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
                     ((packed >> (zone * 3U)) & 0x07U) + 1U);
             }
         }
+        if (bytes[0] == 0x26 && bytes[9] <= kApex6TriggerPulseTrainMaximumFrequency) {
+            unsigned strongest = 0;
+            for (const auto strength : result.zoneStrengths) {
+                strongest = (std::max)(strongest, static_cast<unsigned>(strength));
+            }
+            Apex6TriggerEffect train{};
+            train.type = Apex6TriggerType::Rhythm;
+            const unsigned period = (std::max)(
+                1U, static_cast<unsigned>(std::lround(1000.0 / bytes[9])));
+            Apex6ImpactShape pulse{};
+            const unsigned fit = period * 7U / 10U;
+            if (apex6ImpactTotalSamples(pulse) > fit) {
+                const unsigned tail = pulse.attackSamples + pulse.releaseSamples;
+                pulse.holdSamples = static_cast<std::uint16_t>(fit > tail + 4U ? fit - tail : 4U);
+            }
+            train.rhythm.pulse = pulse;
+            train.rhythm.periodSamples = static_cast<std::uint16_t>(
+                (std::max)(period, apex6ImpactTotalSamples(pulse)));
+            train.rhythm.drive = static_cast<std::uint8_t>((std::min)(
+                static_cast<long>(kMaximumDrive),
+                std::lround(kApex6TriggerPulseTrainBaseDrive +
+                            kApex6TriggerPulseTrainDriveStep * (static_cast<double>(strongest) - 1.0))));
+            train.rhythm.activeFrom = positionFor(static_cast<std::uint8_t>(first));
+            train.rhythm.activeTo = 255;
+            return train;
+        }
         result.type = bytes[0] == 0x21
             ? Apex6TriggerType::Feedback : Apex6TriggerType::Vibration;
         result.frequency = bytes[0] == 0x26 ? bytes[9] : 0;
@@ -327,6 +354,27 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
         break;
     case Apex6TriggerType::Vibration:
         envelope.continuous = true;
+        if (effect.detent) {
+            const double detentStart = (std::max)(
+                kApex6TriggerDetentMinimumPosition, static_cast<double>(positionFor(effect.startZone)));
+            const bool installedWhilePressed =
+                state.detentPending && current >= kApex6TriggerDetentMinimumPosition;
+            if (installedWhilePressed) state.detentPending = false;
+            if (crossedBreakPoint(
+                    state, current, (std::max)(0.0, detentStart - kApex6TriggerDetentRearmMargin),
+                    detentStart) || installedWhilePressed) {
+                unsigned strongest = 0;
+                for (const auto strength : effect.zoneStrengths) {
+                    strongest = (std::max)(strongest, static_cast<unsigned>(strength));
+                }
+                Apex6ImpactShape shape{};
+                shape.holdSamples = kApex6TriggerDetentHoldSamples;
+                shape.releaseSamples = kApex6TriggerDetentReleaseSamples;
+                startBurst(state, shape, (std::min)(
+                    kApex6TriggerDetentMaximumDrive,
+                    kApex6TriggerDetentBaseDrive + kApex6TriggerDetentDrivePerStrength * strongest));
+            }
+        }
         if (effect.frequency == 0) break;
         envelope.amplitude = kApex6TriggerVibrationDrivePerLevel * levelCurve(
                              zoneLevel(effect.zoneStrengths, current));
@@ -419,6 +467,9 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
     if (envelope.continuous && sampleOffset) {
         state.phase = std::fmod(static_cast<double>(*sampleOffset % 1000U) *
                                envelope.frequency / 1000.0, 1.0);
+    }
+    if (envelope.continuous && current < kApex6TriggerContinuousReleasePosition) {
+        envelope.amplitude = 0.0;
     }
     const double target = std::isfinite(envelope.amplitude)
         ? (std::clamp)(envelope.amplitude, 0.0, static_cast<double>(kNativeDrive)) : 0.0;

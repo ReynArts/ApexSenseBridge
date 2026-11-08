@@ -568,9 +568,9 @@ void testFirmwareMappingTable() {
     assert(feedback && *feedback == (Firmware{kTriggerFirmwareLoop, 150, 85, 0}));
     const auto weapon = apex6FirmwareEffectFor(decoded(kWeapon));
     assert(weapon && *weapon == (Firmware{kTriggerFirmwareOneShot, 255, 0, 180}));
-    const Effect weakVibration{0x26, 0xF0, 0x03, 0, 0, 0, 0, 0, 0, 30, 0};
+    const Effect weakVibration{0x26, 0xF0, 0x03, 0, 0, 0, 0, 0, 0, 40, 0};
     const auto weak = apex6FirmwareEffectFor(decoded(weakVibration));
-    assert(weak && weak->strength == 19 && weak->parameter == 30 && weak->start == 103);
+    assert(weak && weak->strength == 19 && weak->parameter == 40 && weak->start == 103);
     const Effect bowBytes{0x22, 0x82, 0x00, 0x3F, 0, 0, 0, 0, 0, 0, 0};
     const auto bow = apex6FirmwareEffectFor(decoded(bowBytes));
     assert(bow && bow->type == kTriggerFirmwareOneShot && bow->strength == 255 && bow->start == 180);
