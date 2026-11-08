@@ -92,6 +92,7 @@ activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 
 - **APEX 5:** the per-zone and rhythmic trigger emulation is on by default. Turn it off with the **Trigger effect emulation** switch in the Tray settings, or `--no-zone-emulation`, if you prefer the previous single-resistance behaviour.
 - **APEX 6 Pro:** triggers now feel different, because each effect is translated by meaning instead of played as a flat vibration.- **APEX 4:** `ASB_APEX4_RUMBLE_MS=25` restores the previous rumble spacing without rebuilding.
+- **Known limitation (APEX 6 Pro):** the firmware drives both triggers from a single signal, so when a game plays two different effects on the two triggers at the same time, the bridge plays the sum of both effects on both triggers (each trigger feels a blend). One effect on one trigger, or the same effect on both, is unaffected. A better solution is on the [roadmap](ROADMAP.md).
 - **Not covered yet:** the APEX 6 Pro does not ride out a power cycle (the bridge stops and the voluntary recovery applies), and RGB lightbar sync is still refused on the APEX 6 Pro. See the [roadmap](ROADMAP.md).
 
 ---
