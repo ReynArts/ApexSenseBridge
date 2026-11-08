@@ -256,6 +256,7 @@ if ((Read-Text "CHANGELOG.md") -notmatch ('(?m)^## ' + [regex]::Escape($releaseL
 foreach ($releaseManifest in @(
     @{ Path = "installer\ApexSenseBridge.iss"; Pattern = '#define AppReleaseLabel "([^"\r\n]+)"' },
     @{ Path = "ApexSenseBridgeTray\Properties\AssemblyInfo.cs"; Pattern = 'AssemblyInformationalVersion\("([^"\r\n]+)"\)' },
+    @{ Path = "ApexSenseBridgeUpdater\Properties\AssemblyInfo.cs"; Pattern = 'AssemblyInformationalVersion\("([^"\r\n]+)"\)' },
     @{ Path = "playnite\ApexSenseBridge\Properties\AssemblyInfo.cs"; Pattern = 'AssemblyInformationalVersion\("([^"\r\n]+)"\)' }
 )) {
     $actualLabel = Get-RequiredMatch $releaseManifest.Path $releaseManifest.Pattern "release label"
@@ -280,6 +281,8 @@ Assert-Version "ApexSenseBridgeTray\Services\UpdateCheckerService.cs" `
     'return "([0-9]+\.[0-9]+\.[0-9]+)";' "Tray updater fallback version"
 Assert-Version "ApexSenseBridgeTray\Properties\AssemblyInfo.cs" `
     'AssemblyFileVersion\("([0-9]+\.[0-9]+\.[0-9]+)\.0"\)' "Tray assembly version"
+Assert-Version "ApexSenseBridgeUpdater\Properties\AssemblyInfo.cs" `
+    'AssemblyFileVersion\("([0-9]+\.[0-9]+\.[0-9]+)\.0"\)' "Updater assembly version"
 Assert-Version "playnite\ApexSenseBridge\extension.yaml" `
     '(?m)^Version: ([0-9]+\.[0-9]+\.[0-9]+)\r?$' "Playnite manifest version"
 Assert-Version "playnite\ApexSenseBridge\Properties\AssemblyInfo.cs" `
@@ -292,6 +295,7 @@ if ($CheckArtifacts) {
         "build-win\Release\ApexSenseBridge.exe",
         "build-win\Release\ApexSenseBridgeControl.exe",
         "build-win\Release\ApexSenseBridgeTray.exe",
+        "build-win\Release\ApexSenseBridgeUpdater.exe",
         "playnite\ApexSenseBridge\bin\Release\ApexSenseBridge.dll",
         "dist\ApexSenseBridge-Setup.exe"
     )) {
@@ -345,6 +349,7 @@ if ($RequireSignatures) {
         "build-win\Release\ApexSenseBridge.exe",
         "build-win\Release\ApexSenseBridgeControl.exe",
         "build-win\Release\ApexSenseBridgeTray.exe",
+        "build-win\Release\ApexSenseBridgeUpdater.exe",
         "build-win\Release\viiper.exe",
         "build-win\Release\libVIIPER.dll",
         "playnite\ApexSenseBridge\bin\Release\ApexSenseBridge.dll",

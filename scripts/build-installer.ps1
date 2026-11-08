@@ -100,10 +100,14 @@ if (-not $SkipBuild) {
     Write-Host "Building the Standalone Tray application..."
     & (Join-Path $PSScriptRoot "build-tray-app.ps1")
     if ($LASTEXITCODE -ne 0) { Fail "Tray app build failed" }
+
+    Write-Host "Building the elevated updater..."
+    & (Join-Path $PSScriptRoot "build-updater.ps1")
+    if ($LASTEXITCODE -ne 0) { Fail "Updater build failed" }
 }
 
 foreach ($name in @("ApexSenseBridge.exe", "ApexSenseBridgeControl.exe", "ApexSenseBridgeTray.exe",
-                    "libVIIPER.dll", "viiper.exe", "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
+                    "ApexSenseBridgeUpdater.exe", "libVIIPER.dll", "viiper.exe", "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
                     "VIIPER-v0.7.0-asb.patch")) {
     if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $name) -PathType Leaf)) {
         Fail "$name is missing from $releaseDir. Build the pinned release payloads first."
@@ -116,6 +120,7 @@ if ($signingRequested) {
         "ApexSenseBridge.exe",
         "ApexSenseBridgeControl.exe",
         "ApexSenseBridgeTray.exe",
+        "ApexSenseBridgeUpdater.exe",
         "viiper.exe",
         "libVIIPER.dll"
     ) | ForEach-Object { Join-Path $releaseDir $_ }

@@ -84,6 +84,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\scripts\build-tray-app.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\scripts\build-updater.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\scripts\prepare-signpath-payload.ps1
 
       - name: Upload unsigned release payload

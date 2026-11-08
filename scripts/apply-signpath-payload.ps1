@@ -23,6 +23,7 @@ $payloads = @(
     @{ Name = "ApexSenseBridge.exe"; Destination = Join-Path $releaseDirectory "ApexSenseBridge.exe" },
     @{ Name = "ApexSenseBridgeControl.exe"; Destination = Join-Path $releaseDirectory "ApexSenseBridgeControl.exe" },
     @{ Name = "ApexSenseBridgeTray.exe"; Destination = Join-Path $releaseDirectory "ApexSenseBridgeTray.exe" },
+    @{ Name = "ApexSenseBridgeUpdater.exe"; Destination = Join-Path $releaseDirectory "ApexSenseBridgeUpdater.exe" },
     @{ Name = "viiper.exe"; Destination = Join-Path $releaseDirectory "viiper.exe" },
     @{ Name = "libVIIPER.dll"; Destination = Join-Path $releaseDirectory "libVIIPER.dll" },
     @{ Name = "ApexSenseBridge.Playnite.dll"; Destination = Join-Path $playniteDirectory "ApexSenseBridge.dll" }
