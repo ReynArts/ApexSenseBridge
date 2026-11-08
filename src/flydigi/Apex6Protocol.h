@@ -54,6 +54,18 @@ struct MotorSubframe {
 
 using MotorBlock = std::array<MotorSubframe, 8>;
 
+inline constexpr std::uint8_t kTriggerFirmwareLoop = 0x00;
+inline constexpr std::uint8_t kTriggerFirmwareOneShot = 0x01;
+
+struct TriggerFirmwareEffect {
+    std::uint8_t type = kTriggerFirmwareLoop;
+    std::uint8_t strength = 0;
+    std::uint8_t parameter = 0;
+    std::uint8_t start = 0;
+
+    bool operator==(const TriggerFirmwareEffect&) const = default;
+};
+
 struct FirmwareVersions {
     std::uint16_t main = 0;
     std::uint16_t receiver = 0;
@@ -106,6 +118,11 @@ struct ProfileState {
 [[nodiscard]] std::optional<ProfileState> parseProfileState(
     std::span<const std::uint8_t> report, std::uint8_t command) noexcept;
 [[nodiscard]] std::array<Report, 2> buildMotorEnable(bool realtimeGrips = true);
+[[nodiscard]] std::array<Report, 2> buildTriggerSideEnable(TriggerRoute side);
+[[nodiscard]] Report buildTriggerEnable(TriggerRoute side);
+[[nodiscard]] Report buildTriggerDisable(TriggerRoute side);
+[[nodiscard]] std::optional<Report> buildTriggerFirmwareEffect(
+    TriggerRoute side, const TriggerFirmwareEffect& effect);
 [[nodiscard]] std::array<Report, 2> buildMotorDisable();
 [[nodiscard]] Report buildRealtimeMotor(const MotorBlock& block,
                                         TriggerRoute route,

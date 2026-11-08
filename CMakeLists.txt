@@ -359,6 +359,17 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME apex6_haptic_bridge COMMAND ApexSenseBridgeApex6HapticTests)
 
+    add_executable(ApexSenseBridgeApex6DualTriggerTests
+        tests/test_apex6_dual_trigger.cpp
+    )
+    target_link_libraries(ApexSenseBridgeApex6DualTriggerTests PRIVATE asb_core)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6DualTriggerTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6DualTriggerTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_dual_trigger COMMAND ApexSenseBridgeApex6DualTriggerTests)
+
     add_executable(ApexSenseBridgeHapticProcessorTests
         tests/test_haptic_processor.cpp
         src/haptics/HapticProcessor.cpp

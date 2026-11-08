@@ -122,6 +122,19 @@ void writeApex6TriggerTrace(std::ostream& output,
     print("apex6_last_active_rt", stats.lastActiveRight);
     print("apex6_last_rejected_lt", stats.lastRejectedLeft);
     print("apex6_last_rejected_rt", stats.lastRejectedRight);
+    output << "apex6_report_signature_overflow=" << stats.reportSignatureOverflow << '\n';
+    for (std::size_t index = 0; index < stats.reportSignatureCount; ++index) {
+        const auto& entry = stats.reportSignatures[index];
+        output << "apex6_report_signature_" << index << "={\"flags\": ["
+               << static_cast<unsigned>(entry.enableBits1) << ", "
+               << static_cast<unsigned>(entry.enableBits2) << ", "
+               << static_cast<unsigned>(entry.enableBits3) << "], \"left_mode\": "
+               << static_cast<unsigned>(entry.leftMode) << ", \"right_mode\": "
+               << static_cast<unsigned>(entry.rightMode) << ", \"rumble\": "
+               << (entry.rumble ? "true" : "false") << ", \"count\": " << entry.count
+               << ", \"first_ms\": " << entry.firstMilliseconds
+               << ", \"last_ms\": " << entry.lastMilliseconds << "}\n";
+    }
     output << "apex6_trigger_trace_overwritten=" << stats.triggerTraceOverwritten << '\n';
     for (std::size_t index = 0; index < stats.triggerTraceCount; ++index) {
         output << "apex6_trigger_trace_" << index << '=';

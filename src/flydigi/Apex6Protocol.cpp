@@ -105,6 +105,46 @@ std::array<Report, 2> buildMotorEnable(bool realtimeGrips) {
                           : buildCommand(kCmdMotorRoute, gripsNative)};
 }
 
+std::array<Report, 2> buildTriggerSideEnable(TriggerRoute side) {
+    const std::uint8_t target = side == TriggerRoute::Right ? 0x01 : 0x00;
+    const std::uint8_t other = target == 0x01 ? 0x00 : 0x01;
+    const std::array<std::uint8_t, 5> enable{0x01, target, 0x03, 0x00, 0x40};
+    const std::array<std::uint8_t, 3> disable{0x01, other, 0x00};
+    return {buildCommand(kCmdMotorRoute, enable), buildCommand(kCmdMotorRoute, disable)};
+}
+
+namespace {
+
+std::uint8_t triggerTarget(TriggerRoute side) noexcept {
+    if (side == TriggerRoute::Left) return 0x00;
+    if (side == TriggerRoute::Right) return 0x01;
+    return 0x02;
+}
+
+} // namespace
+
+Report buildTriggerEnable(TriggerRoute side) {
+    const std::array<std::uint8_t, 5> enable{0x01, triggerTarget(side), 0x03, 0x00, 0x40};
+    return buildCommand(kCmdMotorRoute, enable);
+}
+
+Report buildTriggerDisable(TriggerRoute side) {
+    const std::array<std::uint8_t, 3> disable{0x01, triggerTarget(side), 0x00};
+    return buildCommand(kCmdMotorRoute, disable);
+}
+
+std::optional<Report> buildTriggerFirmwareEffect(TriggerRoute side,
+                                                 const TriggerFirmwareEffect& effect) {
+    if ((side != TriggerRoute::Left && side != TriggerRoute::Right) ||
+        effect.type > kTriggerFirmwareOneShot) {
+        return std::nullopt;
+    }
+    const std::array<std::uint8_t, 7> payload{
+        0x01, triggerTarget(side), 0x04, effect.type, effect.strength, effect.parameter,
+        effect.start};
+    return buildCommand(kCmdMotorRoute, payload);
+}
+
 std::array<Report, 2> buildMotorDisable() {
     constexpr std::array<std::uint8_t, 3> first{0x01, 0x02, 0x00};
     constexpr std::array<std::uint8_t, 3> second{0x01, 0x12, 0x00};

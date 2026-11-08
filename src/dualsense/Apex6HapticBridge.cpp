@@ -24,6 +24,15 @@ constexpr auto kAudioEnvelopeTimeout = std::chrono::milliseconds(100);
 constexpr auto kMaximumWaveformAge = std::chrono::milliseconds(24);
 constexpr auto kHalfFramePeriod = std::chrono::milliseconds(4);
 constexpr unsigned kPrimeHalfFrames2k = 4;
+constexpr std::uint64_t kSlackWriteMarginUs = 200;
+constexpr std::uint64_t kSlackWriteMinimumUs = 1000;
+constexpr unsigned kZoneCount = 10;
+constexpr unsigned kStrokeRange = 192;
+constexpr unsigned kAxisRange = 255;
+constexpr double kFirmwareFeedbackHz = 85.0;
+constexpr double kZoneStrengthMaximum = 8.0;
+constexpr double kMachineLevelMaximum = 7.0 * kApex6TriggerMachineDrivePerLevel;
+constexpr double kLegacyForceFull = kApex6TriggerBurstFullForce;
 constexpr double kPi = 3.14159265358979323846;
 
 haptics::HapticConfig apex6HapticConfig(haptics::HapticConfig config) noexcept {
@@ -116,7 +125,230 @@ void updateMaximum(std::atomic_uint64_t& target, std::uint64_t value) noexcept {
     }
 }
 
+flydigi::apex6::TriggerRoute otherSide(flydigi::apex6::TriggerRoute side) noexcept {
+    return side == flydigi::apex6::TriggerRoute::Left ? flydigi::apex6::TriggerRoute::Right
+                                                      : flydigi::apex6::TriggerRoute::Left;
+}
+
+bool singleSide(flydigi::apex6::TriggerRoute side) noexcept {
+    return side == flydigi::apex6::TriggerRoute::Left ||
+           side == flydigi::apex6::TriggerRoute::Right;
+}
+
+std::uint8_t zonePosition(std::uint8_t zone) noexcept {
+    return static_cast<std::uint8_t>((static_cast<unsigned>(zone) * 256U + 9U) / 10U);
+}
+
+std::uint8_t strokePosition(unsigned stroke) noexcept {
+    return static_cast<std::uint8_t>((std::min)(kAxisRange, stroke * kAxisRange / kStrokeRange));
+}
+
+std::optional<flydigi::apex6::TriggerFirmwareEffect> firmwareEffect(
+    std::uint8_t type, double level, double hertz, unsigned start) noexcept {
+    if (!std::isfinite(level) || level <= 0.0) return std::nullopt;
+    const bool loop = type == flydigi::apex6::kTriggerFirmwareLoop;
+    const double scale = loop ? kApex6FirmwareLoopStrengthScale : kApex6FirmwareOneShotStrengthScale;
+    flydigi::apex6::TriggerFirmwareEffect result;
+    result.type = type;
+    result.strength = static_cast<std::uint8_t>(std::clamp<long>(
+        std::lround((std::min)(level, 1.0) * scale), 1L, static_cast<long>(scale)));
+    if (loop) {
+        if (!std::isfinite(hertz) || hertz <= 0.0) return std::nullopt;
+        result.parameter = static_cast<std::uint8_t>(std::clamp<long>(std::lround(hertz), 1L, 255L));
+    }
+    result.start = static_cast<std::uint8_t>((std::min)(start, kAxisRange));
+    return result;
+}
+
+std::optional<std::uint8_t> trainParameter(const Apex6RhythmShape& rhythm) noexcept {
+    constexpr std::array<std::pair<Apex6WeaponPreset, std::uint8_t>, 4> kTrains{{
+        {Apex6WeaponPreset::MachineGun, std::uint8_t{4}},
+        {Apex6WeaponPreset::Rifle, std::uint8_t{10}},
+        {Apex6WeaponPreset::SubmachineGun, std::uint8_t{16}},
+        {Apex6WeaponPreset::LightMachineGun, std::uint8_t{40}},
+    }};
+    for (const auto& [preset, parameter] : kTrains) {
+        const auto reference = makeApex6WeaponPreset(preset, 4);
+        if (reference.rhythm.pulse == rhythm.pulse &&
+            reference.rhythm.periodSamples == rhythm.periodSamples) {
+            return parameter;
+        }
+    }
+    return std::nullopt;
+}
+
 } // namespace
+
+std::optional<flydigi::apex6::TriggerFirmwareEffect> apex6FirmwareEffectFor(
+    const Apex6TriggerEffect& effect) noexcept {
+    using flydigi::apex6::kTriggerFirmwareLoop;
+    using flydigi::apex6::kTriggerFirmwareOneShot;
+    const auto zoneMaximum = static_cast<double>(
+        *std::max_element(effect.zoneStrengths.begin(), effect.zoneStrengths.end()));
+    switch (effect.type) {
+    case Apex6TriggerType::Off:
+        return std::nullopt;
+    case Apex6TriggerType::Feedback:
+        return firmwareEffect(kTriggerFirmwareLoop, zoneMaximum / kZoneStrengthMaximum,
+                              kFirmwareFeedbackHz, zonePosition(effect.startZone));
+    case Apex6TriggerType::Vibration:
+        return firmwareEffect(kTriggerFirmwareLoop, zoneMaximum / kZoneStrengthMaximum,
+                              effect.frequency, zonePosition(effect.startZone));
+    case Apex6TriggerType::Weapon:
+        return firmwareEffect(kTriggerFirmwareOneShot, effect.strength / kZoneStrengthMaximum,
+                              0.0, zonePosition(effect.endZone));
+    case Apex6TriggerType::Bow:
+        return firmwareEffect(kTriggerFirmwareOneShot, effect.snapStrength / kZoneStrengthMaximum,
+                              0.0, zonePosition(effect.endZone));
+    case Apex6TriggerType::Impact:
+        return firmwareEffect(kTriggerFirmwareOneShot,
+                              effect.impactDrive / static_cast<double>(kApex6TriggerBurstMaximumDrive),
+                              0.0, effect.triggerPosition);
+    case Apex6TriggerType::Rhythm: {
+        const auto& rhythm = effect.rhythm;
+        if (rhythm.periodSamples == 0) return std::nullopt;
+        if (rhythm.modulated) {
+            return firmwareEffect(kTriggerFirmwareLoop,
+                                  (std::max)(rhythm.levelA, rhythm.levelB) / kMachineLevelMaximum,
+                                  rhythm.pulse.frequency, rhythm.activeFrom);
+        }
+        const double level = rhythm.drive / kApex6FirmwareTrainFullDrive;
+        if (const auto parameter = trainParameter(rhythm)) {
+            return firmwareEffect(kTriggerFirmwareLoop, level, *parameter, rhythm.activeFrom);
+        }
+        return firmwareEffect(kTriggerFirmwareLoop, level, 1000.0 / rhythm.periodSamples,
+                              rhythm.activeFrom);
+    }
+    case Apex6TriggerType::Legacy: {
+        const auto& command = effect.legacy;
+        const unsigned start = strokePosition(command.params[0]);
+        switch (command.mode) {
+        case TriggerMode::Race:
+            return firmwareEffect(kTriggerFirmwareLoop, command.params[1] / static_cast<double>(
+                kApex6TriggerNativeMaximumDrive), kFirmwareFeedbackHz, start);
+        case TriggerMode::RecoilRattle:
+        case TriggerMode::Vibration:
+            return firmwareEffect(kTriggerFirmwareLoop, command.params[2] / static_cast<double>(
+                kApex6TriggerNativeMaximumDrive),
+                command.params[3] == 0 ? kFirmwareFeedbackHz : command.params[3], start);
+        case TriggerMode::SniperBreak:
+            return firmwareEffect(kTriggerFirmwareOneShot, command.params[2] / kLegacyForceFull, 0.0,
+                                  strokePosition(static_cast<unsigned>(command.params[0]) +
+                                                 command.params[1]));
+        case TriggerMode::Lock:
+            return firmwareEffect(kTriggerFirmwareOneShot,
+                                  kApex6TriggerNativeMaximumDrive /
+                                      static_cast<double>(kApex6TriggerBurstMaximumDrive),
+                                  0.0, start);
+        case TriggerMode::Normal:
+            return std::nullopt;
+        }
+        return std::nullopt;
+    }
+    }
+    return std::nullopt;
+}
+
+Apex6DualDecision Apex6DualArbiter::next(const Apex6DualInput& input) noexcept {
+    using Route = flydigi::apex6::TriggerRoute;
+    const auto stamp = input.block + 1;
+    const auto since = [stamp](std::uint64_t seen) {
+        return seen == 0 || seen > stamp ? UINT64_MAX : stamp - seen;
+    };
+    if (input.leftActive) {
+        if (since(leftSeen_) > kApex6DualEntryWindowBlocks) leftSince_ = stamp;
+        leftSeen_ = stamp;
+    }
+    if (input.rightActive) {
+        if (since(rightSeen_) > kApex6DualEntryWindowBlocks) rightSince_ = stamp;
+        rightSeen_ = stamp;
+    }
+    if (input.leftEffectOn) leftOn_ = stamp;
+    if (input.rightEffectOn) rightOn_ = stamp;
+    const auto active = [&input](Route side) {
+        return side == Route::Left ? input.leftActive : input.rightActive;
+    };
+    const auto burst = [&input](Route side) {
+        return side == Route::Left ? input.leftBurst : input.rightBurst;
+    };
+    const auto fresh = [&input](Route side) {
+        return side == Route::Left ? input.leftNewEffect : input.rightNewEffect;
+    };
+    const auto seen = [&](Route side) { return since(side == Route::Left ? leftSeen_ : rightSeen_); };
+    const bool firmware = input.policy == Apex6DualPolicy::Firmware && input.firmwareCapable;
+    const bool mix = input.policy == Apex6DualPolicy::Mix;
+    const std::uint64_t release = firmware ? kApex6DualFirmwareReleaseBlocks
+                                  : mix    ? kApex6DualMixReleaseBlocks
+                                           : kApex6DualPriorityReleaseBlocks;
+    Apex6DualDecision decision;
+    if (episode_ && (input.identical || since(leftSeen_) > release || since(rightSeen_) > release ||
+                     (firmware && (since(leftOn_) > kApex6DualFirmwareOffGraceBlocks ||
+                                   since(rightOn_) > kApex6DualFirmwareOffGraceBlocks)))) {
+        episode_ = false;
+        preempted_ = Route::Mute;
+    }
+    const auto changeOwner = [&](Route side, Apex6DualChange change) {
+        if (owner_ != side) {
+            owner_ = side;
+            lastChange_ = stamp;
+            decision.change = change;
+        }
+    };
+    if (!episode_) {
+        if (!input.identical && (input.leftActive || input.rightActive) &&
+            since(leftSeen_) <= kApex6DualEntryWindowBlocks &&
+            since(rightSeen_) <= kApex6DualEntryWindowBlocks) {
+            episode_ = true;
+            auto chosen = leftSince_ > rightSince_ ? Route::Left : Route::Right;
+            const bool held = (owner_ == Route::Left || owner_ == Route::Right) && active(owner_) &&
+                              since(lastChange_) < kApex6DualOwnerHoldBlocks;
+            if (input.leftBurst != input.rightBurst) {
+                chosen = input.leftBurst ? Route::Left : Route::Right;
+                preempted_ = otherSide(chosen);
+            } else if (fresh(Route::Left) != fresh(Route::Right)) {
+                chosen = fresh(Route::Left) ? Route::Left : Route::Right;
+            } else if (held) {
+                chosen = owner_;
+            }
+            changeOwner(chosen, Apex6DualChange::Episode);
+            if (decision.change == Apex6DualChange::None) decision.change = Apex6DualChange::Episode;
+        }
+    } else {
+        const auto other = otherSide(owner_);
+        if (burst(other) && active(other) && !burst(owner_)) {
+            if (preempted_ == Route::Mute) preempted_ = owner_;
+            changeOwner(other, Apex6DualChange::Burst);
+        } else if (preempted_ != Route::Mute && !burst(owner_)) {
+            const auto back = preempted_;
+            preempted_ = Route::Mute;
+            changeOwner(back, Apex6DualChange::Return);
+        } else if (fresh(other) && active(other) && !burst(owner_)) {
+            changeOwner(other, Apex6DualChange::NewEffect);
+        } else if (!burst(owner_) && active(other) && seen(owner_) > kApex6DualYieldSilentBlocks &&
+                   since(lastChange_) >= kApex6DualOwnerHoldBlocks) {
+            changeOwner(other, Apex6DualChange::Yield);
+        }
+    }
+    if (!episode_ || !firmware) {
+        firmwareLatched_ = false;
+    } else if (!input.leftBurst && !input.rightBurst) {
+        firmwareLatched_ = true;
+    }
+    decision.episode = episode_;
+    decision.mix = episode_ && mix;
+    decision.firmware = firmwareLatched_;
+    decision.owner = owner_;
+    if (decision.mix || input.identical) {
+        decision.route = Route::Both;
+    } else if (episode_) {
+        decision.route = owner_;
+    } else if (input.rightActive && !input.leftActive) {
+        decision.route = Route::Right;
+    } else if (input.leftActive) {
+        decision.route = Route::Left;
+    }
+    return decision;
+}
 
 Apex6HapticBridge::Apex6HapticBridge(flydigi::Apex5Device& device,
                                      haptics::HapticConfig config,
@@ -191,6 +423,19 @@ bool Apex6HapticBridge::stop(std::string& error) noexcept {
         rightPcmPrevious_ = 0;
         lastLeftRequest_.reset();
         lastRightRequest_.reset();
+        dualArbiter_.reset();
+        dualBlock_ = 0;
+        leftLastEffect_ = {};
+        rightLastEffect_ = {};
+        leftFirmwareMapping_.reset();
+        rightFirmwareMapping_.reset();
+        leftEffectSeen_ = leftEffectGeneration_;
+        rightEffectSeen_ = rightEffectGeneration_;
+        firmwareEngaged_ = false;
+        dualFirmwareWanted_ = false;
+        dualOwner_ = flydigi::apex6::TriggerRoute::Mute;
+        leftFirmwareTarget_.reset();
+        rightFirmwareTarget_.reset();
     }
     std::string disableError;
     const bool disabled = device_.disableApex6Haptics(disableError);
@@ -314,6 +559,7 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
     }
 
     hidReports_.fetch_add(1, std::memory_order_relaxed);
+    recordReportSignature(feedback);
     constexpr std::uint8_t kCompatibleVibration = 0x01;
     constexpr std::uint8_t kCompatibleVibration2 = 0x04;
     constexpr std::uint8_t kRightTrigger = 0x04;
@@ -338,6 +584,29 @@ void Apex6HapticBridge::handle(const DualSenseFeedback& feedback) {
     if ((feedback.enableBits1 & kRightTrigger) != 0) {
         handleTrigger(TriggerSide::Right, feedback);
     }
+}
+
+void Apex6HapticBridge::recordReportSignature(const DualSenseFeedback& feedback) {
+    const auto now = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        Clock::now() - traceStartedAt_).count());
+    const bool rumble = feedback.rumbleLeft != 0 || feedback.rumbleRight != 0;
+    for (std::size_t index = 0; index < reportSignatureCount_; ++index) {
+        auto& entry = reportSignatures_[index];
+        if (entry.enableBits1 == feedback.enableBits1 && entry.enableBits2 == feedback.enableBits2 &&
+            entry.enableBits3 == feedback.enableBits3 && entry.leftMode == feedback.leftTriggerEffect[0] &&
+            entry.rightMode == feedback.rightTriggerEffect[0] && entry.rumble == rumble) {
+            ++entry.count;
+            entry.lastMilliseconds = now;
+            return;
+        }
+    }
+    if (reportSignatureCount_ == reportSignatures_.size()) {
+        ++reportSignatureOverflow_;
+        return;
+    }
+    auto& entry = reportSignatures_[reportSignatureCount_++];
+    entry = {feedback.enableBits1, feedback.enableBits2, feedback.enableBits3,
+             feedback.leftTriggerEffect[0], feedback.rightTriggerEffect[0], rumble, 1, now, now};
 }
 
 void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback& feedback) {
@@ -382,6 +651,7 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
         return;
     }
     target = next;
+    noteTriggerChangeLocked(side);
     if (next.type != Apex6TriggerType::Off) wakeLocked();
     (left ? leftTriggerState_ : rightTriggerState_).retarget();
     if (!decoded) triggerRejectedStops_.fetch_add(1, std::memory_order_relaxed);
@@ -409,6 +679,7 @@ void Apex6HapticBridge::setDiagnosticTrigger(
         ? leftTriggerState_ : rightTriggerState_;
     if (target != effect) {
         target = effect;
+        noteTriggerChangeLocked(command.side);
         state.reset();
         wakeLocked();
     }
@@ -421,6 +692,7 @@ void Apex6HapticBridge::setDiagnosticEffect(
     auto& state = side == TriggerSide::Left ? leftTriggerState_ : rightTriggerState_;
     if (target != effect) {
         target = effect;
+        noteTriggerChangeLocked(side);
         state.reset();
         wakeLocked();
     }
@@ -433,6 +705,29 @@ void Apex6HapticBridge::setDiagnosticGrips(
     rumbleHigh_ = right;
     diagnosticGripCarrier_ = true;
     wakeLocked();
+}
+
+void Apex6HapticBridge::setDualPolicy(Apex6DualPolicy policy) noexcept {
+    std::lock_guard lock(stateMutex_);
+    dualPolicy_ = policy;
+}
+
+Apex6DualPolicy Apex6HapticBridge::dualPolicy() const noexcept {
+    std::lock_guard lock(stateMutex_);
+    return dualPolicy_;
+}
+
+void Apex6HapticBridge::noteTriggerChangeLocked(TriggerSide side) noexcept {
+    const bool left = side == TriggerSide::Left;
+    const auto& effect = left ? leftTrigger_ : rightTrigger_;
+    if (effect.type == Apex6TriggerType::Off) return;
+    auto& last = left ? leftLastEffect_ : rightLastEffect_;
+    if (effect == last) return;
+    if (effect.type != last.type) ++(left ? leftEffectGeneration_ : rightEffectGeneration_);
+    last = effect;
+    auto& mapping = left ? leftFirmwareMapping_ : rightFirmwareMapping_;
+    mapping = apex6FirmwareEffectFor(effect);
+    if (!mapping) dualFirmwareUnmapped_.fetch_add(1, std::memory_order_relaxed);
 }
 
 void Apex6HapticBridge::wakeLocked() noexcept {
@@ -480,6 +775,7 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
     std::uint8_t rightPositionSnapshot = 0;
     bool leftBurstFrame = false;
     bool rightBurstFrame = false;
+    Apex6DualInput dualInput{};
     {
         std::lock_guard lock(stateMutex_);
         wakeRequested_ = false;
@@ -525,8 +821,21 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
         renderedRightTrigger = renderApex6TriggerEffect(
             rightTrigger_, rightPosition_, rightTriggerState_, triggerSampleOffset_);
         triggerSampleOffset_ += renderedLeftTrigger.size();
-        leftBurstFrame = leftTriggerState_.burstInFrame;
-        rightBurstFrame = rightTriggerState_.burstInFrame;
+        leftBurstFrame = leftTriggerState_.burstInFrame || leftTriggerState_.burstLength != 0;
+        rightBurstFrame = rightTriggerState_.burstInFrame || rightTriggerState_.burstLength != 0;
+        dualInput.leftEffectOn = leftTrigger_.type != Apex6TriggerType::Off;
+        dualInput.rightEffectOn = rightTrigger_.type != Apex6TriggerType::Off;
+        dualInput.leftNewEffect = std::exchange(leftEffectSeen_, leftEffectGeneration_) !=
+                                  leftEffectGeneration_;
+        dualInput.rightNewEffect = std::exchange(rightEffectSeen_, rightEffectGeneration_) !=
+                                   rightEffectGeneration_;
+        dualInput.firmwareCapable = leftFirmwareMapping_.has_value() &&
+                                    rightFirmwareMapping_.has_value();
+        dualInput.policy = dualPolicy_;
+        if (dualInput.policy == Apex6DualPolicy::Firmware) {
+            leftFirmwareTarget_ = leftFirmwareMapping_;
+            rightFirmwareTarget_ = rightFirmwareMapping_;
+        }
         if (leftTriggerState_.burstsStarted > leftBurstsBefore) {
             (leftTrigger_.type == Apex6TriggerType::Bow ? bowBreaks_ : weaponBreaks_)
                 .fetch_add(1, std::memory_order_relaxed);
@@ -647,26 +956,55 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
     }
     const bool leftActive = anyNonZero(leftTrigger);
     const bool rightActive = anyNonZero(rightTrigger);
-    triggerEnabled = leftActive || rightActive;
-    if (!triggerEnabled) {
-        route = flydigi::apex6::TriggerRoute::Mute;
+    dualInput.block = dualBlock_++;
+    dualInput.leftActive = leftActive;
+    dualInput.rightActive = rightActive;
+    dualInput.identical = leftActive && rightActive && leftTrigger == rightTrigger;
+    dualInput.leftBurst = leftBurstFrame && leftActive;
+    dualInput.rightBurst = rightBurstFrame && rightActive;
+    const auto decision = dualArbiter_.next(dualInput);
+    dualOwner_ = decision.owner;
+    dualFirmwareWanted_ = decision.firmware;
+    if (decision.episode) dualTriggerBlocks_.fetch_add(1, std::memory_order_relaxed);
+    switch (decision.change) {
+    case Apex6DualChange::None: break;
+    case Apex6DualChange::Episode: dualEpisodes_.fetch_add(1, std::memory_order_relaxed); break;
+    case Apex6DualChange::Burst: dualBurstSwitches_.fetch_add(1, std::memory_order_relaxed); break;
+    case Apex6DualChange::Return: dualReturns_.fetch_add(1, std::memory_order_relaxed); break;
+    case Apex6DualChange::NewEffect: dualOnsetSwitches_.fetch_add(1, std::memory_order_relaxed); break;
+    case Apex6DualChange::Yield: dualYieldSwitches_.fetch_add(1, std::memory_order_relaxed); break;
+    }
+    renderedSide_ = flydigi::apex6::TriggerRoute::Mute;
+    route = flydigi::apex6::TriggerRoute::Mute;
+    if (firmwareEngaged_) {
+        triggerEnabled = false;
+        dualFirmwareBlocks_.fetch_add(1, std::memory_order_relaxed);
         return output;
     }
-    if (leftActive && rightActive && leftTrigger == rightTrigger) {
-        route = flydigi::apex6::TriggerRoute::Both;
+    triggerEnabled = leftActive || rightActive;
+    if (!triggerEnabled) return output;
+    route = decision.route;
+    renderedSide_ = route;
+    if (route == flydigi::apex6::TriggerRoute::Both && decision.mix && !dualInput.identical) {
+        std::uint64_t clipped = 0;
+        for (std::size_t index = 0; index < count; ++index) {
+            const int sum = static_cast<int>(leftTrigger[index]) + static_cast<int>(rightTrigger[index]);
+            const int limited = std::clamp(sum, -kApex6DualMixPeak, kApex6DualMixPeak);
+            if (limited != sum) ++clipped;
+            output[index].trigger = static_cast<std::int8_t>(limited);
+        }
+        if (clipped != 0) dualMixClippedSamples_.fetch_add(clipped, std::memory_order_relaxed);
+        dualMixFrames_.fetch_add(1, std::memory_order_relaxed);
+        return output;
+    }
+    if (route == flydigi::apex6::TriggerRoute::Both) {
         for (std::size_t index = 0; index < count; ++index) {
             output[index].trigger = leftTrigger[index];
         }
         bothTriggerFrames_.fetch_add(1, std::memory_order_relaxed);
         return output;
     }
-
-    const bool burstDecides = leftBurstFrame != rightBurstFrame;
-    const bool chooseRight = rightActive &&
-        (!leftActive || (burstDecides ? rightBurstFrame : routeRightNext_));
-    routeRightNext_ = !routeRightNext_;
-    route = chooseRight ? flydigi::apex6::TriggerRoute::Right
-                        : flydigi::apex6::TriggerRoute::Left;
+    const bool chooseRight = route == flydigi::apex6::TriggerRoute::Right;
     const auto& selected = chooseRight ? rightTrigger : leftTrigger;
     for (std::size_t index = 0; index < count; ++index) {
         output[index].trigger = selected[index];
@@ -677,6 +1015,8 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
 }
 
 void Apex6HapticBridge::run() noexcept {
+    using Route = flydigi::apex6::TriggerRoute;
+    using FirmwareEffect = flydigi::apex6::TriggerFirmwareEffect;
     auto deadline = Clock::now();
 #ifdef _WIN32
     HighResolutionDeadlineTimer deadlineTimer;
@@ -684,6 +1024,18 @@ void Apex6HapticBridge::run() noexcept {
     unsigned silentStreak = 0;
     unsigned triggerReleaseFrames = 0;
     bool needsPrime = rate2k_;
+    auto triggerTarget = Route::Both;
+    std::array<std::optional<FirmwareEffect>, 2> firmwareWritten{};
+    std::array<std::uint64_t, 2> firmwareWrittenAt{};
+    std::uint64_t period = 0;
+    const auto sideIndex = [](Route side) { return side == Route::Right ? std::size_t{1} : std::size_t{0}; };
+    const auto forgetFirmware = [&firmwareWritten, &sideIndex](Route side) {
+        if (side == Route::Both) {
+            firmwareWritten = {};
+        } else if (singleSide(side)) {
+            firmwareWritten[sideIndex(side)].reset();
+        }
+    };
     const auto writeReport = [this](const flydigi::apex6::MotorBlock& half,
                                     bool trigger,
                                     flydigi::apex6::TriggerRoute halfRoute,
@@ -704,6 +1056,87 @@ void Apex6HapticBridge::run() noexcept {
         framesWritten_.fetch_add(1, std::memory_order_relaxed);
         return true;
     };
+    const auto slackAllowsWrite = [this, &deadline] {
+        const auto frames = framesWritten_.load(std::memory_order_relaxed);
+        const auto averageWriteUs = frames == 0 ? 0
+            : totalWriteDurationUs_.load(std::memory_order_relaxed) / frames;
+        const auto budget = std::chrono::microseconds(
+            (std::max)(averageWriteUs + kSlackWriteMarginUs, kSlackWriteMinimumUs));
+        return deadline - Clock::now() >= budget;
+    };
+    const auto reconcileFirmware = [&]() {
+        enum class Action : std::uint8_t { None, Program, Restore, Clear };
+        for (unsigned writes = 0; writes < kApex6DualMaximumSlackWrites; ++writes) {
+            auto action = Action::None;
+            auto side = Route::Mute;
+            bool refresh = false;
+            std::optional<FirmwareEffect> desired;
+            const auto owner = dualOwner_;
+            if (dualFirmwareWanted_) {
+                const auto first = owner == Route::Left ? Route::Right : Route::Left;
+                for (const auto candidate : {first, otherSide(first)}) {
+                    const auto& target = candidate == Route::Left ? leftFirmwareTarget_ : rightFirmwareTarget_;
+                    const auto& written = firmwareWritten[sideIndex(candidate)];
+                    if (!target) continue;
+                    if (!written || (*written != *target &&
+                                     period - firmwareWrittenAt[sideIndex(candidate)] >=
+                                         kApex6DualFirmwareRefreshBlocks)) {
+                        action = Action::Program;
+                        side = candidate;
+                        refresh = written.has_value();
+                        desired = target;
+                        break;
+                    }
+                }
+            } else if (firmwareWritten[0] && firmwareWritten[1]) {
+                action = Action::Restore;
+                side = singleSide(owner) ? owner : Route::Both;
+            } else if (firmwareWritten[0] || firmwareWritten[1]) {
+                action = Action::Clear;
+                side = firmwareWritten[0] ? Route::Left : Route::Right;
+            }
+            if (action == Action::None) return true;
+            if (!slackAllowsWrite()) {
+                dualFirmwareDeferred_.fetch_add(1, std::memory_order_relaxed);
+                return true;
+            }
+            std::string writeError;
+            const auto writeStartedAt = Clock::now();
+            const bool written = action == Action::Program
+                ? device_.writeApex6TriggerFirmwareEffect(side, *desired, writeError)
+                : device_.writeApex6TriggerEnable(side, action == Action::Restore, writeError);
+            dualFirmwareWrites_.fetch_add(1, std::memory_order_relaxed);
+            dualFirmwareWriteUs_.fetch_add(static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    Clock::now() - writeStartedAt).count()), std::memory_order_relaxed);
+            if (!written) {
+                writeFailures_.fetch_add(1, std::memory_order_relaxed);
+                recordError(std::move(writeError));
+                return false;
+            }
+            if (action == Action::Program) {
+                const bool wasEngaged = firmwareWritten[0] && firmwareWritten[1];
+                firmwareWritten[sideIndex(side)] = desired;
+                firmwareWrittenAt[sideIndex(side)] = period;
+                if (refresh) dualFirmwareRefreshes_.fetch_add(1, std::memory_order_relaxed);
+                if (triggerTarget == side) {
+                    triggerTarget = Route::Mute;
+                } else if (triggerTarget == Route::Both) {
+                    triggerTarget = otherSide(side);
+                }
+                if (!wasEngaged && firmwareWritten[0] && firmwareWritten[1]) {
+                    dualFirmwareEntries_.fetch_add(1, std::memory_order_relaxed);
+                }
+            } else if (action == Action::Restore) {
+                forgetFirmware(side);
+                triggerTarget = side;
+                dualFirmwareExits_.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                forgetFirmware(side);
+            }
+        }
+        return true;
+    };
 #ifdef _WIN32
     const auto waitUntilOrStop = [this, &deadlineTimer](Clock::time_point target) {
         const bool usedHighResolutionTimer = deadlineTimer.waitUntil(target);
@@ -719,24 +1152,58 @@ void Apex6HapticBridge::run() noexcept {
 #endif
     for (;;) {
         deadline += kFramePeriod;
-        flydigi::apex6::TriggerRoute route{};
+        ++period;
+        Route route{};
         bool triggerEnabled = false;
         const auto renderedAt = Clock::now();
         const auto block = renderBlock(route, triggerEnabled, renderedAt);
+        const auto renderNs = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                Clock::now() - renderedAt).count());
+        renderedBlocks_.fetch_add(1, std::memory_order_relaxed);
+        renderTotalNs_.fetch_add(renderNs, std::memory_order_relaxed);
+        updateMaximum(renderMaximumNs_, renderNs);
+        if (triggerEnabled && triggerTarget == Route::Mute && renderedSide_ != Route::Mute) {
+            std::string retargetError;
+            if (!device_.writeApex6TriggerEnable(renderedSide_, true, retargetError)) {
+                writeFailures_.fetch_add(1, std::memory_order_relaxed);
+                recordError(std::move(retargetError));
+                return;
+            }
+            forgetFirmware(renderedSide_);
+            triggerTarget = renderedSide_;
+            triggerRetargets_.fetch_add(1, std::memory_order_relaxed);
+        }
+        if (triggerEnabled && renderedSide_ != Route::Mute && renderedSide_ != triggerTarget) {
+            std::string retargetError;
+            if (!device_.setApex6TriggerSide(renderedSide_, retargetError)) {
+                writeFailures_.fetch_add(1, std::memory_order_relaxed);
+                recordError(std::move(retargetError));
+                return;
+            }
+            forgetFirmware(Route::Both);
+            if (singleSide(triggerTarget) && singleSide(renderedSide_)) {
+                dualOwnerChanges_.fetch_add(1, std::memory_order_relaxed);
+            }
+            triggerTarget = renderedSide_;
+            triggerRetargets_.fetch_add(1, std::memory_order_relaxed);
+        }
+        firmwareEngaged_ = firmwareWritten[0] && firmwareWritten[1];
         if (triggerEnabled) {
             triggerReleaseFrames = kTriggerReleaseFrames;
-        } else if (triggerReleaseFrames != 0) {
+        } else if (triggerReleaseFrames != 0 && !firmwareEngaged_) {
             --triggerReleaseFrames;
             triggerEnabled = true;
-            route = flydigi::apex6::TriggerRoute::Both;
+            route = Route::Both;
         }
         const bool silent = !triggerEnabled &&
             std::all_of(block.begin(), block.begin() + blockSize_, [](const auto& sample) {
                 return sample.leftGrip == 0 && sample.rightGrip == 0 && sample.trigger == 0;
             });
         silentStreak = silent ? silentStreak + 1 : 0;
+        const bool firmwareIdle = !firmwareWritten[0] && !firmwareWritten[1];
         bool keepalive = false;
-        if (silentStreak >= kIdleEnterFrames && tryEnterIdle(renderedAt)) {
+        if (silentStreak >= kIdleEnterFrames && firmwareIdle && tryEnterIdle(renderedAt)) {
             needsPrime = rate2k_;
             std::unique_lock lock(stateMutex_);
             const bool woken = stopSignal_.wait_for(
@@ -761,7 +1228,7 @@ void Apex6HapticBridge::run() noexcept {
         if (rate2k_ && needsPrime && !keepalive) {
             const flydigi::apex6::MotorBlock silentHalf{};
             for (unsigned primed = 0; primed < kPrimeHalfFrames2k; ++primed) {
-                if (!writeReport(silentHalf, false, flydigi::apex6::TriggerRoute::Mute, false)) return;
+                if (!writeReport(silentHalf, false, Route::Mute, false)) return;
                 primeReports_.fetch_add(1, std::memory_order_relaxed);
             }
             needsPrime = false;
@@ -774,6 +1241,11 @@ void Apex6HapticBridge::run() noexcept {
             if (!writeReport(secondHalf, triggerEnabled, route, false)) return;
         }
         if (keepalive) continue;
+        if ((dualFirmwareWanted_ || firmwareWritten[0] || firmwareWritten[1]) && !reconcileFirmware()) {
+            return;
+        }
+        firmwareEngaged_ = firmwareWritten[0] && firmwareWritten[1];
+        if (firmwareEngaged_) triggerReleaseFrames = 0;
 
         bool usedHighResolutionTimer = false;
 #ifdef _WIN32
@@ -913,6 +1385,27 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
         rightTriggerFrames_.load(std::memory_order_relaxed);
     result.bothTriggerFrames =
         bothTriggerFrames_.load(std::memory_order_relaxed);
+    result.triggerRetargets = triggerRetargets_.load(std::memory_order_relaxed);
+    result.renderedBlocks = renderedBlocks_.load(std::memory_order_relaxed);
+    result.renderTotalNs = renderTotalNs_.load(std::memory_order_relaxed);
+    result.renderMaximumNs = renderMaximumNs_.load(std::memory_order_relaxed);
+    result.dualTriggerBlocks = dualTriggerBlocks_.load(std::memory_order_relaxed);
+    result.dualEpisodes = dualEpisodes_.load(std::memory_order_relaxed);
+    result.dualBurstSwitches = dualBurstSwitches_.load(std::memory_order_relaxed);
+    result.dualOnsetSwitches = dualOnsetSwitches_.load(std::memory_order_relaxed);
+    result.dualYieldSwitches = dualYieldSwitches_.load(std::memory_order_relaxed);
+    result.dualMixFrames = dualMixFrames_.load(std::memory_order_relaxed);
+    result.dualMixClippedSamples = dualMixClippedSamples_.load(std::memory_order_relaxed);
+    result.dualReturns = dualReturns_.load(std::memory_order_relaxed);
+    result.dualOwnerChanges = dualOwnerChanges_.load(std::memory_order_relaxed);
+    result.dualFirmwareBlocks = dualFirmwareBlocks_.load(std::memory_order_relaxed);
+    result.dualFirmwareEntries = dualFirmwareEntries_.load(std::memory_order_relaxed);
+    result.dualFirmwareExits = dualFirmwareExits_.load(std::memory_order_relaxed);
+    result.dualFirmwareRefreshes = dualFirmwareRefreshes_.load(std::memory_order_relaxed);
+    result.dualFirmwareWrites = dualFirmwareWrites_.load(std::memory_order_relaxed);
+    result.dualFirmwareWriteUs = dualFirmwareWriteUs_.load(std::memory_order_relaxed);
+    result.dualFirmwareDeferred = dualFirmwareDeferred_.load(std::memory_order_relaxed);
+    result.dualFirmwareUnmapped = dualFirmwareUnmapped_.load(std::memory_order_relaxed);
     result.hapticEnables = hapticEnables_.load(std::memory_order_relaxed);
     result.hapticDisables = hapticDisables_.load(std::memory_order_relaxed);
     result.sampleRateHz = rate2k_ ? 2000U : 1000U;
@@ -927,6 +1420,10 @@ Apex6HapticBridgeStats Apex6HapticBridge::stats() const noexcept {
         result.lastRejectedRight = lastRejectedRight_;
         result.triggerTraceCount = triggerTraceCount_;
         result.triggerTraceOverwritten = triggerTraceOverwritten_;
+        result.reportSignatures = reportSignatures_;
+        result.reportSignatureCount = reportSignatureCount_;
+        result.reportSignatureOverflow = reportSignatureOverflow_;
+        result.dualPolicy = dualPolicy_;
         const auto first = triggerTraceCount_ == triggerTrace_.size() ? triggerTraceNext_ : 0;
         for (std::size_t index = 0; index < triggerTraceCount_; ++index) {
             result.triggerTrace[index] = triggerTrace_[(first + index) % triggerTrace_.size()];

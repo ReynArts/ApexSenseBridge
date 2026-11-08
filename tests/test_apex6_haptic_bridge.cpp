@@ -1623,6 +1623,70 @@ void testBridgeSnapPlaysOneBurstPerPress() {
     assert(audible == 2 * (kBurstFrames));
 }
 
+struct TargetWrites {
+    unsigned rightEnables = 0;
+    unsigned leftEnables = 0;
+    unsigned bothEnables = 0;
+    unsigned disables = 0;
+};
+
+TargetWrites countTargetWrites(const FakeApex6Transport& transport) {
+    TargetWrites counts;
+    for (const auto& report : transport.writes) {
+        if (report.size() != 33 || report[3] != asb::flydigi::apex6::kCmdMotorRoute) continue;
+        if (report[5] != 0x01 || report[6] > 0x02) continue;
+        if (report[7] == 0x03) {
+            if (report[6] == 0x01) ++counts.rightEnables;
+            if (report[6] == 0x00) ++counts.leftEnables;
+            if (report[6] == 0x02) ++counts.bothEnables;
+        } else if (report[7] == 0x00 && report[6] <= 0x01) {
+            ++counts.disables;
+        }
+    }
+    return counts;
+}
+
+void testBridgeIsolatesTheActiveTriggerSide() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    const auto run = [](std::uint8_t enableBits, bool leftEffect, bool rightEffect,
+                        std::uint8_t leftPosition, std::uint8_t rightPosition,
+                        TargetWrites& counts, std::uint64_t& retargets) {
+        auto* transport = new FakeApex6Transport();
+        Apex5Device device{TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        Apex6HapticBridge bridge(device, {}, false);
+        bridge.updateTriggerPositions(0, 0);
+        DualSenseFeedback feedback{};
+        feedback.enableBits1 = enableBits;
+        if (leftEffect) feedback.leftTriggerEffect = {0x25, 0x84, 0x00, 7};
+        if (rightEffect) feedback.rightTriggerEffect = {0x25, 0x84, 0x00, 7};
+        bridge.handle(feedback);
+        assert(bridge.start(error));
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        bridge.updateTriggerPositions(leftPosition, rightPosition);
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        assert(bridge.stop(error));
+        assert(bridge.stats().writeFailures == 0);
+        retargets = bridge.stats().triggerRetargets;
+        counts = countTargetWrites(*transport);
+    };
+
+    TargetWrites counts;
+    std::uint64_t retargets = 0;
+    run(0x04, false, true, 0, 255, counts, retargets);
+    assert(retargets == 1 && counts.rightEnables == 1 && counts.disables >= 1);
+    assert(counts.leftEnables == 0);
+
+    run(0x08, true, false, 255, 0, counts, retargets);
+    assert(retargets == 1 && counts.leftEnables == 1 && counts.disables >= 1);
+    assert(counts.rightEnables == 0);
+
+    run(0x0C, true, true, 255, 255, counts, retargets);
+    assert(retargets == 0 && counts.leftEnables == 0 && counts.rightEnables == 0);
+}
+
 void testBridgeDiagnosticPresetPlaysThroughTheRenderer() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
@@ -1658,6 +1722,7 @@ void testBridgeBurstTakesTheRouteFromASustainedTrigger() {
     std::string error;
     assert(device.verifyIdentity(error));
     Apex6HapticBridge bridge(device, {}, false);
+    bridge.setDualPolicy(Apex6DualPolicy::Priority);
     bridge.updateTriggerPositions(255, 0);
     DualSenseFeedback feedback{};
     feedback.enableBits1 = 0x0C;
@@ -2009,6 +2074,7 @@ int main() {
     testDiagnosticSweepPosition();
     testBridgeDiagnosticPresetPlaysThroughTheRenderer();
     testBridgeSnapPlaysOneBurstPerPress();
+    testBridgeIsolatesTheActiveTriggerSide();
     testBridgeBurstTakesTheRouteFromASustainedTrigger();
     testTriggerDiagnostics();
     testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm();
@@ -2148,7 +2214,7 @@ int main() {
     assert(stats.lastLeftTriggerType == 0x26);
     assert(stats.lastRightTriggerType == 0x26);
     assert(stats.bothTriggerFrames > 0);
-    assert(stats.rightTriggerFrames > 0);
+    assert(stats.dualMixFrames > 0);
     assert(stats.waveformLeftActiveBlocks == 7);
     assert(stats.waveformRightActiveBlocks == 6);
     assert(stats.waveformLeftPeak == 12000);

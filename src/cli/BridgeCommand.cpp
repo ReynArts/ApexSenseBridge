@@ -2065,6 +2065,7 @@ int commandBridgeTriggers(int argc, char** argv) {
               << "apex6_trigger_left_frames=" << apex6Stats.leftTriggerFrames << '\n'
               << "apex6_trigger_right_frames=" << apex6Stats.rightTriggerFrames << '\n'
               << "apex6_trigger_both_frames=" << apex6Stats.bothTriggerFrames << '\n'
+              << "apex6_trigger_retargets=" << apex6Stats.triggerRetargets << '\n'
               << "apex6_rumble_updates=" << apex6Stats.rumbleUpdates << '\n'
               << "apex6_rumble_active_updates=" << apex6Stats.rumbleActiveUpdates << '\n'
               << "apex6_rumble_ignored_reports=" << apex6Stats.rumbleIgnoredReports << '\n'

@@ -658,11 +658,19 @@ bool Apex5Device::stopRumble(std::string& error) {
     return setRumble(0, 0, error);
 }
 
-bool Apex5Device::enableApex6Haptics(std::string& error, bool realtimeGrips) {
+bool Apex5Device::enableApex6Haptics(std::string& error, bool realtimeGrips,
+                                     apex6::TriggerRoute triggerSide) {
     if (!mayWriteApex6Haptics(error)) return false;
     const auto lock = acquireWriteLock();
     bool wroteAny = false;
-    const auto enableReports = apex6::buildMotorEnable(realtimeGrips);
+    auto enableReports = std::vector<apex6::Report>{};
+    const auto base = apex6::buildMotorEnable(realtimeGrips);
+    if (triggerSide == apex6::TriggerRoute::Left || triggerSide == apex6::TriggerRoute::Right) {
+        const auto side = apex6::buildTriggerSideEnable(triggerSide);
+        enableReports = {side[0], side[1], base[1]};
+    } else {
+        enableReports = {base[0], base[1]};
+    }
     for (const auto& report : enableReports) {
         if (!transport_->writeOutputReport(report, error)) {
             if (wroteAny) {
@@ -676,6 +684,43 @@ bool Apex5Device::enableApex6Haptics(std::string& error, bool realtimeGrips) {
         wroteAny = true;
     }
     return true;
+}
+
+bool Apex5Device::setApex6TriggerSide(apex6::TriggerRoute side, std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    const auto lock = acquireWriteLock();
+    if (side == apex6::TriggerRoute::Left || side == apex6::TriggerRoute::Right) {
+        for (const auto& report : apex6::buildTriggerSideEnable(side)) {
+            if (!transport_->writeOutputReport(report, error)) return false;
+        }
+        return true;
+    }
+    return transport_->writeOutputReport(apex6::buildMotorEnable(true)[0], error);
+}
+
+bool Apex5Device::writeApex6TriggerEnable(apex6::TriggerRoute side, bool enable,
+                                          std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    if (side == apex6::TriggerRoute::Mute) {
+        error = "APEX 6 trigger enable needs a side";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    return transport_->writeOutputReport(
+        enable ? apex6::buildTriggerEnable(side) : apex6::buildTriggerDisable(side), error);
+}
+
+bool Apex5Device::writeApex6TriggerFirmwareEffect(apex6::TriggerRoute side,
+                                                  const apex6::TriggerFirmwareEffect& effect,
+                                                  std::string& error) {
+    if (!mayWriteApex6Haptics(error)) return false;
+    const auto report = apex6::buildTriggerFirmwareEffect(side, effect);
+    if (!report) {
+        error = "APEX 6 firmware trigger effect needs one side";
+        return false;
+    }
+    const auto lock = acquireWriteLock();
+    return transport_->writeOutputReport(*report, error);
 }
 
 bool Apex5Device::writeApex6Haptics(const apex6::MotorBlock& block,
