@@ -114,6 +114,10 @@ public:
                              std::uint8_t packetCount,
                              std::span<const std::uint8_t> payload,
                              std::string& error);
+    bool readApex6Ram(std::uint8_t ramId, std::vector<std::uint8_t>& data,
+                      std::string& error);
+    bool writeApex6Ram(std::uint8_t ramId, std::span<const std::uint8_t> data,
+                       std::string& error);
     bool readProfileStatus(ProfileStatus& status, std::string& error);
     bool applyProfile(std::uint8_t slot, std::string& error);
     bool readInputTransportStatus(InputTransportStatus& status,
@@ -173,6 +177,9 @@ private:
     void waitForAsyncWriteSpacing() const;
     void pauseForApex6ProfileSpacing() const;
     void recordVendorWrite() noexcept;
+    [[nodiscard]] std::optional<std::vector<std::uint8_t>> apex6RamExchange(
+        const apex6::Report& request, std::uint8_t command, std::uint8_t mode,
+        std::string& error);
     void writerLoop();
 
     TransportPtr transport_{};

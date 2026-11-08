@@ -48,6 +48,7 @@ add_library(asb_core STATIC
     src/flydigi/Apex5Protocol.cpp
     src/flydigi/Apex6BatteryRefresher.cpp
     src/flydigi/Apex6Imu.cpp
+    src/flydigi/Apex6Lighting.cpp
     src/flydigi/Apex6Protocol.cpp
     src/flydigi/Apex5Device.cpp
 )
@@ -199,6 +200,19 @@ if(BUILD_TESTING)
         target_compile_options(ApexSenseBridgeApex6ImuTests PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     add_test(NAME apex6_imu COMMAND ApexSenseBridgeApex6ImuTests)
+
+    add_executable(ApexSenseBridgeApex6LightingTests
+        tests/test_apex6_lighting.cpp
+        src/flydigi/Apex6Lighting.cpp
+        src/flydigi/Apex6Protocol.cpp
+    )
+    target_include_directories(ApexSenseBridgeApex6LightingTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(ApexSenseBridgeApex6LightingTests PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(ApexSenseBridgeApex6LightingTests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME apex6_lighting COMMAND ApexSenseBridgeApex6LightingTests)
 
     add_executable(ApexSenseBridgeMotionTiltTests
         tests/test_motion_tilt.cpp

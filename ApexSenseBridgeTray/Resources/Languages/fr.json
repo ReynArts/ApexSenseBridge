@@ -283,7 +283,7 @@
   "Loc_ApexProfileKeep": "Conserver l'actuel",
   "Loc_ApexProfileNumber": "Profil {0}",
   "Loc_ApexProfileHint": "Sélectionne temporairement ce profil embarqué pendant le jeu, puis restaure le profil précédent.",
-  "Loc_ApexProfileApex5Only": "Le changement de profil embarqué n'est disponible que sur la manette APEX 5. Votre choix enregistré est conservé pour quand une APEX 5 sera connectée.",
+  "Loc_ApexProfileApex5Only": "Le changement de profil embarqué n'est disponible que sur les manettes APEX 5 et APEX 6 Pro. Votre choix enregistré est conservé pour quand l'une d'elles sera connectée.",
   "Loc_StateIncluded": "Inclus",
   "Loc_StateExcluded": "Exclu",
   "Loc_ExclusionsSavedHint": "Les exclusions et profils par jeu sont automatiquement sauvegardés.",

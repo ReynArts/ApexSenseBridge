@@ -283,7 +283,7 @@
   "Loc_ApexProfileKeep": "Keep current",
   "Loc_ApexProfileNumber": "Profile {0}",
   "Loc_ApexProfileHint": "Temporarily selects this onboard profile while the game is running, then restores the previous profile.",
-  "Loc_ApexProfileApex5Only": "Onboard profile switching is available on the APEX 5 only. Your saved choice is kept for when an APEX 5 is connected.",
+  "Loc_ApexProfileApex5Only": "Onboard profile switching is available on the APEX 5 and APEX 6 Pro only. Your saved choice is kept for when one of them is connected.",
   "Loc_StateIncluded": "Included",
   "Loc_StateExcluded": "Excluded",
   "Loc_ExclusionsSavedHint": "Exclusions and game profiles are automatically saved.",

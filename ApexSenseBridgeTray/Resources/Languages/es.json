@@ -283,7 +283,7 @@
   "Loc_ApexProfileKeep": "Mantener actual",
   "Loc_ApexProfileNumber": "Perfil {0}",
   "Loc_ApexProfileHint": "Selecciona temporalmente este perfil integrado mientras se ejecuta el juego y luego restaura el perfil anterior.",
-  "Loc_ApexProfileApex5Only": "El cambio de perfil integrado solo está disponible en el APEX 5. Tu elección guardada se conserva para cuando conectes un APEX 5.",
+  "Loc_ApexProfileApex5Only": "El cambio de perfil integrado solo está disponible en el APEX 5 y el APEX 6 Pro. Tu elección guardada se conserva para cuando conectes uno de ellos.",
   "Loc_StateIncluded": "Incluido",
   "Loc_StateExcluded": "Excluido",
   "Loc_ExclusionsSavedHint": "Las exclusiones y perfiles de juego se guardan automáticamente.",

@@ -23,8 +23,8 @@ namespace ApexSenseBridgeTray.Models
             TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent));
             VibrationStrengthPercent = Math.Max(0, Math.Min(model == "apex6" ? 100 : 200, VibrationStrengthPercent));
             HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
-            SyncLightbar = model == "apex5" && SyncLightbar;
-            LightbarBrightnessPercent = model == "apex5" ? Math.Max(0, Math.Min(100, LightbarBrightnessPercent)) : 100;
+            SyncLightbar = (model == "apex5" || model == "apex6") && SyncLightbar;
+            LightbarBrightnessPercent = model == "apex5" || model == "apex6" ? Math.Max(0, Math.Min(100, LightbarBrightnessPercent)) : 100;
             GyroStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroStrengthPercent)) : 100;
             GyroYawStrengthPercent = model == "apex4" ? Math.Max(25, Math.Min(400, GyroYawStrengthPercent)) : 100;
         }
@@ -115,7 +115,7 @@ namespace ApexSenseBridgeTray.Models
                         VibrationStrengthPercent = VibrationStrengthPercent,
                         HapticThresholdPercent = HapticThresholdPercent,
                         EnableRumble = EnableRumble,
-                        SyncLightbar = SyncLightbar,
+                        SyncLightbar = model == "apex5" && SyncLightbar,
                         GyroStrengthPercent = Apex4GyroStrengthPercent,
                         GyroYawStrengthPercent = Apex4GyroYawStrengthPercent
                     };

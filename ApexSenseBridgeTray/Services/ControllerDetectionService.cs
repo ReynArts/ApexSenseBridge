@@ -503,7 +503,6 @@ namespace ApexSenseBridgeTray.Services
         internal static bool LocksOnboardProfile(string status)
         {
             return string.Equals(status, "apex4", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(status, "apex6", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(status, "unsupported", StringComparison.OrdinalIgnoreCase);
         }
 

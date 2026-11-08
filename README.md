@@ -93,7 +93,7 @@ activation is far more robust. See [What's new in 1.1.0](#whats-new-in-110).
 - **APEX 5:** the per-zone and rhythmic trigger emulation is on by default. Turn it off with the **Trigger effect emulation** switch in the Tray settings, or `--no-zone-emulation`, if you prefer the previous single-resistance behaviour.
 - **APEX 6 Pro:** triggers now feel different, because each effect is translated by meaning instead of played as a flat vibration.- **APEX 4:** `ASB_APEX4_RUMBLE_MS=25` restores the previous rumble spacing without rebuilding.
 - **Known limitation (APEX 6 Pro):** the firmware drives both triggers from a single signal, so when a game plays two different effects on the two triggers at the same time, the bridge plays the sum of both effects on both triggers (each trigger feels a blend). One effect on one trigger, or the same effect on both, is unaffected. A better solution is on the [roadmap](ROADMAP.md).
-- **Not covered yet:** the APEX 6 Pro does not ride out a power cycle (the bridge stops and the voluntary recovery applies), and RGB lightbar sync is still refused on the APEX 6 Pro. See the [roadmap](ROADMAP.md).
+- **Not covered yet:** the APEX 6 Pro does not ride out a power cycle (the bridge stops and the voluntary recovery applies). See the [roadmap](ROADMAP.md).
 
 ---
 
@@ -247,14 +247,14 @@ a command also opens the Tray app.
 - Sits silently in the System Tray with a modern console-style interface.
 - **Automatic Detection:** Launches and closes the DualSense bridge automatically when any of the 225+ supported games start.
 - **Dynamic Executable Learning:** Detects renamed, modded, elevated or multi-process game executables after 30 seconds of a stable automatically detected session while filtering out game launchers (Steam, Epic, EA, Ubisoft). Force Continuous Activation alone cannot identify which game should own an executable.
-- **Dashboard & Per-Game Profiles:** Right-click the Tray icon to open the game list, force a specific profile, or assign a dedicated APEX 5 hardware slot (1–4) for each game.
+- **Dashboard & Per-Game Profiles:** Right-click the Tray icon to open the game list, force a specific profile, or assign a dedicated APEX 5 or APEX 6 Pro hardware slot (1–4) for each game.
 - **Start with Force Continuous Activation (`--force-always-on`):** `ApexSenseBridgeTray.exe --force-always-on` (for example in a shortcut or a scheduled task) starts the Tray with **Force continuous activation** already on, exactly as if you had switched it on from the home screen: the bridge starts at once and automatic detection no longer starts or stops it. It applies to that run only and is never written to the settings file, so launching the Tray without the argument is back to automatic detection. The argument is read only by the launch that becomes the running Tray: if the Tray is already running, the new launch just brings up its window and the argument is ignored, so close the Tray first. If the bridge cannot start (for example no APEX connected), the option is dropped for that run and automatic detection resumes.
 
 ### 2. Playnite Integration
 
 - Seamlessly integrated with Playnite Desktop and Fullscreen modes.
 - Game launches automatically initiate the bridge, isolate the physical pad, and apply profile mappings.
-- Right-click any game in Playnite > **ApexSenseBridge** to customize trigger remapping, touchpad gesture profiles, onboard APEX 5 hardware slots, or 0–200% grip rumble gain.
+- Right-click any game in Playnite > **ApexSenseBridge** to customize trigger remapping, touchpad gesture profiles, onboard APEX 5 or APEX 6 Pro hardware slots, or 0–200% grip rumble gain.
 - Do not run the Tray and Playnite automation for the same game. ApexSenseBridge protects the active session from being killed, but selecting one owner avoids duplicate notifications and ambiguous start/stop events.
 
 ### Update checks and anonymous version statistics
@@ -313,9 +313,14 @@ in the settings file; the engine selects the matching profile after
 verifying the actual hardware, not from the last model displayed in the UI.
 Gyro tuning is APEX 4-only (25–400% sensitivity and separate yaw correction);
 for APEX 4 gyro to work, the gyro must be enabled in the active Flydigi Space
-Station profile (Gyro tab). RGB is APEX 5-only: the lightbar sync writes the
-game color with the brightness saved in Flydigi Space Station, and the
-"Lightbar max brightness" slider (0–100%) caps it further. The APEX 6 haptic
+Station profile (Gyro tab). The RGB lightbar sync is available on the APEX 5 and
+the APEX 6 Pro (off by default): it writes the game color with the brightness
+saved in Flydigi Space Station, and the "Lightbar max brightness" slider (0–100%)
+caps it further. The APEX 6 Pro keeps what is written to its lighting setting
+after a power cycle, so the bridge first saves your Space Station lighting in
+`%LOCALAPPDATA%\ApexSenseBridge\apex6_led_backup.bin`, sends at most one color
+every 1.5 s and 300 per session, restores your lighting when the session ends,
+and restores it at the next start if a session was killed. The APEX 6 haptic
 threshold is fixed at 0. General Tray preferences remain editable without a
 controller. Existing strength/rumble preferences migrate without being reset;
 subsequent edits affect only the selected model. Playnite keeps its independent

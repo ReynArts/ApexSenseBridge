@@ -252,14 +252,12 @@ int commandBridgeTriggers(int argc, char** argv) {
     std::optional<asb::flydigi::InputTransportStatus> originalInputTransport;
     bool profileSwitchRequired = false;
     bool profileSwitchAcknowledged = true;
-    if (options.apexProfileSlot || options.syncLightbar) {
+    if (options.apexProfileSlot || (options.syncLightbar && !apex6Pro)) {
         const bool profileControlSupported =
-            apex5 || (apex6Pro && !options.syncLightbar &&
-                      device->identity()->supportsProfileSlots());
+            apex5 || (apex6Pro && device->identity()->supportsProfileSlots());
         if (!profileControlSupported) {
             const std::string message = apex6Pro
-                ? "RGB lightbar synchronization is not available on an Apex 6 Pro; "
-                  "only --apex-profile-slot is supported."
+                ? "This Apex 6 Pro does not support onboard profile slots."
                 : "APEX profile and RGB control require a verified Apex 5, or "
                   "a verified Apex 6 Pro for the profile slot alone.";
             std::cerr << message << '\n';

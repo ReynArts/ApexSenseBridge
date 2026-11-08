@@ -2911,7 +2911,7 @@ namespace ApexSenseBridgeTray
             BtnResetGyro.IsEnabled = SliderApex4GyroStrength.IsEnabled;
             BtnResetGyroYaw.IsEnabled = SliderApex4GyroYawStrength.IsEnabled;
             BtnResetThreshold.IsEnabled = SliderVibrationThreshold.IsEnabled;
-            TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5";
+            TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5" || lastControllerStatus == "apex6";
             // Show only what the identified model supports; keep the locked message otherwise.
             TileSettingSyncLightbar.Visibility = TileSettingSyncLightbar.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             SliderLightbarBrightness.IsEnabled = TileSettingSyncLightbar.IsEnabled;
@@ -2982,7 +2982,7 @@ namespace ApexSenseBridgeTray
                 else if (sender == SliderApex4GyroStrength && lastControllerStatus == "apex4") calibration.GyroStrengthPercent = (int)SliderApex4GyroStrength.Value;
                 else if (sender == SliderApex4GyroYawStrength && lastControllerStatus == "apex4") calibration.GyroYawStrengthPercent = (int)SliderApex4GyroYawStrength.Value;
                 else if (sender == SliderVibrationThreshold && lastControllerStatus != "apex6") calibration.HapticThresholdPercent = (int)SliderVibrationThreshold.Value;
-                else if (sender == SliderLightbarBrightness && lastControllerStatus == "apex5") calibration.LightbarBrightnessPercent = (int)SliderLightbarBrightness.Value;
+                else if (sender == SliderLightbarBrightness && (lastControllerStatus == "apex5" || lastControllerStatus == "apex6")) calibration.LightbarBrightnessPercent = (int)SliderLightbarBrightness.Value;
                 else return;
             }
             settings.Save();
@@ -3134,7 +3134,7 @@ namespace ApexSenseBridgeTray
 
         private void OnSettingSyncLightbarToggled(object sender, MouseButtonEventArgs e)
         {
-            if (settings == null || lastControllerStatus != "apex5") return;
+            if (settings == null || (lastControllerStatus != "apex5" && lastControllerStatus != "apex6")) return;
             lock (settings)
             {
                 var calibration = settings.GetControllerCalibration(lastControllerStatus);

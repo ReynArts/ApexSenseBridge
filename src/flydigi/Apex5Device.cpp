@@ -1,4 +1,5 @@
 #include "flydigi/Apex5Device.h"
+#include "flydigi/Apex6Lighting.h"
 
 #include "flydigi/Apex4Protocol.h"
 #include "flydigi/Apex5Protocol.h"
@@ -1502,6 +1503,168 @@ void Apex5Device::writerLoop() {
         asyncWriteFailed_.store(true, std::memory_order_release);
         consecutiveFailures = 0;
     }
+}
+
+std::optional<std::vector<std::uint8_t>> Apex5Device::apex6RamExchange(
+    const apex6::Report& request, std::uint8_t command, std::uint8_t mode,
+    std::string& error) {
+    constexpr auto kSpacing = std::chrono::milliseconds(220);
+    std::chrono::steady_clock::time_point last;
+    {
+        const auto lock = acquireWriteLock();
+        last = lastApex6ProfileExchangeAt_;
+    }
+    if (last.time_since_epoch().count() != 0) {
+        const auto since = std::chrono::steady_clock::now() - last;
+        if (since < kSpacing) std::this_thread::sleep_for(kSpacing - since);
+    }
+
+    const auto lock = acquireWriteLock();
+    const auto bufferSize = std::max<std::size_t>(
+        kReportSize, transport_->info().inputReportLength);
+    std::vector<std::uint8_t> input(bufferSize, 0);
+    constexpr std::size_t kMaximumDrainReports = 128;
+    for (std::size_t count = 0; count < kMaximumDrainReports; ++count) {
+        std::size_t bytesRead = 0;
+        std::string drainError;
+        const auto status = transport_->readInputReport(
+            input, std::chrono::milliseconds(0), bytesRead, drainError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not drain stale HID input before an Apex 6 RAM request: " + drainError;
+            return std::nullopt;
+        }
+    }
+
+    waitForAsyncWriteSpacing();
+    const bool sent = transport_->writeOutputReport(request, error);
+    recordVendorWrite();
+    lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+    if (!sent) return std::nullopt;
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(750);
+    for (std::size_t count = 0; count < 4096; ++count) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) break;
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+        if (remaining.count() == 0) remaining = std::chrono::milliseconds(1);
+        std::size_t bytesRead = 0;
+        std::string readError;
+        const auto status = transport_->readInputReport(input, remaining, bytesRead, readError);
+        if (status == platform::HidReadStatus::Timeout) break;
+        if (status == platform::HidReadStatus::Error) {
+            error = "Could not read the Apex 6 RAM reply: " + readError;
+            return std::nullopt;
+        }
+        if (auto payload = apex6::ramReplyPayload(
+                std::span<const std::uint8_t>(input.data(), bytesRead), command, mode)) {
+            lastApex6ProfileExchangeAt_ = std::chrono::steady_clock::now();
+            return payload;
+        }
+    }
+    error = "No Apex 6 RAM reply arrived within 750 ms";
+    return std::nullopt;
+}
+
+bool Apex5Device::readApex6Ram(std::uint8_t ramId, std::vector<std::uint8_t>& data,
+                               std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "RAM access is only available on a verified Apex 6 Pro";
+        return false;
+    }
+    const auto infoReply = apex6RamExchange(
+        apex6::buildRamInfoRequest(ramId), apex6::kCmdRamRead, 1, error);
+    if (!infoReply) return false;
+    const auto info = apex6::parseRamInfo(*infoReply);
+    if (!info || info->status != 0 || info->ramId != ramId || info->length == 0 ||
+        info->length > apex6::kRamMaximumSize) {
+        error = "The Apex 6 Pro refused the RAM " + std::to_string(ramId) + " information request";
+        return false;
+    }
+    std::vector<std::uint8_t> collected;
+    collected.reserve(info->length);
+    for (std::size_t index = 0; collected.size() < info->length; ++index) {
+        if (index > 255) {
+            error = "The Apex 6 Pro RAM block count exceeded the protocol limit";
+            return false;
+        }
+        const auto reply = apex6RamExchange(
+            apex6::buildRamReadRequest(ramId, static_cast<std::uint8_t>(index)),
+            apex6::kCmdRamRead, 0, error);
+        if (!reply) return false;
+        const auto block = apex6::parseRamBlock(*reply);
+        if (!block || block->status != 0 || block->ramId != ramId ||
+            block->index != index || block->data.empty()) {
+            error = "The Apex 6 Pro returned an invalid RAM block " + std::to_string(index);
+            return false;
+        }
+        const auto wanted = std::min<std::size_t>(block->data.size(), info->length - collected.size());
+        collected.insert(collected.end(), block->data.begin(), block->data.begin() + wanted);
+    }
+    if (apex6::crc32(collected) != info->crc32) {
+        error = "The Apex 6 Pro RAM " + std::to_string(ramId) + " content failed its CRC32 check";
+        return false;
+    }
+    data = std::move(collected);
+    return true;
+}
+
+bool Apex5Device::writeApex6Ram(std::uint8_t ramId, std::span<const std::uint8_t> data,
+                                std::string& error) {
+    if (!isOpen()) {
+        error = "APEX device is not open";
+        return false;
+    }
+    if (!identity_ || !identity_->isApex6()) {
+        error = "RAM access is only available on a verified Apex 6 Pro";
+        return false;
+    }
+    if (data.empty() || data.size() > apex6::kRamMaximumSize) {
+        error = "The Apex 6 Pro RAM payload size is not valid";
+        return false;
+    }
+    const auto length = static_cast<std::uint16_t>(data.size());
+    const auto crc = apex6::crc32(data);
+    const auto abortWrite = [this] {
+        const auto lock = acquireWriteLock();
+        std::string ignored;
+        (void)transport_->writeOutputReport(apex6::buildRamWriteAbort(), ignored);
+        recordVendorWrite();
+    };
+    const auto accepted = [](const std::optional<std::vector<std::uint8_t>>& reply) {
+        return reply && reply->size() > 1 && (*reply)[1] == 0;
+    };
+
+    if (!accepted(apex6RamExchange(apex6::buildRamWriteBegin(ramId, length, crc),
+                                   apex6::kCmdRamWrite, 0, error))) {
+        if (error.empty()) error = "The Apex 6 Pro refused to start the RAM write";
+        abortWrite();
+        return false;
+    }
+    for (std::size_t offset = 0; offset < data.size(); offset += apex6::kRamChunkSize) {
+        const auto size = std::min<std::size_t>(apex6::kRamChunkSize, data.size() - offset);
+        if (!accepted(apex6RamExchange(
+                apex6::buildRamWriteChunk(static_cast<std::uint16_t>(offset),
+                                          data.subspan(offset, size)),
+                apex6::kCmdRamWrite, 1, error))) {
+            if (error.empty()) error = "The Apex 6 Pro refused a RAM write block";
+            abortWrite();
+            return false;
+        }
+    }
+    const auto reply = apex6RamExchange(apex6::buildRamWriteCommit(length, crc),
+                                        apex6::kCmdRamWrite, 2, error);
+    const auto commit = reply ? apex6::parseRamCommit(*reply) : std::nullopt;
+    if (!commit || commit->length != length || commit->crc32 != crc) {
+        if (error.empty()) error = "The Apex 6 Pro RAM write commit did not match the data sent";
+        abortWrite();
+        return false;
+    }
+    return true;
 }
 
 } // namespace asb::flydigi

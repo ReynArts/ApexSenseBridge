@@ -31,6 +31,7 @@ ApexSenseBridge 1.1.0 is a major update, even though the version number only mov
 
 ## 4. Known limits
 
-- The APEX 6 Pro does not ride out a controller power cycle, and RGB lightbar sync is still refused on it.
+- The APEX 6 Pro does not ride out a controller power cycle.
+- On the APEX 6 Pro, lightbar sync stores every color in the controller: it is off by default, limited to one color every 1.5 s and 300 per session, and your Space Station lighting is saved and restored.
 - Bridging two controllers at once is not supported.
 - The 2 kHz grip haptics mode is experimental: light stutters can appear during long continuous effects, in both the 1000 and the 2000 stream, and the real spectrum of game haptics above 500 Hz has not been measured.

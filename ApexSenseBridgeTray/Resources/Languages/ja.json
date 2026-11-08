@@ -283,7 +283,7 @@
   "Loc_ApexProfileKeep": "現在を維持",
   "Loc_ApexProfileNumber": "プロファイル {0}",
   "Loc_ApexProfileHint": "ゲーム実行中にこの本体プロファイルを一時的に選択し、終了後に前のプロファイルを復元します。",
-  "Loc_ApexProfileApex5Only": "本体プロファイルの切り替えは APEX 5 でのみ利用できます。保存した選択は保持され、APEX 5 を接続すると再び有効になります。",
+  "Loc_ApexProfileApex5Only": "本体プロファイルの切り替えは APEX 5 と APEX 6 Pro でのみ利用できます。保存した選択は保持され、どちらかを接続すると再び有効になります。",
   "Loc_StateIncluded": "対象",
   "Loc_StateExcluded": "除外",
   "Loc_ExclusionsSavedHint": "除外とゲームプロファイルは自動的に保存されます。",

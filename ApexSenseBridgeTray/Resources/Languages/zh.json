@@ -283,7 +283,7 @@
   "Loc_ApexProfileKeep": "保持当前",
   "Loc_ApexProfileNumber": "配置 {0}",
   "Loc_ApexProfileHint": "在游戏运行期间临时切换至该板载配置，退出后自动恢复原配置。",
-  "Loc_ApexProfileApex5Only": "板载配置切换仅适用于 APEX 5。已保存的选择会被保留，连接 APEX 5 后即可生效。",
+  "Loc_ApexProfileApex5Only": "板载配置切换仅适用于 APEX 5 和 APEX 6 Pro。已保存的选择会被保留，连接其中之一后即可生效。",
   "Loc_StateIncluded": "已启用",
   "Loc_StateExcluded": "已排除",
   "Loc_ExclusionsSavedHint": "排除项与游戏配置将自动保存。",

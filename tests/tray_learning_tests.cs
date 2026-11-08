@@ -971,10 +971,10 @@ internal static class TrayLearningTests
 
     private static void TestOnboardProfileSelectorLock()
     {
-        foreach (var model in new[] { "apex4", "APEX6", "unsupported" })
+        foreach (var model in new[] { "apex4", "unsupported" })
             Assert(ControllerDetectionService.LocksOnboardProfile(model),
                 "The onboard profile selector stayed editable for " + model + ".");
-        foreach (var status in new[] { "apex5", "Apex5", "disconnected", "unavailable", ControllerDetectionService.Ambiguous, "", null })
+        foreach (var status in new[] { "apex5", "Apex5", "apex6", "APEX6", "disconnected", "unavailable", ControllerDetectionService.Ambiguous, "", null })
             Assert(!ControllerDetectionService.LocksOnboardProfile(status),
                 "The onboard profile selector was locked for " + (status ?? "null") + ".");
         Assert(ControllerDetectionService.LocksOnboardProfile(
@@ -1333,6 +1333,16 @@ internal static class TrayLearningTests
             arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100:40") &&
             arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100:100"),
             "Controller profiles were not bounded/serialized to the native protocol.");
+        a6.SyncLightbar = true;
+        a6.LightbarBrightnessPercent = 40;
+        a4.SyncLightbar = true;
+        var rgbArguments = settings.BuildControllerCalibrationArguments();
+        Assert(rgbArguments.Contains("--controller-calibration apex6:80:90:0:1:1:100:100:40") &&
+            rgbArguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225:100"),
+            "RGB sync was not enabled for the APEX 6 Pro only, or it leaked to the APEX 4.");
+        a6.SyncLightbar = false;
+        a6.LightbarBrightnessPercent = 100;
+        a4.SyncLightbar = false;
         Assert(a4.LightbarBrightnessPercent == 100 && a5.LightbarBrightnessPercent == 40 && a6.LightbarBrightnessPercent == 100,
             "The lightbar brightness limit crossed the APEX 5 boundary.");
         a5.LightbarBrightnessPercent = -5;

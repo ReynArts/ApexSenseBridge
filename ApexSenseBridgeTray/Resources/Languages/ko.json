@@ -283,7 +283,7 @@
   "Loc_ApexProfileKeep": "현재 상태 유지",
   "Loc_ApexProfileNumber": "프로필 {0}",
   "Loc_ApexProfileHint": "게임이 실행되는 동안 이 내장 프로필로 임시 전환하고, 종료 후 이전 프로필로 복원합니다.",
-  "Loc_ApexProfileApex5Only": "내장 프로필 전환은 APEX 5에서만 사용할 수 있습니다. 저장된 선택은 유지되며 APEX 5를 연결하면 다시 적용됩니다.",
+  "Loc_ApexProfileApex5Only": "내장 프로필 전환은 APEX 5와 APEX 6 Pro에서만 사용할 수 있습니다. 저장된 선택은 유지되며 둘 중 하나를 연결하면 다시 적용됩니다.",
   "Loc_StateIncluded": "포함됨",
   "Loc_StateExcluded": "제외됨",
   "Loc_ExclusionsSavedHint": "제외 항목 및 게임별 프로필은 자동으로 저장됩니다.",

@@ -8,9 +8,11 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <filesystem>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace asb::dualsense {
 
@@ -47,6 +49,11 @@ public:
 
 private:
     void workerLoop() noexcept;
+    bool initializeApex6(std::string& error);
+    bool writeApex6Color(std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                         std::string& error);
+    void restoreApex6();
+    [[nodiscard]] static std::filesystem::path apex6BackupPath();
     bool writeWorkingColor(std::uint8_t r, std::uint8_t g, std::uint8_t b,
                            std::string& error);
     void recordFailure(std::string error) noexcept;
@@ -65,6 +72,12 @@ private:
     std::array<std::uint8_t, flydigi::kRgbConfigSize> workingConfig_{};
     bool hasBackup_ = false;
     bool restored_ = false;
+
+    bool apex6_ = false;
+    bool apex6Dirty_ = false;
+    bool apex6Vibration_ = false;
+    std::vector<std::uint8_t> apex6Backup_;
+    std::filesystem::path apex6BackupFile_;
 
     bool hasTarget_ = false;
     std::uint8_t targetRed_ = 0;

@@ -126,9 +126,36 @@ detail; in short:
 - An unplugged chosen controller is forgotten only when several others remain;
   with a single controller left it is used, and the choice comes back when the
   chosen one returns. A momentary list failure no longer flaps the controller.
+- The onboard profile selector is no longer locked on an APEX 6 Pro (the engine
+  already supported its profile slot); it stays locked on an APEX 4.
 - Home picture: the three controller pictures are cropped to their visible
   area, so an APEX 6 Pro or an APEX 4 is no longer drawn much smaller than an
   APEX 5.
+
+### APEX 6 Pro: lightbar sync
+
+- `--sync-lightbar` and the "DualSense Lightbar sync (RGB)" setting now work on
+  an APEX 6 Pro, with the same behaviour as on the APEX 5: the color the game
+  sends to the virtual DualSense is shown as a solid color, capped by the
+  brightness saved in Space Station and the "Lightbar max brightness" slider,
+  and the original lighting is restored when the session ends. The setting is
+  off by default, and an old APEX 5 sync preference is not applied to an
+  APEX 6 Pro.
+- Measured on a real controller: the lighting block (RAM 4, `LGHT`) is written
+  with the generic `0xA4` RAM write (CRC32 checked) and it is kept after the
+  controller is switched off, so every color is a stored write. The bridge
+  therefore limits it: at most one color every 1.5 s (about 1 s of a write is
+  needed anyway), colors closer than 12 per channel are ignored, and at most
+  300 writes per session, after which the color stays as is until the end.
+- The original lighting is saved to `%LOCALAPPDATA%\ApexSenseBridge\apex6_led_backup.bin`
+  before the first change, restored (and read back) when the session ends or is
+  stopped, and restored by the next session if the bridge was killed. If the
+  lighting cannot be read, has an unknown format or the backup cannot be
+  saved, nothing is written and the session starts without lightbar sync.
+- New `Apex6Lighting` codec (`LGHT` v2: SOLID, BREATHING, GRADIENT, STREAMING,
+  DEFAULT; RAM information, block read and `0xA4` begin/chunk/commit/abort
+  frames) with `apex6_lighting` unit tests built from bytes captured on the
+  controller, and `Apex5Device::readApex6Ram` / `writeApex6Ram`.
 
 ### APEX 6 Pro: trigger effects translated into vibration by meaning
 
@@ -207,7 +234,7 @@ detail; in short:
   to the controller.
 - A `--controller-calibration` entry for the APEX 6 Pro no longer discards
   `--apex-profile` (only the APEX 4 entry does). RGB lightbar synchronization
-  (`--sync-lightbar`) is still refused on an APEX 6 Pro.
+  on the APEX 6 Pro is described under "APEX 6 Pro: lightbar sync".
 
 ### APEX 6 Pro: gyroscope and accelerometer
 

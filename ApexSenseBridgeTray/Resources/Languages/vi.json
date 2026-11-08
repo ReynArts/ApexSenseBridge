@@ -283,7 +283,7 @@
   "Loc_ApexProfileKeep": "Giữ hiện tại",
   "Loc_ApexProfileNumber": "Cấu hình {0}",
   "Loc_ApexProfileHint": "Tạm thời chọn cấu hình trên bộ nhớ tay cầm này khi trò chơi chạy, sau đó khôi phục cấu hình trước đó.",
-  "Loc_ApexProfileApex5Only": "Chỉ APEX 5 mới hỗ trợ chuyển cấu hình trên bộ nhớ tay cầm. Lựa chọn đã lưu vẫn được giữ lại và sẽ áp dụng khi bạn kết nối APEX 5.",
+  "Loc_ApexProfileApex5Only": "Chỉ APEX 5 và APEX 6 Pro mới hỗ trợ chuyển cấu hình trên bộ nhớ tay cầm. Lựa chọn đã lưu vẫn được giữ lại và sẽ áp dụng khi bạn kết nối một trong hai.",
   "Loc_StateIncluded": "Đã bao gồm",
   "Loc_StateExcluded": "Đã loại trừ",
   "Loc_ExclusionsSavedHint": "Loại trừ và cấu hình trò chơi được tự động lưu.",
