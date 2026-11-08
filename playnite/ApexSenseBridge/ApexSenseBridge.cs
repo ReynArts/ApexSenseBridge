@@ -5,6 +5,7 @@ using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using ApexSenseBridge.Common;
@@ -34,6 +35,8 @@ namespace ApexSenseBridge
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             base.OnApplicationStarted(args);
+
+            Task.Run(() => UpdateManager.CleanupUpdateLeftovers());
 
             if (settings.Settings.AutoCheckUpdates)
             {
@@ -81,23 +84,40 @@ namespace ApexSenseBridge
                         progressArgs.CurrentProgressValue = p;
                         progressArgs.Text = $"Téléchargement : {p:0}%";
                     });
+                    var status = new Progress<string>(text =>
+                    {
+                        progressArgs.Text = text;
+                    });
 
                     try
                     {
-                        var installerPath = UpdateManager.DownloadSetupAsync(result.SetupDownloadUrl, result.TagName, progress).GetAwaiter().GetResult();
-                        progressArgs.Text = "Installation en arrière-plan...";
+                        var outcome = UpdateManager.InstallUpdateAsync(
+                            result.TagName,
+                            result.SetupDownloadUrl,
+                            result.UpdatePackageUrl,
+                            ResolveBridgeExecutable(settings.Settings),
+                            HasActiveBridgeSession,
+                            progress,
+                            status).GetAwaiter().GetResult();
 
-                        string error;
-                        if (UpdateManager.ExecuteInstallerSilently(installerPath, out error))
+                        switch (outcome.Outcome)
                         {
-                            PlayniteApi.Notifications.Remove(UpdateNotificationId);
-                            PlayniteApi.Dialogs.ShowMessage(
-                                $"La mise à jour {result.TagName} a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
-                                "ApexSenseBridge - Mise à jour");
-                        }
-                        else if (!string.IsNullOrWhiteSpace(error))
-                        {
-                            PlayniteApi.Dialogs.ShowErrorMessage(error, "ApexSenseBridge");
+                            case UpdateInstallOutcome.Installed:
+                                PlayniteApi.Notifications.Remove(UpdateNotificationId);
+                                PlayniteApi.Dialogs.ShowMessage(
+                                    $"La mise à jour {result.TagName} a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
+                                    "ApexSenseBridge - Mise à jour");
+                                break;
+                            case UpdateInstallOutcome.InstalledRestartRequired:
+                                PlayniteApi.Notifications.Remove(UpdateNotificationId);
+                                PlayniteApi.Dialogs.ShowMessage(outcome.Message, "ApexSenseBridge - Mise à jour");
+                                break;
+                            default:
+                                if (!string.IsNullOrWhiteSpace(outcome.Message))
+                                {
+                                    PlayniteApi.Dialogs.ShowErrorMessage(outcome.Message, "ApexSenseBridge");
+                                }
+                                break;
                         }
                     }
                     catch (Exception ex)
@@ -332,6 +352,26 @@ namespace ApexSenseBridge
         internal string ResolveBridgeExecutable(ApexSenseBridgeSettings value)
         {
             return InstallLocator.ResolveEngine(value?.BridgeExecutablePath);
+        }
+
+        internal bool HasActiveBridgeSession()
+        {
+            if (!Monitor.TryEnter(sessionLock))
+            {
+                return true;
+            }
+            try
+            {
+                if (activeSession != null)
+                {
+                    return true;
+                }
+            }
+            finally
+            {
+                Monitor.Exit(sessionLock);
+            }
+            return BridgeSession.ReadActiveSession() != null;
         }
 
         internal void SaveSettings(ApexSenseBridgeSettings value)

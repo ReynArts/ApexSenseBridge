@@ -412,6 +412,7 @@ namespace ApexSenseBridge
         private bool isUpdateAvailable;
         private string availableUpdateVersion = string.Empty;
         private string availableUpdateSetupUrl = string.Empty;
+        private string availableUpdatePackageUrl = string.Empty;
         private bool isDownloadingUpdate;
         private double downloadProgress;
 
@@ -548,11 +549,17 @@ namespace ApexSenseBridge
                     UpdateCheckStatus = result.ErrorMessage;
                     IsUpdateAvailable = false;
                 }
+                else if (result.IsUpdateAvailable && UpdateManager.IsRestartPending)
+                {
+                    IsUpdateAvailable = false;
+                    UpdateCheckStatus = "Mise à jour déjà appliquée. Redémarrez Playnite pour finaliser.";
+                }
                 else if (result.IsUpdateAvailable)
                 {
                     IsUpdateAvailable = true;
                     AvailableUpdateVersion = result.TagName;
                     AvailableUpdateSetupUrl = result.SetupDownloadUrl;
+                    availableUpdatePackageUrl = result.UpdatePackageUrl;
                     UpdateCheckStatus = $"Mise à jour disponible : {result.TagName}";
                 }
                 else
@@ -578,7 +585,7 @@ namespace ApexSenseBridge
 
             IsDownloadingUpdate = true;
             DownloadProgress = 0;
-            UpdateCheckStatus = "Téléchargement de l'installateur...";
+            UpdateCheckStatus = "Préparation de la mise à jour...";
 
             try
             {
@@ -587,21 +594,33 @@ namespace ApexSenseBridge
                     DownloadProgress = p;
                     UpdateCheckStatus = $"Téléchargement en cours : {p:0}%";
                 });
+                var status = new Progress<string>(text => UpdateCheckStatus = text);
 
-                var installerPath = await UpdateManager.DownloadSetupAsync(AvailableUpdateSetupUrl, AvailableUpdateVersion, progress);
-                UpdateCheckStatus = "Lancement de l'installation silencieuse...";
+                var outcome = await UpdateManager.InstallUpdateAsync(
+                    AvailableUpdateVersion,
+                    AvailableUpdateSetupUrl,
+                    availableUpdatePackageUrl,
+                    plugin.ResolveBridgeExecutable(Settings),
+                    plugin.HasActiveBridgeSession,
+                    progress,
+                    status);
 
-                string error;
-                if (UpdateManager.ExecuteInstallerSilently(installerPath, out error))
+                switch (outcome.Outcome)
                 {
-                    UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
-                    plugin.PlayniteApi.Dialogs.ShowMessage(
-                        "La mise à jour d'ApexSenseBridge a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
-                        "ApexSenseBridge - Mise à jour");
-                }
-                else
-                {
-                    UpdateCheckStatus = error ?? "Échec du lancement de l'installation.";
+                    case UpdateInstallOutcome.Installed:
+                        UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
+                        plugin.PlayniteApi.Dialogs.ShowMessage(
+                            "La mise à jour d'ApexSenseBridge a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
+                            "ApexSenseBridge - Mise à jour");
+                        break;
+                    case UpdateInstallOutcome.InstalledRestartRequired:
+                        IsUpdateAvailable = false;
+                        UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
+                        plugin.PlayniteApi.Dialogs.ShowMessage(outcome.Message, "ApexSenseBridge - Mise à jour");
+                        break;
+                    default:
+                        UpdateCheckStatus = outcome.Message ?? "Échec du lancement de l'installation.";
+                        break;
                 }
             }
             catch (Exception ex)
