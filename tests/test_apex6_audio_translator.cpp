@@ -151,6 +151,14 @@ void testGapBetweenPathsIsAttenuated() {
     assert(peak < 0.15);
 }
 
+void testLowPathDoesNotAliasAboveNyquist() {
+    const auto output = renderAll(tone(550.0, 0.5, 1.0));
+    const double alias = std::sqrt(goertzelPower(output, 200, 450.0)) * 2.0;
+    std::fprintf(stderr, "550 Hz tone: 450 Hz alias amplitude %.5f (%.1f dB re input)\n", alias,
+                 20.0 * std::log10(alias / 0.5));
+    assert(alias < 0.5 * std::pow(10.0, -55.0 / 20.0));
+}
+
 void testPunchPhaseReset() {
     const auto burst = tone(2000.0, 0.3, 0.3, 0.1, 0.4);
     Apex6TranslatorConfig on;
@@ -227,6 +235,7 @@ int main() {
     testLowBandPassesThrough();
     testHighBandsMoveToTheirCarrier();
     testGapBetweenPathsIsAttenuated();
+    testLowPathDoesNotAliasAboveNyquist();
     testPunchPhaseReset();
     testReleaseFollowsBandSpeed();
     testQuantizerIsBoundedAndLinearWhenSmall();
