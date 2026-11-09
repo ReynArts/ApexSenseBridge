@@ -532,7 +532,7 @@ private:
         }
         if (!regularFileExists(viiperPath)) {
             error = "Patched viiper.exe was not found at: " + viiperPath.string() +
-                    ". Place v0.7.0-asb4 beside ApexSenseBridge.exe or pass --viiper PATH.";
+                    ". Place v0.9.0-asb2 beside ApexSenseBridge.exe or pass --viiper PATH.";
             return false;
         }
         if (!spawnServer(viiperPath, error)) {
@@ -566,7 +566,9 @@ private:
 
     bool spawnServer(const std::filesystem::path& path, std::string& error) {
         const std::wstring executable = path.wstring();
-        std::wstring commandLine = quoteArgument(executable) + L" server --update-notify none";
+        std::wstring commandLine = quoteArgument(executable) +
+                                   L" server --update-notify none"
+                                   L" --usb.write-batch-flush-interval=1ms";
         if (options_.apiPort != 3242) {
             commandLine += L" --api.addr=127.0.0.1:" +
                            std::to_wstring(options_.apiPort);
