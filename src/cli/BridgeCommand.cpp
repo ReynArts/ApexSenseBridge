@@ -33,6 +33,7 @@
 #include "platform/PhysicalInputSource.h"
 #include "platform/RunningProcesses.h"
 #include "platform/SessionControl.h"
+#include "platform/SessionTuning.h"
 #include "platform/XInputGamepad.h"
 
 #include <algorithm>
@@ -102,6 +103,14 @@ int commandBridgeTriggers(int argc, char** argv) {
             (void)sessionControl->signalReady(ignored);
             std::cerr << "Bridge session status initialization failed: " << error << '\n';
             return 13;
+        }
+    }
+    std::unique_ptr<asb::platform::SessionTuning> sessionTuning;
+    if (sessionControl) {
+        std::string tuningError;
+        sessionTuning = asb::platform::createSessionTuning(*options.sessionToken, tuningError);
+        if (!sessionTuning) {
+            std::cerr << "Live tuning is unavailable: " << tuningError << '\n';
         }
     }
     const auto failSession = [&sessionControl](int exitCode, std::string_view message) {
@@ -406,15 +415,23 @@ int commandBridgeTriggers(int argc, char** argv) {
     asb::haptics::HapticConfig hapticConfig{};
     hapticConfig.activationThreshold =
         static_cast<double>(options.hapticThresholdPercent) / 100.0;
+    bool liveGripMute = false;
+    bool liveTriggerEffectsOff = false;
+    const auto effectiveTriggerStrength = [&]() {
+        return liveTriggerEffectsOff ? 0U : options.triggerStrengthPercent;
+    };
+    const auto effectiveVibrationStrength = [&]() {
+        return liveGripMute ? 0U : options.vibrationStrengthPercent;
+    };
     const auto makeAdaptiveBridge = [&]() {
         auto bridge = std::make_unique<asb::dualsense::AdaptiveTriggerBridge>(
-            *device, options.triggerStrengthPercent, options.zoneEmulation);
+            *device, effectiveTriggerStrength(), options.zoneEmulation);
         bridge->setZoneUnits(asb::dualsense::productionZoneUnits());
         return bridge;
     };
     const auto makeRumbleBridge = [&]() {
         return std::make_unique<asb::dualsense::RumbleBridge>(
-            *device, hapticConfig, options.vibrationStrengthPercent);
+            *device, hapticConfig, effectiveVibrationStrength());
     };
     auto adaptiveBridge = !apex6Pro
         ? makeAdaptiveBridge()
@@ -1381,9 +1398,62 @@ int commandBridgeTriggers(int argc, char** argv) {
                device->takeAsyncWriteError(asyncWriteError);
     };
 
+    const auto publishTuning = [&](std::uint32_t requestSequence) {
+        if (!sessionTuning) return;
+        asb::platform::SessionTuningApplied applied;
+        applied.requestSequence = requestSequence;
+        applied.triggerStrengthPercent = options.triggerStrengthPercent;
+        applied.vibrationStrengthPercent = options.vibrationStrengthPercent;
+        applied.gripMute = liveGripMute ? 1U : 0U;
+        applied.triggerEffectsOff = liveTriggerEffectsOff ? 1U : 0U;
+        applied.touchpadProfile = static_cast<std::uint32_t>(options.touchpadProfile);
+        applied.apexProfileSlot = options.apexProfileSlot
+            ? static_cast<std::uint32_t>(*options.apexProfileSlot)
+            : asb::platform::kSessionTuningNoSlot;
+        applied.sampleRateHz = apex6Pro ? (options.routeRumble ? options.apex6SampleRateHz : 1000U) : 0U;
+        applied.controllerModel = apex6Pro ? 6U : apex4 ? 4U : 5U;
+        sessionTuning->publishApplied(applied);
+    };
+    const auto applyTuning = [&](const asb::platform::SessionTuningRequest& request) {
+        asb::platform::SessionTuningLimits limits;
+        limits.maxVibrationPercent = apex6Pro ? 100U : 200U;
+        limits.maxTouchpadProfile = static_cast<std::uint32_t>(
+            asb::dualsense::TouchpadGestureProfile::AlanWake2);
+        const auto change = asb::platform::interpretSessionTuningRequest(request, limits);
+        if (change.triggerStrengthPercent) options.triggerStrengthPercent = *change.triggerStrengthPercent;
+        if (change.vibrationStrengthPercent) options.vibrationStrengthPercent = *change.vibrationStrengthPercent;
+        if (change.gripMute) liveGripMute = *change.gripMute;
+        if (change.triggerEffectsOff) liveTriggerEffectsOff = *change.triggerEffectsOff;
+        if (change.touchpadProfile) {
+            options.touchpadProfile =
+                static_cast<asb::dualsense::TouchpadGestureProfile>(*change.touchpadProfile);
+            touchpadGestureMapper.setProfile(options.touchpadProfile);
+        }
+        if (change.triggerStrengthPercent || change.triggerEffectsOff) {
+            if (apex6Bridge) {
+                apex6Bridge->setTriggerStrengthPercent(options.triggerStrengthPercent);
+                apex6Bridge->setTriggerEffectsOff(liveTriggerEffectsOff);
+            }
+            if (adaptiveBridge) adaptiveBridge->setStrengthPercent(effectiveTriggerStrength());
+        }
+        if (change.vibrationStrengthPercent || change.gripMute) {
+            if (apex6Bridge) {
+                apex6Bridge->setVibrationStrengthPercent(options.vibrationStrengthPercent);
+                apex6Bridge->setGripMute(liveGripMute);
+            }
+            if (rumbleBridge) rumbleBridge->setStrengthPercent(effectiveVibrationStrength());
+        }
+        publishTuning(request.sequence);
+    };
+    publishTuning(0);
+
     while (!g_stopRequested.load(std::memory_order_relaxed) &&
            !globalSessionStop->stopRequested() &&
            (!sessionControl || !sessionControl->stopRequested())) {
+        if (sessionTuning) {
+            asb::platform::SessionTuningRequest tuningRequest;
+            if (sessionTuning->poll(tuningRequest)) applyTuning(tuningRequest);
+        }
         if (feedbackFailureSeen()) {
             if (reattachSupported &&
                 handleLoss(asb::cli::PhysicalLossCause::FeedbackFailed,

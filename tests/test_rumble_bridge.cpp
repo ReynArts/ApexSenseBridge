@@ -274,9 +274,36 @@ void testThresholdAndTriggerIndependence() {
     }
 }
 
+void testLiveRumbleStrength() {
+    using namespace asb::dualsense;
+    auto* transport = new FakeTransport();
+    asb::flydigi::Apex5Device device{asb::flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    RumbleBridge rumble(device, {}, 100);
+    DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x01;
+    feedback.rumbleLeft = 100;
+    feedback.rumbleRight = 200;
+    rumble.handle(feedback);
+    assert(transport->writes.back()[5] == 100 && transport->writes.back()[6] == 200);
+    rumble.setStrengthPercent(50);
+    assert(transport->writes.back()[5] == 50 && transport->writes.back()[6] == 100);
+    const auto writes = transport->writes.size();
+    rumble.setStrengthPercent(50);
+    assert(transport->writes.size() == writes);
+    rumble.setStrengthPercent(0);
+    assert(transport->writes.back()[5] == 0 && transport->writes.back()[6] == 0);
+    rumble.setStrengthPercent(100);
+    assert(transport->writes.back()[5] == 100 && transport->writes.back()[6] == 200);
+    rumble.setStrengthPercent(1000);
+    assert(transport->writes.back()[5] == scaleRumbleStrength(100, 200));
+}
+
 int main() {
     testRumbleGain();
     testThresholdAndTriggerIndependence();
+    testLiveRumbleStrength();
     using namespace asb::dualsense;
 
     auto* transport = new FakeTransport();

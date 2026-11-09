@@ -292,6 +292,10 @@ public:
     void setDiagnosticGrips(std::uint8_t left, std::uint8_t right) noexcept;
     void setDualPolicy(Apex6DualPolicy policy) noexcept;
     [[nodiscard]] Apex6DualPolicy dualPolicy() const noexcept;
+    void setTriggerStrengthPercent(unsigned percent) noexcept;
+    void setVibrationStrengthPercent(unsigned percent) noexcept;
+    void setGripMute(bool mute) noexcept;
+    void setTriggerEffectsOff(bool off) noexcept;
 
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
@@ -328,8 +332,10 @@ private:
     haptics::HapticProcessor hapticProcessor_;
     bool routeGrips_ = true;
     flydigi::apex6::TriggerRoute renderedSide_ = flydigi::apex6::TriggerRoute::Mute;
-    unsigned triggerStrengthPercent_ = 100;
-    unsigned vibrationStrengthPercent_ = 100;
+    std::atomic<unsigned> triggerStrengthPercent_{100};
+    std::atomic<unsigned> vibrationStrengthPercent_{100};
+    std::atomic<bool> gripMute_{false};
+    std::atomic<bool> triggerEffectsOff_{false};
     unsigned pcmGainPercent_ = 100;
     unsigned gripDuckPercent_ = 0;
     unsigned triggerCeilingPercent_ = 100;

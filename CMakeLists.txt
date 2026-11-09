@@ -39,6 +39,7 @@ add_library(asb_core STATIC
     src/platform/HidTransport.cpp
     src/platform/PhysicalInputSource.h
     src/platform/SessionControl.cpp
+    src/platform/SessionTuning.cpp
     src/platform/XInputMapping.cpp
     src/flydigi/Apex4Input.cpp
     src/flydigi/Apex4Protocol.cpp
@@ -65,6 +66,7 @@ if(WIN32)
         src/platform/windows/WindowsPhysicalInputSource.cpp
         src/platform/windows/WindowsRunningProcesses.cpp
         src/platform/windows/WindowsSessionControl.cpp
+        src/platform/windows/WindowsSessionTuning.cpp
     )
     target_link_libraries(asb_core PRIVATE setupapi hid cfgmgr32 ws2_32 xinput ole32)
 else()
@@ -77,6 +79,7 @@ else()
         src/platform/UnsupportedPhysicalInputSource.cpp
         src/platform/UnsupportedRunningProcesses.cpp
         src/platform/UnsupportedSessionControl.cpp
+        src/platform/UnsupportedSessionTuning.cpp
     )
 endif()
 
@@ -569,6 +572,18 @@ if(BUILD_TESTING)
         endif()
         add_test(NAME session_control_windows
                  COMMAND ApexSenseBridgeSessionControlWindowsTests)
+
+        add_executable(ApexSenseBridgeSessionTuningWindowsTests
+            tests/test_session_tuning.cpp
+        )
+        target_link_libraries(ApexSenseBridgeSessionTuningWindowsTests PRIVATE asb_core)
+        if(MSVC)
+            target_compile_options(ApexSenseBridgeSessionTuningWindowsTests PRIVATE /W4 /permissive- /EHsc)
+        else()
+            target_compile_options(ApexSenseBridgeSessionTuningWindowsTests PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+        add_test(NAME session_tuning_windows
+                 COMMAND ApexSenseBridgeSessionTuningWindowsTests)
 
         add_executable(ApexSenseBridgeVirtualDualSenseWindowsTests
             tests/test_windows_virtual_dualsense.cpp

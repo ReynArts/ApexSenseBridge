@@ -2114,7 +2114,14 @@ namespace ApexSenseBridgeTray
             bool hasCustom = settings.GetGameTuning(game.Normalized) != null;
             settings.SetGameTuning(game.Normalized, game.Title, hasCustom ? null : GlobalGameTuning());
             settings.Save();
+            ApplyLiveTuningToSession();
             UpdateGameTuningPanel();
+        }
+
+        private void ApplyLiveTuningToSession()
+        {
+            if (sessionManager == null || settings == null) return;
+            sessionManager.ApplyLiveTuning(settings);
         }
 
         private void OnGameTuningChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -2128,6 +2135,7 @@ namespace ApexSenseBridgeTray
             if (lastControllerStatus != "apex6") tuning.HapticThresholdPercent = (int)SliderGameThreshold.Value;
             settings.SetGameTuning(game.Normalized, game.Title, tuning);
             settings.Save();
+            ApplyLiveTuningToSession();
             UpdateGameTuningLabels();
         }
 
@@ -2986,6 +2994,7 @@ namespace ApexSenseBridgeTray
                 else return;
             }
             settings.Save();
+            if (sender == SliderTriggerStrength || sender == SliderVibrationStrength) ApplyLiveTuningToSession();
             UpdateEffectLabels();
         }
 

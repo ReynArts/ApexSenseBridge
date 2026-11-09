@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Live tuning channel in the engine** ([#86](https://github.com/ReynArts/ApexSenseBridge/issues/86),
+  first step toward an Xbox Game Bar widget). A session started with a token now
+  creates a 128-byte shared mapping, `Local\ApexSenseBridge.Session.<token>.Tuning`
+  (magic `ASBT`, version 1). A client writes a request (offset 8: sequence counter,
+  trigger strength, grip strength, grip mute, trigger effects off, touchpad profile,
+  APEX slot; `0xFFFFFFFF` leaves a field unchanged) and reads the applied state the
+  engine publishes (offset 40: sequence counter, acknowledged request, the same
+  values, sample rate, controller model). The engine polls it once per main-loop
+  turn, bounds every value and ignores out-of-range ones, so nothing runs on the
+  haptic thread. Grip and trigger strength, grip mute, trigger effects off and the
+  touchpad gesture profile now change without restarting the bridge, on the APEX 6
+  Pro (atomics read by the render loop, 1 kHz and 2 kHz alike) and on the APEX 4/5
+  (the armed trigger effect is re-sent at the new strength). Not live yet: the APEX
+  slot, the activation threshold, grip haptics on or off, the 1 kHz / 2 kHz rate,
+  zone emulation and the lightbar. `shared/SessionTuning.cs` is the C# client. The
+  Tray uses it: moving the trigger or vibration strength sliders (per model or per
+  game) during a Tray session now applies at once, using the same per-game
+  override and APEX 6 limit as at session start. Sessions owned by Playnite are
+  not touched. The two texts that said these settings wait for the next session
+  were updated in the nine languages and in the README.
+
 ## 1.1.0
 
 ### Highlights

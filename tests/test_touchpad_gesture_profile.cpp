@@ -257,5 +257,28 @@ int main() {
     assert(input.buttons == 0);
     assert(warframeSimultaneous.stats().replayedTaps == 0);
 
+    TouchpadGestureMapper switching;
+    input = {};
+    input.buttons = button::kTouchpadClick;
+    switching.transform(input, start);
+    assert((input.buttons & button::kTouchpadClick) != 0 && !input.touch1Active);
+    switching.setProfile(TouchpadGestureProfile::MilesMorales);
+    assert(switching.profile() == TouchpadGestureProfile::MilesMorales);
+    input = {};
+    input.buttons = button::kTouchpadClick;
+    switching.transform(input, start + 1s);
+    assert((input.buttons & button::kTouchpadClick) == 0);
+    input = {};
+    switching.transform(input, start + 1s + 100ms);
+    assert((input.buttons & button::kTouchpadClick) != 0);
+    assert(input.touch1Active && input.touch1X == 960 && input.touch1Y == 540);
+    assert(switching.stats().replayedTaps == 1);
+    switching.setProfile(TouchpadGestureProfile::None);
+    input = {};
+    input.buttons = button::kTouchpadClick;
+    switching.transform(input, start + 2s);
+    assert((input.buttons & button::kTouchpadClick) != 0 && !input.touch1Active);
+    assert(switching.stats().replayedTaps == 1);
+
     return 0;
 }

@@ -2111,10 +2111,116 @@ void testApex6SampleRateIsSanitised() {
     assert(normal.stats().sampleRateHz == 1000);
 }
 
+void testLiveGripStrengthAndMute() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    asb::haptics::HapticConfig config{};
+    config.activationThreshold = 0.0;
+    Apex6HapticBridge bridge(device, config, true, 100, 100, 100);
+    bridge.updateTriggerPositions(200, 200);
+    assert(bridge.start(error));
+    DualSenseFeedback waveform{};
+    waveform.kind = FeedbackKind::AudioHapticWaveform;
+    waveform.leftHapticSamples.fill(static_cast<std::int16_t>(30000));
+    waveform.rightHapticSamples.fill(static_cast<std::int16_t>(-30000));
+    unsigned sequence = 0;
+    const auto feed = [&](unsigned blocks) {
+        for (unsigned index = 0; index < blocks; ++index) {
+            waveform.audioSequence = ++sequence;
+            bridge.handle(waveform);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    };
+    const auto rendered = [&] { return bridge.stats().waveformActiveRendered; };
+    const auto settle = [] { std::this_thread::sleep_for(std::chrono::milliseconds(80)); };
+
+    feed(6);
+    settle();
+    assert(rendered() > 0);
+
+    bridge.setGripMute(true);
+    settle();
+    const auto muted = rendered();
+    feed(6);
+    settle();
+    assert(rendered() == muted);
+
+    bridge.setGripMute(false);
+    bridge.setVibrationStrengthPercent(0);
+    settle();
+    const auto silenced = rendered();
+    feed(6);
+    settle();
+    assert(rendered() == silenced);
+
+    bridge.setVibrationStrengthPercent(100);
+    feed(6);
+    settle();
+    assert(rendered() > silenced);
+    assert(bridge.stop(error));
+}
+
+void testLiveTriggerEffectsOffKeepsGrips() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    const auto run = [](bool effectsOff, unsigned strength) {
+        auto* transport = new FakeApex6Transport();
+        Apex5Device device{TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        asb::haptics::HapticConfig config{};
+        config.activationThreshold = 0.0;
+        Apex6HapticBridge bridge(device, config, true, 100, 100, 100);
+        bridge.setTriggerEffectsOff(effectsOff);
+        bridge.setTriggerStrengthPercent(strength);
+        bridge.updateTriggerPositions(200, 200);
+        assert(bridge.start(error));
+        DualSenseFeedback trigger{};
+        trigger.enableBits1 = 0x0C;
+        trigger.leftTriggerEffect = {1, 0, 100};
+        trigger.rightTriggerEffect = trigger.leftTriggerEffect;
+        bridge.handle(trigger);
+        DualSenseFeedback waveform{};
+        waveform.kind = FeedbackKind::AudioHapticWaveform;
+        waveform.leftHapticSamples.fill(static_cast<std::int16_t>(30000));
+        waveform.rightHapticSamples.fill(static_cast<std::int16_t>(-30000));
+        for (unsigned sequence = 1; sequence <= 6; ++sequence) {
+            waveform.audioSequence = sequence;
+            bridge.handle(waveform);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        assert(bridge.stop(error));
+        int maximumGrip = 0;
+        int maximumTrigger = 0;
+        for (const auto& report : transport->writes) {
+            if (report[3] != apex6::kCmdRealtimeMotor) continue;
+            for (std::size_t sample = 0; sample < 8; ++sample) {
+                maximumGrip = (std::max)(maximumGrip, std::abs(int(report[7 + sample * 3]) - 128));
+                maximumTrigger = (std::max)(maximumTrigger, std::abs(int(report[6 + sample * 3]) - 128));
+            }
+        }
+        return std::pair{maximumGrip, maximumTrigger};
+    };
+    const auto reference = run(false, 100);
+    assert(reference.first > 0 && reference.second > 0);
+    const auto off = run(true, 100);
+    assert(off.first == reference.first && off.second == 0);
+    const auto zero = run(false, 0);
+    assert(zero.first == reference.first && zero.second == 0);
+    const auto half = run(false, 50);
+    assert(half.second > 0 && half.second < reference.second);
+}
+
 int main() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
 
+    testLiveGripStrengthAndMute();
+    testLiveTriggerEffectsOffKeepsGrips();
     testApex6SampleRateIsSanitised();
     testApex6TwoKilohertzNativePcm();
     testApex6TwoKilohertzUpsamplesNarrowBlocks();

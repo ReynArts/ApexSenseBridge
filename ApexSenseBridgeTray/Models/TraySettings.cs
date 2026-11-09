@@ -1,3 +1,4 @@
+using ApexSenseBridge.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -152,6 +153,21 @@ namespace ApexSenseBridgeTray.Models
                 }
                 return result.ToString();
             }
+        }
+
+        internal SessionTuningChange BuildLiveTuning(string gameTitle, string model)
+        {
+            if (!IsCalibrationModel(model)) return null;
+            var calibration = GetControllerCalibration(model);
+            var tuning = GetGameTuning(gameTitle);
+            int trigger = tuning != null ? tuning.TriggerStrengthPercent : calibration.TriggerStrengthPercent;
+            int vibration = tuning != null ? tuning.VibrationStrengthPercent : calibration.VibrationStrengthPercent;
+            vibration = Math.Min(model == "apex6" ? 100 : 200, vibration);
+            return new SessionTuningChange
+            {
+                TriggerStrengthPercent = (uint)Math.Max(0, Math.Min(100, trigger)),
+                VibrationStrengthPercent = (uint)Math.Max(0, vibration)
+            };
         }
 
         public TraySettings()

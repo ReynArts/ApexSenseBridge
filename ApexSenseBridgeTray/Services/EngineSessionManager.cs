@@ -259,6 +259,38 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
+        public bool ApplyLiveTuning(TraySettings settings)
+        {
+            if (settings == null) return false;
+            int processId;
+            string gameTitle;
+            lock (syncLock)
+            {
+                if (activeSession == null || isStopping) return false;
+                processId = activeSession.ProcessId;
+                gameTitle = activeGameTitle;
+            }
+            if (processId == 0) return false;
+            try
+            {
+                var discovered = BridgeSession.ReadActiveSession();
+                if (discovered == null || discovered.EngineProcessId != processId) return false;
+                using (var client = SessionTuningClient.Open(discovered.Token))
+                {
+                    if (client == null) return false;
+                    var applied = client.ReadApplied();
+                    if (applied == null) return false;
+                    var model = applied.ControllerModel == 6 ? "apex6" : applied.ControllerModel == 4 ? "apex4" : "apex5";
+                    var change = settings.BuildLiveTuning(gameTitle, model);
+                    return change != null && client.Submit(change);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public bool IsSessionHealthy
         {
             get

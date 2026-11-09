@@ -353,6 +353,36 @@ void testStrength(bool apex4) {
     expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
 }
 
+void testLiveStrengthReappliesArmedEffect(bool apex4) {
+    using namespace asb;
+    auto* transport = new FakeTransport(apex4);
+    flydigi::Apex5Device device{flydigi::TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    dualsense::AdaptiveTriggerBridge bridge(device, 100);
+    bridge.setStrengthPercent(100);
+    const auto writesBefore = transport->writes.size();
+    bridge.setStrengthPercent(50);
+    assert(transport->writes.size() == writesBefore);
+    dualsense::DualSenseFeedback feedback{};
+    feedback.enableBits1 = 0x08;
+    feedback.leftTriggerEffect = {1, 25, 40};
+    bridge.handle(feedback);
+    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Race, {25, 20, 0, 0, 0});
+    bridge.setStrengthPercent(100);
+    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Race, {25, 40, 0, 0, 0});
+    const auto writesAfterRaise = transport->writes.size();
+    bridge.setStrengthPercent(100);
+    assert(transport->writes.size() == writesAfterRaise);
+    bridge.setStrengthPercent(0);
+    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Normal, {});
+    bridge.setStrengthPercent(100);
+    expectReport(*transport, apex4, TriggerSide::Left, TriggerMode::Race, {25, 40, 0, 0, 0});
+    const auto writesAtFull = transport->writes.size();
+    bridge.setStrengthPercent(500);
+    assert(transport->writes.size() == writesAtFull);
+}
+
 void testAsyncCoalescing() {
     using namespace asb;
     auto* transport = new FakeTransport(true);
@@ -1352,6 +1382,8 @@ int main() {
     testEmptyBlocksKeepActiveEffect(true);
     testStrength(false);
     testStrength(true);
+    testLiveStrengthReappliesArmedEffect(false);
+    testLiveStrengthReappliesArmedEffect(true);
     testAsyncCoalescing();
     testWriterSelection();
     testApex5WiredStaysSynchronous();

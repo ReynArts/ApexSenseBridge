@@ -179,7 +179,7 @@ void AdaptiveTriggerBridge::stepPeriodic(std::chrono::steady_clock::time_point n
                 periodicTransitions_.fetch_add(1, std::memory_order_relaxed);
             }
         }
-        if (command && !send(scaleTriggerStrength(*command, strengthPercent_), 0)) return;
+        if (command && !sendScaled(*command, 0)) return;
     }
 }
 
@@ -311,9 +311,11 @@ void AdaptiveTriggerBridge::apply(TriggerSide side, std::uint8_t enableBits,
     if (bow) *translated = bow->draw;
     if (zoneCommand) *translated = *zoneCommand;
     if (periodicCommand) *translated = *periodicCommand;
-    *translated = scaleTriggerStrength(*translated, strengthPercent_);
+    const auto rawCommand = *translated;
+    *translated = scaleTriggerStrength(*translated, strengthPercent_.load(std::memory_order_relaxed));
     {
         std::lock_guard lock(stateMutex_);
+        lastRaw_[side == TriggerSide::Left ? 0U : 1U] = rawCommand;
         auto& previous = side == TriggerSide::Left ? lastLeft_ : lastRight_;
         if (previous == translated) {
             deduplicated_.fetch_add(1, std::memory_order_relaxed);
@@ -327,6 +329,36 @@ void AdaptiveTriggerBridge::apply(TriggerSide side, std::uint8_t enableBits,
         normal_.fetch_add(1, std::memory_order_relaxed);
     } else {
         active_.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
+bool AdaptiveTriggerBridge::sendScaled(const ForceTriggerCommand& raw, std::uint8_t dualSenseType) {
+    {
+        std::lock_guard lock(stateMutex_);
+        lastRaw_[raw.side == TriggerSide::Left ? 0U : 1U] = raw;
+    }
+    return send(scaleTriggerStrength(raw, strengthPercent_.load(std::memory_order_relaxed)),
+                dualSenseType);
+}
+
+void AdaptiveTriggerBridge::setStrengthPercent(unsigned percent) {
+    const unsigned bounded = (std::min)(percent, 100U);
+    strengthPercent_.store(bounded, std::memory_order_relaxed);
+    if (quiesced_.load(std::memory_order_relaxed) || failed_.load(std::memory_order_relaxed)) return;
+    std::lock_guard sendLock(sendMutex_);
+    for (const auto side : {TriggerSide::Left, TriggerSide::Right}) {
+        const auto index = side == TriggerSide::Left ? 0U : 1U;
+        std::optional<ForceTriggerCommand> command;
+        {
+            std::lock_guard lock(stateMutex_);
+            const auto& raw = lastRaw_[index];
+            if (!raw) continue;
+            const auto scaled = scaleTriggerStrength(*raw, bounded);
+            const auto& previous = index == 0 ? lastLeft_ : lastRight_;
+            if (previous == scaled) continue;
+            command = scaled;
+        }
+        if (!send(*command, 0)) return;
     }
 }
 
@@ -387,7 +419,7 @@ void AdaptiveTriggerBridge::updateTriggerPositions(std::uint8_t left, std::uint8
             }
         }
         if (command) {
-            const bool sent = send(scaleTriggerStrength(*command, strengthPercent_), 0);
+            const bool sent = sendScaled(*command, 0);
             recordLatency(zoneLatencySamples_, zoneLatencyTotalUs_, zoneLatencyMaxUs_,
                           std::chrono::steady_clock::now() - entered);
             if (!sent) return;

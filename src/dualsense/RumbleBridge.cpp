@@ -98,6 +98,14 @@ void RumbleBridge::poll() {
     }
 }
 
+void RumbleBridge::setStrengthPercent(unsigned percent) {
+    const auto now = Clock::now();
+    std::lock_guard lock(stateMutex_);
+    strengthPercent_ = (std::min)(percent, 200U);
+    if (failed_.load(std::memory_order_relaxed)) return;
+    writeDesiredLocked(mixedLevelsLocked(), now, true, false);
+}
+
 bool RumbleBridge::expireAudioLocked(Clock::time_point now) noexcept {
     constexpr auto kAudioStreamTimeout = std::chrono::milliseconds(100);
     if (!hasAudioTimestamp_ || isZero(audio_) || now - lastAudioAt_ < kAudioStreamTimeout) {

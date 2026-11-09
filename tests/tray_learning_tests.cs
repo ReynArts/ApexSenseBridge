@@ -63,6 +63,8 @@ internal static class TrayLearningTests
             TestTrayStartupOptions();
             TestSharedBridgeArguments();
             TestControllerCalibrations();
+            TestLiveTuningResolution();
+            TestSessionTuningClientProtocol();
             TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
@@ -1863,6 +1865,100 @@ internal static class TrayLearningTests
                 Assert(process.WaitForExit(3000) && process.ExitCode == 0, "Main-entry forwarding did not exit successfully.");
             }
             Environment.SetEnvironmentVariable("ASB_TEST_SHOW_EVENT", null);
+        }
+    }
+
+    private static void TestLiveTuningResolution()
+    {
+        var settings = new TraySettings();
+        var a5 = settings.GetControllerCalibration("apex5");
+        var a6 = settings.GetControllerCalibration("apex6");
+        a6.TriggerStrengthPercent = 70;
+        a6.VibrationStrengthPercent = 55;
+        a5.TriggerStrengthPercent = 80;
+        a5.VibrationStrengthPercent = 150;
+        var change = settings.BuildLiveTuning("Alpha", "apex6");
+        Assert(change != null && change.TriggerStrengthPercent == 70u && change.VibrationStrengthPercent == 55u,
+            "Live tuning ignored the APEX 6 calibration.");
+        Assert(change.GripMute == null && change.TriggerEffectsOff == null && change.TouchpadProfile == null &&
+            change.ApexProfileSlot == null, "Live tuning changed fields the settings do not own.");
+        change = settings.BuildLiveTuning("Alpha", "apex5");
+        Assert(change.TriggerStrengthPercent == 80u && change.VibrationStrengthPercent == 150u,
+            "Live tuning ignored the APEX 5 calibration.");
+        Assert(settings.BuildLiveTuning("Alpha", "apex9") == null && settings.BuildLiveTuning("Alpha", null) == null &&
+            settings.BuildLiveTuning("Alpha", "unavailable") == null, "An unverified model received live tuning.");
+        settings.SetGameTuning("alpha", "Alpha", new GameTuning
+        {
+            TriggerStrengthPercent = 20, VibrationStrengthPercent = 180, HapticThresholdPercent = 5
+        });
+        change = settings.BuildLiveTuning("Alpha", "apex6");
+        Assert(change.TriggerStrengthPercent == 20u && change.VibrationStrengthPercent == 100u,
+            "A per-game override did not apply, or exceeded the APEX 6 vibration limit.");
+        change = settings.BuildLiveTuning("Alpha", "apex4");
+        Assert(change.TriggerStrengthPercent == 20u && change.VibrationStrengthPercent == 180u,
+            "A per-game override was clamped below the APEX 4/5 vibration limit.");
+        change = settings.BuildLiveTuning("Beta", "apex6");
+        Assert(change.TriggerStrengthPercent == 70u && change.VibrationStrengthPercent == 55u,
+            "A per-game override leaked to another game.");
+        var manager = new EngineSessionManager();
+        try
+        {
+            Assert(!manager.ApplyLiveTuning(settings) && !manager.ApplyLiveTuning(null),
+                "Live tuning claimed success without an active Tray session.");
+        }
+        finally { manager.Dispose(); }
+    }
+
+    private static void TestSessionTuningClientProtocol()
+    {
+        var token = Guid.NewGuid().ToString("N");
+        Assert(SessionTuningClient.Open(token) == null && SessionTuningClient.Open("short") == null &&
+            SessionTuningClient.Open(null) == null, "A missing tuning mapping was opened.");
+        using (var mapping = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateNew(
+            SessionTuningClient.MappingName(token), 128))
+        using (var view = mapping.CreateViewAccessor(0, 128))
+        {
+            Assert(SessionTuningClient.Open(token) == null, "A mapping without the engine magic was accepted.");
+            view.Write(0, 0x54425341u);
+            view.Write(4, 1u);
+            using (var client = SessionTuningClient.Open(token))
+            {
+                Assert(client != null, "A valid tuning mapping was refused.");
+                Assert(client.ReadApplied() == null, "Applied state appeared before the engine published it.");
+                Assert(client.Submit(new SessionTuningChange { VibrationStrengthPercent = 42, GripMute = true }),
+                    "The first tuning request was not written.");
+                Assert(view.ReadUInt32(8) == 2u && view.ReadUInt32(12) == 0xFFFFFFFFu &&
+                    view.ReadUInt32(16) == 42u && view.ReadUInt32(20) == 1u && view.ReadUInt32(24) == 0xFFFFFFFFu &&
+                    view.ReadUInt32(28) == 0xFFFFFFFFu && view.ReadUInt32(32) == 0xFFFFFFFFu,
+                    "The first request did not match the engine layout.");
+                Assert(client.Submit(new SessionTuningChange
+                {
+                    TriggerStrengthPercent = 10, TriggerEffectsOff = false, TouchpadProfile = 3, ApexProfileSlot = 2
+                }), "The second tuning request was not written.");
+                Assert(view.ReadUInt32(8) == 4u && view.ReadUInt32(12) == 10u && view.ReadUInt32(16) == 0xFFFFFFFFu &&
+                    view.ReadUInt32(20) == 0xFFFFFFFFu && view.ReadUInt32(24) == 0u &&
+                    view.ReadUInt32(28) == 3u && view.ReadUInt32(32) == 2u,
+                    "Unspecified fields were not left unchanged, or the sequence did not advance by two.");
+                view.Write(40, 1u);
+                Assert(client.ReadApplied() == null, "A half-written applied state was returned.");
+                view.Write(44, 4u);
+                view.Write(48, 10u);
+                view.Write(52, 42u);
+                view.Write(56, 1u);
+                view.Write(60, 0u);
+                view.Write(64, 3u);
+                view.Write(68, 2u);
+                view.Write(72, 2000u);
+                view.Write(76, 6u);
+                view.Write(40, 2u);
+                var applied = client.ReadApplied();
+                Assert(applied != null && applied.RequestSequence == 4u && applied.TriggerStrengthPercent == 10u &&
+                    applied.VibrationStrengthPercent == 42u && applied.GripMute && !applied.TriggerEffectsOff &&
+                    applied.TouchpadProfile == 3u && applied.ApexProfileSlot == 2u && applied.SampleRateHz == 2000u &&
+                    applied.ControllerModel == 6u, "The applied state was not read back correctly.");
+                view.Write(68, 0xFFu);
+                Assert(client.ReadApplied().ApexProfileSlot == null, "An unset APEX slot was reported as a slot.");
+            }
         }
     }
 

@@ -742,6 +742,22 @@ Apex6DualPolicy Apex6HapticBridge::dualPolicy() const noexcept {
     return dualPolicy_;
 }
 
+void Apex6HapticBridge::setTriggerStrengthPercent(unsigned percent) noexcept {
+    triggerStrengthPercent_.store((std::min)(percent, 100U), std::memory_order_relaxed);
+}
+
+void Apex6HapticBridge::setVibrationStrengthPercent(unsigned percent) noexcept {
+    vibrationStrengthPercent_.store((std::min)(percent, 100U), std::memory_order_relaxed);
+}
+
+void Apex6HapticBridge::setGripMute(bool mute) noexcept {
+    gripMute_.store(mute, std::memory_order_relaxed);
+}
+
+void Apex6HapticBridge::setTriggerEffectsOff(bool off) noexcept {
+    triggerEffectsOff_.store(off, std::memory_order_relaxed);
+}
+
 void Apex6HapticBridge::noteTriggerChangeLocked(TriggerSide side) noexcept {
     const bool left = side == TriggerSide::Left;
     const auto& effect = left ? leftTrigger_ : rightTrigger_;
@@ -857,18 +873,24 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
         triggerSampleOffset_ += renderedLeftTrigger.size();
         leftBurstFrame = leftTriggerState_.burstInFrame || leftTriggerState_.burstLength != 0;
         rightBurstFrame = rightTriggerState_.burstInFrame || rightTriggerState_.burstLength != 0;
-        dualInput.leftEffectOn = leftTrigger_.type != Apex6TriggerType::Off;
-        dualInput.rightEffectOn = rightTrigger_.type != Apex6TriggerType::Off;
+        const bool triggerEffectsOff = triggerEffectsOff_.load(std::memory_order_relaxed);
+        dualInput.leftEffectOn = !triggerEffectsOff && leftTrigger_.type != Apex6TriggerType::Off;
+        dualInput.rightEffectOn = !triggerEffectsOff && rightTrigger_.type != Apex6TriggerType::Off;
         dualInput.leftNewEffect = std::exchange(leftEffectSeen_, leftEffectGeneration_) !=
                                   leftEffectGeneration_;
         dualInput.rightNewEffect = std::exchange(rightEffectSeen_, rightEffectGeneration_) !=
                                    rightEffectGeneration_;
-        dualInput.firmwareCapable = leftFirmwareMapping_.has_value() &&
+        dualInput.firmwareCapable = !triggerEffectsOff && leftFirmwareMapping_.has_value() &&
                                     rightFirmwareMapping_.has_value();
         dualInput.policy = dualPolicy_;
         if (dualInput.policy == Apex6DualPolicy::Firmware) {
-            leftFirmwareTarget_ = leftFirmwareMapping_;
-            rightFirmwareTarget_ = rightFirmwareMapping_;
+            if (triggerEffectsOff) {
+                leftFirmwareTarget_.reset();
+                rightFirmwareTarget_.reset();
+            } else {
+                leftFirmwareTarget_ = leftFirmwareMapping_;
+                rightFirmwareTarget_ = rightFirmwareMapping_;
+            }
         }
         if (leftTriggerState_.burstsStarted > leftBurstsBefore) {
             (leftTrigger_.type == Apex6TriggerType::Bow ? bowBreaks_ : weaponBreaks_)
@@ -945,6 +967,10 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
         }
     }
 
+    const unsigned vibrationStrength = gripMute_.load(std::memory_order_relaxed)
+        ? 0U : vibrationStrengthPercent_.load(std::memory_order_relaxed);
+    const unsigned triggerStrength = triggerEffectsOff_.load(std::memory_order_relaxed)
+        ? 0U : triggerStrengthPercent_.load(std::memory_order_relaxed);
     unsigned leftPcmOutputPeak = 0;
     unsigned rightPcmOutputPeak = 0;
     const auto gripDuckGain = apex6GripDuckGainPermille(
@@ -952,8 +978,8 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
     bool gripDucked = false;
     std::uint64_t triggerLimited = 0;
     for (std::size_t index = 0; index < count; ++index) {
-        output[index].leftGrip = scaleEffectStrength(output[index].leftGrip, vibrationStrengthPercent_);
-        output[index].rightGrip = scaleEffectStrength(output[index].rightGrip, vibrationStrengthPercent_);
+        output[index].leftGrip = scaleEffectStrength(output[index].leftGrip, vibrationStrength);
+        output[index].rightGrip = scaleEffectStrength(output[index].rightGrip, vibrationStrength);
         if (gripDuckGain != kApex6GripNoDuckPermille) {
             const auto duckedLeft = applyApex6GripDuck(output[index].leftGrip, gripDuckGain);
             const auto duckedRight = applyApex6GripDuck(output[index].rightGrip, gripDuckGain);
@@ -970,8 +996,8 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
             rightPcmOutputPeak = (std::max)(rightPcmOutputPeak,
                 static_cast<unsigned>(std::abs(int(output[index].rightGrip))));
         }
-        const auto scaledLeftTrigger = scaleEffectStrength(leftTrigger[index], triggerStrengthPercent_);
-        const auto scaledRightTrigger = scaleEffectStrength(rightTrigger[index], triggerStrengthPercent_);
+        const auto scaledLeftTrigger = scaleEffectStrength(leftTrigger[index], triggerStrength);
+        const auto scaledRightTrigger = scaleEffectStrength(rightTrigger[index], triggerStrength);
         leftTrigger[index] = limitApex6TriggerSample(scaledLeftTrigger, triggerCeilingPercent_);
         rightTrigger[index] = limitApex6TriggerSample(scaledRightTrigger, triggerCeilingPercent_);
         if (leftTrigger[index] != scaledLeftTrigger) ++triggerLimited;

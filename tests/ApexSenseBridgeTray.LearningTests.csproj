@@ -104,6 +104,9 @@
     <Compile Include="..\shared\ProcessLiveness.cs">
       <Link>Production\ProcessLiveness.cs</Link>
     </Compile>
+    <Compile Include="..\shared\SessionTuning.cs">
+      <Link>Production\SessionTuning.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
