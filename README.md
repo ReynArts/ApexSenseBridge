@@ -308,6 +308,11 @@ a command also opens the Tray app.
 - Right-click any game in Playnite > **ApexSenseBridge** to customize trigger remapping, touchpad gesture profiles, onboard APEX 5 or APEX 6 Pro hardware slots, or 0–200% grip rumble gain.
 - Do not run the Tray and Playnite automation for the same game. ApexSenseBridge protects the active session from being killed, but selecting one owner avoids duplicate notifications and ambiguous start/stop events.
 
+### 3. Xbox Game Bar widget (optional)
+
+- A widget for Xbox Game Bar (Win+G) shows the bridge state and, in game and with the controller alone, changes the trigger and grip strength, grip mute, trigger effects and the touchpad profile, listing the profile's gestures with the Tray's glyphs. **Remember for this game** stores the strengths as that game's tuning. It follows the Tray language and needs the Tray running.
+- It is a separate MSIX package, not in the installer or the release assets yet. `scripts\build-widget.ps1` (with `-TestCertificate`, `-CertificatePath` and `-CertificatePassword`, or `-Unsigned`) builds it into `dist\widget` and writes `ApexSenseBridgeWidget-<version>-x64.zip`: the package, its framework dependencies and `Install-ApexSenseBridgeWidget.ps1`. Building needs the Visual Studio *Universal Windows Platform build tools* component.
+- Install it as the normal user with `Install-ApexSenseBridgeWidget.ps1` (Windows 10 1809 or later, Xbox Game Bar installed). A package signed with the test certificate also needs `-TrustCertificate`; `-Uninstall` removes it. Then open Game Bar and pick **ApexSenseBridge** in the widget menu.
 ### Update checks and anonymous version statistics
 
 The Tray (at startup) and the Playnite extension (at Playnite startup) ask the project's relay which release is the latest. The request carries only the component and its version (for example `tray/1.1.0`) and a random installation ID generated on first use, never derived from your hardware or your account. The relay stores the version and a hash of that ID that changes every month, so installations cannot be followed from one month to the next, and it does not store IP addresses. The statistics only tell the maintainer which versions are still in use.

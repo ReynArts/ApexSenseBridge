@@ -40,9 +40,15 @@
   (the Tray sends it in every reply): all nine Tray languages are covered, reusing
   the Tray's own wording for the shared terms. The remapping (profile and gesture
   glyphs) comes first, then the coral sliders, the toggles and "remember for this
-  game"; the layout adapts to the window size. Not done yet: Stop and Restart
-  actions, switching the APEX onboard slot, and installer, CI packaging and signing
-  of the package (SignPath only signs executables today).
+  game"; the layout adapts to the window size.
+  The package is built by `scripts/build-widget.ps1` (.NET Native, about 0.8 MB, signed with a test or release
+  certificate, or left unsigned for an external signing step) into
+  `dist/widget` with its framework dependencies and `Install-ApexSenseBridgeWidget.ps1`.
+  The Tray finds the installed package in the registry whatever its publisher, so
+  a release certificate needs no code change. Not done yet: Stop and Restart
+  actions, switching the APEX onboard slot, and adding the package to the installer,
+  the CI and a signing stage (SignPath documents an `<msix-file>` element; it is not
+  wired into the release yet).
 
 
 ## 1.1.0

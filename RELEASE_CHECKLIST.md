@@ -86,3 +86,18 @@ input path; do not test USB filter removal on a development workstation.
 
 Record VM image, Windows build, existing prerequisite versions, choices made,
 restart result and logs for every matrix row before publishing the tag.
+
+## Game Bar widget package (not part of the automated release yet)
+
+- Build it with `scripts\build-widget.ps1` using the release certificate:
+  the package publisher must equal the certificate subject exactly. The script
+  prints the signature status (must be `Valid`) and the package family name.
+- Install it with `Install-ApexSenseBridgeWidget.ps1` on a clean user profile
+  without the test certificate, open it in Game Bar with a bridge session
+  running, and check controller navigation, live strength changes, the mute
+  and trigger-effects switches, the profile row and "Remember for this game".
+- The Tray finds the installed package from the registry, so a new publisher
+  needs no code change; confirm the widget connects before publishing.
+- SignPath's artifact configuration has an `<msix-file>` element for `.msix`
+  packages (see its artifact configuration reference). Adding a signing stage
+  to `release.yml` and the package to the release assets is still to do.

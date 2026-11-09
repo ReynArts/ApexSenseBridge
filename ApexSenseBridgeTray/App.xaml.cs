@@ -101,7 +101,7 @@ namespace ApexSenseBridgeTray
                         new LiveWidgetBackend(), settings, CloudGameListService.Normalize, BuildWidgetRemapEntries,
                         action => { if (Dispatcher.CheckAccess()) action(); else Dispatcher.Invoke(action); },
                         settings.Save, () => LocalizationManager.CurrentLanguage),
-                    WidgetControlServer.DefaultPipeName, WidgetControlServer.KnownPackageFamilies);
+                    WidgetControlServer.DefaultPipeName, WidgetControlServer.KnownPackageFamilies, WidgetPackageLocator.FindFamilies);
                 widgetServer.Start();
                 learningService = new ExecutableLearningService();
                 StartupDiagnostics.Mark("process-monitor");

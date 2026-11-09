@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
@@ -15,6 +16,7 @@ namespace ApexSenseBridgeTray.Services
         internal const string DefaultPipeName = "ApexSenseBridge.Widget.v1";
         internal const int MaximumRequestBytes = 4096;
         internal const int ClientTimeoutMilliseconds = 2000;
+        internal const int FamilyRefreshMilliseconds = 3000;
         internal static readonly string[] KnownPackageFamilies =
         {
             "ReynArts.ApexSenseBridgeWidget_tcqvdfrmphh62"
@@ -22,16 +24,35 @@ namespace ApexSenseBridgeTray.Services
 
         private readonly WidgetControlService service;
         private readonly string pipeName;
-        private readonly string[] packageFamilies;
+        private readonly Func<IEnumerable<string>> packageFamilies;
         private readonly ManualResetEvent stopEvent = new ManualResetEvent(false);
         private Thread thread;
         private bool disposed;
 
         internal WidgetControlServer(WidgetControlService service, string pipeName, IEnumerable<string> packageFamilies)
+            : this(service, pipeName, packageFamilies, null)
+        {
+        }
+
+        internal WidgetControlServer(WidgetControlService service, string pipeName, IEnumerable<string> fixedFamilies,
+                                     Func<IEnumerable<string>> discoveredFamilies)
         {
             this.service = service;
             this.pipeName = pipeName;
-            this.packageFamilies = new List<string>(packageFamilies ?? new string[0]).ToArray();
+            var fixedList = new List<string>(fixedFamilies ?? new string[0]);
+            packageFamilies = () =>
+            {
+                var all = new List<string>(fixedList);
+                var found = discoveredFamilies == null ? null : discoveredFamilies();
+                if (found != null)
+                {
+                    foreach (var family in found)
+                    {
+                        if (!string.IsNullOrEmpty(family) && !all.Contains(family, StringComparer.OrdinalIgnoreCase)) all.Add(family);
+                    }
+                }
+                return all;
+            };
         }
 
         internal void Start()
@@ -51,10 +72,15 @@ namespace ApexSenseBridgeTray.Services
 
         internal PipeSecurity BuildSecurity()
         {
+            return BuildSecurity(new List<string>(packageFamilies()));
+        }
+
+        private PipeSecurity BuildSecurity(List<string> families)
+        {
             var security = new PipeSecurity();
             security.AddAccessRule(new PipeAccessRule(
                 WindowsIdentity.GetCurrent().User, PipeAccessRights.FullControl, AccessControlType.Allow));
-            foreach (var family in packageFamilies)
+            foreach (var family in families)
             {
                 var sid = DeriveAppContainerSid(family);
                 if (sid != null)
@@ -67,21 +93,29 @@ namespace ApexSenseBridgeTray.Services
 
         private void Run()
         {
-            PipeSecurity security;
-            try { security = BuildSecurity(); }
-            catch { return; }
             while (!stopEvent.WaitOne(0))
             {
                 try
                 {
+                    var families = new List<string>(packageFamilies());
+                    var security = BuildSecurity(families);
                     using (var pipe = new NamedPipeServerStream(
                         pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
                         PipeOptions.Asynchronous, 4096, 4096, security))
                     {
                         var connecting = pipe.BeginWaitForConnection(null, null);
-                        if (WaitHandle.WaitAny(new[] { connecting.AsyncWaitHandle, stopEvent }) != 0) return;
-                        pipe.EndWaitForConnection(connecting);
-                        Serve(pipe);
+                        while (true)
+                        {
+                            var signalled = WaitHandle.WaitAny(new[] { connecting.AsyncWaitHandle, stopEvent }, FamilyRefreshMilliseconds);
+                            if (signalled == 1) return;
+                            if (signalled == 0)
+                            {
+                                pipe.EndWaitForConnection(connecting);
+                                Serve(pipe);
+                                break;
+                            }
+                            if (!SameFamilies(families, packageFamilies())) break;
+                        }
                     }
                 }
                 catch (Exception)
@@ -91,6 +125,16 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
+        private static bool SameFamilies(List<string> before, IEnumerable<string> after)
+        {
+            var other = new List<string>(after);
+            if (other.Count != before.Count) return false;
+            foreach (var family in other)
+            {
+                if (!before.Contains(family, StringComparer.OrdinalIgnoreCase)) return false;
+            }
+            return true;
+        }
         private void Serve(NamedPipeServerStream pipe)
         {
             try

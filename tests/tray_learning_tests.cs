@@ -67,6 +67,7 @@ internal static class TrayLearningTests
             TestSessionTuningClientProtocol();
             TestWidgetControlService();
             TestWidgetControlServer();
+            TestWidgetPackageLocator();
             TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
@@ -2130,6 +2131,48 @@ internal static class TrayLearningTests
         }
     }
 
+    private static void TestWidgetPackageLocator()
+    {
+        const string family = "ReynArts.ApexSenseBridgeWidget_tcqvdfrmphh62";
+        Assert(WidgetPackageLocator.FamilyFromFullName("ReynArts.ApexSenseBridgeWidget_1.0.3.0_x64__tcqvdfrmphh62") == family,
+            "A widget package full name did not give its family name.");
+        Assert(WidgetPackageLocator.FamilyFromFullName("reynarts.apexsensebridgewidget_2.0.0.0_x64__abcdefghjkmnp") == "reynarts.apexsensebridgewidget_abcdefghjkmnp",
+            "A package from another publisher was not recognized by its name.");
+        foreach (var rejected in new[]
+        {
+            null, string.Empty, "garbage",
+            "ReynArts.ApexSenseBridgeWidgetEvil_1.0.0.0_x64__tcqvdfrmphh62",
+            "Other.App_1.0.0.0_x64__tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64_tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__TCQVDFRMPHH62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__short",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__tcqvdfrmphh62x"
+        })
+        {
+            Assert(WidgetPackageLocator.FamilyFromFullName(rejected) == null, "A package full name was wrongly accepted: " + rejected);
+        }
+        var families = WidgetPackageLocator.FamiliesFromFullNames(new[]
+        {
+            "ReynArts.ApexSenseBridgeWidget_1.0.3.0_x64__tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.4.0_x64__tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__abcdefghjkmnp",
+            "Microsoft.Something_1.0.0.0_x64__8wekyb3d8bbwe"
+        });
+        Assert(families.Length == 2 && families[0] == family && families[1] == "ReynArts.ApexSenseBridgeWidget_abcdefghjkmnp",
+            "Duplicate versions were not folded into one family each.");
+        Assert(WidgetPackageLocator.FindFamilies() != null, "Reading the installed packages failed outright.");
+
+        var service = new WidgetControlService(NewWidgetBackend("Tray", 6), new TraySettings(), null, null, null, null, null);
+        using (var withKnownOnly = new WidgetControlServer(service, "ASB.Test." + Guid.NewGuid().ToString("N"), WidgetControlServer.KnownPackageFamilies))
+        using (var withDiscovered = new WidgetControlServer(service, "ASB.Test." + Guid.NewGuid().ToString("N"),
+            WidgetControlServer.KnownPackageFamilies, () => new[] { family, "ReynArts.ApexSenseBridgeWidget_abcdefghjkmnp" }))
+        {
+            var sidType = typeof(System.Security.Principal.SecurityIdentifier);
+            Assert(withKnownOnly.BuildSecurity().GetAccessRules(true, false, sidType).Count == 3, "The fixed access list changed.");
+            Assert(withDiscovered.BuildSecurity().GetAccessRules(true, false, sidType).Count == 4,
+                "A discovered package family was not added once to the access list.");
+        }
+    }
     private static void TestSessionStatusDiscovery()
     {
         // Real IPC with a child test process, never a controller/driver session.
