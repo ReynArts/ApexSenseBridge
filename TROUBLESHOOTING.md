@@ -490,7 +490,7 @@ from a clean state. Wired mode has not been tested.
 If you report it, attach the session summary, in particular
 `apex6_waveform_underruns`, `apex6_deadline_overruns`, `apex6_sample_rate_hz`
 and `apex6_waveform_upsampled_blocks` (non-zero in 2000 mode means the
-libVIIPER in use is older than `v0.7.0-asb14`).
+libVIIPER in use is older than `v0.7.0-asb14`, which every `v0.9.0-asb` build includes).
 
 ## 7. Interface & System Tray Quick Reference (FR / EN)
 

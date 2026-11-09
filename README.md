@@ -162,7 +162,7 @@ the 2 kHz mode was on and attach the logs.
 - **🛡️ Intelligent HidHide Diagnostics:** Diagnoses access conflicts when DSX, DS4Windows, or BetterJoy hold the HidHide driver open and explicitly lists conflicting processes.
 - **🕹️ Death Stranding 2 Touchpad Remapping:** Dedicated profile mapping `View/Back` to right-touchpad click (Likes, Communication) and `LB + Menu` to left-touchpad click (Photo Mode).
 - **🛡️ Guided Disconnection Recovery & Zombie Reaper:** Automatic bridge recovery guidance on controller disconnect or sleep, plus automatic orphan child process termination on startup timeout.
-- **🏎️ Built-In libVIIPER v0.7.0 Backend & Kernel USBip 0.9.8.0:** Attestation-signed Microsoft kernel driver with loopback-only communication and measured sub-2 ms report forwarding.
+- **🏎️ Built-In libVIIPER v0.9.0 Backend & Kernel USBip 0.9.8.0:** Attestation-signed Microsoft kernel driver with loopback-only communication and measured sub-2 ms report forwarding.
 
 See the [changelog](CHANGELOG.md) for the development history and the
 [release checklist](RELEASE_CHECKLIST.md) for packaging and validation requirements.
