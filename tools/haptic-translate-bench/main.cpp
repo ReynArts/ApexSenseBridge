@@ -103,6 +103,11 @@ bool loadWav(const std::string& path, Wav& wav, std::string& error) {
 }
 
 #ifdef ASB_BENCH_VOICE_GATE
+struct GateTuning {
+    float strength = 1.0F;
+    float highBand = 0.0F;
+};
+
 struct GateApi {
     HMODULE module = nullptr;
     VgConfig (*defaultConfig)(std::uint32_t) = nullptr;
@@ -110,24 +115,28 @@ struct GateApi {
     void (*destroy)(VoiceGate*) = nullptr;
     int (*process)(VoiceGate*, const float*, float*, std::size_t) = nullptr;
     std::uint32_t (*latency)(const VoiceGate*) = nullptr;
+    void (*setHighBand)(VoiceGate*, float) = nullptr;
 
-    bool load(const std::wstring& path) {
-        module = LoadLibraryW(path.c_str());
+    bool load(const std::string& path) {
+        module = LoadLibraryA(path.c_str());
         if (!module) return false;
         defaultConfig = reinterpret_cast<decltype(defaultConfig)>(GetProcAddress(module, "vg_default_config"));
         create = reinterpret_cast<decltype(create)>(GetProcAddress(module, "vg_create"));
         destroy = reinterpret_cast<decltype(destroy)>(GetProcAddress(module, "vg_destroy"));
         process = reinterpret_cast<decltype(process)>(GetProcAddress(module, "vg_process"));
         latency = reinterpret_cast<decltype(latency)>(GetProcAddress(module, "vg_latency_samples"));
+        setHighBand = reinterpret_cast<decltype(setHighBand)>(GetProcAddress(module, "vg_set_high_band"));
         return defaultConfig && create && destroy && process && latency;
     }
 
-    bool run(int mode, std::uint32_t rate, const std::vector<float>& input,
-             std::vector<float>& output, std::uint32_t& delay) const {
+    bool run(int mode, std::uint32_t rate, const std::vector<float>& input, std::vector<float>& output,
+             std::uint32_t& delay, const GateTuning& tuning = {}) const {
         auto config = defaultConfig(rate);
         config.mode = mode;
+        config.strength = tuning.strength;
         VoiceGate* gate = create(&config);
         if (!gate) return false;
+        if (setHighBand) setHighBand(gate, tuning.highBand);
         delay = latency(gate);
         output = input;
         const std::size_t block = rate / 100U;
@@ -155,12 +164,22 @@ std::vector<float> delayed(const std::vector<float>& input, std::size_t delay) {
     return result;
 }
 
-double rms(const std::vector<std::int8_t>& values) {
-    if (values.empty()) return 0.0;
+std::vector<double> envelope(const std::vector<std::int8_t>& values) {
+    constexpr std::size_t kWidth = 20;
+    std::vector<double> result(values.size(), 0.0);
     double sum = 0.0;
-    for (const auto value : values) sum += static_cast<double>(value) * value;
-    return std::sqrt(sum / static_cast<double>(values.size()));
+    for (std::size_t index = 0; index < values.size() + kWidth / 2; ++index) {
+        if (index < values.size()) sum += static_cast<double>(values[index]) * values[index];
+        if (index >= kWidth) {
+            const auto old = values[index - kWidth];
+            sum -= static_cast<double>(old) * old;
+        }
+        if (index >= kWidth / 2) result[index - kWidth / 2] = std::sqrt(std::max(sum, 0.0) / kWidth);
+    }
+    return result;
 }
+
+enum class Window : std::int8_t { Clear, Voice, Skip };
 
 struct Residual {
     double energy = 0.0;
@@ -175,6 +194,13 @@ struct Residual {
         if (reference <= 0.0 || energy <= 0.0) return -120.0;
         return 10.0 * std::log10(energy / reference);
     }
+
+    [[nodiscard]] std::string text() const {
+        if (reference <= 0.0) return "   n/a";
+        char buffer[16];
+        std::snprintf(buffer, sizeof(buffer), "%6.1f", decibels());
+        return buffer;
+    }
 };
 
 struct Row {
@@ -186,7 +212,9 @@ struct Row {
 void usage() {
     std::puts("usage: ApexSenseBridgeHapticTranslateBench <input.wav> [--reference sfx_only.wav]\n"
               "         [--voice-gate <voice_gate.dll>] [--drive <linear>] [--csv <out.csv>]\n"
-              "         [--delay <host samples>] [--voice-source <mix.wav>]");
+              "         [--delay <host samples>] [--voice-source <mix.wav>]\n"
+              "With voice_gate 0.2 the gate also runs as separate+hb (high band on) and separate+hb+s1.5\n"
+              "(and strength 1.5). CSV columns are aligned to the reference (gate delay removed).");
 }
 
 } // namespace
@@ -267,18 +295,30 @@ int main(int argc, char** argv) {
     if (!gatePath.empty()) {
 #ifdef ASB_BENCH_VOICE_GATE
         GateApi gate;
-        if (!gate.load(std::wstring(gatePath.begin(), gatePath.end()))) {
+        if (!gate.load(gatePath)) {
             std::fprintf(stderr, "cannot load voice gate from %s\n", gatePath.c_str());
             return 1;
         }
-        const struct { const char* name; int mode; } modes[] = {
-            {"duck", VG_MODE_DUCK}, {"separate", VG_MODE_SEPARATE}, {"separate+always", VG_MODE_SEPARATE_ALWAYS}};
+        struct GateRow {
+            const char* name;
+            int mode;
+            GateTuning tuning;
+        };
+        std::vector<GateRow> modes = {{"duck", VG_MODE_DUCK, {}},
+                                      {"separate", VG_MODE_SEPARATE, {}},
+                                      {"separate+always", VG_MODE_SEPARATE_ALWAYS, {}}};
+        if (gate.setHighBand) {
+            modes.push_back({"separate+hb", VG_MODE_SEPARATE, {1.0F, 1.0F}});
+            modes.push_back({"separate+hb+s1.5", VG_MODE_SEPARATE, {1.5F, 1.0F}});
+        } else {
+            std::printf("voice gate has no vg_set_high_band (0.1): no separate+hb rows\n");
+        }
         for (const auto& mode : modes) {
             Row row;
             row.name = mode.name;
             for (const auto& channel : input.channels) {
                 std::vector<float> filtered;
-                if (!gate.run(mode.mode, input.rate, channel, filtered, row.delay)) {
+                if (!gate.run(mode.mode, input.rate, channel, filtered, row.delay, mode.tuning)) {
                     std::fprintf(stderr, "voice gate failed in mode %s\n", mode.name);
                     return 1;
                 }
@@ -298,11 +338,11 @@ int main(int argc, char** argv) {
 
     const bool haveReference = !referencePath.empty();
     std::vector<std::vector<std::vector<std::int8_t>>> aligned;
-    std::vector<std::vector<std::vector<bool>>> voiceWindows;
+    std::vector<std::vector<std::vector<Window>>> voiceWindows;
     if (haveReference) {
         for (const auto& row : rows) {
             std::vector<std::vector<std::int8_t>> perChannel;
-            std::vector<std::vector<bool>> perWindows;
+            std::vector<std::vector<Window>> perWindows;
             for (std::size_t channel = 0; channel < input.channels.size(); ++channel) {
                 const auto shifted = delayed(reference.channels[channel], row.delay);
                 perChannel.push_back(translate(shifted, config));
@@ -312,21 +352,30 @@ int main(int argc, char** argv) {
                 }
                 const auto voiceShifted = delayed(voice, row.delay);
                 const std::size_t window = input.rate / 10U;
-                std::vector<bool> flags;
+                constexpr std::size_t kSettleWindows = 3;
+                std::vector<Window> flags;
+                std::size_t sinceVoice = kSettleWindows + 1;
                 for (std::size_t start = 0; start + window <= voiceShifted.size(); start += window) {
                     double energy = 0.0;
                     for (std::size_t sample = start; sample < start + window; ++sample) {
                         energy += static_cast<double>(voiceShifted[sample]) * voiceShifted[sample];
                     }
-                    flags.push_back(std::sqrt(energy / static_cast<double>(window)) > 0.01);
+                    const double level = std::sqrt(energy / static_cast<double>(window));
+                    sinceVoice = level > 0.01 ? 0 : sinceVoice + 1;
+                    if (level > 0.01) flags.push_back(Window::Voice);
+                    else if (level < 0.001 && sinceVoice > kSettleWindows) flags.push_back(Window::Clear);
+                    else flags.push_back(Window::Skip);
                 }
                 perWindows.push_back(std::move(flags));
             }
             aligned.push_back(std::move(perChannel));
             voiceWindows.push_back(std::move(perWindows));
         }
-        std::printf("residual = energy of (translated output - translated sfx-only reference) relative to the reference, in dB; lower is better\n");
-        std::printf("%-17s %7s %7s %6s %10s %12s %14s\n", "mode", "delay", "rms", "peak", "all", "voice 100ms", "no-voice 100ms");
+        std::printf("residual = energy of (translated output - translated sfx-only reference) relative to the reference, in dB; lower is better\n"
+                    "  sample: sample by sample; 20 ms env: on 20 ms RMS envelopes (what the pad's strength follows, carrier phase ignored)\n"
+                    "  voice: 100 ms windows with voice RMS > 0.01; clear: voice RMS < 0.001 and 300 ms past the last voice window\n");
+        std::printf("%-17s %7s %7s %6s | %-26s | %-26s\n", "mode", "delay", "rms", "peak", "sample: all / voice / clear",
+                    "20 ms env: all / voice / clear");
     } else {
         std::printf("%-17s %7s %7s %6s\n", "mode", "delay", "rms", "peak");
     }
@@ -336,9 +385,8 @@ int main(int argc, char** argv) {
         double sumSquares = 0.0;
         std::size_t count = 0;
         int peak = 0;
-        Residual all;
-        Residual voice;
-        Residual quiet;
+        Residual all, voice, clear;
+        Residual allEnv, voiceEnv, clearEnv;
         for (std::size_t channel = 0; channel < row.output.size(); ++channel) {
             const auto& out = row.output[channel];
             for (const auto value : out) {
@@ -349,18 +397,26 @@ int main(int argc, char** argv) {
             if (!haveReference) continue;
             const auto& expected = aligned[rowIndex][channel];
             const auto& flags = voiceWindows[rowIndex][channel];
+            const auto outEnv = envelope(out);
+            const auto expectedEnv = envelope(expected);
             for (std::size_t sample = 0; sample < out.size() && sample < expected.size(); ++sample) {
                 const double difference = static_cast<double>(out[sample]) - expected[sample];
+                const double envDifference = outEnv[sample] - expectedEnv[sample];
                 all.add(difference, expected[sample]);
+                allEnv.add(envDifference, expectedEnv[sample]);
                 const auto window = sample / 100U;
-                if (window < flags.size()) (flags[window] ? voice : quiet).add(difference, expected[sample]);
+                if (window >= flags.size() || flags[window] == Window::Skip) continue;
+                const bool isVoice = flags[window] == Window::Voice;
+                (isVoice ? voice : clear).add(difference, expected[sample]);
+                (isVoice ? voiceEnv : clearEnv).add(envDifference, expectedEnv[sample]);
             }
         }
         const double rmsValue = count ? std::sqrt(sumSquares / static_cast<double>(count)) : 0.0;
         if (haveReference) {
-            std::printf("%-17s %5u ms %7.2f %6d %7.1f dB %9.1f dB %11.1f dB\n", row.name.c_str(),
-                        row.delay * 1000U / input.rate, rmsValue, peak, all.decibels(), voice.decibels(),
-                        quiet.decibels());
+            std::printf("%-17s %5u ms %7.2f %6d | %s %s %s dB      | %s %s %s dB\n", row.name.c_str(),
+                        row.delay * 1000U / input.rate, rmsValue, peak, all.text().c_str(), voice.text().c_str(),
+                        clear.text().c_str(), allEnv.text().c_str(), voiceEnv.text().c_str(),
+                        clearEnv.text().c_str());
         } else {
             std::printf("%-17s %5u ms %7.2f %6d\n", row.name.c_str(), row.delay * 1000U / input.rate, rmsValue, peak);
         }
@@ -375,7 +431,11 @@ int main(int argc, char** argv) {
         for (std::size_t sample = 0; sample < rows[0].output[0].size(); ++sample) {
             csv << sample;
             for (const auto& row : rows) {
-                csv << ',' << (sample < row.output[0].size() ? static_cast<int>(row.output[0][sample]) : 0);
+                const auto shift = (static_cast<long long>(row.delay) - static_cast<long long>(rows[0].delay)) *
+                                   1000LL / static_cast<long long>(input.rate);
+                const auto at = static_cast<long long>(sample) + shift;
+                const bool inside = at >= 0 && at < static_cast<long long>(row.output[0].size());
+                csv << ',' << (inside ? static_cast<int>(row.output[0][static_cast<std::size_t>(at)]) : 0);
             }
             if (haveReference) {
                 csv << ',' << (sample < aligned[0][0].size() ? static_cast<int>(aligned[0][0][sample]) : 0);
