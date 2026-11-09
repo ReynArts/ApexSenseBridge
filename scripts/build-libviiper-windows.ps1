@@ -6,13 +6,16 @@ param(
 $ErrorActionPreference = "Stop"
 $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $sourceDirectory = Join-Path $projectRoot ".tmp-libviiper-build-source"
-$patchPath = Join-Path $projectRoot "third_party\viiper-patches\viiper-v0.7.0-asb.patch"
+$patchName = "viiper-v0.9.0-asb.patch"
+$patchPath = Join-Path $projectRoot "third_party\viiper-patches\$patchName"
 $toolsDirectory = Join-Path $projectRoot ".tools\libviiper-build"
-$expectedCommit = "6b71b148a2243fab77ee1a46f4e22e00bd7d5a04"
-$version = "v0.7.0-asb14"
+$baseTag = "v0.9.0"
+$expectedCommit = "ef817d51ca1175c86c6c485c0bf52822c5d6ae49"
+$version = "v0.9.0-asb2"
 
-$goArchiveName = "go1.26.5.windows-amd64.zip"
-$goArchiveHash = "97E6B2A833B6D89F9FF17D25419AC0A7E3B482A044E9AB18CDEF834BD834FD38"
+$goVersion = "1.27.2"
+$goArchiveName = "go$goVersion.windows-amd64.zip"
+$goArchiveHash = "1314008898BD40DF77AF4B014F777F08873DBDFBCD3D92308728EE03304FE04F"
 $goArchiveUrl = "https://go.dev/dl/$goArchiveName"
 $llvmDirectoryName = "llvm-mingw-20260826-ucrt-x86_64"
 $llvmArchiveName = "$llvmDirectoryName.zip"
@@ -99,8 +102,8 @@ Expand-PinnedArchive $llvmArchive $clangExecutable $llvmDirectory
 if (Test-Path -LiteralPath $sourceDirectory) {
     throw "Temporary libVIIPER source already exists: $sourceDirectory`nRemove it after checking the path, then rerun this script."
 }
-git clone --depth 1 --branch v0.7.0 https://github.com/Alia5/VIIPER.git $sourceDirectory
-if ($LASTEXITCODE -ne 0) { throw "Could not clone VIIPER v0.7.0." }
+git clone --depth 1 --branch $baseTag https://github.com/Alia5/VIIPER.git $sourceDirectory
+if ($LASTEXITCODE -ne 0) { throw "Could not clone VIIPER $baseTag." }
 
 $actualCommit = (git -C $sourceDirectory rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $expectedCommit) {
@@ -137,7 +140,7 @@ try {
         $outputDirectory = Split-Path -Parent $OutputPath
         New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
         & $goExecutable build -buildmode=c-shared -trimpath -buildvcs=false `
-            -ldflags "-s -w -buildid=asb-libviiper-v0.7.0-asb14" `
+            -ldflags "-s -w -buildid=asb-libviiper-$version" `
             -o $OutputPath ./lib/viiper
         if ($LASTEXITCODE -ne 0) { throw "libVIIPER compilation failed." }
     } finally {
@@ -159,18 +162,18 @@ $patchHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $patchPath).Hash
 Copy-Item -LiteralPath (Join-Path $sourceDirectory "LICENSE.txt") `
     -Destination (Join-Path $outputDirectory "VIIPER-LICENSE.txt") -Force
 Copy-Item -LiteralPath $patchPath `
-    -Destination (Join-Path $outputDirectory "VIIPER-v0.7.0-asb.patch") -Force
+    -Destination (Join-Path $outputDirectory "VIIPER-v0.9.0-asb.patch") -Force
 @(
     "These VIIPER release payloads were built reproducibly for ApexSenseBridge."
     ""
     "Upstream: https://github.com/Alia5/VIIPER.git"
-    "Base tag: v0.7.0"
+    "Base tag: $baseTag"
     "Base commit: $expectedCommit"
     "Integrated library version: $version"
-    "Fallback sidecar version: v0.7.0-asb11"
-    "Patch: third_party/viiper-patches/viiper-v0.7.0-asb.patch"
+    "Fallback sidecar version: $version"
+    "Patch: third_party/viiper-patches/$patchName"
     "Patch SHA-256: $patchHash"
-    "Go toolchain: 1.26.5 ($goArchiveHash)"
+    "Go toolchain: $goVersion ($goArchiveHash)"
     "LLVM-MinGW toolchain: 20260826 ($llvmArchiveHash)"
     "Virtual DualSense firmware feature report: 0x0630"
 ) | Set-Content -LiteralPath (Join-Path $outputDirectory "VIIPER-SOURCE.txt") `

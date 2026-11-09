@@ -45,9 +45,11 @@ adapted from and validated against the SteamlessController DualSense fork:
 
 - Project: https://github.com/david419kr/steamless-controller-XB-PS-NS
 - Reference commit: `e19e874e00938eff2ee28d1a928dc2ab58bf9b75`
-- Reference files: `src/app/ViiperClient.*`, `src/app/VirtualControllerTypes.*`,
-  `src/steam/SteamController.cpp`, and
-  `third_party/viiper-patches/viiper-v0.7.0-asb.patch`
+- Reference files (paths in that project at the reference commit):
+  `src/app/ViiperClient.*`, `src/app/VirtualControllerTypes.*`, and
+  `src/steam/SteamController.cpp`
+- The VIIPER patch maintained in this repository is
+  `third_party/viiper-patches/viiper-v0.9.0-asb.patch`
 - Copyright: 2026 Dylan Deverill; 2026 david419kr
 - License for the referenced main application implementation: MIT
 
@@ -77,11 +79,130 @@ SOFTWARE.
 ## VIIPER and usbip-win2 runtime components
 
 The offline installer redistributes the pinned patched VIIPER integrated
-library and sidecar fallback (GPL-3.0), plus the OSSign usbip-win2 0.9.8.0 x64
-release installer built from upstream commit
+library and sidecar fallback (GPL-3.0-or-later), built from VIIPER v0.9.0
+(commit `ef817d51ca1175c86c6c485c0bf52822c5d6ae49`) with
+`third_party/viiper-patches/viiper-v0.9.0-asb.patch`, plus the OSSign
+usbip-win2 0.9.8.0 x64 release installer built from upstream commit
 `83bd1f781d57ed6efdf15530c55710cf5d4482bc` and signed through Microsoft
 attestation (BSD-2-Clause). The corresponding VIIPER source reference/patch and
 complete license texts are installed under `Licenses`.
+
+## VIIPER sidecar Go modules
+
+`libVIIPER.dll` links only `golang.org/x/crypto`, `golang.org/x/exp` and
+`golang.org/x/sys` (BSD-3-Clause). The fallback `viiper.exe` links the following
+Go modules as well, at the versions of VIIPER v0.9.0. The charm.land,
+charmbracelet, clipperhouse, atotto, lucasb-eyer, mattn, muesli, rivo and xo
+modules and `golang.org/x/sync` are new with VIIPER v0.9.0 (its interactive
+installer interface, which ApexSenseBridge never opens).
+
+| Module | Version | License | Copyright |
+|---|---|---|---|
+| charm.land/bubbles/v2 | v2.2.1 | MIT | 2020-2026 Charmbracelet, Inc. |
+| charm.land/bubbletea/v2 | v2.1.0 | MIT | 2020-2026 Charmbracelet, Inc. |
+| charm.land/lipgloss/v2 | v2.0.6 | MIT | 2021-2026 Charmbracelet, Inc. |
+| github.com/charmbracelet/colorprofile | v0.4.3 | MIT | 2020-2024 Charmbracelet, Inc |
+| github.com/charmbracelet/ultraviolet | v0.0.0-20261008173134-6b8d4baf91b4 | MIT | 2025 Charmbracelet, Inc |
+| github.com/charmbracelet/x/ansi | v0.11.9 | MIT | 2023 Charmbracelet, Inc. |
+| github.com/charmbracelet/x/term | v0.2.2 | MIT | 2023 Charmbracelet, Inc. |
+| github.com/charmbracelet/x/windows | v0.2.2 | MIT | 2023 Charmbracelet, Inc. |
+| github.com/clipperhouse/displaywidth | v0.11.0 | MIT | 2025 Matt Sherman |
+| github.com/clipperhouse/uax29/v2 | v2.7.0 | MIT | 2020 Matt Sherman |
+| github.com/lucasb-eyer/go-colorful | v1.4.1 | MIT | 2013 Lucas Beyer |
+| github.com/mattn/go-runewidth | v0.0.30 | MIT | 2016 Yasuhiro Matsumoto |
+| github.com/muesli/cancelreader | v0.2.2 | MIT | 2022 Erik Geiser and Christian Muehlhaeuser |
+| github.com/rivo/uniseg | v0.4.7 | MIT | 2019 Oliver Kuederle |
+| github.com/xo/terminfo | v1.0.0 | MIT | 2016 Anmol Sethi |
+| github.com/atotto/clipboard | v0.1.4 | BSD-3-Clause | 2013 Ato Araki |
+| golang.org/x/sync | v0.23.0 | BSD-3-Clause | 2009 The Go Authors |
+| github.com/alecthomas/kong | v1.16.1 | MIT | 2018 Alec Thomas |
+| github.com/alecthomas/kong-toml | v0.4.1 | MIT | 2018 Alec Thomas |
+| github.com/alecthomas/kong-yaml | v0.2.0 | no license file in the module | - |
+| github.com/ncruces/zenity | v0.10.15 | MIT | 2019-2026 Nuno Cruces |
+| github.com/pelletier/go-toml | v1.9.5 | MIT (`localtime.go`: Apache-2.0) | 2013-2021 Thomas Pelletier, Eric Anderton |
+| gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0 | 2006-2011 Kirill Simonov; 2011-2016 Canonical Ltd. |
+| fyne.io/systray | v1.12.2 | Apache-2.0 | 2014 Brave New Software Project, Inc. |
+| github.com/godbus/dbus/v5 | v5.1.0 | BSD-2-Clause | 2013 Georg Reinke, Google |
+| golang.org/x/crypto | v0.58.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/exp | v0.0.0-20260908205506-85c1c2202aba | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/image | v0.44.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/sys | v0.49.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/term | v0.47.0 | BSD-3-Clause | 2009 The Go Authors |
+
+MIT License (the copyright holders are those listed above for each MIT module)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+BSD-3-Clause License (the copyright holders are those listed above for each
+BSD-3-Clause module; the third clause names The Go Authors' employer, Google
+LLC, for the golang.org/x modules and @atotto for github.com/atotto/clipboard)
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of Google LLC nor the names of its contributors may be used
+   to endorse or promote products derived from this software without specific
+   prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+BSD-2-Clause License (github.com/godbus/dbus/v5)
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Apache License 2.0 (fyne.io/systray, `localtime.go` of github.com/pelletier/go-toml,
+and the files of gopkg.in/yaml.v3 not covered by its MIT license; the yaml.v3
+notice reads "Copyright 2011-2016 Canonical Ltd."): the complete text is in the
+`LICENSE` file of each module at the version listed above and at
+http://www.apache.org/licenses/LICENSE-2.0.
 
 ## HidHide
 

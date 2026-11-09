@@ -109,7 +109,7 @@ if (-not $SkipBuild) {
 
 foreach ($name in @("ApexSenseBridge.exe", "ApexSenseBridgeControl.exe", "ApexSenseBridgeTray.exe",
                     "ApexSenseBridgeUpdater.exe", "libVIIPER.dll", "viiper.exe", "VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
-                    "VIIPER-v0.7.0-asb.patch")) {
+                    "VIIPER-v0.9.0-asb.patch")) {
     if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $name) -PathType Leaf)) {
         Fail "$name is missing from $releaseDir. Build the pinned release payloads first."
     }

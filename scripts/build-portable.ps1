@@ -68,7 +68,7 @@ Copy-RequiredFile (Join-Path $projectRoot "assets\app.ico") `
     (Join-Path $stagingFull "Resources\app.ico")
 
 foreach ($name in @("VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
-                    "VIIPER-v0.7.0-asb.patch")) {
+                    "VIIPER-v0.9.0-asb.patch")) {
     Copy-RequiredFile (Join-Path $releaseDir $name) (Join-Path $stagingFull "Licenses\$name")
 }
 Copy-RequiredFile (Join-Path $projectRoot "LICENSE") `
