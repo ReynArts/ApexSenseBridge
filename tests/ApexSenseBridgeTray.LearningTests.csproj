@@ -34,6 +34,8 @@
     <Compile Include="..\ApexSenseBridgeTray\Services\SessionRecoveryState.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\StartRetryPolicy.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\EngineSessionManager.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\WidgetControlServer.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\WidgetControlService.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\SteamProcessChecker.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ControllerDetectionService.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ControllerSelection.cs" />

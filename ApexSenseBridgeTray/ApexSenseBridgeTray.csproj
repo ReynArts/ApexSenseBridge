@@ -134,6 +134,8 @@
     <Compile Include="Services\ReportRelayClient.cs" />
     <Compile Include="Services\ProcessMonitorService.cs" />
     <Compile Include="Services\EngineSessionManager.cs" />
+    <Compile Include="Services\WidgetControlServer.cs" />
+    <Compile Include="Services\WidgetControlService.cs" />
     <Compile Include="Services\SessionRecoveryState.cs" />
     <Compile Include="Services\StartRetryPolicy.cs" />
     <Compile Include="Services\SteamProcessChecker.cs" />

@@ -24,6 +24,26 @@
   override and APEX 6 limit as at session start. Sessions owned by Playnite are
   not touched. The two texts that said these settings wait for the next session
   were updated in the nine languages and in the README.
+- **Xbox Game Bar widget (first version)**
+  ([#86](https://github.com/ReynArts/ApexSenseBridge/issues/86)). New
+  `ApexSenseBridgeWidget` UWP project, built with the Game Bar SDK, laid out like the
+  native Game Bar panels and usable with the controller alone (D-pad, A, left and
+  right on the sliders). It shows the bridge state, game and controller, and
+  changes live the trigger and grip strength, grip mute, trigger effects off and the
+  touchpad profile, listing the gestures of the profile with the same button and
+  touchpad glyphs as the Tray. "Remember for this game" stores the strengths as that
+  game's tuning. A packaged app cannot open the engine's objects (access denied),
+  so the Tray now hosts a named pipe, `ApexSenseBridge.Widget.v1`, whose access list
+  grants only the current user and the widget package family. Requests are one JSON
+  line (`status`, `set`), values are range-checked, and sessions owned by Playnite
+  are live-only. The widget needs the Tray running. It speaks the Tray's language
+  (the Tray sends it in every reply): all nine Tray languages are covered, reusing
+  the Tray's own wording for the shared terms. The remapping (profile and gesture
+  glyphs) comes first, then the coral sliders, the toggles and "remember for this
+  game"; the layout adapts to the window size. Not done yet: Stop and Restart
+  actions, switching the APEX onboard slot, and installer, CI packaging and signing
+  of the package (SignPath only signs executables today).
+
 
 ## 1.1.0
 

@@ -1,0 +1,184 @@
+<Page
+    x:Class="ApexSenseBridgeWidget.WidgetPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    SizeChanged="OnPageSizeChanged">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="PanelBrush" Color="#FF24272C"/>
+        <SolidColorBrush x:Key="RowFillBrush" Color="#FF3D414D"/>
+        <SolidColorBrush x:Key="RowBorderBrush" Color="#FF5A5F6C"/>
+        <SolidColorBrush x:Key="DividerBrush" Color="#FF3B3F48"/>
+        <SolidColorBrush x:Key="MutedBrush" Color="#FFA9AEB9"/>
+        <SolidColorBrush x:Key="CoralBrush" Color="#FFF47F66"/>
+        <SolidColorBrush x:Key="TrackBrush" Color="#FF55595F"/>
+        <SolidColorBrush x:Key="HaloBrush" Color="#FF3F4247"/>
+
+        <Style x:Key="RowTitle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="RowSub" TargetType="TextBlock" BasedOn="{StaticResource RowTitle}">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        </Style>
+        <Style x:Key="Divider" TargetType="Rectangle">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Fill" Value="{StaticResource DividerBrush}"/>
+            <Setter Property="Margin" Value="0,10"/>
+        </Style>
+        <Style x:Key="RowToggle" TargetType="ToggleSwitch">
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="OnContent" Value=""/>
+            <Setter Property="OffContent" Value=""/>
+            <Setter Property="UseSystemFocusVisuals" Value="True"/>
+        </Style>
+
+        <Style x:Key="CoralSlider" TargetType="Slider">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="IsThumbToolTipEnabled" Value="False"/>
+            <Setter Property="UseSystemFocusVisuals" Value="True"/>
+            <Setter Property="FocusVisualMargin" Value="-8,-2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid x:Name="SliderContainer" Background="Transparent" MinHeight="36">
+                            <Grid x:Name="HorizontalTemplate" MinHeight="36">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Rectangle x:Name="HorizontalTrackRect" Grid.ColumnSpan="3" Height="6" RadiusX="3" RadiusY="3"
+                                           Fill="{StaticResource TrackBrush}" VerticalAlignment="Center"/>
+                                <Rectangle x:Name="HorizontalDecreaseRect" Height="6" RadiusX="3" RadiusY="3"
+                                           Fill="{StaticResource CoralBrush}" VerticalAlignment="Center"/>
+                                <Thumb x:Name="HorizontalThumb" Grid.Column="1" Width="28" Height="28" VerticalAlignment="Center"
+                                       AutomationProperties.AccessibilityView="Raw" DataContext="{TemplateBinding Value}">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Grid>
+                                                <Ellipse Width="28" Height="28" Fill="{StaticResource HaloBrush}"/>
+                                                <Ellipse Width="14" Height="14" Fill="{StaticResource CoralBrush}"/>
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+
+    <Grid x:Name="Root" Background="{StaticResource PanelBrush}" Padding="18,8,18,12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,4,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Ellipse x:Name="StatusDot" Width="12" Height="12" Margin="0,5,10,0" VerticalAlignment="Top" Fill="Gray"/>
+            <StackPanel Grid.Column="1">
+                <TextBlock x:Name="StatusText" Style="{StaticResource RowTitle}" FontSize="20" FontWeight="SemiLight"/>
+                <TextBlock x:Name="DetailText" Style="{StaticResource RowSub}"/>
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+            <StackPanel x:Name="Controls">
+                <Rectangle x:Name="Divider0" Style="{StaticResource Divider}" Margin="0,4,0,10"/>
+
+                <Button x:Name="ProfileButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                        Padding="14,10" Background="{StaticResource RowFillBrush}" BorderBrush="{StaticResource RowBorderBrush}"
+                        BorderThickness="1" CornerRadius="8" UseSystemFocusVisuals="True" Click="OnProfileClick">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock x:Name="ProfileTitle" Style="{StaticResource RowTitle}"/>
+                            <TextBlock x:Name="ProfileSub" Style="{StaticResource RowSub}"/>
+                        </StackPanel>
+                        <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                  FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                    </Grid>
+                </Button>
+
+                <StackPanel x:Name="RemapSection" Margin="0,12,0,0">
+                    <TextBlock x:Name="RemapHeader" Style="{StaticResource RowSub}"/>
+                    <StackPanel x:Name="RemapPanel"/>
+                </StackPanel>
+
+                <Rectangle x:Name="Divider1" Style="{StaticResource Divider}"/>
+
+                <Grid>
+                    <TextBlock x:Name="TriggerLabel" Style="{StaticResource RowTitle}"/>
+                    <TextBlock x:Name="TriggerValue" Style="{StaticResource RowSub}" HorizontalAlignment="Right"/>
+                </Grid>
+                <Slider x:Name="TriggerSlider" Style="{StaticResource CoralSlider}" Minimum="0" Maximum="100"
+                        StepFrequency="5" SmallChange="5" LargeChange="10" ValueChanged="OnSliderChanged"/>
+
+                <Grid Margin="0,6,0,0">
+                    <TextBlock x:Name="VibrationLabel" Style="{StaticResource RowTitle}"/>
+                    <TextBlock x:Name="VibrationValue" Style="{StaticResource RowSub}" HorizontalAlignment="Right"/>
+                </Grid>
+                <Slider x:Name="VibrationSlider" Style="{StaticResource CoralSlider}" Minimum="0" Maximum="100"
+                        StepFrequency="5" SmallChange="5" LargeChange="10" ValueChanged="OnSliderChanged"/>
+
+                <Rectangle x:Name="Divider2" Style="{StaticResource Divider}"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="MuteTitle" Style="{StaticResource RowTitle}"/>
+                        <TextBlock x:Name="MuteSub" Style="{StaticResource RowSub}"/>
+                    </StackPanel>
+                    <ToggleSwitch x:Name="MuteToggle" Grid.Column="1" Style="{StaticResource RowToggle}" Toggled="OnToggleChanged"/>
+                </Grid>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="EffectsTitle" Style="{StaticResource RowTitle}"/>
+                        <TextBlock x:Name="EffectsSub" Style="{StaticResource RowSub}"/>
+                    </StackPanel>
+                    <ToggleSwitch x:Name="EffectsOffToggle" Grid.Column="1" Style="{StaticResource RowToggle}" Toggled="OnToggleChanged"/>
+                </Grid>
+
+                <Rectangle x:Name="Divider3" Style="{StaticResource Divider}"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="SaveTitle" Style="{StaticResource RowTitle}"/>
+                        <TextBlock x:Name="SaveSub" Style="{StaticResource RowSub}"/>
+                    </StackPanel>
+                    <ToggleSwitch x:Name="SaveToggle" Grid.Column="1" Style="{StaticResource RowToggle}" Toggled="OnSaveToggled"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="2" x:Name="FooterText" Style="{StaticResource RowSub}" FontSize="13" MinHeight="20" Margin="0,8,0,0"/>
+    </Grid>
+</Page>

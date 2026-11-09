@@ -27,6 +27,7 @@ namespace ApexSenseBridgeTray
         private TraySettings settings;
         private CloudGameListService gameListService;
         private EngineSessionManager sessionManager;
+        private WidgetControlServer widgetServer;
         private ExecutableLearningService learningService;
         private ProcessMonitorService monitorService;
         private UpdateCheckerService updateChecker;
@@ -95,6 +96,13 @@ namespace ApexSenseBridgeTray
 
                 StartupDiagnostics.Mark("session-manager");
                 sessionManager = new EngineSessionManager();
+                widgetServer = new WidgetControlServer(
+                    new WidgetControlService(
+                        new LiveWidgetBackend(), settings, CloudGameListService.Normalize, BuildWidgetRemapEntries,
+                        action => { if (Dispatcher.CheckAccess()) action(); else Dispatcher.Invoke(action); },
+                        settings.Save, () => LocalizationManager.CurrentLanguage),
+                    WidgetControlServer.DefaultPipeName, WidgetControlServer.KnownPackageFamilies);
+                widgetServer.Start();
                 learningService = new ExecutableLearningService();
                 StartupDiagnostics.Mark("process-monitor");
                 monitorService = new ProcessMonitorService(
@@ -719,8 +727,28 @@ namespace ApexSenseBridgeTray
             }
         }
 
+        private static object[] BuildWidgetRemapEntries(string profile)
+        {
+            var entries = new System.Collections.Generic.List<object>();
+            foreach (var entry in TouchpadRemapGuide.BuildEntries(profile))
+            {
+                var use = entry.UseKey != null ? LocalizationManager.Get(entry.UseKey) : entry.UseText;
+                entries.Add(new System.Collections.Generic.Dictionary<string, object>
+                {
+                    { "buttons", entry.Buttons },
+                    { "hold", entry.Hold },
+                    { "holdLabel", LocalizationManager.Get("Loc_TouchpadHoldShort") },
+                    { "output", entry.Output.ToString() },
+                    { "outputLabel", LocalizationManager.Get(entry.DualSenseKey) },
+                    { "use", use ?? string.Empty }
+                });
+            }
+            return entries.ToArray();
+        }
+
         private void ExitApplication()
         {
+            if (widgetServer != null) widgetServer.Dispose();
             if (monitorService != null) monitorService.Dispose();
             if (learningService != null) learningService.Dispose();
             if (sessionManager != null) sessionManager.StopSession("Tray exiting");
@@ -742,6 +770,7 @@ namespace ApexSenseBridgeTray
         {
             if (showDashboardWait != null) showDashboardWait.Unregister(null);
             if (showDashboardEvent != null) showDashboardEvent.Dispose();
+            if (widgetServer != null) widgetServer.Dispose();
             if (monitorService != null) monitorService.Dispose();
             if (learningService != null) learningService.Dispose();
             if (sessionManager != null) sessionManager.StopSession("Tray app closing");

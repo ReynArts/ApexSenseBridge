@@ -65,6 +65,8 @@ internal static class TrayLearningTests
             TestControllerCalibrations();
             TestLiveTuningResolution();
             TestSessionTuningClientProtocol();
+            TestWidgetControlService();
+            TestWidgetControlServer();
             TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
@@ -1958,6 +1960,172 @@ internal static class TrayLearningTests
                     applied.ControllerModel == 6u, "The applied state was not read back correctly.");
                 view.Write(68, 0xFFu);
                 Assert(client.ReadApplied().ApexProfileSlot == null, "An unset APEX slot was reported as a slot.");
+            }
+        }
+    }
+
+    private sealed class FakeWidgetBackend : IWidgetBackend
+    {
+        public BridgeSession.SessionInfo Session;
+        public SessionTuningState Applied;
+        public bool Acknowledge = true;
+        public readonly List<SessionTuningChange> Submitted = new List<SessionTuningChange>();
+
+        public BridgeSession.SessionInfo ReadSession() { return Session; }
+
+        public SessionTuningState ReadApplied(string token)
+        {
+            if (Applied == null) return null;
+            return new SessionTuningState
+            {
+                RequestSequence = Applied.RequestSequence, TriggerStrengthPercent = Applied.TriggerStrengthPercent,
+                VibrationStrengthPercent = Applied.VibrationStrengthPercent, GripMute = Applied.GripMute,
+                TriggerEffectsOff = Applied.TriggerEffectsOff, TouchpadProfile = Applied.TouchpadProfile,
+                ApexProfileSlot = Applied.ApexProfileSlot, SampleRateHz = Applied.SampleRateHz,
+                ControllerModel = Applied.ControllerModel
+            };
+        }
+
+        public bool Submit(string token, SessionTuningChange change)
+        {
+            Submitted.Add(change);
+            if (Acknowledge)
+            {
+                if (change.TriggerStrengthPercent.HasValue) Applied.TriggerStrengthPercent = change.TriggerStrengthPercent.Value;
+                if (change.VibrationStrengthPercent.HasValue) Applied.VibrationStrengthPercent = change.VibrationStrengthPercent.Value;
+                if (change.GripMute.HasValue) Applied.GripMute = change.GripMute.Value;
+                if (change.TriggerEffectsOff.HasValue) Applied.TriggerEffectsOff = change.TriggerEffectsOff.Value;
+                if (change.TouchpadProfile.HasValue) Applied.TouchpadProfile = change.TouchpadProfile.Value;
+                Applied.RequestSequence += 2;
+            }
+            return true;
+        }
+    }
+
+    private static Dictionary<string, object> WidgetReply(WidgetControlService service, string request)
+    {
+        return (Dictionary<string, object>)new System.Web.Script.Serialization.JavaScriptSerializer()
+            .DeserializeObject(service.Handle(request));
+    }
+
+    private static FakeWidgetBackend NewWidgetBackend(string owner, uint model)
+    {
+        return new FakeWidgetBackend
+        {
+            Session = new BridgeSession.SessionInfo
+            {
+                Token = new string('a', 32), Owner = owner, Game = "Alpha", Profile = "standard / APEX 2",
+                Controller = "Apex 6 Pro", Phase = SessionPhase.Ready
+            },
+            Applied = new SessionTuningState
+            {
+                RequestSequence = 2, TriggerStrengthPercent = 100, VibrationStrengthPercent = 100,
+                ApexProfileSlot = null, SampleRateHz = 2000, ControllerModel = model
+            }
+        };
+    }
+
+    private static int widgetPersistCalls;
+
+    private static void TestWidgetControlService()
+    {
+        widgetPersistCalls = 0;
+        var settings = new TraySettings();
+        var backend = new FakeWidgetBackend();
+        var service = new WidgetControlService(backend, settings, title => "norm:" + title,
+            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => widgetPersistCalls++, () => "fr");
+
+        var reply = WidgetReply(service, "{\"cmd\":\"status\"}");
+        Assert((bool)reply["ok"] && !(bool)reply["active"] && (string)reply["phase"] == "Stopped",
+            "A status without a session was not reported as stopped.");
+        Assert(!(bool)WidgetReply(service, "not json")["ok"] && (string)WidgetReply(service, "not json")["error"] == "bad_request",
+            "Garbage was accepted as a request.");
+        Assert((string)WidgetReply(service, "{\"cmd\":\"explode\"}")["error"] == "unknown_command", "An unknown command was accepted.");
+        Assert((string)WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":10}")["error"] == "no_session",
+            "A change without a session was accepted.");
+
+        backend = NewWidgetBackend("Tray", 6);
+        backend.Applied.TouchpadProfile = 2;
+        service = new WidgetControlService(backend, settings, title => "norm:" + title,
+            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => widgetPersistCalls++, () => "fr");
+        reply = WidgetReply(service, "{\"cmd\":\"status\"}");
+        var tuning = (Dictionary<string, object>)reply["tuning"];
+        Assert((string)reply["language"] == "fr", "The Tray language was not sent to the widget.");
+        Assert((bool)reply["active"] && (string)reply["phase"] == "Ready" && (string)reply["owner"] == "Tray" &&
+            (string)reply["game"] == "Alpha" && (bool)reply["canSave"], "The active session status was incomplete.");
+        Assert((int)tuning["trigger"] == 100 && (int)tuning["maxVibration"] == 100 && (int)tuning["model"] == 6 &&
+            (string)tuning["touchpadProfileName"] == "spider-man-2" && tuning["slot"] == null, "The tuning state was wrong.");
+        var remap = (Dictionary<string, object>)((object[])reply["remaps"])[0];
+        Assert(((object[])reply["remaps"]).Length == 1 && (bool)remap["hold"] && (string)remap["output"] == "SwipeLeft" && ((object[])remap["buttons"])[0].ToString() == "View" && ((object[])reply["profiles"]).Length == 8,
+            "The profile and remap lists were wrong.");
+
+        reply = WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":60,\"vibration\":50,\"gripMute\":true,\"touchpadProfile\":3}");
+        Assert((bool)reply["ok"] && (bool)reply["acknowledged"] && !(bool)reply["saved"], "A valid change failed.");
+        var change = backend.Submitted[backend.Submitted.Count - 1];
+        Assert(change.TriggerStrengthPercent == 60u && change.VibrationStrengthPercent == 50u && change.GripMute == true &&
+            change.TouchpadProfile == 3u && change.TriggerEffectsOff == null, "The submitted change did not match the request.");
+        tuning = (Dictionary<string, object>)reply["tuning"];
+        Assert((int)tuning["trigger"] == 60 && (bool)tuning["gripMute"] && (int)tuning["touchpadProfile"] == 3,
+            "The reply did not carry the applied state.");
+
+        var submittedBefore = backend.Submitted.Count;
+        Assert((string)WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":150,\"vibration\":101,\"touchpadProfile\":99,\"gripMute\":\"yes\"}")["error"] == "nothing_to_set" &&
+            backend.Submitted.Count == submittedBefore, "Out-of-range or mistyped values were submitted.");
+        Assert(WidgetReply(service, "{\"cmd\":\"set\",\"vibration\":150,\"triggerEffectsOff\":true}").ContainsKey("acknowledged") &&
+            backend.Submitted[backend.Submitted.Count - 1].VibrationStrengthPercent == null &&
+            backend.Submitted[backend.Submitted.Count - 1].TriggerEffectsOff == true, "An APEX 6 vibration above 100 was accepted.");
+
+        var calibration = settings.GetControllerCalibration("apex6");
+        calibration.HapticThresholdPercent = 0;
+        reply = WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":40,\"vibration\":70,\"save\":true}");
+        var saved = settings.GetGameTuning("norm:Alpha");
+        Assert((bool)reply["saved"] && saved != null && saved.TriggerStrengthPercent == 40 && saved.VibrationStrengthPercent == 70 &&
+            saved.HapticThresholdPercent == 0 && settings.GetGameTuning("Alpha") != null,
+            "A saved change did not become the per-game tuning.");
+        Assert(widgetPersistCalls == 1, "A saved change did not persist exactly once through the injected hook.");
+
+        backend.Acknowledge = false;
+        reply = WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":30}");
+        Assert((bool)reply["ok"] && !(bool)reply["acknowledged"], "A missing acknowledgement was reported as applied.");
+
+        var other = NewWidgetBackend("Playnite", 5);
+        var otherSettings = new TraySettings();
+        var otherService = new WidgetControlService(other, otherSettings, title => title, null, null, () => widgetPersistCalls++, () => "fr");
+        reply = WidgetReply(otherService, "{\"cmd\":\"status\"}");
+        Assert(!(bool)reply["canSave"] && ((object[])reply["remaps"]).Length == 0, "A Playnite session was offered persistence.");
+        reply = WidgetReply(otherService, "{\"cmd\":\"set\",\"vibration\":180,\"save\":true}");
+        Assert((bool)reply["ok"] && !(bool)reply["saved"] && otherSettings.GetGameTuning("Alpha") == null &&
+            other.Submitted[0].VibrationStrengthPercent == 180u && widgetPersistCalls == 1,
+            "A Playnite session wrote Tray settings, or the APEX 5 limit was wrong.");
+    }
+
+    private static void TestWidgetControlServer()
+    {
+        var sid = WidgetControlServer.DeriveAppContainerSid("ReynArts.ApexSenseBridgeWidget_tcqvdfrmphh62");
+        Assert(sid != null && sid.Value.StartsWith("S-1-15-2-"), "The widget package SID could not be derived.");
+        Assert(WidgetControlServer.DeriveAppContainerSid(string.Empty) == null, "An empty package name produced a SID.");
+
+        var backend = NewWidgetBackend("Tray", 6);
+        var service = new WidgetControlService(backend, new TraySettings(), null, null, null, null, null);
+        var pipeName = "ASB.Test." + Guid.NewGuid().ToString("N");
+        using (var server = new WidgetControlServer(service, pipeName, WidgetControlServer.KnownPackageFamilies))
+        {
+            var rules = server.BuildSecurity().GetAccessRules(true, false, typeof(System.Security.Principal.SecurityIdentifier));
+            Assert(rules.Count == 3, "The pipe access list should hold the user, the widget package and a network deny.");
+            server.Start();
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                using (var client = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut))
+                {
+                    client.Connect(3000);
+                    var bytes = Encoding.UTF8.GetBytes("{\"cmd\":\"status\"}\n");
+                    client.Write(bytes, 0, bytes.Length);
+                    client.Flush();
+                    var line = new System.IO.StreamReader(client, Encoding.UTF8).ReadLine();
+                    var reply = (Dictionary<string, object>)new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(line);
+                    Assert((bool)reply["ok"] && (bool)reply["active"] && (string)reply["game"] == "Alpha",
+                        "The pipe server did not answer a status request.");
+                }
             }
         }
     }
