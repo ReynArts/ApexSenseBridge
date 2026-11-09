@@ -82,7 +82,7 @@ private:
     Apex6TranslatorConfig config_;
     std::size_t decimation_ = 0;
     std::size_t counter_ = 0;
-    std::array<Biquad, 2> low_{};
+    std::array<Biquad, 4> low_{};
     double lowGain_ = 1.0;
     double attackCoefficient_ = 0.0;
     std::array<Band, 3> bands_{};
