@@ -698,17 +698,19 @@ index 0000000..a3dd901
 +}
 diff --git a/device/dualsense/asb_extensions_test.go b/device/dualsense/asb_extensions_test.go
 new file mode 100644
-index 0000000..1ac0587
+index 0000000..ffad349
 --- /dev/null
 +++ b/device/dualsense/asb_extensions_test.go
-@@ -0,0 +1,342 @@
+@@ -0,0 +1,392 @@
 +package dualsense
 +
 +import (
 +	"bytes"
++	"context"
 +	"crypto/sha256"
 +	"encoding/binary"
 +	"fmt"
++	"sync"
 +	"testing"
 +
 +	"github.com/Alia5/VIIPER/usb"
@@ -766,7 +768,7 @@ index 0000000..1ac0587
 +	report[1], report[2], report[3], report[4] = 0x0F, 0x04, 77, 155
 +	report[11], report[22], report[39] = 0x21, 0x22, 0x08
 +	report[45], report[46], report[47] = 12, 34, 56
-+	ds.HandleTransfer(3, usbip.DirOut, report)
++	ds.HandleTransfer(context.Background(), 3, usbip.DirOut, report)
 +
 +	if official.RumbleSmall != 77 || official.RumbleLarge != 155 {
 +		t.Fatalf("official callback regressed: %+v", official)
@@ -822,7 +824,7 @@ index 0000000..1ac0587
 +		t.Fatal(err)
 +	}
 +
-+	neutral := ds.HandleTransfer(4, usbip.DirIn, nil)
++	neutral := ds.HandleTransfer(context.Background(), 4, usbip.DirIn, nil)
 +	if neutral[42] != triggerStatusNeutral || neutral[43] != triggerStatusNeutral ||
 +		neutral[48] != 0 || neutral[54] != 0x08 ||
 +		binary.LittleEndian.Uint32(neutral[49:53]) != binary.LittleEndian.Uint32(neutral[28:32]) {
@@ -836,13 +838,13 @@ index 0000000..1ac0587
 +	output[12] = 1 << 2
 +	output[13] = 1 << (8 - 8)
 +	binary.LittleEndian.PutUint32(output[33:37], 0x78563412)
-+	ds.HandleTransfer(3, usbip.DirOut, output)
++	ds.HandleTransfer(context.Background(), 3, usbip.DirOut, output)
 +
 +	state := *ds.inputState
 +	state.R2 = 100
 +	state.Buttons |= ButtonR2
 +	ds.UpdateInputState(&state)
-+	firing := ds.HandleTransfer(4, usbip.DirIn, nil)
++	firing := ds.HandleTransfer(context.Background(), 4, usbip.DirIn, nil)
 +	if firing[6] != 100 || firing[9]&0x08 == 0 || firing[42] != 0x13 ||
 +		firing[48]&0x0F != 2 || binary.LittleEndian.Uint32(firing[44:48]) != 0x78563412 {
 +		t.Fatalf("weapon firing state was not synthesized: % x", firing[:55])
@@ -850,7 +852,7 @@ index 0000000..1ac0587
 +
 +	state.R2 = 255
 +	ds.UpdateInputState(&state)
-+	fired := ds.HandleTransfer(4, usbip.DirIn, nil)
++	fired := ds.HandleTransfer(context.Background(), 4, usbip.DirIn, nil)
 +	if fired[6] != 255 || fired[42] != 0x29 || fired[48]&0x0F != 2 {
 +		t.Fatalf("weapon fired state was not synthesized: % x", fired[:55])
 +	}
@@ -1042,6 +1044,54 @@ index 0000000..1ac0587
 +	if ds.audioRawFrames != 0 || ds.audioRawLeftSquares != 0 || ds.audioRawRightSquares != 0 ||
 +		ds.audioRawPeaks != [4]uint16{} {
 +		t.Fatal("raw audio diagnostics ran without the APEX 6 waveform opt-in")
++	}
++}
++
++func TestASBInputReportCounterIsUniqueAcrossConcurrentReports(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	const workers, reportsPerWorker = 8, 4096
++	counts := make([][256]int, workers)
++	var wg sync.WaitGroup
++	for w := range counts {
++		wg.Add(1)
++		go func(w int) {
++			defer wg.Done()
++			state := NewInputState()
++			meta := MetaState{}
++			for range reportsPerWorker {
++				counts[w][ds.buildUSBInputReport(state, &meta)[7]]++
++			}
++		}(w)
++	}
++	wg.Wait()
++	for value := range 256 {
++		total := 0
++		for w := range counts {
++			total += counts[w][value]
++		}
++		if total != workers*reportsPerWorker/256 {
++			t.Fatalf("counter %d appeared %d times in %d concurrent reports, want %d", value, total, workers*reportsPerWorker, workers*reportsPerWorker/256)
++		}
++	}
++}
++
++func TestASBInputReportWokenByInputUsesTheNewestState(t *testing.T) {
++	ds, err := New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	ds.HandleTransfer(context.Background(), 4, usbip.DirIn, nil)
++	older, newer := NewInputState(), NewInputState()
++	older.R2, newer.R2 = 10, 20
++	ds.UpdateInputState(older)
++	ds.mtx.Lock()
++	ds.inputState = newer
++	ds.mtx.Unlock()
++	if report := ds.HandleTransfer(context.Background(), 4, usbip.DirIn, nil); report[6] != newer.R2 {
++		t.Fatalf("report woken by a stale input handoff carries R2=%d, want the newest state's %d", report[6], newer.R2)
 +	}
 +}
 diff --git a/device/dualsense/asb_waveform2k.go b/device/dualsense/asb_waveform2k.go
@@ -1788,10 +1838,18 @@ index 530b457..eae31f8 100644
  
  const (
 diff --git a/device/dualsense/device.go b/device/dualsense/device.go
-index 5dd1d2c..a0016ca 100644
+index 20cd2c8..48e916b 100644
 --- a/device/dualsense/device.go
 +++ b/device/dualsense/device.go
-@@ -19,15 +19,54 @@ type DualSense struct {
+@@ -10,6 +10,7 @@ import (
+ 	"math"
+ 	"net"
+ 	"sync"
++	"sync/atomic"
+ 	"time"
+ 
+ 	"github.com/Alia5/VIIPER/device"
+@@ -22,15 +23,54 @@ type DualSense struct {
  	inputState *InputState
  	metaState  *MetaState
  
@@ -1803,10 +1861,12 @@ index 5dd1d2c..a0016ca 100644
  
  	subcommand [2]byte
  
- 	seqCounter         uint8
- 	usbReportTimestamp uint32
+-	seqCounter    uint8
+-	timestampBase time.Time
 -
 -	mtx sync.Mutex
++	seqCounter         atomic.Uint32
++	timestampBase      time.Time
 +	rightTriggerEffect [11]uint8
 +	leftTriggerEffect  [11]uint8
 +	hostTimestamp      uint32
@@ -1850,7 +1910,7 @@ index 5dd1d2c..a0016ca 100644
  }
  
  func New(o *device.CreateOptions) (*DualSense, error) {
-@@ -84,13 +123,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
+@@ -87,13 +127,15 @@ func new(o *device.CreateOptions, edge bool) (*DualSense, error) {
  	}
  
  	d := &DualSense{
@@ -1867,7 +1927,7 @@ index 5dd1d2c..a0016ca 100644
  	}
  
  	if o != nil {
-@@ -124,9 +165,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
+@@ -126,9 +168,35 @@ func (d *DualSense) SetMetaState(meta MetaState) {
  }
  
  func (d *DualSense) SetOutputCallback(f func(OutputState)) {
@@ -1902,8 +1962,19 @@ index 5dd1d2c..a0016ca 100644
 +
  func (d *DualSense) UpdateInputState(state *InputState) {
  	d.mtx.Lock()
- 	defer d.mtx.Unlock()
-@@ -169,8 +236,10 @@ func (d *DualSense) HandleTransfer(ep uint32, dir uint32, out []byte) []byte {
+ 	d.inputState = state
+@@ -174,8 +242,9 @@ func (d *DualSense) HandleTransfer(ctx context.Context, ep uint32, dir uint32, o
+ 					return d.buildUSBInputReport(is, &ms)
+ 				}
+ 				return nil
+-			case is := <-d.inputCh:
++			case <-d.inputCh:
+ 				d.mtx.Lock()
++				is := d.inputState
+ 				ms := *d.metaState
+ 				d.mtx.Unlock()
+ 				return d.buildUSBInputReport(is, &ms)
+@@ -187,8 +256,10 @@ func (d *DualSense) HandleTransfer(ctx context.Context, ep uint32, dir uint32, o
  
  	if dir == usbip.DirOut && ep == 3 {
  		if len(out) >= 48 && out[0] == ReportIDOutput {
@@ -1916,7 +1987,7 @@ index 5dd1d2c..a0016ca 100644
  			}
  		}
  	}
-@@ -221,14 +290,22 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
+@@ -239,14 +310,22 @@ func (d *DualSense) HandleControl(bmRequestType, bRequest uint8, wValue, wIndex,
  			case reportType == reportTypeFeature:
  				return nil, true
  			case reportType == reportTypeOutput && reportID == ReportIDOutput && len(data) >= 48:
@@ -1941,7 +2012,7 @@ index 5dd1d2c..a0016ca 100644
  	slog.Warn("DualSense control request unhandled",
  		"bmRequestType", bmRequestType,
  		"bRequest", bRequest,
-@@ -310,36 +387,20 @@ func (d *DualSense) featureReportPairing() []byte {
+@@ -328,36 +407,20 @@ func (d *DualSense) featureReportPairing() []byte {
  }
  
  func (d *DualSense) featureReportFirmware() []byte {
@@ -1992,7 +2063,17 @@ index 5dd1d2c..a0016ca 100644
  }
  
  func (d *DualSense) featureReportCommandResponse() []byte {
-@@ -439,8 +500,20 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
+@@ -406,8 +469,7 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
+ 	b[5] = s.L2
+ 	b[6] = s.R2
+ 
+-	d.seqCounter++
+-	b[7] = d.seqCounter
++	b[7] = uint8(d.seqCounter.Add(1))
+ 
+ 	usbDPad := uint8(DPadUSBNeutral)
+ 	switch {
+@@ -457,8 +519,20 @@ func (d *DualSense) buildUSBInputReport(s *InputState, m *MetaState) []byte {
  	b[37] = touch2
  	encodeTouchCoords(b[38:41], s.Touch2X, s.Touch2Y)
  
@@ -2064,11 +2145,11 @@ index 3a02c10..4527a0f 100644
  	}
  }
 diff --git a/internal/server/api/autoattach_windows.go b/internal/server/api/autoattach_windows.go
-index 47a805a..7716fd4 100644
+index 91af687..98653fb 100644
 --- a/internal/server/api/autoattach_windows.go
 +++ b/internal/server/api/autoattach_windows.go
-@@ -6,7 +6,9 @@ import (
- 	"context"
+@@ -7,7 +7,9 @@ import (
+ 	"errors"
  	"fmt"
  	"log/slog"
 +	"os"
@@ -2077,158 +2158,17 @@ index 47a805a..7716fd4 100644
  	"strconv"
  	"syscall"
  	"unsafe"
-@@ -53,8 +55,8 @@ const (
- 	niMaxServ = 32
- )
- 
--// PLUGIN_HARDWARE structure from usbip-win2
--type attachIOCTL struct {
-+// PLUGIN_HARDWARE structure from usbip-win2 <= v0.9.7.7.
-+type attachIOCTLLegacy struct {
- 	Size       uint32
- 	PortOutput int32
- 	BusID      [32]byte
-@@ -62,6 +64,18 @@ type attachIOCTL struct {
- 	Host       [niMaxHost]byte
- }
- 
-+// PLUGIN_HARDWARE structure from usbip-win2 master builds before v0.9.8.0.
-+type attachIOCTLPre098 struct {
-+	attachIOCTLLegacy
-+	Serial [16]byte
-+}
-+
-+// PLUGIN_HARDWARE structure from usbip-win2 v0.9.8.0 and newer.
-+type attachIOCTL struct {
-+	attachIOCTLPre098
-+	WskEvents bool
-+}
-+
- const (
- 	fileDeviceUnknown   = 0x00000022
- 	methodBuffered      = 0
-@@ -99,21 +113,8 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
- 
- 	logger.Debug("Found usbip-win2 device", "path", devicePath)
- 
--	var ioctlData attachIOCTL
--	ioctlData.Size = uint32(unsafe.Sizeof(ioctlData))
--
- 	busID := fmt.Sprintf("%d-%d", deviceExportMeta.BusID, deviceExportMeta.DevID)
--	if len(busID) >= len(ioctlData.BusID) {
--		return fmt.Errorf("argumentValidation: bus ID too long: %s", busID)
--	}
--	copy(ioctlData.BusID[:], busID)
--
- 	service := fmt.Sprintf("%d", usbipServerPort)
--	if len(service) >= len(ioctlData.Service) {
--		return fmt.Errorf("argumentValidation: service string too long: %s", service)
--	}
--	copy(ioctlData.Service[:], service)
--	copy(ioctlData.Host[:], "localhost")
+@@ -163,7 +165,7 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
+ 		return fmt.Errorf("argumentValidation: service string too long: %s", service)
+ 	}
+ 	copy(loc.Service[:], service)
+-	copy(loc.Host[:], "localhost")
++	copy(loc.Host[:], "127.0.0.1")
  
  	devicePathUTF16, err := windows.UTF16PtrFromString(devicePath)
  	if err != nil {
-@@ -136,41 +137,96 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
+@@ -220,10 +222,14 @@ func attachViaIOCTL(_ context.Context, deviceExportMeta *usbip.ExportMeta, usbip
  
- 	logger.Debug("Opened device handle")
- 
--	var bytesReturned uint32
--	err = windows.DeviceIoControl(
--		handle,
--		ioctlPluginHardware,
--		(*byte)(unsafe.Pointer(&ioctlData)),
--		uint32(unsafe.Sizeof(ioctlData)),
--		(*byte)(unsafe.Pointer(&ioctlData)),
--		uint32(unsafe.Sizeof(ioctlData)),
--		&bytesReturned,
--		nil,
--	)
-+	var ioctlData attachIOCTL
-+	if err := prepareAttachIOCTL(&ioctlData.attachIOCTLPre098.attachIOCTLLegacy, uint32(unsafe.Sizeof(ioctlData)), busID, service); err != nil {
-+		return err
-+	}
-+
-+	bytesReturned, err := callAttachIOCTL(handle, unsafe.Pointer(&ioctlData), uint32(unsafe.Sizeof(ioctlData)))
-+	portOutput := ioctlData.PortOutput
- 	if err != nil {
--		return fmt.Errorf("IOControl: DeviceIoControl failed: %w", err)
-+		logger.Warn("Native IOCTL attach with usbip-win2 v0.9.8 ABI failed; retrying pre-v0.9.8 ABI",
-+			"error", err,
-+			"currentSize", uint32(unsafe.Sizeof(ioctlData)))
-+
-+		var pre098Data attachIOCTLPre098
-+		if pre098Err := prepareAttachIOCTL(&pre098Data.attachIOCTLLegacy, uint32(unsafe.Sizeof(pre098Data)), busID, service); pre098Err != nil {
-+			return pre098Err
-+		}
-+		bytesReturned, err = callAttachIOCTL(handle, unsafe.Pointer(&pre098Data), uint32(unsafe.Sizeof(pre098Data)))
-+		portOutput = pre098Data.PortOutput
-+		if err != nil {
-+			logger.Warn("Native IOCTL attach with pre-v0.9.8 ABI failed; retrying legacy ABI",
-+				"error", err,
-+				"pre098Size", uint32(unsafe.Sizeof(pre098Data)))
-+
-+			var legacyData attachIOCTLLegacy
-+			if legacyErr := prepareAttachIOCTL(&legacyData, uint32(unsafe.Sizeof(legacyData)), busID, service); legacyErr != nil {
-+				return legacyErr
-+			}
-+			bytesReturned, err = callAttachIOCTL(handle, unsafe.Pointer(&legacyData), uint32(unsafe.Sizeof(legacyData)))
-+			portOutput = legacyData.PortOutput
-+			if err != nil {
-+				return fmt.Errorf("IOControl: DeviceIoControl failed with v0.9.8, pre-v0.9.8, and legacy usbip-win2 ABIs: %w", err)
-+			}
-+		}
- 	}
- 
--	logger.Debug("IOCTL completed", "bytesReturned", bytesReturned, "portOutput", ioctlData.PortOutput)
-+	logger.Debug("IOCTL completed", "bytesReturned", bytesReturned, "portOutput", portOutput)
- 
--	if ioctlData.PortOutput <= 0 {
--		return fmt.Errorf("ResponseValidation: invalid USB port returned: %d", ioctlData.PortOutput)
-+	if portOutput <= 0 {
-+		return fmt.Errorf("responseValidation: invalid USB port returned: %d", portOutput)
- 	}
- 
- 	logger.Info("Successfully attached device via IOCTL",
- 		"busID", deviceExportMeta.BusID,
- 		"deviceID", deviceExportMeta.DevID,
--		"usbPort", ioctlData.PortOutput)
-+		"usbPort", portOutput)
-+
-+	return nil
-+}
- 
-+func prepareAttachIOCTL(ioctlData *attachIOCTLLegacy, structSize uint32, busID string, service string) error {
-+	ioctlData.Size = structSize
-+	if len(busID) >= len(ioctlData.BusID) {
-+		return fmt.Errorf("argumentValidation: bus ID too long: %s", busID)
-+	}
-+	copy(ioctlData.BusID[:], busID)
-+	if len(service) >= len(ioctlData.Service) {
-+		return fmt.Errorf("argumentValidation: service string too long: %s", service)
-+	}
-+	copy(ioctlData.Service[:], service)
-+	// The ASB listener rejects non-loopback peers. Passing a numeric loopback
-+	// address also prevents usbip-win2 from trying IPv6 localhost before IPv4.
-+	copy(ioctlData.Host[:], "127.0.0.1")
- 	return nil
- }
- 
-+func callAttachIOCTL(handle windows.Handle, ioctlData unsafe.Pointer, ioctlSize uint32) (uint32, error) {
-+	var bytesReturned uint32
-+	err := windows.DeviceIoControl(
-+		handle,
-+		ioctlPluginHardware,
-+		(*byte)(ioctlData),
-+		ioctlSize,
-+		(*byte)(ioctlData),
-+		ioctlSize,
-+		&bytesReturned,
-+		nil,
-+	)
-+	return bytesReturned, err
-+}
-+
  func attachViaCommand(ctx context.Context, deviceExportMeta *usbip.ExportMeta, usbipServerPort uint16, logger *slog.Logger) error {
  	logger.Info("Auto-attaching localhost client", "busID", deviceExportMeta.BusID, "deviceID", deviceExportMeta.DevID)
 +	usbipExecutable, err := findUSBIPExecutable()
@@ -2243,7 +2183,7 @@ index 47a805a..7716fd4 100644
  		"--tcp-port",
  		strconv.FormatUint(uint64(usbipServerPort), 10),
  		"attach",
-@@ -190,6 +246,25 @@ func attachViaCommand(ctx context.Context, deviceExportMeta *usbip.ExportMeta, u
+@@ -243,6 +249,25 @@ func attachViaCommand(ctx context.Context, deviceExportMeta *usbip.ExportMeta, u
  	return nil
  }
  
@@ -2269,7 +2209,7 @@ index 47a805a..7716fd4 100644
  func getDeviceInterfacePath(guid *windows.GUID) (string, error) {
  	r0, _, e1 := syscall.SyscallN(procSetupDiGetClassDevsW.Addr(),
  		uintptr(unsafe.Pointer(guid)),
-@@ -281,8 +356,8 @@ func CheckAutoAttachPrerequisites(useNativeIOCTL bool, logger *slog.Logger) bool
+@@ -334,8 +359,8 @@ func CheckAutoAttachPrerequisites(useNativeIOCTL bool, logger *slog.Logger) bool
  		return true
  	}
  
@@ -2280,21 +2220,1026 @@ index 47a805a..7716fd4 100644
  		logger.Warn("Auto-attach requires usbip-win2")
  		logger.Info("Download and install usbip-win2:")
  		logger.Info("  https://github.com/vadimgrn/usbip-win2")
+diff --git a/internal/server/usb/asb_iso_test.go b/internal/server/usb/asb_iso_test.go
+new file mode 100644
+index 0000000..887c8c3
+--- /dev/null
++++ b/internal/server/usb/asb_iso_test.go
+@@ -0,0 +1,338 @@
++package usb_test
++
++import (
++	"bytes"
++	"encoding/binary"
++	"io"
++	"log/slog"
++	"net"
++	"sync"
++	"testing"
++	"time"
++
++	"github.com/Alia5/VIIPER/device/dualsense"
++	"github.com/Alia5/VIIPER/internal/server/usb"
++	"github.com/Alia5/VIIPER/usbip"
++	"github.com/Alia5/VIIPER/virtualbus"
++)
++
++type asbReply struct {
++	cmd        uint32
++	seq        uint32
++	status     int32
++	actual     uint32
++	startFrame uint32
++	packets    uint32
++	payload    []byte
++	iso        []usbip.IsoPacketDescriptor
++	at         time.Time
++}
++
++type asbURBClient struct {
++	t     *testing.T
++	conn  net.Conn
++	seq   uint32
++	dirIn map[uint32]bool
++}
++
++func (c *asbURBClient) submit(dir, ep, startFrame uint32, setup [8]byte, out []byte, iso []usbip.IsoPacketDescriptor, inLen uint32) uint32 {
++	c.t.Helper()
++	c.seq++
++	c.dirIn[c.seq] = dir == usbip.DirIn
++	numberOfPackets := uint32(0xFFFFFFFF)
++	if len(iso) > 0 {
++		numberOfPackets = uint32(len(iso))
++	}
++	bufLen := inLen
++	if dir == usbip.DirOut {
++		bufLen = uint32(len(out))
++	}
++	cmd := usbip.CmdSubmit{
++		Basic:             usbip.HeaderBasic{Command: usbip.CmdSubmitCode, Seqnum: c.seq, Dir: dir, Ep: ep},
++		TransferBufferLen: bufLen,
++		StartFrame:        startFrame,
++		NumberOfPackets:   numberOfPackets,
++		Setup:             setup,
++	}
++	var b bytes.Buffer
++	if err := cmd.Write(&b); err != nil {
++		c.t.Fatal(err)
++	}
++	b.Write(out)
++	for i := range iso {
++		if err := iso[i].Write(&b); err != nil {
++			c.t.Fatal(err)
++		}
++	}
++	if _, err := c.conn.Write(b.Bytes()); err != nil {
++		c.t.Fatal(err)
++	}
++	return c.seq
++}
++
++func (c *asbURBClient) unlink(target uint32) uint32 {
++	c.t.Helper()
++	c.seq++
++	cmd := usbip.CmdUnlink{Basic: usbip.HeaderBasic{Command: usbip.CmdUnlinkCode, Seqnum: c.seq}, UnlinkSeqnum: target}
++	var b bytes.Buffer
++	if err := cmd.Write(&b); err != nil {
++		c.t.Fatal(err)
++	}
++	if _, err := c.conn.Write(b.Bytes()); err != nil {
++		c.t.Fatal(err)
++	}
++	return c.seq
++}
++
++func (c *asbURBClient) expect(seq uint32) asbReply {
++	c.t.Helper()
++	_ = c.conn.SetReadDeadline(time.Now().Add(2 * time.Second))
++	defer func() { _ = c.conn.SetReadDeadline(time.Time{}) }()
++	var hdr [48]byte
++	if err := usbip.ReadExactly(c.conn, hdr[:]); err != nil {
++		c.t.Fatalf("waiting for seq %d: %v", seq, err)
++	}
++	r := asbReply{
++		cmd:        binary.BigEndian.Uint32(hdr[0:4]),
++		seq:        binary.BigEndian.Uint32(hdr[4:8]),
++		status:     int32(binary.BigEndian.Uint32(hdr[20:24])),
++		actual:     binary.BigEndian.Uint32(hdr[24:28]),
++		startFrame: binary.BigEndian.Uint32(hdr[28:32]),
++		packets:    binary.BigEndian.Uint32(hdr[32:36]),
++		at:         time.Now(),
++	}
++	if r.cmd == usbip.RetSubmitCode {
++		if c.dirIn[r.seq] && r.actual > 0 {
++			r.payload = make([]byte, r.actual)
++			if err := usbip.ReadExactly(c.conn, r.payload); err != nil {
++				c.t.Fatal(err)
++			}
++		}
++		for i := uint32(0); i < r.packets; i++ {
++			var d usbip.IsoPacketDescriptor
++			if err := d.Read(c.conn); err != nil {
++				c.t.Fatal(err)
++			}
++			r.iso = append(r.iso, d)
++		}
++	}
++	if r.seq != seq {
++		c.t.Fatalf("got reply for seq %d (cmd %d), want %d", r.seq, r.cmd, seq)
++	}
++	return r
++}
++
++func asbIsoPackets(count int, length uint32) []usbip.IsoPacketDescriptor {
++	out := make([]usbip.IsoPacketDescriptor, count)
++	for i := range out {
++		out[i] = usbip.IsoPacketDescriptor{Offset: uint32(i) * length, Length: length}
++	}
++	return out
++}
++
++func asbPCM(frames int, left, right int16) []byte {
++	b := make([]byte, frames*8)
++	for i := 0; i < frames; i++ {
++		binary.LittleEndian.PutUint16(b[i*8+4:], uint16(left))
++		binary.LittleEndian.PutUint16(b[i*8+6:], uint16(right))
++	}
++	return b
++}
++
++func asbNeutralInput(option byte, r2 uint8) []byte {
++	input := make([]byte, 33)
++	input[0], input[1], input[2], input[3] = 128, 128, 128, 128
++	input[5] = r2
++	input[32] = option
++	return input
++}
++
++func TestASBDualSenseIsoAndInterruptURBs(t *testing.T) {
++	srv := usb.New(usb.ServerConfig{
++		Addr:                    "127.0.0.1:0",
++		ConnectionTimeout:       2 * time.Second,
++		BusCleanupTimeout:       time.Second,
++		WriteBatchFlushInterval: time.Millisecond,
++		LoopbackOnly:            true,
++	}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
++	go func() { _ = srv.ListenAndServe() }()
++	<-srv.Ready()
++	defer func() { _ = srv.Close() }()
++
++	bus, err := virtualbus.NewWithBusID(srv.NextFreeBusID())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := srv.AddBus(bus); err != nil {
++		t.Fatal(err)
++	}
++	defer func() { _ = srv.RemoveBus(bus.BusID()) }()
++	ds, err := dualsense.New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err := bus.Add(ds); err != nil {
++		t.Fatal(err)
++	}
++	var framesMu sync.Mutex
++	frameCounts := map[uint8]int{}
++	ds.SetRawOutputCallback(func(f dualsense.FeedbackFrame) {
++		framesMu.Lock()
++		frameCounts[f.Type]++
++		framesMu.Unlock()
++	})
++	frameCount := func(frameType uint8) int {
++		framesMu.Lock()
++		defer framesMu.Unlock()
++		return frameCounts[frameType]
++	}
++
++	conn, err := net.Dial("tcp", srv.Addr())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer func() { _ = conn.Close() }()
++	metas := bus.GetAllDeviceMetas()
++	if len(metas) != 1 {
++		t.Fatalf("bus devices = %d, want 1", len(metas))
++	}
++	var importReq bytes.Buffer
++	if err := (&usbip.MgmtHeader{Version: usbip.Version, Command: usbip.OpReqImport}).Write(&importReq); err != nil {
++		t.Fatal(err)
++	}
++	importReq.Write(metas[0].Meta.USBBusID[:])
++	if _, err := conn.Write(importReq.Bytes()); err != nil {
++		t.Fatal(err)
++	}
++	importReply := make([]byte, 8+312)
++	if err := usbip.ReadExactly(conn, importReply); err != nil {
++		t.Fatal(err)
++	}
++	if binary.BigEndian.Uint16(importReply[2:4]) != usbip.OpRepImport || binary.BigEndian.Uint32(importReply[4:8]) != 0 {
++		t.Fatalf("import reply header: % x", importReply[:8])
++	}
++	c := &asbURBClient{t: t, conn: conn, dirIn: map[uint32]bool{}}
++
++	t.Run("standard interface requests", func(t *testing.T) {
++		c.t = t
++		seq := c.submit(usbip.DirOut, 0, 0, [8]byte{0x01, 0x0B, 1, 0, 1, 0, 0, 0}, nil, nil, 0)
++		if r := c.expect(seq); r.status != 0 || r.packets != 0 || len(r.payload) != 0 {
++			t.Fatalf("SET_INTERFACE: %+v", r)
++		}
++		seq = c.submit(usbip.DirIn, 0, 0, [8]byte{0x81, 0x0A, 0, 0, 1, 0, 1, 0}, nil, nil, 1)
++		if r := c.expect(seq); !bytes.Equal(r.payload, []byte{1}) {
++			t.Fatalf("GET_INTERFACE = %x", r.payload)
++		}
++		seq = c.submit(usbip.DirOut, 0, 0, [8]byte{0x02, 0x01, 0, 0, 0x84, 0, 0, 0}, nil, nil, 0)
++		if r := c.expect(seq); r.status != 0 {
++			t.Fatalf("CLEAR_FEATURE: %+v", r)
++		}
++	})
++
++	t.Run("unpaced iso out completes after the fixed delay", func(t *testing.T) {
++		c.t = t
++		payload := asbPCM(4*48, 1000, 2000)
++		start := time.Now()
++		seq := c.submit(usbip.DirOut, 1, 777, [8]byte{}, payload, asbIsoPackets(4, 384), 0)
++		r := c.expect(seq)
++		if r.status != 0 || r.actual != uint32(len(payload)) || r.startFrame != 777 || r.packets != 4 || len(r.payload) != 0 {
++			t.Fatalf("ISO OUT RET_SUBMIT: %+v", r)
++		}
++		for i, d := range r.iso {
++			if d.Offset != uint32(i)*384 || d.Length != 384 || d.ActualLength != 384 || d.Status != 0 {
++				t.Fatalf("ISO OUT descriptor %d: %+v", i, d)
++			}
++		}
++		if elapsed := r.at.Sub(start); elapsed < time.Millisecond {
++			t.Fatalf("unpaced ISO OUT completed after %v", elapsed)
++		}
++	})
++
++	t.Run("iso in completes with a silent payload", func(t *testing.T) {
++		c.t = t
++		seq := c.submit(usbip.DirIn, 2, 55, [8]byte{}, nil, asbIsoPackets(2, 196), 392)
++		r := c.expect(seq)
++		if r.status != 0 || r.actual != 392 || r.packets != 2 || r.startFrame != 55 || !bytes.Equal(r.payload, make([]byte, 392)) {
++			t.Fatalf("ISO IN RET_SUBMIT: %+v", r)
++		}
++		for i, d := range r.iso {
++			if d.ActualLength != 196 || d.Status != 0 {
++				t.Fatalf("ISO IN descriptor %d: %+v", i, d)
++			}
++		}
++	})
++
++	t.Run("paced iso out follows packet duration and feeds the 2 kHz stream", func(t *testing.T) {
++		c.t = t
++		if err := ds.UpdateASBInputState(asbNeutralInput(0xC0, 0)); err != nil {
++			t.Fatal(err)
++		}
++		start := time.Now()
++		var seqs []uint32
++		for i := 0; i < 4; i++ {
++			seqs = append(seqs, c.submit(usbip.DirOut, 1, uint32(100+i), [8]byte{}, asbPCM(8*48, 4000, -4000), asbIsoPackets(8, 384), 0))
++		}
++		var last asbReply
++		for _, seq := range seqs {
++			last = c.expect(seq)
++			if last.packets != 8 || last.status != 0 {
++				t.Fatalf("paced ISO OUT: %+v", last)
++			}
++		}
++		if elapsed := last.at.Sub(start); elapsed < 28*time.Millisecond {
++			t.Fatalf("4 paced URBs of 8 packets completed after %v, want about 32ms", elapsed)
++		}
++		if frameCount(dualsense.FeedbackFrameAudioWaveform2k) == 0 {
++			t.Fatal("no 2 kHz waveform frame was emitted")
++		}
++	})
++
++	t.Run("unlinked pending iso out never completes", func(t *testing.T) {
++		c.t = t
++		seq := c.submit(usbip.DirOut, 1, 9, [8]byte{}, asbPCM(40*48, 0, 0), asbIsoPackets(40, 384), 0)
++		r := c.expect(c.unlink(seq))
++		if r.cmd != usbip.RetUnlinkCode || r.status != -104 {
++			t.Fatalf("RET_UNLINK: %+v", r)
++		}
++		time.Sleep(60 * time.Millisecond)
++		statusSeq := c.submit(usbip.DirIn, 0, 0, [8]byte{0x80, 0x00, 0, 0, 0, 0, 2, 0}, nil, nil, 2)
++		if r := c.expect(statusSeq); r.cmd != usbip.RetSubmitCode || r.status != 0 {
++			t.Fatalf("GET_STATUS: %+v", r)
++		}
++	})
++
++	t.Run("interrupt in carries synthesized trigger state", func(t *testing.T) {
++		c.t = t
++		out := make([]byte, 64)
++		out[0] = dualsense.ReportIDOutput
++		out[1] = 0x04
++		out[11] = 0x25
++		out[12] = 1 << 2
++		out[13] = 1
++		binary.LittleEndian.PutUint32(out[33:37], 0x78563412)
++		seq := c.submit(usbip.DirOut, 3, 0, [8]byte{}, out, nil, 0)
++		if r := c.expect(seq); r.status != 0 || r.actual != 64 || len(r.payload) != 0 {
++			t.Fatalf("HID OUT: %+v", r)
++		}
++		if frameCount(dualsense.FeedbackFrameHIDOutput) == 0 {
++			t.Fatal("HID output frame was not emitted")
++		}
++		if err := ds.UpdateASBInputState(asbNeutralInput(0xC0, 100)); err != nil {
++			t.Fatal(err)
++		}
++		var report []byte
++		for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); {
++			r := c.expect(c.submit(usbip.DirIn, 4, 0, [8]byte{}, nil, nil, 64))
++			if len(r.payload) == 64 && r.payload[6] == 100 && r.payload[42] == 0x13 {
++				report = r.payload
++				break
++			}
++		}
++		if report == nil {
++			t.Fatal("interrupt IN never reported the weapon trigger state")
++		}
++		if report[48]&0x0F != 2 || binary.LittleEndian.Uint32(report[44:48]) != 0x78563412 {
++			t.Fatalf("trigger metadata: % x", report[40:55])
++		}
++	})
++}
+diff --git a/internal/server/usb/asb_stream_test.go b/internal/server/usb/asb_stream_test.go
+new file mode 100644
+index 0000000..d11cb79
+--- /dev/null
++++ b/internal/server/usb/asb_stream_test.go
+@@ -0,0 +1,655 @@
++package usb_test
++
++import (
++	"bytes"
++	"context"
++	"encoding/binary"
++	"fmt"
++	"io"
++	"log/slog"
++	"math/rand"
++	"net"
++	"strings"
++	"sync"
++	"testing"
++	"time"
++
++	"github.com/Alia5/VIIPER/device/dualsense"
++	"github.com/Alia5/VIIPER/internal/server/usb"
++	usbdev "github.com/Alia5/VIIPER/usb"
++	"github.com/Alia5/VIIPER/usbip"
++	"github.com/Alia5/VIIPER/virtualbus"
++)
++
++type asbStream struct {
++	srv     *usb.Server
++	bus     *virtualbus.VirtualBus
++	ds      *dualsense.DualSense
++	conn    net.Conn
++	mu      sync.Mutex
++	wmu     sync.Mutex
++	seq     uint32
++	dirIn   map[uint32]bool
++	replies chan asbReply
++	done    chan struct{}
++}
++
++type asbLogBuffer struct {
++	mu sync.Mutex
++	b  bytes.Buffer
++}
++
++func (l *asbLogBuffer) Write(p []byte) (int, error) {
++	l.mu.Lock()
++	defer l.mu.Unlock()
++	return l.b.Write(p)
++}
++
++func (l *asbLogBuffer) String() string {
++	l.mu.Lock()
++	defer l.mu.Unlock()
++	return l.b.String()
++}
++
++func newASBStream(t *testing.T, batch time.Duration, logs io.Writer) *asbStream {
++	t.Helper()
++	ds, err := dualsense.New(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	s := newASBStreamFor(t, batch, logs, ds)
++	s.ds = ds
++	return s
++}
++
++func newASBStreamFor(t *testing.T, batch time.Duration, logs io.Writer, dev usbdev.Device) *asbStream {
++	t.Helper()
++	handler := slog.DiscardHandler
++	if logs != nil {
++		handler = slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})
++	}
++	srv := usb.New(usb.ServerConfig{
++		Addr:                    "127.0.0.1:0",
++		ConnectionTimeout:       2 * time.Second,
++		BusCleanupTimeout:       20 * time.Millisecond,
++		WriteBatchFlushInterval: batch,
++		LoopbackOnly:            true,
++	}, slog.New(handler), nil)
++	go func() { _ = srv.ListenAndServe() }()
++	<-srv.Ready()
++	bus, err := virtualbus.NewWithBusID(srv.NextFreeBusID())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := srv.AddBus(bus); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := bus.Add(dev); err != nil {
++		t.Fatal(err)
++	}
++	conn, err := net.Dial("tcp", srv.Addr())
++	if err != nil {
++		t.Fatal(err)
++	}
++	s := &asbStream{srv: srv, bus: bus, conn: conn, dirIn: map[uint32]bool{}, replies: make(chan asbReply, 16384), done: make(chan struct{})}
++	t.Cleanup(func() {
++		_ = conn.Close()
++		<-s.done
++		_ = srv.RemoveBus(bus.BusID())
++		_ = srv.Close()
++	})
++	var importReq bytes.Buffer
++	if err := (&usbip.MgmtHeader{Version: usbip.Version, Command: usbip.OpReqImport}).Write(&importReq); err != nil {
++		t.Fatal(err)
++	}
++	importReq.Write(bus.GetAllDeviceMetas()[0].Meta.USBBusID[:])
++	if _, err := conn.Write(importReq.Bytes()); err != nil {
++		t.Fatal(err)
++	}
++	importReply := make([]byte, 8+312)
++	if err := usbip.ReadExactly(conn, importReply); err != nil {
++		t.Fatal(err)
++	}
++	go s.readLoop()
++	return s
++}
++
++func (s *asbStream) readLoop() {
++	defer close(s.done)
++	for {
++		var hdr [48]byte
++		if err := usbip.ReadExactly(s.conn, hdr[:]); err != nil {
++			return
++		}
++		r := asbReply{
++			cmd:        binary.BigEndian.Uint32(hdr[0:4]),
++			seq:        binary.BigEndian.Uint32(hdr[4:8]),
++			status:     int32(binary.BigEndian.Uint32(hdr[20:24])),
++			actual:     binary.BigEndian.Uint32(hdr[24:28]),
++			startFrame: binary.BigEndian.Uint32(hdr[28:32]),
++			packets:    binary.BigEndian.Uint32(hdr[32:36]),
++			at:         time.Now(),
++		}
++		if r.cmd == usbip.RetSubmitCode {
++			s.mu.Lock()
++			in := s.dirIn[r.seq]
++			s.mu.Unlock()
++			if in && r.actual > 0 {
++				r.payload = make([]byte, r.actual)
++				if err := usbip.ReadExactly(s.conn, r.payload); err != nil {
++					return
++				}
++			}
++			if r.packets > 0 {
++				r.iso = make([]usbip.IsoPacketDescriptor, r.packets)
++				if err := binary.Read(s.conn, binary.BigEndian, r.iso); err != nil {
++					return
++				}
++			}
++		}
++		s.replies <- r
++	}
++}
++
++func (s *asbStream) nextSeq(dirIn bool) uint32 {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	s.seq++
++	s.dirIn[s.seq] = dirIn
++	return s.seq
++}
++
++func (s *asbStream) send(b []byte) {
++	s.wmu.Lock()
++	defer s.wmu.Unlock()
++	_, _ = s.conn.Write(b)
++}
++
++func (s *asbStream) submit(dir, ep uint32, out []byte, iso []usbip.IsoPacketDescriptor, inLen uint32) uint32 {
++	seq := s.nextSeq(dir == usbip.DirIn)
++	numberOfPackets := uint32(0xFFFFFFFF)
++	if len(iso) > 0 {
++		numberOfPackets = uint32(len(iso))
++	}
++	bufLen := inLen
++	if dir == usbip.DirOut {
++		bufLen = uint32(len(out))
++	}
++	cmd := usbip.CmdSubmit{
++		Basic:             usbip.HeaderBasic{Command: usbip.CmdSubmitCode, Seqnum: seq, Dir: dir, Ep: ep},
++		TransferBufferLen: bufLen,
++		NumberOfPackets:   numberOfPackets,
++	}
++	var b bytes.Buffer
++	_ = cmd.Write(&b)
++	b.Write(out)
++	_ = binary.Write(&b, binary.BigEndian, iso)
++	s.send(b.Bytes())
++	return seq
++}
++
++func (s *asbStream) unlink(target uint32) uint32 {
++	seq := s.nextSeq(false)
++	var b bytes.Buffer
++	_ = (&usbip.CmdUnlink{Basic: usbip.HeaderBasic{Command: usbip.CmdUnlinkCode, Seqnum: seq}, UnlinkSeqnum: target}).Write(&b)
++	s.send(b.Bytes())
++	return seq
++}
++
++func (s *asbStream) next(t *testing.T, timeout time.Duration) asbReply {
++	t.Helper()
++	select {
++	case r := <-s.replies:
++		return r
++	case <-time.After(timeout):
++		t.Fatalf("no USB/IP reply within %v", timeout)
++		return asbReply{}
++	}
++}
++
++func (s *asbStream) quiet(timeout time.Duration) []asbReply {
++	var out []asbReply
++	for {
++		select {
++		case r := <-s.replies:
++			out = append(out, r)
++		case <-time.After(timeout):
++			return out
++		}
++	}
++}
++
++func asbSpin(d time.Duration) {
++	for end := time.Now().Add(d); time.Now().Before(end); {
++	}
++}
++
++func TestASBInterruptINUnlinkRacingCompletionRepliesOnce(t *testing.T) {
++	s := newASBStream(t, 0, nil)
++	stop := make(chan struct{})
++	var wg sync.WaitGroup
++	wg.Add(1)
++	go func() {
++		defer wg.Done()
++		for v := uint8(0); ; v++ {
++			select {
++			case <-stop:
++				return
++			default:
++			}
++			_ = s.ds.UpdateASBInputState(asbNeutralInput(0, v))
++			asbSpin(30 * time.Microsecond)
++		}
++	}()
++	const rounds = 3000
++	targets := map[uint32]uint32{}
++	rng := rand.New(rand.NewSource(7))
++	for i := 0; i < rounds; i++ {
++		target := s.submit(usbip.DirIn, 4, nil, nil, 64)
++		asbSpin(time.Duration(rng.Intn(120)) * time.Microsecond)
++		targets[s.unlink(target)] = target
++	}
++	close(stop)
++	wg.Wait()
++
++	submitAt := map[uint32][]int{}
++	unlinkAt := map[uint32]int{}
++	unlinkStatus := map[uint32]int32{}
++	var replies []asbReply
++	for len(unlinkStatus) < rounds {
++		r := s.next(t, 2*time.Second)
++		replies = append(replies, r)
++		if r.cmd == usbip.RetUnlinkCode {
++			unlinkStatus[targets[r.seq]] = r.status
++			unlinkAt[targets[r.seq]] = len(replies)
++		}
++	}
++	replies = append(replies, s.quiet(20*time.Millisecond)...)
++	for i, r := range replies {
++		if r.cmd == usbip.RetSubmitCode {
++			submitAt[r.seq] = append(submitAt[r.seq], i+1)
++		}
++	}
++	resetOnly, completedFirst, violations := 0, 0, 0
++	for _, target := range targets {
++		subs := submitAt[target]
++		switch {
++		case unlinkStatus[target] == -104 && len(subs) == 0:
++			resetOnly++
++		case unlinkStatus[target] == 0 && len(subs) == 1 && subs[0] < unlinkAt[target]:
++			completedFirst++
++		default:
++			violations++
++			if violations <= 5 {
++				t.Errorf("seq %d: RET_UNLINK status %d at reply %d, RET_SUBMIT at replies %v", target, unlinkStatus[target], unlinkAt[target], subs)
++			}
++		}
++	}
++	t.Logf("rounds=%d reset-only=%d completed-then-unlinked=%d violations=%d", rounds, resetOnly, completedFirst, violations)
++}
++
++func TestASBInterruptINReportCountersStayMonotonic(t *testing.T) {
++	s := newASBStream(t, time.Millisecond, nil)
++	stop := make(chan struct{})
++	var wg sync.WaitGroup
++	wg.Add(1)
++	go func() {
++		defer wg.Done()
++		tk := time.NewTicker(time.Millisecond)
++		defer tk.Stop()
++		for v, end := uint8(0), time.Now().Add(150*time.Millisecond); time.Now().Before(end); v++ {
++			select {
++			case <-stop:
++				return
++			case <-tk.C:
++			}
++			_ = s.ds.UpdateASBInputState(asbNeutralInput(0, v))
++		}
++	}()
++	defer func() {
++		close(stop)
++		wg.Wait()
++	}()
++	for i := 0; i < 4; i++ {
++		s.submit(usbip.DirIn, 4, nil, nil, 64)
++	}
++	reports, violations := 0, 0
++	var last []byte
++	for end := time.Now().Add(400 * time.Millisecond); time.Now().Before(end); {
++		r := s.next(t, time.Second)
++		if r.cmd != usbip.RetSubmitCode || len(r.payload) != 64 {
++			continue
++		}
++		s.submit(usbip.DirIn, 4, nil, nil, 64)
++		reports++
++		if last != nil {
++			counterStep := int8(r.payload[7] - last[7])
++			timestampStep := int32(binary.LittleEndian.Uint32(r.payload[28:32]) - binary.LittleEndian.Uint32(last[28:32]))
++			if counterStep <= 0 || timestampStep < 0 {
++				violations++
++				if violations <= 5 {
++					t.Errorf("report %d: counter %d after %d, timestamp step %d", reports, r.payload[7], last[7], timestampStep)
++				}
++			}
++		}
++		last = r.payload
++	}
++	t.Logf("reports=%d violations=%d", reports, violations)
++}
++
++type asbTwoPipeDevice struct {
++	desc  usbdev.Descriptor
++	pipes map[uint32]chan []byte
++}
++
++func (d *asbTwoPipeDevice) HandleTransfer(ctx context.Context, ep, dir uint32, out []byte) []byte {
++	if dir == usbip.DirIn {
++		select {
++		case b := <-d.pipes[ep]:
++			return b
++		case <-ctx.Done():
++		}
++	}
++	return nil
++}
++
++func (d *asbTwoPipeDevice) GetDescriptor() *usbdev.Descriptor { return &d.desc }
++
++func (d *asbTwoPipeDevice) GetDeviceSpecificArgs() map[string]any { return map[string]any{} }
++
++func TestASBInterruptINPipesCompleteIndependentlyAndInOrder(t *testing.T) {
++	dev := &asbTwoPipeDevice{
++		pipes: map[uint32]chan []byte{1: make(chan []byte, 1), 2: make(chan []byte, 1)},
++		desc: usbdev.Descriptor{
++			Device: usbdev.DeviceDescriptor{BcdUSB: 0x0200, BMaxPacketSize0: 64, BNumConfigurations: 1, Speed: 2},
++			Interfaces: []usbdev.InterfaceConfig{{
++				Descriptor: usbdev.InterfaceDescriptor{BNumEndpoints: 2, BInterfaceClass: 0xFF},
++				Endpoints: []usbdev.EndpointDescriptor{
++					{BEndpointAddress: 0x81, BMAttributes: 0x03, WMaxPacketSize: 8},
++					{BEndpointAddress: 0x82, BMAttributes: 0x03, WMaxPacketSize: 8},
++				},
++			}},
++		},
++	}
++	s := newASBStreamFor(t, 0, nil, dev)
++	expect := func(t *testing.T, cmd, seq uint32, status int32, payload []byte) {
++		t.Helper()
++		if r := s.next(t, time.Second); r.cmd != cmd || r.seq != seq || r.status != status || !bytes.Equal(r.payload, payload) {
++			t.Fatalf("got %+v, want cmd %d seq %d status %d payload %v", r, cmd, seq, status, payload)
++		}
++	}
++
++	head, queued, other := s.submit(usbip.DirIn, 1, nil, nil, 8), s.submit(usbip.DirIn, 1, nil, nil, 8), s.submit(usbip.DirIn, 2, nil, nil, 8)
++	dev.pipes[2] <- []byte{2}
++	expect(t, usbip.RetSubmitCode, other, 0, []byte{2})
++	expect(t, usbip.RetUnlinkCode, s.unlink(head), -104, nil)
++	dev.pipes[1] <- []byte{1}
++	expect(t, usbip.RetSubmitCode, queued, 0, []byte{1})
++
++	first, second := s.submit(usbip.DirIn, 1, nil, nil, 8), s.submit(usbip.DirIn, 1, nil, nil, 8)
++	expect(t, usbip.RetUnlinkCode, s.unlink(second), -104, nil)
++	dev.pipes[1] <- []byte{3}
++	expect(t, usbip.RetSubmitCode, first, 0, []byte{3})
++	if extra := s.quiet(20 * time.Millisecond); len(extra) != 0 {
++		t.Fatalf("unexpected replies: %+v", extra)
++	}
++}
++
++func TestASBDeviceRemovalWhileReadingAnURBClosesTheStreamCleanly(t *testing.T) {
++	header := func(dir, ep, length, packets uint32) []byte {
++		var b bytes.Buffer
++		_ = (&usbip.CmdSubmit{
++			Basic:             usbip.HeaderBasic{Command: usbip.CmdSubmitCode, Seqnum: 1, Dir: dir, Ep: ep},
++			TransferBufferLen: length,
++			NumberOfPackets:   packets,
++		}).Write(&b)
++		return b.Bytes()
++	}
++	cases := []struct {
++		name    string
++		partial []byte
++	}{
++		{name: "between URBs"},
++		{name: "inside an OUT payload", partial: append(header(usbip.DirOut, 3, 64, 0xFFFFFFFF), make([]byte, 10)...)},
++		{name: "inside ISO packet descriptors", partial: append(append(header(usbip.DirOut, 1, 768, 2), make([]byte, 768)...), make([]byte, 20)...)},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			logs := &asbLogBuffer{}
++			s := newASBStream(t, time.Millisecond, logs)
++			s.send(tc.partial)
++			time.Sleep(20 * time.Millisecond)
++			busID := s.bus.BusID()
++			if err := s.bus.Remove(s.ds); err != nil {
++				t.Fatal(err)
++			}
++			select {
++			case <-s.done:
++			case <-time.After(2 * time.Second):
++				t.Fatal("URB stream stayed open after device removal")
++			}
++			for deadline := time.Now().Add(2 * time.Second); s.srv.GetBus(busID) != nil; time.Sleep(5 * time.Millisecond) {
++				if time.Now().After(deadline) {
++					t.Fatalf("empty bus %d was not removed\n%s", busID, logs)
++				}
++			}
++			if out := logs.String(); strings.Contains(out, "level=ERROR") || !strings.Contains(out, "device removed, closing URB stream") {
++				t.Fatalf("device removal log:\n%s", out)
++			}
++		})
++	}
++}
++
++func TestASBPacedIsoOutRestartAfterUnlink(t *testing.T) {
++	s := newASBStream(t, time.Millisecond, nil)
++	if err := s.ds.UpdateASBInputState(asbNeutralInput(0xC0, 0)); err != nil {
++		t.Fatal(err)
++	}
++	submitOut := func(packets int) uint32 {
++		return s.submit(usbip.DirOut, 1, asbPCM(packets*48, 3000, -3000), asbIsoPackets(packets, 384), 0)
++	}
++	waitFor := func(t *testing.T, seq uint32) asbReply {
++		t.Helper()
++		for {
++			if r := s.next(t, 2*time.Second); r.seq == seq {
++				return r
++			}
++		}
++	}
++
++	s.retryTiming(t, "whole backlog unlinked", func(t *testing.T) (string, bool) {
++		var backlog []uint32
++		for i := 0; i < 20; i++ {
++			backlog = append(backlog, submitOut(10))
++		}
++		var lastUnlink uint32
++		for _, seq := range backlog {
++			lastUnlink = s.unlink(seq)
++		}
++		if r := waitFor(t, lastUnlink); r.cmd != usbip.RetUnlinkCode || r.status != -104 {
++			return fmt.Sprintf("RET_UNLINK of the backlog tail: %+v", r), false
++		}
++		start := time.Now()
++		r := waitFor(t, submitOut(1))
++		elapsed := r.at.Sub(start)
++		return fmt.Sprintf("first 1-packet URB after unlinking 20 x 10 packets completed after %v", elapsed), r.cmd == usbip.RetSubmitCode && elapsed <= 25*time.Millisecond
++	})
++
++	s.retryTiming(t, "unlinked tail rewinds to the last pending deadline", func(t *testing.T) (string, bool) {
++		first, second, tail := submitOut(10), submitOut(10), submitOut(10)
++		if r := waitFor(t, s.unlink(tail)); r.cmd != usbip.RetUnlinkCode || r.status != -104 {
++			return fmt.Sprintf("RET_UNLINK of the tail: %+v", r), false
++		}
++		next := submitOut(1)
++		var order []uint32
++		var secondAt, nextAt time.Time
++		for len(order) < 3 {
++			r := s.next(t, 2*time.Second)
++			if r.cmd != usbip.RetSubmitCode {
++				continue
++			}
++			order = append(order, r.seq)
++			switch r.seq {
++			case second:
++				secondAt = r.at
++			case next:
++				nextAt = r.at
++			}
++		}
++		gap := nextAt.Sub(secondAt)
++		return fmt.Sprintf("completion order %v (want %d %d %d), new URB completed %v after the last pending one", order, first, second, next, gap),
++			order[0] == first && order[1] == second && order[2] == next && gap <= 6*time.Millisecond
++	})
++}
++
++func (s *asbStream) retryTiming(t *testing.T, name string, run func(t *testing.T) (string, bool)) {
++	t.Run(name, func(t *testing.T) {
++		const attempts = 3
++		for attempt := 1; ; attempt++ {
++			msg, ok := run(t)
++			t.Logf("attempt %d: %s", attempt, msg)
++			if ok {
++				return
++			}
++			if attempt == attempts {
++				t.Fatalf("failed %d attempts in a row: %s", attempts, msg)
++			}
++			s.quiet(100 * time.Millisecond)
++		}
++	})
++}
++
++func TestASBIsoInCompletesAtThePacketRate(t *testing.T) {
++	s := newASBStream(t, 0, nil)
++	const inFlight, packets = 2, 10
++	submitIn := func(n int) uint32 {
++		return s.submit(usbip.DirIn, 2, nil, asbIsoPackets(n, 196), uint32(n)*196)
++	}
++	s.retryTiming(t, "real-time completion rate", func(t *testing.T) (string, bool) {
++		for i := 0; i < inFlight; i++ {
++			submitIn(packets)
++		}
++		start := time.Now()
++		completed := 0
++		for time.Since(start) < 200*time.Millisecond {
++			r := s.next(t, time.Second)
++			if r.cmd != usbip.RetSubmitCode {
++				continue
++			}
++			if r.actual != packets*196 || len(r.iso) != packets || !bytes.Equal(r.payload, make([]byte, packets*196)) {
++				t.Fatalf("ISO IN RET_SUBMIT: %+v", r)
++			}
++			completed++
++			submitIn(packets)
++		}
++		elapsed := time.Since(start)
++		realTime := int(elapsed / (packets * time.Millisecond))
++		s.quiet(3 * packets * time.Millisecond)
++		return fmt.Sprintf("ISO IN completed %d URBs of %d packets in %v (real time: about %d)", completed, packets, elapsed, realTime),
++			completed <= realTime+inFlight+1 && completed >= realTime/2
++	})
++
++	unlinkSeq := s.unlink(submitIn(40))
++	got := append([]asbReply{s.next(t, time.Second)}, s.quiet(60*time.Millisecond)...)
++	if len(got) != 1 || got[0].cmd != usbip.RetUnlinkCode || got[0].seq != unlinkSeq || got[0].status != -104 {
++		t.Fatalf("replies to an unlinked pending ISO IN: %+v", got)
++	}
++}
++
++func TestASBBatchedCompletionsDoNotWaitForTheBatchInterval(t *testing.T) {
++	s := newASBStream(t, time.Hour, nil)
++	out := make([]byte, 64)
++	out[0] = dualsense.ReportIDOutput
++	for i := 0; i < 3; i++ {
++		seq := s.submit(usbip.DirOut, 3, out, nil, 0)
++		if r := s.next(t, time.Second); r.cmd != usbip.RetSubmitCode || r.seq != seq || r.actual != 64 {
++			t.Fatalf("HID OUT completion with a 1 h batch interval: %+v", r)
++		}
++	}
++}
++
++func TestASBInterruptINReportsFollowInputOrder(t *testing.T) {
++	s := newASBStream(t, time.Millisecond, nil)
++	stop := make(chan struct{})
++	var wg sync.WaitGroup
++	wg.Add(1)
++	go func() {
++		defer wg.Done()
++		input := asbNeutralInput(0, 0)
++		start := time.Now()
++		for seq := uint32(1); ; seq++ {
++			select {
++			case <-stop:
++				return
++			default:
++			}
++			binary.LittleEndian.PutUint32(input[19:23], seq)
++			_ = s.ds.UpdateASBInputState(input)
++			switch elapsed := time.Since(start); {
++			case elapsed < 150*time.Millisecond:
++			case elapsed < 300*time.Millisecond:
++				asbSpin(500 * time.Microsecond)
++			default:
++				asbSpin(time.Duration(3500+seq%1000) * time.Microsecond)
++			}
++		}
++	}()
++	defer func() {
++		close(stop)
++		wg.Wait()
++	}()
++	for i := 0; i < 3; i++ {
++		s.submit(usbip.DirIn, 4, nil, nil, 64)
++	}
++	reports, backwards := 0, 0
++	var last uint32
++	for end := time.Now().Add(450 * time.Millisecond); time.Now().Before(end); {
++		r := s.next(t, time.Second)
++		if r.cmd != usbip.RetSubmitCode || len(r.payload) != 64 {
++			continue
++		}
++		s.submit(usbip.DirIn, 4, nil, nil, 64)
++		reports++
++		if seq := binary.LittleEndian.Uint32(r.payload[16:20]); seq < last {
++			backwards++
++			if backwards <= 5 {
++				t.Errorf("report %d carries input %d after input %d", reports, seq, last)
++			}
++		} else {
++			last = seq
++		}
++	}
++	t.Logf("reports=%d backwards=%d last-input=%d", reports, backwards, last)
++}
++
++func TestASBIsoCompletionsStayInSubmissionOrder(t *testing.T) {
++	s := newASBStream(t, time.Millisecond, nil)
++	var burst bytes.Buffer
++	var seqs []uint32
++	for i := 0; i < 64; i++ {
++		seq := s.nextSeq(false)
++		seqs = append(seqs, seq)
++		_ = (&usbip.CmdSubmit{
++			Basic:             usbip.HeaderBasic{Command: usbip.CmdSubmitCode, Seqnum: seq, Dir: usbip.DirOut, Ep: 1},
++			TransferBufferLen: 384,
++			NumberOfPackets:   1,
++		}).Write(&burst)
++		burst.Write(asbPCM(48, 1000, -1000))
++		_ = binary.Write(&burst, binary.BigEndian, asbIsoPackets(1, 384))
++	}
++	s.send(burst.Bytes())
++	reordered := 0
++	var last uint32
++	for i := range seqs {
++		r := s.next(t, 2*time.Second)
++		if r.cmd != usbip.RetSubmitCode || r.seq < last {
++			reordered++
++			if reordered <= 3 {
++				t.Errorf("completion %d: seq %d after seq %d", i, r.seq, last)
++			}
++			continue
++		}
++		last = r.seq
++	}
++	t.Logf("ISO OUT completions out of submission order: %d of %d", reordered, len(seqs))
++}
 diff --git a/internal/server/usb/config.go b/internal/server/usb/config.go
-index 5c0cc81..2271313 100644
+index 1a417a8..9760b08 100644
 --- a/internal/server/usb/config.go
 +++ b/internal/server/usb/config.go
 @@ -8,4 +8,5 @@ type ServerConfig struct {
  	ConnectionTimeout       time.Duration `kong:"-"`
  	BusCleanupTimeout       time.Duration `help:"-"`
- 	WriteBatchFlushInterval time.Duration `help:"Interval to flush write batches to clients; 0 to disable" default:"1ms" env:"VIIPER_USB_WRITE_BATCH_FLUSH_INTERVAL"`
+ 	WriteBatchFlushInterval time.Duration `default:"0" help:"Interval to flush write batches to clients; default: disabled / immediate updates" env:"VIIPER_USB_WRITE_BATCH_FLUSH_INTERVAL"`
 +	LoopbackOnly            bool          `kong:"-"`
  }
 diff --git a/internal/server/usb/server.go b/internal/server/usb/server.go
-index fe0802b..0a8a2a6 100644
+index b815a2d..504314b 100644
 --- a/internal/server/usb/server.go
 +++ b/internal/server/usb/server.go
-@@ -33,12 +33,34 @@ type batchingWriter struct {
+@@ -35,12 +35,34 @@ type batchingWriter struct {
  
  const (
  	retSubmitHeaderSize = 0x30
@@ -2329,7 +3274,26 @@ index fe0802b..0a8a2a6 100644
  func newBatchingWriter(dst io.Writer, bufSize int, flushEvery time.Duration, flushAtBytes int) *batchingWriter {
  	if bufSize <= 0 {
  		bufSize = writeBatcherBufferSize
-@@ -125,6 +147,8 @@ const (
+@@ -117,6 +139,18 @@ func (b *batchingWriter) Close() error {
+ 	return b.Flush()
+ }
+ 
++type flushBeforeBlockReader struct {
++	r     *bufio.Reader
++	flush func() error
++}
++
++func (f *flushBeforeBlockReader) Read(p []byte) (int, error) {
++	if f.r.Buffered() == 0 {
++		_ = f.flush()
++	}
++	return f.r.Read(p)
++}
++
+ const (
+ 	// USB standard request codes
+ 	usbReqGetStatus        = 0x00
+@@ -127,6 +161,8 @@ const (
  	usbReqSetDescriptor    = 0x07
  	usbReqGetConfiguration = 0x08
  	usbReqSetConfiguration = 0x09
@@ -2338,7 +3302,7 @@ index fe0802b..0a8a2a6 100644
  
  	// USB descriptor types
  	usbDescTypeDevice        = 0x01
-@@ -134,11 +158,12 @@ const (
+@@ -136,11 +172,12 @@ const (
  	usbDescTypeHIDReport     = 0x22
  
  	// USB request types (bmRequestType)
@@ -2356,7 +3320,7 @@ index fe0802b..0a8a2a6 100644
  
  	// USB interface classes
  	usbInterfaceClassHID = 0x03
-@@ -164,16 +189,19 @@ const (
+@@ -166,16 +203,19 @@ const (
  	usbConfigMaxPower100mA  = 50 // In units of 2mA
  
  	// URB header field offsets
@@ -2386,7 +3350,7 @@ index fe0802b..0a8a2a6 100644
  
  	// Standard header peek size
  	headerPeekSize = 8
-@@ -352,6 +380,13 @@ func (s *Server) ListenAndServe() error {
+@@ -354,6 +394,13 @@ func (s *Server) ListenAndServe() error {
  			s.logger.Error("Accept error", "error", err)
  			continue
  		}
@@ -2400,7 +3364,7 @@ index fe0802b..0a8a2a6 100644
  		if tcpConn, ok := c.(*net.TCPConn); ok {
  			if err := tcpConn.SetNoDelay(true); err != nil {
  				s.logger.Warn("failed to set TCP_NODELAY", "error", err)
-@@ -370,6 +405,11 @@ func (s *Server) ListenAndServe() error {
+@@ -372,6 +419,11 @@ func (s *Server) ListenAndServe() error {
  	}
  }
  
@@ -2412,145 +3376,32 @@ index fe0802b..0a8a2a6 100644
  // Ready returns a channel that is closed once the server has successfully bound
  // to its listen address and is ready to accept connections.
  func (s *Server) Ready() <-chan struct{} { return s.ready }
-@@ -572,6 +612,86 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+@@ -566,10 +618,12 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 	_ = conn.SetDeadline(time.Time{})
+ 
+ 	var writer io.Writer
++	var reader io.Reader = conn
+ 	var bw *batchingWriter
+ 	if s.config.WriteBatchFlushInterval > 0 {
+-		bw = newBatchingWriter(conn, writeBatcherBufferSize, s.config.WriteBatchFlushInterval, writeBatcherFlushAtBytes)
++		bw = newBatchingWriter(conn, writeBatcherBufferSize, 0, writeBatcherFlushAtBytes)
+ 		writer = bw
++		reader = &flushBeforeBlockReader{r: bufio.NewReader(conn), flush: bw.Flush}
+ 		defer func() { _ = bw.Close() }()
  	} else {
  		writer = conn
- 	}
-+	var writerMu sync.Mutex
-+
-+	writeRetSubmit := func(ret usbip.RetSubmit, respData []byte, respIsoPackets []usbip.IsoPacketDescriptor) error {
-+		var out bytes.Buffer
-+		out.Grow(retSubmitHeaderSize)
-+		if err := ret.Write(&out); err != nil {
-+			return fmt.Errorf("build RET_SUBMIT header: %w", err)
+@@ -602,15 +656,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 	var writeMu sync.Mutex
+ 	var retOut bytes.Buffer
+ 	retOut.Grow(retSubmitHeaderSize)
+-	writeRet := func(seq, actualLen uint32, respData []byte, flush bool) error {
++	writeRet := func(seq, actualLen, startFrame uint32, respData []byte, respIsoPackets []usbip.IsoPacketDescriptor, flush bool, claim func() bool) error {
+ 		writeMu.Lock()
+ 		defer writeMu.Unlock()
++		if claim != nil && !claim() {
++			return nil
 +		}
-+		writerMu.Lock()
-+		defer writerMu.Unlock()
-+		if _, err := writer.Write(out.Bytes()); err != nil {
-+			return fmt.Errorf("write RET_SUBMIT: %w", err)
-+		}
-+		if len(respData) > 0 {
-+			if _, err := writer.Write(respData); err != nil {
-+				return fmt.Errorf("write RET_SUBMIT payload: %w", err)
-+			}
-+		}
-+		for i := range respIsoPackets {
-+			if err := respIsoPackets[i].Write(writer); err != nil {
-+				return fmt.Errorf("write RET_SUBMIT ISO packet descriptor: %w", err)
-+			}
-+		}
-+		return nil
-+	}
-+
-+	writeRetUnlink := func(ret usbip.RetUnlink) error {
-+		writerMu.Lock()
-+		defer writerMu.Unlock()
-+		return ret.Write(writer)
-+	}
-+
-+	type pendingIsoOutSubmit struct {
-+		ret usbip.RetSubmit
-+		iso []usbip.IsoPacketDescriptor
-+		t   *time.Timer
-+	}
-+	var pendingMu sync.Mutex
-+	pendingIsoOut := map[uint32]*pendingIsoOutSubmit{}
-+	var nextPacedIsoOutAt time.Time
-+	defer func() {
-+		pendingMu.Lock()
-+		defer pendingMu.Unlock()
-+		for _, pending := range pendingIsoOut {
-+			if pending.t != nil {
-+				pending.t.Stop()
-+			}
-+		}
-+		pendingIsoOut = nil
-+	}()
-+
-+	scheduleIsoOutSubmit := func(seq uint32, ret usbip.RetSubmit, respIsoPackets []usbip.IsoPacketDescriptor, paced bool) {
-+		pending := &pendingIsoOutSubmit{
-+			ret: ret,
-+			iso: append([]usbip.IsoPacketDescriptor(nil), respIsoPackets...),
-+		}
-+		pendingMu.Lock()
-+		var delay time.Duration
-+		nextPacedIsoOutAt, delay = isoOutCompletionDeadline(
-+			time.Now(), nextPacedIsoOutAt, len(respIsoPackets), paced)
-+		pendingIsoOut[seq] = pending
-+		pendingMu.Unlock()
-+		pending.t = time.AfterFunc(delay, func() {
-+			pendingMu.Lock()
-+			if pendingIsoOut == nil {
-+				pendingMu.Unlock()
-+				return
-+			}
-+			current, ok := pendingIsoOut[seq]
-+			if !ok || current != pending {
-+				pendingMu.Unlock()
-+				return
-+			}
-+			delete(pendingIsoOut, seq)
-+			pendingMu.Unlock()
-+			if err := writeRetSubmit(pending.ret, nil, pending.iso); err != nil && !isClientDisconnect(err) {
-+				s.logger.Error("failed to write delayed ISO OUT RET_SUBMIT", "seq", seq, "error", err)
-+			}
-+		})
-+	}
- 
- 	var owningBus *virtualbus.VirtualBus
- 	for _, b := range s.busses {
-@@ -643,9 +763,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
- 		if cmd == usbip.CmdUnlinkCode {
- 			unlinkSeq := binary.BigEndian.Uint32(hdr[urbHdrOffsetUnlink : urbHdrOffsetUnlink+4])
- 			s.logger.Debug("USBIP_CMD_UNLINK", "seq", seq, "unlink", unlinkSeq)
-+			pendingMu.Lock()
-+			if pending, ok := pendingIsoOut[unlinkSeq]; ok {
-+				delete(pendingIsoOut, unlinkSeq)
-+				if pending.t != nil {
-+					pending.t.Stop()
-+				}
-+				s.logger.Debug("suppressed delayed ISO OUT RET_SUBMIT after unlink", "seq", seq, "unlink", unlinkSeq)
-+			}
-+			pendingMu.Unlock()
- 			// Reply with -ECONNRESET
- 			ret := usbip.RetUnlink{Basic: usbip.HeaderBasic{Command: usbip.RetUnlinkCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0}, Status: errConnReset}
--			_ = ret.Write(writer)
-+			_ = writeRetUnlink(ret)
- 			continue
- 		}
- 		if cmd != usbip.CmdSubmitCode {
-@@ -653,6 +782,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
- 		}
- 		xferFlags := binary.BigEndian.Uint32(hdr[urbHdrOffsetFlags : urbHdrOffsetFlags+4])
- 		xferLen := binary.BigEndian.Uint32(hdr[urbHdrOffsetLength : urbHdrOffsetLength+4])
-+		startFrame := binary.BigEndian.Uint32(hdr[urbHdrOffsetStartFrame : urbHdrOffsetStartFrame+4])
-+		numberOfPackets := binary.BigEndian.Uint32(hdr[urbHdrOffsetNumberOfPackets : urbHdrOffsetNumberOfPackets+4])
-+		isIsoTransfer := numberOfPackets != 0 && numberOfPackets != nonIsoPacketCount
- 		setup := hdr[urbHdrOffsetSetup:urbHdrSize]
- 
- 		var outPayload []byte
-@@ -663,7 +795,19 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
- 			}
- 		}
- 
--		respData := s.processSubmit(dev, ep, dir, setup, outPayload)
-+		var isoPackets []usbip.IsoPacketDescriptor
-+		if isIsoTransfer {
-+			isoPackets = make([]usbip.IsoPacketDescriptor, 0, numberOfPackets)
-+			for i := uint32(0); i < numberOfPackets; i++ {
-+				var pkt usbip.IsoPacketDescriptor
-+				if err := pkt.Read(conn); err != nil {
-+					return fmt.Errorf("read ISO packet descriptor: %w", err)
-+				}
-+				isoPackets = append(isoPackets, pkt)
-+			}
-+		}
-+
-+		respData, respIsoPackets := s.processSubmit(dev, ep, dir, setup, outPayload, isoPackets)
- 
- 		actualLen := uint32(len(respData))
- 		if dir == usbip.DirOut {
-@@ -674,22 +818,18 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 		ret := usbip.RetSubmit{
  			Basic:           usbip.HeaderBasic{Command: usbip.RetSubmitCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0},
  			Status:          0,
  			ActualLength:    actualLen,
@@ -2560,33 +3411,292 @@ index fe0802b..0a8a2a6 100644
 +			NumberOfPackets: uint32(len(respIsoPackets)),
  			ErrorCount:      0,
  		}
--		var out bytes.Buffer
--		out.Grow(retSubmitHeaderSize)
--		if err := ret.Write(&out); err != nil {
--			return fmt.Errorf("build RET_SUBMIT header: %w", err)
--		}
--		if _, err := writer.Write(out.Bytes()); err != nil {
--			return fmt.Errorf("write RET_SUBMIT: %w", err)
--		}
--		if len(respData) > 0 {
--			if _, err := writer.Write(respData); err != nil {
--				return fmt.Errorf("write RET_SUBMIT payload: %w", err)
-+		if isIsoTransfer && dir == usbip.DirOut && len(respIsoPackets) > 0 {
-+			paced := false
-+			if pacingDevice, ok := dev.(usb.IsoOutPacingDevice); ok {
-+				paced = pacingDevice.PaceIsoOutTransfers()
+ 		retOut.Reset()
+@@ -625,6 +682,17 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 				return fmt.Errorf("write RET_SUBMIT payload: %w", err)
  			}
-+			scheduleIsoOutSubmit(seq, ret, respIsoPackets, paced)
-+		} else if err := writeRetSubmit(ret, respData, respIsoPackets); err != nil {
-+			return err
  		}
- 		if bw != nil && ep == 0 {
++		if len(respIsoPackets) > 0 {
++			retOut.Reset()
++			for i := range respIsoPackets {
++				if err := respIsoPackets[i].Write(&retOut); err != nil {
++					return fmt.Errorf("build RET_SUBMIT ISO packet descriptor: %w", err)
++				}
++			}
++			if _, err := writer.Write(retOut.Bytes()); err != nil {
++				return fmt.Errorf("write RET_SUBMIT ISO packet descriptor: %w", err)
++			}
++		}
+ 		if flush && bw != nil {
  			if err := bw.Flush(); err != nil {
-@@ -728,13 +868,62 @@ func isClientDisconnect(err error) bool {
- 	return false
+ 				return fmt.Errorf("flush response: %w", err)
+@@ -643,8 +711,90 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 		pendingMu.Unlock()
+ 	}()
+ 
++	type isoPipe struct{ dir, ep uint32 }
++	type pendingIsoSubmit struct {
++		pipe       isoPipe
++		actualLen  uint32
++		startFrame uint32
++		data       []byte
++		iso        []usbip.IsoPacketDescriptor
++		deadline   time.Time
++		t          *time.Timer
++		previous   <-chan struct{}
++		done       chan struct{}
++	}
++	pendingIso := map[uint32]*pendingIsoSubmit{}
++	nextPacedIsoAt := map[isoPipe]time.Time{}
++	lastIso := map[isoPipe]chan struct{}{}
++	defer func() {
++		pendingMu.Lock()
++		defer pendingMu.Unlock()
++		for _, pending := range pendingIso {
++			if pending.t != nil {
++				pending.t.Stop()
++			}
++			close(pending.done)
++		}
++		pendingIso = nil
++	}()
++
++	rewindPacedIso := func(pipe isoPipe) {
++		var latest time.Time
++		for _, pending := range pendingIso {
++			if pending.pipe == pipe && pending.deadline.After(latest) {
++				latest = pending.deadline
++			}
++		}
++		nextPacedIsoAt[pipe] = latest
++	}
++
++	scheduleIsoSubmit := func(seq uint32, pipe isoPipe, actualLen, startFrame uint32, respData []byte, respIsoPackets []usbip.IsoPacketDescriptor, paced bool) {
++		pending := &pendingIsoSubmit{
++			pipe:       pipe,
++			actualLen:  actualLen,
++			startFrame: startFrame,
++			data:       append([]byte(nil), respData...),
++			iso:        append([]usbip.IsoPacketDescriptor(nil), respIsoPackets...),
++			previous:   lastIso[pipe],
++			done:       make(chan struct{}),
++		}
++		lastIso[pipe] = pending.done
++		pendingMu.Lock()
++		next, delay := isoOutCompletionDeadline(time.Now(), nextPacedIsoAt[pipe], len(respIsoPackets), paced)
++		nextPacedIsoAt[pipe] = next
++		if paced {
++			pending.deadline = next
++		}
++		pendingIso[seq] = pending
++		pendingMu.Unlock()
++		pending.t = time.AfterFunc(delay, func() {
++			if pending.previous != nil {
++				<-pending.previous
++			}
++			claimed := false
++			claim := func() bool {
++				pendingMu.Lock()
++				defer pendingMu.Unlock()
++				if current, ok := pendingIso[seq]; !ok || current != pending {
++					return false
++				}
++				delete(pendingIso, seq)
++				claimed = true
++				return true
++			}
++			err := writeRet(seq, pending.actualLen, pending.startFrame, pending.data, pending.iso, true, claim)
++			if claimed {
++				close(pending.done)
++			}
++			if err != nil && !isClientDisconnect(err) {
++				s.logger.Error("failed to write delayed ISO RET_SUBMIT", "seq", seq, "error", err)
++			}
++		})
++	}
++
+ 	var respMu sync.Mutex
+ 	lastInResp := map[uint32][]byte{}
++	lastIn := map[uint32]chan struct{}{}
+ 
+ 	var outPayloadScratch []byte
+ 
+@@ -685,7 +835,7 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 		}
+ 
+ 		var hdr [urbHdrSize]byte
+-		if err := usbip.ReadExactly(conn, hdr[:]); err != nil {
++		if err := usbip.ReadExactly(reader, hdr[:]); err != nil {
+ 			if ctx.Err() != nil {
+ 				continue
+ 			}
+@@ -698,11 +848,24 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 		if cmd == usbip.CmdUnlinkCode {
+ 			unlinkSeq := binary.BigEndian.Uint32(hdr[urbHdrOffsetUnlink : urbHdrOffsetUnlink+4])
+ 			s.logger.Debug("USBIP_CMD_UNLINK", "seq", seq, "unlink", unlinkSeq)
++			writeMu.Lock()
+ 			pendingMu.Lock()
+ 			cancel, found := pending[unlinkSeq]
+ 			if found {
+ 				delete(pending, unlinkSeq)
+ 			}
++			iso, isoFound := pendingIso[unlinkSeq]
++			if isoFound {
++				delete(pendingIso, unlinkSeq)
++				if iso.t != nil {
++					iso.t.Stop()
++				}
++				close(iso.done)
++				if !iso.deadline.IsZero() {
++					rewindPacedIso(iso.pipe)
++				}
++				s.logger.Debug("suppressed delayed ISO RET_SUBMIT after unlink", "seq", seq, "unlink", unlinkSeq)
++			}
+ 			pendingMu.Unlock()
+ 			// -ECONNRESET signals the URB was unlinked before completion;
+ 			// status 0 means it already completed normally.
+@@ -711,8 +874,10 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 				cancel()
+ 				status = errConnReset
+ 			}
++			if isoFound {
++				status = errConnReset
++			}
+ 			ret := usbip.RetUnlink{Basic: usbip.HeaderBasic{Command: usbip.RetUnlinkCode, Seqnum: seq, Devid: 0, Dir: 0, Ep: 0}, Status: status}
+-			writeMu.Lock()
+ 			_ = ret.Write(writer)
+ 			if bw != nil {
+ 				_ = bw.Flush()
+@@ -725,6 +890,9 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 			return fmt.Errorf("unsupported cmd %d (seq=%d, devid=%d)", cmd, seq, devid)
+ 		}
+ 		xferLen := binary.BigEndian.Uint32(hdr[urbHdrOffsetLength : urbHdrOffsetLength+4])
++		startFrame := binary.BigEndian.Uint32(hdr[urbHdrOffsetStartFrame : urbHdrOffsetStartFrame+4])
++		numberOfPackets := binary.BigEndian.Uint32(hdr[urbHdrOffsetNumberOfPackets : urbHdrOffsetNumberOfPackets+4])
++		isIsoTransfer := numberOfPackets != 0 && numberOfPackets != nonIsoPacketCount
+ 		setup := hdr[urbHdrOffsetSetup:urbHdrSize]
+ 
+ 		var outPayload []byte
+@@ -733,20 +901,44 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 				outPayloadScratch = make([]byte, xferLen)
+ 			}
+ 			outPayload = outPayloadScratch[:xferLen]
+-			if err := usbip.ReadExactly(conn, outPayload); err != nil {
++			if err := usbip.ReadExactly(reader, outPayload); err != nil {
++				if ctx.Err() != nil {
++					continue
++				}
+ 				return fmt.Errorf("read OUT payload: %w", err)
+ 			}
+ 		}
+ 
+-		if dir == usbip.DirIn && ep != 0 {
++		var isoPackets []usbip.IsoPacketDescriptor
++		if isIsoTransfer {
++			isoPackets = make([]usbip.IsoPacketDescriptor, numberOfPackets)
++			if err := binary.Read(reader, binary.BigEndian, isoPackets); err != nil {
++				if ctx.Err() != nil {
++					continue
++				}
++				return fmt.Errorf("read ISO packet descriptor: %w", err)
++			}
++		}
++
++		if dir == usbip.DirIn && ep != 0 && !isIsoTransfer {
+ 			urbCtx, urbCancel := context.WithCancel(ctx)
+ 			pendingMu.Lock()
+ 			pending[seq] = urbCancel
+ 			pendingMu.Unlock()
+ 			interval := endpointInterval(dev.GetDescriptor(), ep)
++			previousIn := lastIn[ep]
++			doneIn := make(chan struct{})
++			lastIn[ep] = doneIn
+ 
+ 			go func(seq, ep, dir uint32) {
++				defer close(doneIn)
+ 				defer urbCancel()
++				if previousIn != nil {
++					<-previousIn
++					if urbCtx.Err() != nil {
++						return
++					}
++				}
+ 				var respData []byte
+ 				for {
+ 					attemptCtx, attemptCancel := urbCtx, context.CancelFunc(func() {})
+@@ -781,11 +973,14 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 					return
+ 				}
+ 
+-				pendingMu.Lock()
+-				delete(pending, seq)
+-				pendingMu.Unlock()
+-
+-				if err := writeRet(seq, uint32(len(respData)), respData, true); err != nil {
++				claim := func() bool {
++					pendingMu.Lock()
++					defer pendingMu.Unlock()
++					_, ok := pending[seq]
++					delete(pending, seq)
++					return ok
++				}
++				if err := writeRet(seq, uint32(len(respData)), 0, respData, nil, true, claim); err != nil {
+ 					if isClientDisconnect(err) {
+ 						s.logger.Debug("URB completion after disconnect", "seq", seq, "error", err)
+ 					} else {
+@@ -797,18 +992,81 @@ func (s *Server) handleUrbStream(conn net.Conn, dev usb.Device) error {
+ 		}
+ 
+ 		// EP0 and OUT transfers never block and are handled in order.
+-		respData := s.processSubmit(ctx, dev, ep, dir, setup, outPayload)
++		var respData []byte
++		var respIsoPackets []usbip.IsoPacketDescriptor
++		if isIsoTransfer && ep != 0 {
++			respData, respIsoPackets = processIsoSubmit(ctx, dev, ep, dir, outPayload, isoPackets)
++		} else {
++			respData = s.processSubmit(ctx, dev, ep, dir, setup, outPayload)
++		}
+ 		actualLen := uint32(len(respData))
+ 		if dir == usbip.DirOut {
+ 			actualLen = uint32(len(outPayload))
+ 			respData = nil
+ 		}
+-		if err := writeRet(seq, actualLen, respData, ep == 0); err != nil {
++		if isIsoTransfer && len(respIsoPackets) > 0 {
++			paced := dir == usbip.DirIn
++			if pacingDevice, ok := dev.(usb.IsoOutPacingDevice); ok && dir == usbip.DirOut {
++				paced = pacingDevice.PaceIsoOutTransfers()
++			}
++			scheduleIsoSubmit(seq, isoPipe{dir: dir, ep: ep}, actualLen, startFrame, respData, respIsoPackets, paced)
++		} else if err := writeRet(seq, actualLen, startFrame, respData, respIsoPackets, ep == 0, nil); err != nil {
+ 			return err
+ 		}
+ 	}
  }
  
--func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []byte, out []byte) []byte {
++func processIsoSubmit(ctx context.Context, dev usb.Device, ep uint32, dir uint32, out []byte, isoPackets []usbip.IsoPacketDescriptor) ([]byte, []usbip.IsoPacketDescriptor) {
++	isoDev, ok := dev.(usb.IsoTransferDevice)
++	if !ok {
++		return dev.HandleTransfer(ctx, ep, dir, out), isoPackets
++	}
++	packets := make([]usb.IsoPacket, len(isoPackets))
++	for i, pkt := range isoPackets {
++		packets[i] = usb.IsoPacket{
++			Offset: pkt.Offset, Length: pkt.Length,
++			ActualLength: pkt.ActualLength, Status: pkt.Status,
++		}
++	}
++	data, usbPackets := isoDev.HandleIsoTransfer(ep, dir, out, packets)
++	respPackets := make([]usbip.IsoPacketDescriptor, len(usbPackets))
++	for i, pkt := range usbPackets {
++		respPackets[i] = usbip.IsoPacketDescriptor{
++			Offset: pkt.Offset, Length: pkt.Length,
++			ActualLength: pkt.ActualLength, Status: pkt.Status,
++		}
++	}
++	return data, respPackets
++}
++
 +func findInterface(desc *usb.Descriptor, number, alt uint8) *usb.InterfaceConfig {
 +	for i := range desc.Interfaces {
 +		if desc.Interfaces[i].Descriptor.BInterfaceNumber == number &&
@@ -2615,92 +3725,20 @@ index fe0802b..0a8a2a6 100644
 +	}
 +}
 +
-+func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []byte, out []byte, isoPackets []usbip.IsoPacketDescriptor) ([]byte, []usbip.IsoPacketDescriptor) {
- 	if ep != 0 {
--		return dev.HandleTransfer(ep, dir, out)
-+		if len(isoPackets) > 0 {
-+			if isoDev, ok := dev.(usb.IsoTransferDevice); ok {
-+				packets := make([]usb.IsoPacket, len(isoPackets))
-+				for i, pkt := range isoPackets {
-+					packets[i] = usb.IsoPacket{
-+						Offset: pkt.Offset, Length: pkt.Length,
-+						ActualLength: pkt.ActualLength, Status: pkt.Status,
-+					}
-+				}
-+				data, usbPackets := isoDev.HandleIsoTransfer(ep, dir, out, packets)
-+				respPackets := make([]usbip.IsoPacketDescriptor, len(usbPackets))
-+				for i, pkt := range usbPackets {
-+					respPackets[i] = usbip.IsoPacketDescriptor{
-+						Offset: pkt.Offset, Length: pkt.Length,
-+						ActualLength: pkt.ActualLength, Status: pkt.Status,
-+					}
-+				}
-+				return data, respPackets
-+			}
-+			return dev.HandleTransfer(ep, dir, out), isoPackets
-+		}
-+		return dev.HandleTransfer(ep, dir, out), nil
- 	}
- 	if len(setup) != 8 {
- 		s.logger.Debug("EP0 submit with invalid setup size", "setupLen", len(setup), "setup", setup)
--		return nil
-+		return nil, nil
- 	}
- 	bm := setup[0]
- 	breq := setup[1]
-@@ -743,16 +932,19 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
- 	wLength := binary.LittleEndian.Uint16(setup[6:8])
- 
+ func endpointInterval(desc *usb.Descriptor, ep uint32) time.Duration {
+ 	epAddr := uint8(ep) | 0x80
+ 	for i := range desc.Interfaces {
+@@ -866,6 +1124,9 @@ func (s *Server) processSubmit(ctx context.Context, dev usb.Device, ep uint32, d
  	if breq == usbReqGetStatus {
--		return []byte{0x00, 0x00}
-+		return []byte{0x00, 0x00}, nil
-+	}
+ 		return []byte{0x00, 0x00}
+ 	}
 +	if (breq == usbReqClearFeature || breq == usbReqSetFeature) && (bm&0x60) == 0 {
-+		return nil, nil
- 	}
++		return nil
++	}
  	if breq == usbReqSetAddress && bm == usbReqTypeStandardToDevice {
--		return nil
-+		return nil, nil
+ 		return nil
  	}
- 	if breq == usbReqSetConfiguration && bm == usbReqTypeStandardToDevice {
--		return nil
-+		return nil, nil
- 	}
- 	if breq == usbReqGetConfiguration && bm == usbReqTypeStandardFromDevice {
--		return []byte{0x01}
-+		return []byte{0x01}, nil
- 	}
- 
- 	desc := dev.GetDescriptor()
-@@ -774,12 +966,12 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
- 			}
- 		}
- 		if len(data) == 0 {
--			return nil
-+			return nil, nil
- 		}
- 		if int(wLength) < len(data) {
--			return data[:wLength]
-+			return data[:wLength], nil
- 		}
--		return data
-+		return data, nil
- 	}
- 
- 	if desc.MicrosoftOS10 != nil &&
-@@ -788,9 +980,9 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
- 			wIndex == 0x0004 || wIndex == 0x0005) {
- 		if data, ok := desc.MicrosoftOS10.ControlResponse(wValue, wIndex); ok {
- 			if int(wLength) < len(data) {
--				return data[:wLength]
-+				return data[:wLength], nil
- 			}
--			return data
-+			return data, nil
- 		}
- 	}
- 
-@@ -798,21 +990,22 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
+@@ -919,7 +1180,8 @@ func (s *Server) processSubmit(ctx context.Context, dev usb.Device, ep uint32, d
  		dtype := uint8(wValue >> 8)
  		iface := uint8(wIndex & 0xff)
  		var data []byte
@@ -2710,99 +3748,33 @@ index fe0802b..0a8a2a6 100644
  			if ifaceConf.HID != nil {
  				switch dtype {
  				case usbDescTypeHID:
- 					d, err := ifaceConf.HID.DescriptorBytes()
- 					if err != nil {
- 						s.logger.Error("failed to build HID descriptor", "iface", iface, "error", err)
--						return nil
-+						return nil, nil
- 					}
- 					data = []byte(d)
- 				case usbDescTypeHIDReport:
- 					d, err := ifaceConf.HID.ReportBytes()
- 					if err != nil {
- 						s.logger.Error("failed to build HID report descriptor", "iface", iface, "error", err)
--						return nil
-+						return nil, nil
- 					}
- 					data = []byte(d)
- 				}
-@@ -827,23 +1020,31 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
- 			}
- 		}
- 		if len(data) == 0 {
--			return nil
-+			return nil, nil
- 		}
- 		if int(wLength) < len(data) {
--			return data[:wLength]
-+			return data[:wLength], nil
- 		}
--		return data
-+		return data, nil
-+	}
-+
+@@ -956,6 +1218,14 @@ func (s *Server) processSubmit(ctx context.Context, dev usb.Device, ep uint32, d
+ 		return data
+ 	}
+ 
 +	if breq == usbReqGetInterface && bm == usbReqTypeStandardToInterface {
-+		return []byte{getInterfaceAlt(dev, uint8(wIndex&0xff))}, nil
++		return []byte{getInterfaceAlt(dev, uint8(wIndex&0xff))}
 +	}
 +	if breq == usbReqSetInterface && bm == usbReqTypeStandardOutInterface {
 +		setInterfaceAlt(dev, uint8(wIndex&0xff), uint8(wValue&0xff))
-+		return nil, nil
- 	}
- 
++		return nil
++	}
++
  	if cd, ok := dev.(usb.ControlDevice); ok {
  		if resp, handled := cd.HandleControl(bm, breq, wValue, wIndex, wLength, out); handled {
  			if resp == nil {
--				return nil
-+				return nil, nil
- 			}
- 			if int(wLength) < len(resp) {
--				return resp[:wLength]
-+				return resp[:wLength], nil
- 			}
--			return resp
-+			return resp, nil
- 		}
- 	}
- 
-@@ -851,15 +1052,15 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
- 		if desc.Interfaces[iface].Descriptor.BInterfaceClass == usbInterfaceClassHID {
- 			switch {
- 			case bm == hidReqTypeIn && breq == hidReqGetIdle:
--				return []byte{0x00}
-+				return []byte{0x00}, nil
- 			case bm == hidReqTypeOut && breq == hidReqSetIdle:
--				return nil
-+				return nil, nil
- 			case bm == hidReqTypeIn && breq == hidReqGetProtocol:
--				return []byte{0x01}
-+				return []byte{0x01}, nil
- 			case bm == hidReqTypeOut && breq == hidReqSetProtocol:
--				return nil
-+				return nil, nil
- 			case (bm == hidReqTypeIn || bm == hidReqTypeOut) && (breq == hidReqGetReport || breq == hidReqSetReport):
--				return nil
-+				return nil, nil
- 			}
- 		}
- 	}
-@@ -868,7 +1069,7 @@ func (s *Server) processSubmit(dev usb.Device, ep uint32, dir uint32, setup []by
- 		s.logger.Debug("EP0 control unhandled", "bmRequestType", bm, "bRequest", breq, "wValue", wValue, "wIndex", wIndex, "wLength", wLength)
- 	}
- 
--	return nil
-+	return nil, nil
- }
- 
- func (s *Server) buildConfigDescriptor(desc *usb.Descriptor) []byte {
 diff --git a/internal/server/usb/server_loopback_test.go b/internal/server/usb/server_loopback_test.go
 new file mode 100644
-index 0000000..9b7bea7
+index 0000000..2282494
 --- /dev/null
 +++ b/internal/server/usb/server_loopback_test.go
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,95 @@
 +package usb
 +
 +import (
++	"bufio"
++	"bytes"
++	"io"
 +	"net"
 +	"testing"
 +	"time"
@@ -2872,8 +3844,28 @@ index 0000000..9b7bea7
 +		t.Fatalf("stale paced timeline was not reset: next=%v delay=%v, want %v/6ms", reset, resetDelay, want)
 +	}
 +}
++
++func TestFlushBeforeBlockReaderFlushesOnlyWhenInputIsDrained(t *testing.T) {
++	flushes := 0
++	r := &flushBeforeBlockReader{
++		r:     bufio.NewReader(bytes.NewReader([]byte("abcdef"))),
++		flush: func() error { flushes++; return nil },
++	}
++	buf := make([]byte, 2)
++	for i := 0; i < 3; i++ {
++		if _, err := io.ReadFull(r, buf); err != nil {
++			t.Fatal(err)
++		}
++		if flushes != 1 {
++			t.Fatalf("read %d: %d flushes while input was buffered, want 1", i, flushes)
++		}
++	}
++	if _, err := r.Read(buf); err != io.EOF || flushes != 2 {
++		t.Fatalf("drained read: err=%v flushes=%d, want EOF after a second flush", err, flushes)
++	}
++}
 diff --git a/lib/viiper/dualsense.go b/lib/viiper/dualsense.go
-index 05a7849..d19ebcc 100644
+index 05a7849..82c9f44 100644
 --- a/lib/viiper/dualsense.go
 +++ b/lib/viiper/dualsense.go
 @@ -93,10 +93,16 @@ typedef struct {
@@ -2910,7 +3902,7 @@ index 05a7849..d19ebcc 100644
 +//
 +//export GetVIIPERASBPatchVersion
 +func GetVIIPERASBPatchVersion() C.uint32_t {
-+	return 14
++	return 2
 +}
 +
 +// SetDualSenseASBInputState updates a DualSense from ApexSenseBridge's compact
@@ -2982,7 +3974,7 @@ index 05a7849..d19ebcc 100644
  // @param handle Handle to the DualSense device to remove.
  //
 diff --git a/lib/viiper/server.go b/lib/viiper/server.go
-index 0924794..89c503d 100644
+index a7f2420..be591bb 100644
 --- a/lib/viiper/server.go
 +++ b/lib/viiper/server.go
 @@ -45,6 +45,19 @@ import (
@@ -3005,7 +3997,7 @@ index 0924794..89c503d 100644
  	addr := C.GoString(config.addr)
  	connectionTimeout := time.Duration(config.connection_timeout_ms) * time.Millisecond
  	busCleanupTimeout := time.Duration(config.device_handler_connect_timeout_ms) * time.Millisecond
-@@ -85,6 +98,7 @@ func NewUSBServer(config *C.USBServerConfig, outHandle *C.USBServerHandle, logCa
+@@ -82,6 +95,7 @@ func NewUSBServer(config *C.USBServerConfig, outHandle *C.USBServerHandle, logCa
  		ConnectionTimeout:       connectionTimeout,
  		BusCleanupTimeout:       busCleanupTimeout,
  		WriteBatchFlushInterval: writeBatchFlushInterval,
@@ -3014,19 +4006,10 @@ index 0924794..89c503d 100644
  
  	readyChan := s.Ready()
 diff --git a/usb/device.go b/usb/device.go
-index bfa4742..7f21b48 100644
+index 2248dd2..47f48e1 100644
 --- a/usb/device.go
 +++ b/usb/device.go
-@@ -1,7 +1,7 @@
- package usb
- 
- // Device is the minimal interface a device must implement.
--// It only handles non-EP0 (interrupt/bulk) transfers.
-+// It only handles non-EP0 interrupt/bulk transfers.
- type Device interface {
- 	// HandleTransfer processes a non-EP0 transfer (interrupt/bulk).
- 	// ep is the endpoint number (without direction). dir is usbip.DirIn or usbip.DirOut.
-@@ -28,3 +28,31 @@ type ControlDevice interface {
+@@ -31,3 +31,31 @@ type ControlDevice interface {
  	// If handled is true, the returned bytes (if any) will be used as the IN data stage.
  	HandleControl(bmRequestType, bRequest uint8, wValue, wIndex, wLength uint16, data []byte) (resp []byte, handled bool)
  }

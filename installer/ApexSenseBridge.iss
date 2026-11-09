@@ -99,7 +99,7 @@ Source: "..\build-win\Release\viiper.exe"; DestDir: "{app}"; Flags: ignoreversio
 Source: "..\build-win\Release\libVIIPER.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-LICENSE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-SOURCE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
-Source: "..\build-win\Release\VIIPER-v0.7.0-asb.patch"; DestDir: "{app}\Licenses"; Flags: ignoreversion
+Source: "..\build-win\Release\VIIPER-v0.9.0-asb.patch"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}\Licenses"; DestName: "ApexSenseBridge-LICENSE.txt"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "driver-manifest.json"; DestDir: "{app}\Licenses"; Flags: ignoreversion
