@@ -1,6 +1,7 @@
 #include "dualsense/Apex6AudioTranslator.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace asb::dualsense {
@@ -9,6 +10,11 @@ namespace {
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kButterworth4Q1 = 0.54119610014619698;
 constexpr double kButterworth4Q2 = 1.30656296487637653;
+// The low path is sampled straight at 1 kHz, so it needs its own anti-alias slope: an 8th-order
+// Butterworth keeps 500-1000 Hz from folding back below 500 Hz (-64 dB at 550 Hz vs -32 dB with
+// 4th order) for about 1.9 ms more delay.
+constexpr std::array<double, 4> kButterworth8Q{
+    0.50979557910415917, 0.60134488693504528, 0.89997622313641570, 2.56291544774150617};
 constexpr double kOutputRate = 1000.0;
 constexpr double kPunchPhase = 0.25;
 
@@ -59,8 +65,9 @@ Apex6AudioTranslator::Apex6AudioTranslator(const Apex6TranslatorConfig& config)
     const double ratio = rate / kOutputRate;
     if (!(rate > 0.0) || ratio < 1.0 || std::fabs(ratio - std::round(ratio)) > 1e-9) return;
     decimation_ = static_cast<std::size_t>(std::llround(ratio));
-    low_[0] = makeLowPass(rate, config_.lowPassHz, kButterworth4Q1);
-    low_[1] = makeLowPass(rate, config_.lowPassHz, kButterworth4Q2);
+    for (std::size_t stage = 0; stage < low_.size(); ++stage) {
+        low_[stage] = makeLowPass(rate, config_.lowPassHz, kButterworth8Q[stage]);
+    }
     lowGain_ = decibelsToGain(config_.lowGainDb);
     attackCoefficient_ = followerCoefficient(config_.attackMs, rate);
     for (std::size_t index = 0; index < bands_.size(); ++index) {
@@ -117,7 +124,8 @@ void Apex6AudioTranslator::render(
     double lowValue = 0.0;
     for (std::size_t index = 0; index < count; ++index) {
         const double x = static_cast<double>(input[index]);
-        lowValue = low_[1].step(low_[0].step(x));
+        lowValue = x;
+        for (auto& biquad : low_) lowValue = biquad.step(lowValue);
         for (auto& band : bands_) {
             double filtered = band.highPass[1].step(band.highPass[0].step(x));
             if (band.useLowPass) filtered = band.lowPass[1].step(band.lowPass[0].step(filtered));
