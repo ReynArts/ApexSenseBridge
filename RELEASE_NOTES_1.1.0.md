@@ -10,7 +10,7 @@ ApexSenseBridge 1.1.0 is a major update, even though the version number only mov
 
 ## 1. Flydigi APEX 6 Pro
 
-- **2 kHz grip haptics, on by default (flagship):** the bridge sends native game haptics at 2000 samples per second instead of 1000, so their 500 to 1000 Hz content is no longer folded down. Needs libVIIPER v0.9.0-asb2. Judged clearly better by ear on one APEX 6 Pro; see the changelog for the limits.
+- **2 kHz grip haptics, on by default (flagship):** the bridge sends native game haptics at 2000 samples per second instead of 1000, so their 500 to 1000 Hz content is no longer folded down. Needs libVIIPER v0.7.0-asb14. Judged clearly better by ear on one APEX 6 Pro; see the changelog for the limits.
 - **Motion sensors:** gyroscope and accelerometer are forwarded to the virtual DualSense; `test-gyro` supports the APEX 6 Pro.
 - **Battery:** real level and charge state instead of a fixed 100 %, refreshed every 15 seconds with self-timing safeguards.
 - **Onboard profile slots 1–4:** `--apex-profile` and `test-profile-switch`, with the original slot restored and verified.

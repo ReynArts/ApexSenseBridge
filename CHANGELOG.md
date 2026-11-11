@@ -67,6 +67,48 @@
   `assets/controllers-reference.png`, `scripts/generate-app-logo.ps1` the plate logo, the icon
   and the Playnite icon, and `scripts/generate-widget-assets.ps1` the widget tiles.
 
+- **VIIPER upgraded from v0.7.0 to v0.9.0.** The patched virtual DualSense backend is rebuilt on VIIPER v0.9.0. The
+  integrated `libVIIPER.dll` and the fallback `viiper.exe` now share one version,
+  `v0.9.0-asb2` (they were `v0.7.0-asb14` and `v0.7.0-asb11`). The adaptive-trigger
+  feedback, the 2 kHz haptics frames and the firmware report are unchanged, and
+  the library exports the same functions.
+- VIIPER 0.9 answers the controller's input polls when the bridge sends a new
+  state or at least every 4 ms, instead of answering every poll at once. It also
+  stamps the reports with the real clock, which gives the gyroscope a correct
+  time step, and it removes a virtual device at once when it is closed.
+- **Lower input latency.** A new controller state now reaches Windows as soon as
+  the bridge sends it, instead of waiting for the next 1 ms tick, and states are
+  no longer overwritten before they go out. In a loopback test of the virtual
+  device alone (no driver, no game), the delay between the bridge and the report
+  fell from about 1.5 ms to about 0.04 ms at 1 kHz, and lost states from 1.2 % to
+  0.2 %. The Tray's own measurement on an APEX 6 Pro, with the new build, shows a
+  bridge overhead of 0.022 ms (median) and 0.105 ms (99th percentile) at about
+  760 virtual reports per second. The loopback figures leave out the Windows
+  driver and the game, so the gain felt in a game is smaller. Checked in Call of
+  Duty, where triggers and input work normally.
+- The native attach also understands the driver layout of usbip-win2 0.9.8.1.
+  The installer still bundles 0.9.8.0.
+- The fallback `viiper.exe` is started with write batching on, as the
+  integrated library already is, because VIIPER 0.9 turned batching off by
+  default. Batching no longer uses a 1 ms timer: replies that are ready together
+  are sent together, and nothing waits for a tick. It grows by about 2 MB with
+  VIIPER's new installer interface, which ApexSenseBridge never opens. The new
+  Go modules are in `THIRD_PARTY_NOTICES.md`.
+- Fixes in our VIIPER patch, found while porting it: input reports always leave
+  in order, a cancelled request gets exactly one answer, the 2 kHz haptics
+  stream no longer stalls about 15 ms every few seconds or waits about 200 ms
+  when it restarts, haptics packets that come due together stay in order, and
+  an app that opens the DualSense microphone no longer keeps a CPU core busy.
+- The release build needs Go 1.27.2, which VIIPER 0.9 requires. The build script
+  downloads that exact archive and checks its SHA-256; the release workflow
+  uses the same version.
+- Checked with the VIIPER unit tests, a new test that drives the merged USB/IP
+  server over TCP (isochronous haptics and microphone transfers, unlink, trigger
+  feedback) and the ApexSenseBridge protocol tests. **Not yet validated in games
+  or on an APEX 6 Pro**: adaptive triggers, 2 kHz haptics pacing, gyroscope and
+  report timing still have to be confirmed on hardware.
+
+
 ### Fixes
 
 - **APEX 6 Pro with RGB sync no longer fails to start**
@@ -183,7 +225,7 @@ detail; in short:
   With any other controller, or with
   grip vibration off, the engine silently stays at 1000, so the switch can be
   left on.
-- It needs the integrated libVIIPER `v0.9.0-asb2`. Its virtual DualSense now
+- It needs the integrated libVIIPER `v0.7.0-asb14`. Its virtual DualSense now
   filters the 48 kHz haptic channels with a proper low-pass FIR (within 0.25 dB
   up to 800 Hz, at least 48 dB down from 1150 Hz) and decimates them to 2 kHz.
   With an older libVIIPER or the sidecar backend the mode falls back to the
@@ -207,39 +249,6 @@ detail; in short:
   at 900 Hz), the motors give little sensation above roughly 300 Hz, and the
   two triggers still share one signal. Whether real games send enough energy
   between 500 and 1000 Hz for this to be noticeable has not been measured yet.
-
-### VIIPER upgraded from v0.7.0 to v0.9.0
-
-- The patched virtual DualSense backend is rebuilt on VIIPER v0.9.0. The
-  integrated `libVIIPER.dll` and the fallback `viiper.exe` now share one version,
-  `v0.9.0-asb2` (they were `v0.7.0-asb14` and `v0.7.0-asb11`). The adaptive-trigger
-  feedback, the 2 kHz haptics frames and the firmware report are unchanged, and
-  the library exports the same functions.
-- VIIPER 0.9 answers the controller's input polls when the bridge sends a new
-  state or at least every 4 ms, instead of answering every poll at once. It also
-  stamps the reports with the real clock, which gives the gyroscope a correct
-  time step, and it removes a virtual device at once when it is closed.
-- The native attach also understands the driver layout of usbip-win2 0.9.8.1.
-  The installer still bundles 0.9.8.0.
-- The fallback `viiper.exe` is started with write batching on, as the
-  integrated library already is, because VIIPER 0.9 turned batching off by
-  default. Batching no longer uses a 1 ms timer: replies that are ready together
-  are sent together, and nothing waits for a tick. It grows by about 2 MB with
-  VIIPER's new installer interface, which ApexSenseBridge never opens. The new
-  Go modules are in `THIRD_PARTY_NOTICES.md`.
-- Fixes in our VIIPER patch, found while porting it: input reports always leave
-  in order, a cancelled request gets exactly one answer, the 2 kHz haptics
-  stream no longer stalls about 15 ms every few seconds or waits about 200 ms
-  when it restarts, haptics packets that come due together stay in order, and
-  an app that opens the DualSense microphone no longer keeps a CPU core busy.
-- The release build needs Go 1.27.2, which VIIPER 0.9 requires. The build script
-  downloads that exact archive and checks its SHA-256; the release workflow
-  uses the same version.
-- Checked with the VIIPER unit tests, a new test that drives the merged USB/IP
-  server over TCP (isochronous haptics and microphone transfers, unlink, trigger
-  feedback) and the ApexSenseBridge protocol tests. **Not yet validated in games
-  or on an APEX 6 Pro**: adaptive triggers, 2 kHz haptics pacing, gyroscope and
-  report timing still have to be confirmed on hardware.
 
 ### Choosing between several APEX controllers
 
