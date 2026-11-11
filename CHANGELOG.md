@@ -62,7 +62,7 @@
   silhouette, joined by a light seam. `assets/logo.png` (rounded dark plate, Tray and
   installer), `assets/app.ico` (16 to 256 px, Tray, installer, updater and executable),
   the Playnite extension icon and the Game Bar widget tiles now use it.
-  `assets/logo-transparent.png` is the version without a background.
+  `assets/logo-transparent.png` is the version without a background, and `assets/logo.svg` and `assets/logo-plate.svg` are vector versions traced by `scripts/vectorize-logo.ps1`.
   `scripts/compose-widget-logo.ps1` rebuilds the transparent logo from
   `assets/controllers-reference.png`, `scripts/generate-app-logo.ps1` the plate logo, the icon
   and the Playnite icon, and `scripts/generate-widget-assets.ps1` the widget tiles.
