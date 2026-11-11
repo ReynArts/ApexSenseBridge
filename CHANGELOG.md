@@ -133,6 +133,23 @@
   stopped until LT was released. A repeated "off" no longer restarts the 100 ms
   hold. Reproduced and checked with the packet sequence from the report's
   diagnostics, not in the game.
+- **APEX 6 Pro: LT and RT work in the Xbox Full Screen Experience.** In a session
+  started by Playnite under the Xbox Full Screen Experience, LT and RT read zero
+  while the sticks and buttons worked: the APEX 6 Pro took its two independent
+  triggers from XInput, which reads nothing there. The bridge now notices that
+  XInput stays released for 120 ms while the mapped HID collection or the vendor
+  stream shows a pressed trigger, and then takes LT and RT from the mapped HID
+  axis, and from the vendor stream (bytes 15 and 16 of the `0xEF` frame) while both
+  are held together. XInput is used again as soon as it reports a trigger; on the
+  desktop nothing changes. A session without any XInput device now starts with a
+  warning instead of failing. The bridge summary, the JSON telemetry,
+  `input-status` and `test-gyro` report the highest trigger seen per source
+  (`input_trigger_max_xinput`, `input_trigger_max_mapped_hid`,
+  `input_trigger_max_vendor`) and the fallback use (`input_trigger_fallback_used`,
+  `input_trigger_fallback_reports`). Checked in a 41-minute Call of Duty session
+  launched by Playnite after a Full Screen Experience boot: XInput read 0, the
+  fallback took over, the virtual DualSense reached 255 on both triggers and LT
+  and RT worked in the game.
 
 
 ## 1.1.0

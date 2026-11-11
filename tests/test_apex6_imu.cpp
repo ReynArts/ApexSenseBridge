@@ -35,11 +35,14 @@ void putWord(std::vector<std::uint8_t>& report, std::size_t frameOffset,
     report[2 + frameOffset] = static_cast<std::uint8_t>(raw >> 8U);
 }
 
-std::vector<std::uint8_t> operatorReport(const RawMotion& motion) {
+std::vector<std::uint8_t> operatorReport(const RawMotion& motion,
+                                         const OperatorTriggers& triggers = {}) {
     std::vector<std::uint8_t> report(kReportSize, 0);
     report[1] = kMagic0;
     report[2] = kMagic1;
     report[3] = kCmdOperatorData;
+    report[1 + kOperatorLeftTriggerOffset] = triggers.left;
+    report[1 + kOperatorRightTriggerOffset] = triggers.right;
     for (std::size_t axis = 0; axis < 3; ++axis) {
         putWord(report, kOperatorGyroOffset + axis * 2, motion.gyro[axis]);
         putWord(report, kOperatorAccelOffset + axis * 2, motion.accel[axis]);
@@ -108,6 +111,33 @@ int main() {
     RawMotion fromFrame{};
     assert(parseOperatorReport(bareFrame, fromFrame) == OperatorParse::Motion);
     assert(fromFrame == expected);
+
+    OperatorTriggers expectedTriggers{};
+    expectedTriggers.left = 201;
+    expectedTriggers.right = 37;
+    RawMotion triggerMotion{};
+    OperatorTriggers decodedTriggers{};
+    assert(parseOperatorReport(operatorReport(expected, expectedTriggers), triggerMotion,
+                               decodedTriggers) == OperatorParse::Motion);
+    assert(decodedTriggers == expectedTriggers);
+    assert(triggerMotion == expected);
+
+    OperatorTriggers bothPressed{};
+    bothPressed.left = 255;
+    bothPressed.right = 255;
+    OperatorTriggers decodedBoth{};
+    assert(parseOperatorReport(operatorReport(expected, bothPressed), triggerMotion,
+                               decodedBoth) == OperatorParse::Motion);
+    assert(decodedBoth == bothPressed);
+
+    OperatorTriggers untouchedTriggers{};
+    untouchedTriggers.left = 9;
+    untouchedTriggers.right = 9;
+    auto corruptedTriggers = operatorReport(expected, expectedTriggers);
+    corruptedTriggers[32] ^= 0x08;
+    assert(parseOperatorReport(corruptedTriggers, triggerMotion, untouchedTriggers) ==
+           OperatorParse::InvalidChecksum);
+    assert(untouchedTriggers.left == 9 && untouchedTriggers.right == 9);
 
     RawMotion untouched{};
     untouched.gyro = {7, 7, 7};

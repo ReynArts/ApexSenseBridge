@@ -14,6 +14,8 @@ inline constexpr std::uint8_t kFeatureImu = 0x01;
 inline constexpr std::uint8_t kCmdReadTransport = 0x10;
 inline constexpr std::uint8_t kCmdSetTransport = 0x11;
 inline constexpr std::uint8_t kTransportKeep = 0xFF;
+inline constexpr std::size_t kOperatorLeftTriggerOffset = 15;
+inline constexpr std::size_t kOperatorRightTriggerOffset = 16;
 inline constexpr std::size_t kOperatorGyroOffset = 17;
 inline constexpr std::size_t kOperatorAccelOffset = 23;
 inline constexpr std::size_t kOperatorMinimumFrame = 29;
@@ -23,6 +25,13 @@ struct RawMotion {
     std::array<std::int16_t, 3> accel{};
 
     bool operator==(const RawMotion&) const = default;
+};
+
+struct OperatorTriggers {
+    std::uint8_t left = 0;
+    std::uint8_t right = 0;
+
+    bool operator==(const OperatorTriggers&) const = default;
 };
 
 struct MotionSample {
@@ -74,6 +83,10 @@ struct TransportStatus {
 
 [[nodiscard]] OperatorParse parseOperatorReport(
     std::span<const std::uint8_t> report, RawMotion& motion) noexcept;
+
+[[nodiscard]] OperatorParse parseOperatorReport(
+    std::span<const std::uint8_t> report, RawMotion& motion,
+    OperatorTriggers& triggers) noexcept;
 
 [[nodiscard]] MotionSample convertMotion(
     const RawMotion& raw,

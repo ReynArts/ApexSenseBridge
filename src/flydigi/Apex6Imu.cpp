@@ -41,11 +41,20 @@ std::int16_t scale(std::int16_t value,
 
 OperatorParse parseOperatorReport(std::span<const std::uint8_t> report,
                                   RawMotion& motion) noexcept {
+    OperatorTriggers ignored{};
+    return parseOperatorReport(report, motion, ignored);
+}
+
+OperatorParse parseOperatorReport(std::span<const std::uint8_t> report,
+                                  RawMotion& motion,
+                                  OperatorTriggers& triggers) noexcept {
     const auto frame = locateFrame(report);
     if (frame.size() != kFrameSize || frame[2] != kCmdOperatorData) {
         return OperatorParse::NotOperatorFrame;
     }
     if (frame[31] != checksum(frame)) return OperatorParse::InvalidChecksum;
+    triggers.left = frame[kOperatorLeftTriggerOffset];
+    triggers.right = frame[kOperatorRightTriggerOffset];
     for (std::size_t axis = 0; axis < 3; ++axis) {
         motion.gyro[axis] = signedLittleEndian(frame, kOperatorGyroOffset + axis * 2);
         motion.accel[axis] = signedLittleEndian(frame, kOperatorAccelOffset + axis * 2);

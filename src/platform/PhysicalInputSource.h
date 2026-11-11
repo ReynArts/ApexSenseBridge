@@ -33,6 +33,7 @@ struct PhysicalInputSourceStats {
     std::uint64_t vendorMaximumGapMs = 0;
     std::uint64_t vendorStaleTriggerGaps = 0;
     PhysicalInputActivityStats activity{};
+    PhysicalTriggerSourceStats triggerSources{};
 };
 
 // Reads the complete physical APEX game state for the mandatory

@@ -182,6 +182,13 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
             << "  \"vendor_states\": " << stats.vendorStates << ",\n"
             << "  \"vendor_parse_failures\": " << stats.vendorParseFailures << ",\n"
             << "  \"vendor_read_failures\": " << stats.vendorReadFailures << ",\n"
+            << "  \"trigger_max_xinput\": [" << static_cast<unsigned>(stats.triggerSources.xinputMaxL2)
+            << ", " << static_cast<unsigned>(stats.triggerSources.xinputMaxR2) << "],\n"
+            << "  \"trigger_max_mapped_hid\": [" << static_cast<unsigned>(stats.triggerSources.mappedMaxL2)
+            << ", " << static_cast<unsigned>(stats.triggerSources.mappedMaxR2) << "],\n"
+            << "  \"trigger_max_vendor\": [" << static_cast<unsigned>(stats.triggerSources.vendorMaxL2)
+            << ", " << static_cast<unsigned>(stats.triggerSources.vendorMaxR2) << "],\n"
+            << "  \"trigger_fallback_used\": " << (stats.triggerSources.fallbackUsed ? "true" : "false") << ",\n"
             << "  \"lx\": " << static_cast<unsigned int>(lastState.lx) << ",\n"
             << "  \"ly\": " << static_cast<unsigned int>(lastState.ly) << ",\n"
             << "  \"rx\": " << static_cast<unsigned int>(lastState.rx) << ",\n"
@@ -228,6 +235,13 @@ int runInputStatus(asb::flydigi::Apex5Device& device,
                   << "vendor_states=" << stats.vendorStates << '\n'
                   << "vendor_parse_failures=" << stats.vendorParseFailures << '\n'
                   << "vendor_read_failures=" << stats.vendorReadFailures << '\n'
+                  << "trigger_max_xinput=" << static_cast<unsigned>(stats.triggerSources.xinputMaxL2)
+                  << ',' << static_cast<unsigned>(stats.triggerSources.xinputMaxR2) << '\n'
+                  << "trigger_max_mapped_hid=" << static_cast<unsigned>(stats.triggerSources.mappedMaxL2)
+                  << ',' << static_cast<unsigned>(stats.triggerSources.mappedMaxR2) << '\n'
+                  << "trigger_max_vendor=" << static_cast<unsigned>(stats.triggerSources.vendorMaxL2)
+                  << ',' << static_cast<unsigned>(stats.triggerSources.vendorMaxR2) << '\n'
+                  << "trigger_fallback_used=" << (stats.triggerSources.fallbackUsed ? "yes" : "no") << '\n'
                   << "sticks=" << static_cast<unsigned int>(lastState.lx) << ','
                   << static_cast<unsigned int>(lastState.ly) << ','
                   << static_cast<unsigned int>(lastState.rx) << ','
@@ -2083,6 +2097,13 @@ int commandTestGyro(int argc, char** argv) {
                   << "  \"samples\": " << sampleCount << ",\n"
                   << "  \"vendor_reports\": " << motionStats.vendorReports << ",\n"
                   << "  \"vendor_states\": " << motionStats.vendorStates << ",\n"
+                  << "  \"trigger_max_xinput\": [" << static_cast<unsigned>(motionStats.triggerSources.xinputMaxL2)
+                  << ", " << static_cast<unsigned>(motionStats.triggerSources.xinputMaxR2) << "],\n"
+                  << "  \"trigger_max_mapped_hid\": [" << static_cast<unsigned>(motionStats.triggerSources.mappedMaxL2)
+                  << ", " << static_cast<unsigned>(motionStats.triggerSources.mappedMaxR2) << "],\n"
+                  << "  \"trigger_max_vendor\": [" << static_cast<unsigned>(motionStats.triggerSources.vendorMaxL2)
+                  << ", " << static_cast<unsigned>(motionStats.triggerSources.vendorMaxR2) << "],\n"
+                  << "  \"trigger_fallback_used\": " << (motionStats.triggerSources.fallbackUsed ? "true" : "false") << ",\n"
                   << "  \"motion_detected\": " << (motionDetected ? "true" : "false") << ",\n"
                   << "  \"gyro_x\": " << lastState.gyroX << ",\n"
                   << "  \"gyro_y\": " << lastState.gyroY << ",\n"
@@ -2100,6 +2121,13 @@ int commandTestGyro(int argc, char** argv) {
                   << "Backend: " << backend << '\n'
                   << "Samples collected: " << sampleCount << '\n'
                   << "Vendor motion reports: " << motionStats.vendorStates << '\n'
+                  << "Trigger maxima (LT,RT) xinput=" << static_cast<unsigned>(motionStats.triggerSources.xinputMaxL2)
+                  << ',' << static_cast<unsigned>(motionStats.triggerSources.xinputMaxR2)
+                  << " mapped_hid=" << static_cast<unsigned>(motionStats.triggerSources.mappedMaxL2)
+                  << ',' << static_cast<unsigned>(motionStats.triggerSources.mappedMaxR2)
+                  << " vendor=" << static_cast<unsigned>(motionStats.triggerSources.vendorMaxL2)
+                  << ',' << static_cast<unsigned>(motionStats.triggerSources.vendorMaxR2)
+                  << " fallback_used=" << (motionStats.triggerSources.fallbackUsed ? "yes" : "no") << '\n'
                   << "Motion detected: " << (motionDetected ? "YES" : "NO (still)") << '\n'
                   << "Latest Gyro (deg/s units): X=" << lastState.gyroX << " Y=" << lastState.gyroY << " Z=" << lastState.gyroZ << '\n'
                   << "Latest Accel (10000=1G):   X=" << lastState.accelX << " Y=" << lastState.accelY << " Z=" << lastState.accelZ << '\n'

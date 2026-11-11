@@ -43,6 +43,32 @@ inline void accumulatePhysicalInputActivity(PhysicalInputActivityStats& total,
     total.bouncedDpad = static_cast<std::uint8_t>(total.bouncedDpad | added.bouncedDpad);
 }
 
+struct PhysicalTriggerSourceStats {
+    std::uint8_t xinputMaxL2 = 0;
+    std::uint8_t xinputMaxR2 = 0;
+    std::uint8_t mappedMaxL2 = 0;
+    std::uint8_t mappedMaxR2 = 0;
+    std::uint8_t vendorMaxL2 = 0;
+    std::uint8_t vendorMaxR2 = 0;
+    std::uint64_t fallbackReports = 0;
+    std::uint64_t fallbackSwitches = 0;
+    bool fallbackUsed = false;
+};
+
+inline void accumulatePhysicalTriggerSourceStats(
+    PhysicalTriggerSourceStats& total,
+    const PhysicalTriggerSourceStats& added) noexcept {
+    total.xinputMaxL2 = (std::max)(total.xinputMaxL2, added.xinputMaxL2);
+    total.xinputMaxR2 = (std::max)(total.xinputMaxR2, added.xinputMaxR2);
+    total.mappedMaxL2 = (std::max)(total.mappedMaxL2, added.mappedMaxL2);
+    total.mappedMaxR2 = (std::max)(total.mappedMaxR2, added.mappedMaxR2);
+    total.vendorMaxL2 = (std::max)(total.vendorMaxL2, added.vendorMaxL2);
+    total.vendorMaxR2 = (std::max)(total.vendorMaxR2, added.vendorMaxR2);
+    total.fallbackReports += added.fallbackReports;
+    total.fallbackSwitches += added.fallbackSwitches;
+    total.fallbackUsed = total.fallbackUsed || added.fallbackUsed;
+}
+
 class TriggerOscillationDetector {
 public:
     using Clock = std::chrono::steady_clock;

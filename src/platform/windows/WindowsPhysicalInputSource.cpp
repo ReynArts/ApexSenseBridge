@@ -595,10 +595,14 @@ public:
             }
             ++reports_;
             flydigi::apex6::RawMotion raw{};
+            flydigi::apex6::OperatorTriggers operatorTriggers{};
             switch (flydigi::apex6::parseOperatorReport(
-                std::span<const std::uint8_t>(report_.data(), bytesRead), raw)) {
+                std::span<const std::uint8_t>(report_.data(), bytesRead), raw,
+                operatorTriggers)) {
             case flydigi::apex6::OperatorParse::Motion:
                 latest_ = flydigi::apex6::convertMotion(raw);
+                latestTriggers_ = Apex6VendorTriggers{
+                    operatorTriggers.left, operatorTriggers.right, now};
                 lastAt_ = now;
                 ++states_;
                 break;
@@ -616,6 +620,10 @@ public:
         if (!lastAt_) return std::nullopt;
         if (now - *lastAt_ > kFreshness) return flydigi::apex6::MotionSample{};
         return latest_;
+    }
+
+    [[nodiscard]] std::optional<Apex6VendorTriggers> triggers() const noexcept {
+        return latestTriggers_;
     }
 
     void addStats(PhysicalInputSourceStats& stats) const noexcept {
@@ -639,6 +647,7 @@ private:
     bool readPending_ = false;
     bool unavailable_ = false;
     flydigi::apex6::MotionSample latest_{};
+    std::optional<Apex6VendorTriggers> latestTriggers_;
     std::optional<std::chrono::steady_clock::time_point> lastAt_;
     std::uint64_t reports_ = 0;
     std::uint64_t states_ = 0;
@@ -654,7 +663,9 @@ public:
         std::unique_ptr<Apex6MotionStream> motionStream = {})
         : mappedGamepad_(std::move(mappedGamepad)),
           xinputGamepad_(std::move(xinputGamepad)),
-          motionStream_(std::move(motionStream)) {}
+          motionStream_(std::move(motionStream)) {
+        fusion_.setXInputAvailable(xinputGamepad_ != nullptr);
+    }
 
     PhysicalInputStatus waitForState(
         dualsense::DualSenseInputState& state,
@@ -713,7 +724,7 @@ public:
 
             dualsense::DualSenseInputState xinputState{};
             std::string xinputError;
-            if (!xinputGamepad_->poll(xinputState, xinputError)) {
+            if (xinputGamepad_ && !xinputGamepad_->poll(xinputState, xinputError)) {
                 error = "The Apex 6 independent XInput trigger source failed (" +
                         xinputError + ").";
                 return PhysicalInputStatus::Disconnected;
@@ -727,6 +738,8 @@ public:
                 xinputState,
                 motionStream_ ? motionStream_->sample(observedAt)
                               : std::optional<flydigi::apex6::MotionSample>{},
+                motionStream_ ? motionStream_->triggers()
+                              : std::optional<Apex6VendorTriggers>{},
                 observedAt);
             if (fused) {
                 state = *fused;
@@ -743,6 +756,10 @@ public:
     }
 
     std::string_view backendName() const noexcept override {
+        if (!xinputGamepad_) {
+            return motionStream_ ? "apex6-hid+vendor-triggers+vendor-imu"
+                                 : "apex6-hid";
+        }
         return motionStream_ ? "apex6-hid+xinput-triggers+vendor-imu"
                              : "apex6-hid+xinput-triggers";
     }
@@ -752,6 +769,8 @@ public:
         const auto mappedStats = mappedGamepad_->stats();
         result.parseFailures = mappedStats.parseFailures;
         result.mappedReports = mappedStats.reports;
+        result.triggerSources = fusion_.triggerStats();
+        result.triggerSourceSwitches = fusion_.triggerStats().fallbackSwitches;
         if (motionStream_) motionStream_->addStats(result);
         return result;
     }
@@ -1363,12 +1382,11 @@ std::unique_ptr<PhysicalInputSource> openPhysicalInputSource(
                     apexVendorInterface.vendorId,
                     apexVendorInterface.productId,
                     std::nullopt, xinputError);
-                if (!xinputGamepad) {
-                    error = "Apex 6 independent trigger input unavailable (" +
-                            xinputError + ").";
-                    return {};
-                }
                 error.clear();
+                if (!xinputGamepad) {
+                    error = "Apex 6 XInput triggers unavailable (" + xinputError +
+                            "); LT/RT come from the mapped HID and vendor streams.";
+                }
                 return std::make_unique<Apex6HybridPhysicalInputSource>(
                     std::move(mappedGamepad), std::move(xinputGamepad),
                     Apex6MotionStream::open(apexVendorInterface));

@@ -374,6 +374,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::cerr << "Mandatory physical-input proxy creation failed: " << error << '\n';
         return failSession(8, "Mandatory physical-input proxy creation failed: " + error);
     }
+    if (!error.empty()) std::cerr << "Warning: " << error << '\n';
     std::string inputBackend(inputSource->backendName());
     if (device->identity()) {
         inputSource->setBatteryState(
@@ -1933,6 +1934,19 @@ int commandBridgeTriggers(int argc, char** argv) {
               << inputSourceStats.vendorStaleTriggerGaps << '\n'
               << "input_trigger_source_switches="
               << inputSourceStats.triggerSourceSwitches << '\n'
+              << "input_trigger_max_xinput="
+              << static_cast<unsigned>(inputSourceStats.triggerSources.xinputMaxL2) << ','
+              << static_cast<unsigned>(inputSourceStats.triggerSources.xinputMaxR2) << '\n'
+              << "input_trigger_max_mapped_hid="
+              << static_cast<unsigned>(inputSourceStats.triggerSources.mappedMaxL2) << ','
+              << static_cast<unsigned>(inputSourceStats.triggerSources.mappedMaxR2) << '\n'
+              << "input_trigger_max_vendor="
+              << static_cast<unsigned>(inputSourceStats.triggerSources.vendorMaxL2) << ','
+              << static_cast<unsigned>(inputSourceStats.triggerSources.vendorMaxR2) << '\n'
+              << "input_trigger_fallback_used="
+              << (inputSourceStats.triggerSources.fallbackUsed ? "yes" : "no") << '\n'
+              << "input_trigger_fallback_reports="
+              << inputSourceStats.triggerSources.fallbackReports << '\n'
               << "input_changes_sticks=" << inputSourceStats.activity.stickChanges << '\n'
               << "input_changes_l2=" << inputSourceStats.activity.l2Changes << '\n'
               << "input_changes_r2=" << inputSourceStats.activity.r2Changes << '\n'

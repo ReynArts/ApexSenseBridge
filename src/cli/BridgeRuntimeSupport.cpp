@@ -55,6 +55,8 @@ void accumulatePhysicalInputStats(asb::platform::PhysicalInputSourceStats& total
     total.vendorMaximumGapMs = (std::max)(total.vendorMaximumGapMs, added.vendorMaximumGapMs);
     total.vendorStaleTriggerGaps += added.vendorStaleTriggerGaps;
     asb::platform::accumulatePhysicalInputActivity(total.activity, added.activity);
+    asb::platform::accumulatePhysicalTriggerSourceStats(
+        total.triggerSources, added.triggerSources);
 }
 
 ProcessUsageSnapshot processUsageSnapshot() noexcept {
