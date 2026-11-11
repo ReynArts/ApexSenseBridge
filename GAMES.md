@@ -3,11 +3,11 @@
 
 [← Project overview](README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Catalogue data](data/supported_games.json)
 
-**Catalogue refreshed:** 2026-11-04 11:54 UTC. Updated automatically by the daily GitHub refresh.
+**Catalogue refreshed:** 2026-11-11 11:42 UTC. Updated automatically by the daily GitHub refresh.
 
 | Games in catalogue | Adaptive triggers | Haptic feedback | Manual fix needed |
 | :---: | :---: | :---: | :---: |
-| **224** | **182** | **153** | **29** |
+| **225** | **183** | **153** | **29** |
 
 Feature totals include both native support and manual fixes. This catalogue tracks DualSense support from PCGamingWiki; it does not certify every effect on every APEX model.
 
@@ -21,14 +21,14 @@ Dates show when a game entered the catalogue, not its release date.
 
 <table>
 <tr>
+<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Metro_2033_Redux"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/286690/7c276efe09b88ba437ab80331c5ca3095e6f936d/library_capsule_2x.jpg?t=1792681167" width="100" height="150" alt="Metro 2033 Redux cover"><br><strong>Metro 2033 Redux</strong></a><br><sub>Added 2026-11-07</sub></td>
 <td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/A_Quiet_Place%3A_The_Road_Ahead"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2233120/library_600x900.jpg?t=1790864553" width="100" height="150" alt="A Quiet Place: The Road Ahead cover"><br><strong>A Quiet Place: The Road Ahead</strong></a><br><sub>Added 2026-11-04</sub></td>
 <td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Phantom_Blade_Zero"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4115450/471e77854910665c03eb9a53ad06f2ac12903acd/library_capsule_2x.jpg?t=1793261976" width="100" height="150" alt="Phantom Blade Zero cover"><br><strong>Phantom Blade Zero</strong></a><br><sub>Added 2026-10-30</sub></td>
-<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Delta_Force_%282024%29">🎮<br><strong>Delta Force (2024)</strong></a><br><sub>Added 2026-10-22</sub></td>
 </tr>
 <tr>
+<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Delta_Force_%282024%29">🎮<br><strong>Delta Force (2024)</strong></a><br><sub>Added 2026-10-22</sub></td>
 <td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Active_Matter"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2887580/f856133f6f7d33f8a38d892a140171fe4c5698d4/library_capsule_2x.jpg?t=1792058040" width="100" height="150" alt="Active Matter cover"><br><strong>Active Matter</strong></a><br><sub>Added 2026-10-16</sub></td>
 <td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Deadzone%3A_Rogue_2"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4465790/5966d4466961f6ea7652886a31b2b7af7fc3012b/library_capsule_2x.jpg?t=1791485085" width="100" height="150" alt="Deadzone: Rogue 2 cover"><br><strong>Deadzone: Rogue 2</strong></a><br><sub>Added 2026-10-11</sub></td>
-<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/P.T._for_PC">🎮<br><strong>P.T. for PC</strong></a><br><sub>Added 2026-10-11</sub></td>
 </tr>
 </table>
 
@@ -235,6 +235,7 @@ Use **Ctrl+F** (or **Cmd+F**) to find a game. Click its title to open PCGamingWi
 | [Metal Gear Solid V: Ground Zeroes](https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_Ground_Zeroes) · [Steam](https://store.steampowered.com/app/311340/) | 🛠️ Manual fix | — | [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_Ground_Zeroes) · [Custom config](https://github.com/WujekFoliarz/MGSV-Ground-Zeros-DualSenseMOD) |
 | [Metal Gear Solid V: The Phantom Pain](https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_The_Phantom_Pain) · [Steam](https://store.steampowered.com/app/287700/) | 🛠️ Manual fix | — | [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_V:_The_Phantom_Pain) · [tpp-mod](https://github.com/alicealys/tpp-mod/) |
 | [Metal Gear Solid Δ: Snake Eater](https://www.pcgamingwiki.com/wiki/Metal_Gear_Solid_%CE%94%3A_Snake_Eater) · [Steam](https://store.steampowered.com/app/2417610/) | — | ✅ Native | — |
+| [Metro 2033 Redux](https://www.pcgamingwiki.com/wiki/Metro_2033_Redux) · [Steam](https://store.steampowered.com/app/286690/) | ✅ Native | — | — |
 | [Metro Exodus](https://www.pcgamingwiki.com/wiki/Metro_Exodus) · [Steam](https://store.steampowered.com/app/412020/) | ✅ Native | — | — |
 | [Metro Exodus Enhanced Edition](https://www.pcgamingwiki.com/wiki/Metro_Exodus_Enhanced_Edition) | ✅ Native | ✅ Native | — |
 | [Microsoft Flight Simulator 2024](https://www.pcgamingwiki.com/wiki/Microsoft_Flight_Simulator_2024) · [Steam](https://store.steampowered.com/app/2537590/) | ✅ Native | ✅ Native | — |
@@ -257,7 +258,7 @@ Use **Ctrl+F** (or **Cmd+F**) to find a game. Click its title to open PCGamingWi
 
 | Game | Adaptive triggers | Haptic feedback | Manual fix / instructions |
 | :--- | :---: | :---: | :--- |
-| [Off The Grid](https://www.pcgamingwiki.com/wiki/Off_The_Grid) · [Steam](https://store.steampowered.com/app/3659280/) | ✅ Native | — | — |
+| [Off the Grid](https://www.pcgamingwiki.com/wiki/Off_the_Grid) · [Steam](https://store.steampowered.com/app/3659280/) | ✅ Native | — | — |
 | [Onimusha: Way of the Sword](https://www.pcgamingwiki.com/wiki/Onimusha:_Way_of_the_Sword) · [Steam](https://store.steampowered.com/app/2638890/) | 🛠️ Manual fix | 🛠️ Manual fix | [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Onimusha:_Way_of_the_Sword) · [Onimusha DualSense](https://github.com/AInine9/Onimusha-DualSense) |
 | [Overwatch 2](https://www.pcgamingwiki.com/wiki/Overwatch_2) | ✅ Native | — | — |
 
