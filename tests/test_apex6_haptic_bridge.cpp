@@ -1958,6 +1958,36 @@ bool reportIsSilent(const std::vector<std::uint8_t>& report) {
     return true;
 }
 
+void testIdleKeepalivesLeaveMotorChannelsOff() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+    constexpr std::uint8_t kMotorChannelBits = 0x1C;
+    for (const unsigned rate : {1000U, 2000U}) {
+        auto* transport = new FakeApex6Transport();
+        Apex5Device device{TransportPtr(transport)};
+        std::string error;
+        assert(device.verifyIdentity(error));
+        Apex6HapticBridge bridge(device, {}, true, 100, 100, 100, 0, 100, rate);
+        assert(bridge.start(error));
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
+        assert(bridge.stop(error));
+        const auto keepalives = bridge.stats().idleKeepalives;
+        assert(keepalives > 0);
+        const auto reports = realtimeReports(*transport);
+        const auto disable = reports.end() - 3;
+        const auto first = std::find_if(reports.begin(), disable, [](const auto& report) {
+            return (report[5] & kMotorChannelBits) == 0;
+        });
+        assert(static_cast<std::uint64_t>(std::distance(first, disable)) == keepalives);
+        for (auto report = first; report != disable; ++report) {
+            assert(((*report)[5] & kMotorChannelBits) == 0 && reportIsSilent(*report));
+        }
+        for (auto report = reports.begin(); report != first; ++report) {
+            assert(((*report)[5] & 0x18) == 0x18);
+        }
+    }
+}
+
 void testApex6TwoKilohertzNativePcm() {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
@@ -2229,6 +2259,7 @@ int main() {
     testShapingBridge();
     testTriggerReleaseSendsExplicitZeroFrames();
     testIdleSkipsFramesAndWakesImmediately();
+    testIdleKeepalivesLeaveMotorChannelsOff();
     testNativeTriggerEffects();
     testPcmGainCurve();
     testApex6EnvelopeThresholdPolicy();

@@ -75,6 +75,14 @@
   RGB for that model, so the bridge stopped at once ("stopped before reporting it
   was ready (code 1)") in both auto-detection and force-always-on. The APEX 6
   calibration now accepts RGB and the brightness limit, as on the APEX 5.
+- **APEX 6 Pro motors no longer buzz while the bridge is idle.** With no game
+  effect, the bridge sends a silent keepalive about every 50 ms. That keepalive
+  still enabled the grip channels, so the firmware started and stopped a few
+  milliseconds of silent playback each time, which made all four motors buzz
+  quietly at 1 kHz and at 2 kHz. The keepalive now leaves every motor channel off.
+  Checked by ear on the controller (dongle): buzz with the old keepalive in 2 of 2
+  blind runs, none with the new one or with no keepalive at all, and an effect
+  still plays normally after 8 s of idle.
 
 
 ## 1.1.0

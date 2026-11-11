@@ -1099,11 +1099,12 @@ void Apex6HapticBridge::run() noexcept {
     const auto writeReport = [this](const flydigi::apex6::MotorBlock& half,
                                     bool trigger,
                                     flydigi::apex6::TriggerRoute halfRoute,
-                                    bool interpolate) {
+                                    bool interpolate,
+                                    bool grips) {
         std::string writeError;
         const auto writeStartedAt = Clock::now();
         if (!device_.writeApex6Haptics(
-                half, halfRoute, trigger, routeGrips_, writeError, interpolate)) {
+                half, halfRoute, trigger, grips, writeError, interpolate)) {
             writeFailures_.fetch_add(1, std::memory_order_relaxed);
             recordError(std::move(writeError));
             return false;
@@ -1283,24 +1284,27 @@ void Apex6HapticBridge::run() noexcept {
             keepalive = true;
             idleKeepalives_.fetch_add(1, std::memory_order_relaxed);
         }
+        if (keepalive) {
+            if (!writeReport(flydigi::apex6::MotorBlock{}, false, Route::Mute, !rate2k_, false)) return;
+            continue;
+        }
         flydigi::apex6::MotorBlock firstHalf;
         std::copy_n(block.begin(), firstHalf.size(), firstHalf.begin());
-        if (rate2k_ && needsPrime && !keepalive) {
+        if (rate2k_ && needsPrime) {
             const flydigi::apex6::MotorBlock silentHalf{};
             for (unsigned primed = 0; primed < kPrimeHalfFrames2k; ++primed) {
-                if (!writeReport(silentHalf, false, Route::Mute, false)) return;
+                if (!writeReport(silentHalf, false, Route::Mute, false, routeGrips_)) return;
                 primeReports_.fetch_add(1, std::memory_order_relaxed);
             }
             needsPrime = false;
         }
-        if (!writeReport(firstHalf, triggerEnabled, route, !rate2k_)) return;
+        if (!writeReport(firstHalf, triggerEnabled, route, !rate2k_, routeGrips_)) return;
         if (rate2k_) {
             flydigi::apex6::MotorBlock secondHalf;
             std::copy_n(block.begin() + firstHalf.size(), secondHalf.size(), secondHalf.begin());
             if (!waitUntilOrStop(deadline - kHalfFramePeriod)) return;
-            if (!writeReport(secondHalf, triggerEnabled, route, false)) return;
+            if (!writeReport(secondHalf, triggerEnabled, route, false, routeGrips_)) return;
         }
-        if (keepalive) continue;
         if ((dualFirmwareWanted_ || firmwareWritten[0] || firmwareWritten[1]) && !reconcileFirmware()) {
             return;
         }
