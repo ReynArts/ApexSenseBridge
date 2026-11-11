@@ -67,6 +67,15 @@
   `assets/controllers-reference.png`, `scripts/generate-app-logo.ps1` the plate logo, the icon
   and the Playnite icon, and `scripts/generate-widget-assets.ps1` the widget tiles.
 
+### Fixes
+
+- **APEX 6 Pro with RGB sync no longer fails to start**
+  ([#87](https://github.com/ReynArts/ApexSenseBridge/issues/87)). The Tray sends the
+  RGB setting in the APEX 6 calibration since 1.1.0, but the engine still refused
+  RGB for that model, so the bridge stopped at once ("stopped before reporting it
+  was ready (code 1)") in both auto-detection and force-always-on. The APEX 6
+  calibration now accepts RGB and the brightness limit, as on the APEX 5.
+
 
 ## 1.1.0
 

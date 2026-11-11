@@ -314,6 +314,17 @@ int main() {
     auto limitedApex4 = limited.options;
     assert(asb::cli::applyControllerCalibration(limitedApex4, "apex4", calibrationError));
     assert(limitedApex4.lightbarBrightnessPercent == 100 && !limitedApex4.syncLightbar);
+    auto apex6Rgb = parse({"--controller-calibration", "apex4:100:100:12:1:0:100:100:100",
+                           "--controller-calibration", "apex5:100:100:12:1:0:100:100:100",
+                           "--controller-calibration", "apex6:100:100:0:1:1:100:100:100"});
+    assert(apex6Rgb.succeeded);
+    assert(asb::cli::applyControllerCalibration(apex6Rgb.options, "apex6", calibrationError));
+    assert(apex6Rgb.options.syncLightbar && apex6Rgb.options.lightbarBrightnessPercent == 100);
+    auto apex6Dimmed = parse({"--controller-calibration", "apex6:80:90:0:1:1:100:100:40"});
+    assert(apex6Dimmed.succeeded);
+    assert(asb::cli::applyControllerCalibration(apex6Dimmed.options, "apex6", calibrationError));
+    assert(apex6Dimmed.options.syncLightbar && apex6Dimmed.options.lightbarBrightnessPercent == 40);
+    assert(apex6Dimmed.options.routeRumble && apex6Dimmed.options.triggerStrengthPercent == 80);
     for (const auto brightness : {"0", "100"}) {
         assert(parse({"--controller-calibration",
                       std::string("apex5:45:70:12:1:1:100:100:") + brightness}).succeeded);
@@ -322,7 +333,7 @@ int main() {
              "apex5:45:70:12:1:1:100:100:101", "apex5:45:70:12:1:1:100:100:-1",
              "apex5:45:70:12:1:1:100:100:4x", "apex5:45:70:12:1:1:100:100:",
              "apex5:45:70:12:1:1:100:100:40:1", "apex4:35:60:24:0:0:175:225:40",
-             "apex6:80:90:0:1:0:100:100:99"})
+             "apex6:80:90:0:1:1:100:100:101", "apex6:80:90:0:1:1:150:100:40"})
         assert(!parse({"--controller-calibration", invalid}).succeeded);
     for (const auto invalid : {
              "apex7:100:100:12:1:0:100:100", "apex4:101:100:12:1:0:100:100",

@@ -69,7 +69,7 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
             }
             // Reject trailing separators / extra fields, rather than partial parses.
             if (!input.eof()) return false;
-            if ((index != 1 && (fields[4] != 0 || fields[7] != 100)) ||
+            if ((index == 0 && (fields[4] != 0 || fields[7] != 100)) ||
                 (index == 2 && fields[2] != 0) ||
                 (index != 0 && (fields[5] != 100 || fields[6] != 100))) return false;
             options.controllerCalibrations[index] = ControllerCalibration{
