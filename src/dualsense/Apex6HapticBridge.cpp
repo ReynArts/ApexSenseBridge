@@ -664,9 +664,11 @@ void Apex6HapticBridge::handleTrigger(TriggerSide side, const DualSenseFeedback&
     auto& target = left ? leftTrigger_ : rightTrigger_;
     const std::size_t sideIndex = left ? 0 : 1;
     if (decoded && next.type == Apex6TriggerType::Off && target.type != Apex6TriggerType::Off) {
-        pendingClear_[sideIndex] = true;
-        pendingClearAt_[sideIndex] = Clock::now() + kTriggerClearHold;
-        triggerStops_.fetch_add(1, std::memory_order_relaxed);
+        if (!pendingClear_[sideIndex]) {
+            pendingClear_[sideIndex] = true;
+            pendingClearAt_[sideIndex] = Clock::now() + kTriggerClearHold;
+            triggerStops_.fetch_add(1, std::memory_order_relaxed);
+        }
         return;
     }
     pendingClear_[sideIndex] = false;

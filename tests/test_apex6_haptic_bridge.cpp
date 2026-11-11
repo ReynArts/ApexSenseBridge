@@ -1638,6 +1638,39 @@ void testTriggerReleaseSendsExplicitZeroFrames() {
     assert(zeroFrames >= 3);
 }
 
+void testRepeatedTriggerOffStillClearsEffect() {
+    using namespace asb::dualsense;
+    using namespace asb::flydigi;
+
+    auto* transport = new FakeApex6Transport();
+    Apex5Device device{TransportPtr(transport)};
+    std::string error;
+    assert(device.verifyIdentity(error));
+    Apex6HapticBridge bridge(device, {}, true);
+    assert(bridge.start(error));
+    bridge.updateTriggerPositions(255, 0);
+
+    DualSenseFeedback kick{};
+    kick.enableBits1 = 0x08;
+    kick.leftTriggerEffect = {0x26, 0xFF, 0x03, 0xFF, 0xFF, 0xFF, 0x3F, 0, 0, 4, 0};
+    bridge.handle(kick);
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+    DualSenseFeedback off{};
+    off.enableBits1 = 0x08;
+    off.leftTriggerEffect[0] = 0x05;
+    std::uint64_t framesAfterClear = 0;
+    for (unsigned repeat = 0; repeat < 30; ++repeat) {
+        bridge.handle(off);
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        if (repeat == 14) framesAfterClear = bridge.stats().leftTriggerFrames;
+    }
+    const auto stats = bridge.stats();
+    assert(bridge.stop(error));
+    assert(framesAfterClear > 0);
+    assert(stats.leftTriggerFrames == framesAfterClear);
+    assert(stats.triggerStops == 1);
+}
+
 struct TriggerFrame {
     unsigned route = 0;
     bool enabled = false;
@@ -2258,6 +2291,7 @@ int main() {
     testShapingHelpers();
     testShapingBridge();
     testTriggerReleaseSendsExplicitZeroFrames();
+    testRepeatedTriggerOffStillClearsEffect();
     testIdleSkipsFramesAndWakesImmediately();
     testIdleKeepalivesLeaveMotorChannelsOff();
     testNativeTriggerEffects();

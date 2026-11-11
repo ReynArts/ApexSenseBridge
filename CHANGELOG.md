@@ -83,6 +83,14 @@
   Checked by ear on the controller (dongle): buzz with the old keepalive in 2 of 2
   blind runs, none with the new one or with no keepalive at all, and an effect
   still plays normally after 8 s of idle.
+- **APEX 6 Pro trigger effect stops even when the game keeps sending "off"**
+  ([#90](https://github.com/ReynArts/ApexSenseBridge/issues/90)). Since 1.1.0 a
+  trigger "off" is held 100 ms before the effect stops, but every new "off" pushed
+  that deadline back. Horizon Forbidden West sends the left-trigger "off" many times
+  a second while aiming, so the full-strength 4 Hz kick of a bow shot on LT never
+  stopped until LT was released. A repeated "off" no longer restarts the 100 ms
+  hold. Reproduced and checked with the packet sequence from the report's
+  diagnostics, not in the game.
 
 
 ## 1.1.0
