@@ -217,7 +217,7 @@ namespace ApexSenseBridgeWidget
             Controls.Visibility = interactive ? Visibility.Visible : Visibility.Collapsed;
             if (!status.TrayReachable)
             {
-                DetailText.Text = Texts.Get("TrayMissing");
+                DetailText.Text = Texts.Get("BrokerMissing");
                 FooterText.Text = string.Empty;
                 return;
             }
@@ -267,7 +267,9 @@ namespace ApexSenseBridgeWidget
                     HorizontalAlignment = HorizontalAlignment.Left,
                     Child = GlyphFactory.BuildEntry(remap)
                 });
-                var text = string.IsNullOrEmpty(remap.Use) ? remap.OutputLabel : remap.Use;
+                var text = !string.IsNullOrEmpty(remap.Use)
+                    ? remap.Use
+                    : (!string.IsNullOrEmpty(remap.OutputLabel) ? remap.OutputLabel : Texts.Get("Out_" + remap.Output));
                 if (!string.IsNullOrEmpty(text))
                 {
                     RemapPanel.Children.Add(new TextBlock

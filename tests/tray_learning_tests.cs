@@ -68,6 +68,8 @@ internal static class TrayLearningTests
             TestWidgetControlService();
             TestWidgetControlServer();
             TestWidgetPackageLocator();
+            TestWidgetBrokerLease();
+            TestWidgetBrokerYield();
             TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
@@ -2033,8 +2035,8 @@ internal static class TrayLearningTests
         widgetPersistCalls = 0;
         var settings = new TraySettings();
         var backend = new FakeWidgetBackend();
-        var service = new WidgetControlService(backend, settings, title => "norm:" + title,
-            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => widgetPersistCalls++, () => "fr");
+        var service = new WidgetControlService(backend, new TrayWidgetTuningStore(settings, title => "norm:" + title, () => widgetPersistCalls++),
+            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => "fr");
 
         var reply = WidgetReply(service, "{\"cmd\":\"status\"}");
         Assert((bool)reply["ok"] && !(bool)reply["active"] && (string)reply["phase"] == "Stopped",
@@ -2047,8 +2049,8 @@ internal static class TrayLearningTests
 
         backend = NewWidgetBackend("Tray", 6);
         backend.Applied.TouchpadProfile = 2;
-        service = new WidgetControlService(backend, settings, title => "norm:" + title,
-            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => widgetPersistCalls++, () => "fr");
+        service = new WidgetControlService(backend, new TrayWidgetTuningStore(settings, title => "norm:" + title, () => widgetPersistCalls++),
+            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => "fr");
         reply = WidgetReply(service, "{\"cmd\":\"status\"}");
         var tuning = (Dictionary<string, object>)reply["tuning"];
         Assert((string)reply["language"] == "fr", "The Tray language was not sent to the widget.");
@@ -2091,7 +2093,7 @@ internal static class TrayLearningTests
 
         var other = NewWidgetBackend("Playnite", 5);
         var otherSettings = new TraySettings();
-        var otherService = new WidgetControlService(other, otherSettings, title => title, null, null, () => widgetPersistCalls++, () => "fr");
+        var otherService = new WidgetControlService(other, new TrayWidgetTuningStore(otherSettings, title => title, () => widgetPersistCalls++), null, null, () => "fr");
         reply = WidgetReply(otherService, "{\"cmd\":\"status\"}");
         Assert(!(bool)reply["canSave"] && ((object[])reply["remaps"]).Length == 0, "A Playnite session was offered persistence.");
         reply = WidgetReply(otherService, "{\"cmd\":\"set\",\"vibration\":180,\"save\":true}");
@@ -2107,7 +2109,7 @@ internal static class TrayLearningTests
         Assert(WidgetControlServer.DeriveAppContainerSid(string.Empty) == null, "An empty package name produced a SID.");
 
         var backend = NewWidgetBackend("Tray", 6);
-        var service = new WidgetControlService(backend, new TraySettings(), null, null, null, null, null);
+        var service = new WidgetControlService(backend, null, null, null, null);
         var pipeName = "ASB.Test." + Guid.NewGuid().ToString("N");
         using (var server = new WidgetControlServer(service, pipeName, WidgetControlServer.KnownPackageFamilies))
         {
@@ -2162,7 +2164,7 @@ internal static class TrayLearningTests
             "Duplicate versions were not folded into one family each.");
         Assert(WidgetPackageLocator.FindFamilies() != null, "Reading the installed packages failed outright.");
 
-        var service = new WidgetControlService(NewWidgetBackend("Tray", 6), new TraySettings(), null, null, null, null, null);
+        var service = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, null);
         using (var withKnownOnly = new WidgetControlServer(service, "ASB.Test." + Guid.NewGuid().ToString("N"), WidgetControlServer.KnownPackageFamilies))
         using (var withDiscovered = new WidgetControlServer(service, "ASB.Test." + Guid.NewGuid().ToString("N"),
             WidgetControlServer.KnownPackageFamilies, () => new[] { family, "ReynArts.ApexSenseBridgeWidget_abcdefghjkmnp" }))
@@ -2171,6 +2173,83 @@ internal static class TrayLearningTests
             Assert(withKnownOnly.BuildSecurity().GetAccessRules(true, false, sidType).Count == 3, "The fixed access list changed.");
             Assert(withDiscovered.BuildSecurity().GetAccessRules(true, false, sidType).Count == 4,
                 "A discovered package family was not added once to the access list.");
+        }
+    }
+    private static Dictionary<string, object> AskWidgetPipe(string pipeName, string request)
+    {
+        using (var client = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut))
+        {
+            client.Connect(3000);
+            var bytes = Encoding.UTF8.GetBytes(request + "\n");
+            client.Write(bytes, 0, bytes.Length);
+            client.Flush();
+            var line = new System.IO.StreamReader(client, Encoding.UTF8).ReadLine();
+            return (Dictionary<string, object>)new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(line);
+        }
+    }
+
+    private static void TestWidgetBrokerLease()
+    {
+        var pipeName = "ASB.Test.Lease." + Guid.NewGuid().ToString("N");
+        var first = new WidgetControlService(NewWidgetBackend("Playnite", 6), null, null, null, () => "first");
+        var second = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, () => "second");
+        using (var firstServer = new WidgetControlServer(first, pipeName, new string[0]))
+        using (var secondServer = new WidgetControlServer(second, pipeName, new string[0]))
+        {
+            firstServer.Start();
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "first", "The first broker did not serve.");
+            secondServer.Start();
+            Thread.Sleep(1300);
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "first",
+                    "A second broker served while the first still held the lease.");
+            }
+            firstServer.Dispose();
+            var tookOver = false;
+            var deadline = DateTime.UtcNow.AddSeconds(6);
+            while (DateTime.UtcNow < deadline && !tookOver)
+            {
+                try { tookOver = (string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "second"; }
+                catch (Exception) { Thread.Sleep(200); }
+            }
+            Assert(tookOver, "The waiting broker did not take over after the first one stopped.");
+        }
+
+        var noStore = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, null);
+        var reply = WidgetReply(noStore, "{\"cmd\":\"status\"}");
+        Assert(!(bool)reply["canSave"], "A broker without a settings store offered persistence.");
+        reply = WidgetReply(noStore, "{\"cmd\":\"set\",\"trigger\":20,\"save\":true}");
+        Assert((bool)reply["ok"] && !(bool)reply["saved"], "A broker without a settings store reported a save.");
+    }
+    private static void TestWidgetBrokerYield()
+    {
+        var pipeName = "ASB.Test.Yield." + Guid.NewGuid().ToString("N");
+        var guest = new WidgetControlService(NewWidgetBackend("Playnite", 6), null, null, null, () => "guest");
+        var owner = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, () => "owner");
+        using (var guestMayServe = new ManualResetEventSlim(true))
+        using (var guestServer = new WidgetControlServer(guest, pipeName, new string[0], null, () => guestMayServe.IsSet))
+        using (var ownerServer = new WidgetControlServer(owner, pipeName, new string[0]))
+        {
+            guestServer.Start();
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "guest", "The guest broker did not serve.");
+            ownerServer.Start();
+            Thread.Sleep(1300);
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "guest",
+                "The owner served while the guest was still allowed to.");
+            guestMayServe.Reset();
+            var tookOver = false;
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (DateTime.UtcNow < deadline && !tookOver)
+            {
+                try { tookOver = (string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "owner"; }
+                catch (Exception) { Thread.Sleep(200); }
+            }
+            Assert(tookOver, "The guest broker did not hand the pipe over when it was told to stop serving.");
+            guestMayServe.Set();
+            Thread.Sleep(1500);
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "owner",
+                "The guest broker took the pipe back from a running owner.");
         }
     }
     private static void TestSessionStatusDiscovery()

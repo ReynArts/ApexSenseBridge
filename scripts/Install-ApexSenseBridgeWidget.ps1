@@ -76,4 +76,4 @@ Add-AppxPackage @arguments
 
 $installed = Get-AppxPackage -Name $identityName
 Write-Host "Installed $($installed.PackageFullName)."
-Write-Host "Open Xbox Game Bar (Win+G), open the widget menu and choose ApexSenseBridge. The ApexSenseBridge Tray must be running."
+Write-Host "Open Xbox Game Bar (Win+G), open the widget menu and choose ApexSenseBridge. The ApexSenseBridge Tray or the Playnite extension must be running."

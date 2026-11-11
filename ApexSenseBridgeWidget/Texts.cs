@@ -32,7 +32,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "Remember for this game" },
                 { "RememberHint", "Applies to this game only" },
                 { "Saved", "Applied and saved for this game" },
-                { "TrayMissing", "The ApexSenseBridge Tray is not running. Start it to control the bridge here." },
+                { "BrokerMissing", "ApexSenseBridge is not running. Start the Tray or Playnite to control the bridge here." },
+                { "Hold", "Hold" },
+                { "Out_Click", "Touchpad click" },
+                { "Out_ClickRight", "Click on the right side of the touchpad" },
+                { "Out_ClickLeft", "Click on the left side of the touchpad" },
+                { "Out_SwipeLeft", "Swipe left on the touchpad" },
+                { "Out_SwipeUpDown", "Swipe up, then down on the next hold" },
+                { "Out_SwipeFlick", "Swipe in the direction of the flick" },
+                { "Out_SwipeFour", "Swipe up / down / left / right (one direction per button)" },
             } },
             { "es", new Dictionary<string, string>
             {
@@ -58,7 +66,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "Recordar para este juego" },
                 { "RememberHint", "Solo se aplica a este juego" },
                 { "Saved", "Aplicado y guardado para este juego" },
-                { "TrayMissing", "El Tray de ApexSenseBridge no está en ejecución. Inícialo para controlar el bridge desde aquí." },
+                { "BrokerMissing", "ApexSenseBridge no está en ejecución. Inicia el Tray o Playnite para controlar el bridge desde aquí." },
+                { "Hold", "Mantener" },
+                { "Out_Click", "Clic del panel táctil" },
+                { "Out_ClickRight", "Clic en el lado derecho del panel táctil" },
+                { "Out_ClickLeft", "Clic en el lado izquierdo del panel táctil" },
+                { "Out_SwipeLeft", "Deslizar a la izquierda en el panel táctil" },
+                { "Out_SwipeUpDown", "Deslizar hacia arriba y, en la siguiente pulsación larga, hacia abajo" },
+                { "Out_SwipeFlick", "Deslizar en la dirección del stick" },
+                { "Out_SwipeFour", "Deslizar arriba / abajo / izquierda / derecha (una dirección por botón)" },
             } },
             { "fr", new Dictionary<string, string>
             {
@@ -84,7 +100,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "Retenir pour ce jeu" },
                 { "RememberHint", "S'applique à ce jeu uniquement" },
                 { "Saved", "Appliqué et enregistré pour ce jeu" },
-                { "TrayMissing", "Le Tray ApexSenseBridge n'est pas lancé. Démarrez-le pour piloter le bridge ici." },
+                { "BrokerMissing", "ApexSenseBridge n'est pas lancé. Démarrez le Tray ou Playnite pour piloter le bridge ici." },
+                { "Hold", "Maintenir" },
+                { "Out_Click", "Clic du pavé tactile" },
+                { "Out_ClickRight", "Clic sur le côté droit du pavé tactile" },
+                { "Out_ClickLeft", "Clic sur le côté gauche du pavé tactile" },
+                { "Out_SwipeLeft", "Balayage vers la gauche sur le pavé tactile" },
+                { "Out_SwipeUpDown", "Balayage vers le haut, puis vers le bas au maintien suivant" },
+                { "Out_SwipeFlick", "Balayage dans la direction du stick" },
+                { "Out_SwipeFour", "Balayage haut / bas / gauche / droite (une direction par bouton)" },
             } },
             { "ja", new Dictionary<string, string>
             {
@@ -110,7 +134,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "このゲームに記憶する" },
                 { "RememberHint", "このゲームにのみ適用されます" },
                 { "Saved", "適用し、このゲーム用に保存しました" },
-                { "TrayMissing", "ApexSenseBridge Tray が起動していません。ここからブリッジを操作するには起動してください。" },
+                { "BrokerMissing", "ApexSenseBridge が起動していません。ここからブリッジを操作するには、Tray または Playnite を起動してください。" },
+                { "Hold", "長押し" },
+                { "Out_Click", "タッチパッドのクリック" },
+                { "Out_ClickRight", "タッチパッド右側のクリック" },
+                { "Out_ClickLeft", "タッチパッド左側のクリック" },
+                { "Out_SwipeLeft", "タッチパッドを左にスワイプ" },
+                { "Out_SwipeUpDown", "上にスワイプ、次の長押しでは下にスワイプ" },
+                { "Out_SwipeFlick", "スティックを倒した方向にスワイプ" },
+                { "Out_SwipeFour", "上 / 下 / 左 / 右にスワイプ（ボタンごとに1方向）" },
             } },
             { "ko", new Dictionary<string, string>
             {
@@ -136,7 +168,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "이 게임에 기억" },
                 { "RememberHint", "이 게임에만 적용됩니다" },
                 { "Saved", "적용되어 이 게임용으로 저장됨" },
-                { "TrayMissing", "ApexSenseBridge Tray가 실행 중이 아닙니다. 여기서 브리지를 제어하려면 먼저 실행하세요." },
+                { "BrokerMissing", "ApexSenseBridge가 실행 중이 아닙니다. 여기서 브리지를 제어하려면 Tray 또는 Playnite를 실행하세요." },
+                { "Hold", "길게 누르기" },
+                { "Out_Click", "터치패드 클릭" },
+                { "Out_ClickRight", "터치패드 오른쪽 클릭" },
+                { "Out_ClickLeft", "터치패드 왼쪽 클릭" },
+                { "Out_SwipeLeft", "터치패드에서 왼쪽으로 스와이프" },
+                { "Out_SwipeUpDown", "위로 스와이프, 다음 길게 누르기에서는 아래로 스와이프" },
+                { "Out_SwipeFlick", "스틱을 튕긴 방향으로 스와이프" },
+                { "Out_SwipeFour", "위 / 아래 / 왼쪽 / 오른쪽 스와이프(버튼마다 한 방향)" },
             } },
             { "pt", new Dictionary<string, string>
             {
@@ -162,7 +202,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "Lembrar para este jogo" },
                 { "RememberHint", "Aplica-se apenas a este jogo" },
                 { "Saved", "Aplicado e salvo para este jogo" },
-                { "TrayMissing", "O Tray do ApexSenseBridge não está em execução. Inicie-o para controlar o bridge aqui." },
+                { "BrokerMissing", "O ApexSenseBridge não está em execução. Inicie o Tray ou o Playnite para controlar o bridge aqui." },
+                { "Hold", "Manter" },
+                { "Out_Click", "Clique do touchpad" },
+                { "Out_ClickRight", "Clique no lado direito do touchpad" },
+                { "Out_ClickLeft", "Clique no lado esquerdo do touchpad" },
+                { "Out_SwipeLeft", "Deslizar para a esquerda no touchpad" },
+                { "Out_SwipeUpDown", "Deslizar para cima e, na próxima vez que manter, para baixo" },
+                { "Out_SwipeFlick", "Deslizar na direção do analógico" },
+                { "Out_SwipeFour", "Deslizar para cima / baixo / esquerda / direita (uma direção por botão)" },
             } },
             { "ru", new Dictionary<string, string>
             {
@@ -188,7 +236,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "Запомнить для этой игры" },
                 { "RememberHint", "Действует только для этой игры" },
                 { "Saved", "Применено и сохранено для этой игры" },
-                { "TrayMissing", "ApexSenseBridge Tray не запущен. Запустите его, чтобы управлять мостом отсюда." },
+                { "BrokerMissing", "ApexSenseBridge не запущен. Запустите Tray или Playnite, чтобы управлять мостом отсюда." },
+                { "Hold", "Удерживать" },
+                { "Out_Click", "Нажатие на тачпад" },
+                { "Out_ClickRight", "Нажатие на правую часть тачпада" },
+                { "Out_ClickLeft", "Нажатие на левую часть тачпада" },
+                { "Out_SwipeLeft", "Свайп влево по тачпаду" },
+                { "Out_SwipeUpDown", "Свайп вверх, при следующем удержании — вниз" },
+                { "Out_SwipeFlick", "Свайп в направлении стика" },
+                { "Out_SwipeFour", "Свайп вверх / вниз / влево / вправо (одно направление на кнопку)" },
             } },
             { "vi", new Dictionary<string, string>
             {
@@ -214,7 +270,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "Ghi nhớ cho trò chơi này" },
                 { "RememberHint", "Chỉ áp dụng cho trò chơi này" },
                 { "Saved", "Đã áp dụng và lưu cho trò chơi này" },
-                { "TrayMissing", "ApexSenseBridge Tray chưa chạy. Hãy khởi động để điều khiển bridge tại đây." },
+                { "BrokerMissing", "ApexSenseBridge chưa chạy. Hãy khởi động Tray hoặc Playnite để điều khiển bridge tại đây." },
+                { "Hold", "Giữ" },
+                { "Out_Click", "Nhấn bàn di chuột" },
+                { "Out_ClickRight", "Nhấn vào bên phải của bàn di chuột" },
+                { "Out_ClickLeft", "Nhấn vào bên trái của bàn di chuột" },
+                { "Out_SwipeLeft", "Vuốt sang trái trên bàn di chuột" },
+                { "Out_SwipeUpDown", "Vuốt lên, lần giữ tiếp theo vuốt xuống" },
+                { "Out_SwipeFlick", "Vuốt theo hướng gạt cần analog" },
+                { "Out_SwipeFour", "Vuốt lên / xuống / trái / phải (mỗi nút một hướng)" },
             } },
             { "zh", new Dictionary<string, string>
             {
@@ -240,7 +304,15 @@ namespace ApexSenseBridgeWidget
                 { "Remember", "为此游戏记住" },
                 { "RememberHint", "仅适用于此游戏" },
                 { "Saved", "已应用，并已为此游戏保存" },
-                { "TrayMissing", "ApexSenseBridge Tray 未运行。请先启动它，以便在此控制桥接。" },
+                { "BrokerMissing", "ApexSenseBridge 未运行。请启动 Tray 或 Playnite，以便在此控制桥接。" },
+                { "Hold", "按住" },
+                { "Out_Click", "触控板点击" },
+                { "Out_ClickRight", "点击触控板右侧" },
+                { "Out_ClickLeft", "点击触控板左侧" },
+                { "Out_SwipeLeft", "在触控板上向左滑动" },
+                { "Out_SwipeUpDown", "向上滑动，下一次按住时向下滑动" },
+                { "Out_SwipeFlick", "朝摇杆拨动的方向滑动" },
+                { "Out_SwipeFour", "向上 / 下 / 左 / 右滑动（每个按钮对应一个方向）" },
             } },
         };
 
@@ -262,7 +334,7 @@ namespace ApexSenseBridgeWidget
         private static string Normalize(string code)
         {
             if (string.IsNullOrEmpty(code)) return "en";
-            var primary = code.Split('-')[0].ToLowerInvariant();
+            var primary = code.Split('-', '_')[0].ToLowerInvariant();
             return All.ContainsKey(primary) ? primary : "en";
         }
 

@@ -98,9 +98,11 @@ namespace ApexSenseBridgeTray
                 sessionManager = new EngineSessionManager();
                 widgetServer = new WidgetControlServer(
                     new WidgetControlService(
-                        new LiveWidgetBackend(), settings, CloudGameListService.Normalize, BuildWidgetRemapEntries,
+                        new LiveWidgetBackend(),
+                        new TrayWidgetTuningStore(settings, CloudGameListService.Normalize, settings.Save),
+                        BuildWidgetRemapEntries,
                         action => { if (Dispatcher.CheckAccess()) action(); else Dispatcher.Invoke(action); },
-                        settings.Save, () => LocalizationManager.CurrentLanguage),
+                        () => LocalizationManager.CurrentLanguage),
                     WidgetControlServer.DefaultPipeName, WidgetControlServer.KnownPackageFamilies, WidgetPackageLocator.FindFamilies);
                 widgetServer.Start();
                 learningService = new ExecutableLearningService();

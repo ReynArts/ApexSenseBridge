@@ -59,6 +59,22 @@
     <Compile Include="AutomaticProfileDetector.cs" />
     <Compile Include="SupportedGameCatalog.cs" />
     <Compile Include="UpdateManager.cs" />
+    <Compile Include="WidgetHost.cs" />
+    <Compile Include="..\..\ApexSenseBridgeTray\Services\WidgetControlServer.cs">
+      <Link>WidgetControlServer.cs</Link>
+    </Compile>
+    <Compile Include="..\..\ApexSenseBridgeTray\Services\WidgetControlService.cs">
+      <Link>WidgetControlService.cs</Link>
+    </Compile>
+    <Compile Include="..\..\ApexSenseBridgeTray\Services\WidgetPackageLocator.cs">
+      <Link>WidgetPackageLocator.cs</Link>
+    </Compile>
+    <Compile Include="..\..\ApexSenseBridgeTray\Services\TouchpadRemapGuide.cs">
+      <Link>TouchpadRemapGuide.cs</Link>
+    </Compile>
+    <Compile Include="..\..\shared\SessionTuning.cs">
+      <Link>SessionTuning.cs</Link>
+    </Compile>
     <Compile Include="..\..\shared\UpdatePackage.cs">
       <Link>UpdatePackage.cs</Link>
     </Compile>

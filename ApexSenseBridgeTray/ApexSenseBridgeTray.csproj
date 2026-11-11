@@ -136,6 +136,7 @@
     <Compile Include="Services\EngineSessionManager.cs" />
     <Compile Include="Services\WidgetControlServer.cs" />
     <Compile Include="Services\WidgetControlService.cs" />
+    <Compile Include="Services\TrayWidgetTuningStore.cs" />
     <Compile Include="Services\WidgetPackageLocator.cs" />
     <Compile Include="Services\SessionRecoveryState.cs" />
     <Compile Include="Services\StartRetryPolicy.cs" />

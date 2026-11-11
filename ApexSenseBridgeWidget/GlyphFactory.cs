@@ -31,7 +31,7 @@ namespace ApexSenseBridgeWidget
             {
                 row.Children.Add(new TextBlock
                 {
-                    Text = entry.HoldLabel,
+                    Text = string.IsNullOrEmpty(entry.HoldLabel) ? Texts.Get("Hold") : entry.HoldLabel,
                     FontSize = 12,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = Highlight,

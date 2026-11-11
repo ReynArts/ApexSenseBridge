@@ -97,7 +97,9 @@ restart result and logs for every matrix row before publishing the tag.
   running, and check controller navigation, live strength changes, the mute
   and trigger-effects switches, the profile row and "Remember for this game".
 - The Tray finds the installed package from the registry, so a new publisher
-  needs no code change; confirm the widget connects before publishing.
+  needs no code change; confirm the widget connects before publishing. Repeat
+  the check without the Tray, in the Xbox full-screen experience through
+  Playnite: the Playnite extension then hosts the pipe.
 - SignPath's artifact configuration has an `<msix-file>` element for `.msix`
   packages (see its artifact configuration reference). Adding a signing stage
   to `release.yml` and the package to the release assets is still to do.

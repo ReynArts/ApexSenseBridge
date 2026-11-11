@@ -1,5 +1,4 @@
 using ApexSenseBridge.Common;
-using ApexSenseBridgeTray.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -38,6 +37,11 @@ namespace ApexSenseBridgeTray.Services
         }
     }
 
+    internal interface IWidgetTuningStore
+    {
+        bool SaveGameTuning(string game, uint model, uint? trigger, uint? vibration, SessionTuningState applied);
+    }
+
     internal sealed class WidgetControlService
     {
         internal const int ProtocolVersion = 1;
@@ -49,28 +53,22 @@ namespace ApexSenseBridgeTray.Services
         };
 
         private readonly IWidgetBackend backend;
-        private readonly TraySettings settings;
-        private readonly Func<string, string> normalizeTitle;
+        private readonly IWidgetTuningStore store;
         private readonly Func<string, object[]> remapEntries;
         private readonly Action<Action> runOnUi;
-        private readonly Action persistSettings;
         private readonly Func<string> languageCode;
 
         internal WidgetControlService(
             IWidgetBackend backend,
-            TraySettings settings,
-            Func<string, string> normalizeTitle,
+            IWidgetTuningStore store,
             Func<string, object[]> remapEntries,
             Action<Action> runOnUi,
-            Action persistSettings,
             Func<string> languageCode)
         {
             this.backend = backend;
-            this.settings = settings;
-            this.normalizeTitle = normalizeTitle ?? (title => title);
+            this.store = store;
             this.remapEntries = remapEntries ?? (profile => new object[0]);
             this.runOnUi = runOnUi ?? (action => action());
-            this.persistSettings = persistSettings;
             this.languageCode = languageCode;
         }
 
@@ -113,7 +111,7 @@ namespace ApexSenseBridgeTray.Services
             result["profile"] = info.Profile ?? string.Empty;
             result["controller"] = info.Controller ?? string.Empty;
             result["controllerLost"] = info.ControllerLost;
-            result["canSave"] = IsTrayOwned(info);
+            result["canSave"] = store != null && IsTrayOwned(info);
             result["profiles"] = ProfileNames;
             if (applied != null)
             {
@@ -154,45 +152,20 @@ namespace ApexSenseBridgeTray.Services
 
             var saved = false;
             bool wantsSave;
-            if (TryFlag(request, "save", out wantsSave) && wantsSave && IsTrayOwned(info) &&
+            if (TryFlag(request, "save", out wantsSave) && wantsSave && store != null && IsTrayOwned(info) &&
                 (change.TriggerStrengthPercent.HasValue || change.VibrationStrengthPercent.HasValue))
             {
                 var game = info.Game;
                 var model = before.ControllerModel;
                 var trigger = change.TriggerStrengthPercent;
                 var vibration = change.VibrationStrengthPercent;
-                runOnUi(() => saved = SaveGameTuning(game, model, trigger, vibration, before));
+                runOnUi(() => saved = store.SaveGameTuning(game, model, trigger, vibration, before));
             }
 
             var result = Status(backend.ReadSession());
             result["acknowledged"] = acknowledged;
             result["saved"] = saved;
             return result;
-        }
-
-        private bool SaveGameTuning(string game, uint model, uint? trigger, uint? vibration, SessionTuningState applied)
-        {
-            if (settings == null || string.IsNullOrWhiteSpace(game)) return false;
-            var key = normalizeTitle(game);
-            var modelName = model == 6 ? "apex6" : model == 4 ? "apex4" : "apex5";
-            var tuning = settings.GetGameTuning(key) ?? settings.GetGameTuning(game);
-            if (tuning == null)
-            {
-                var calibration = settings.GetControllerCalibration(modelName);
-                if (calibration == null) return false;
-                tuning = new GameTuning
-                {
-                    TriggerStrengthPercent = calibration.TriggerStrengthPercent,
-                    VibrationStrengthPercent = calibration.VibrationStrengthPercent,
-                    HapticThresholdPercent = calibration.HapticThresholdPercent
-                };
-            }
-            tuning.TriggerStrengthPercent = (int)(trigger ?? applied.TriggerStrengthPercent);
-            tuning.VibrationStrengthPercent = (int)(vibration ?? applied.VibrationStrengthPercent);
-            settings.SetGameTuning(key, game, tuning);
-            if (persistSettings == null) return false;
-            persistSettings();
-            return true;
         }
 
         private string Language()

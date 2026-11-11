@@ -20,6 +20,7 @@ namespace ApexSenseBridge
         private readonly ApexSenseBridgeSettingsViewModel settings;
         private BridgeSession activeSession;
         private Guid activeGameId;
+        private WidgetHost widgetHost;
 
         public override Guid Id { get; } = Guid.Parse("e41b1737-6753-4b59-bc65-4fdd6a7df7f4");
 
@@ -35,6 +36,16 @@ namespace ApexSenseBridge
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             base.OnApplicationStarted(args);
+
+            try
+            {
+                widgetHost = new WidgetHost(() => PlayniteApi.ApplicationSettings.Language);
+                widgetHost.Start();
+            }
+            catch (Exception ex)
+            {
+                logger.Warn(ex, "Game Bar widget host could not start.");
+            }
 
             Task.Run(() => UpdateManager.CleanupUpdateLeftovers());
 
@@ -196,6 +207,9 @@ namespace ApexSenseBridge
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
             StopSession(null, "Playnite stopped");
+            try { widgetHost?.Dispose(); }
+            catch (Exception ex) { logger.Warn(ex, "Game Bar widget host did not stop cleanly."); }
+            widgetHost = null;
         }
 
         public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)

@@ -36,8 +36,14 @@
   so the Tray now hosts a named pipe, `ApexSenseBridge.Widget.v1`, whose access list
   grants only the current user and the widget package family. Requests are one JSON
   line (`status`, `set`), values are range-checked, and sessions owned by Playnite
-  are live-only. The widget needs the Tray running. It speaks the Tray's language
-  (the Tray sends it in every reply): all nine Tray languages are covered, reusing
+  are live-only. In the Xbox full-screen experience through Playnite, Explorer does
+  not run and the Tray's startup entry never starts it, so the Playnite extension
+  hosts the same pipe when the Tray is not running (one broker at a time, through a
+  named lease; the extension steps aside within seconds when the Tray starts and
+  keeps the pipe otherwise). That broker cannot save per-game tuning and sends the
+  gesture labels untranslated, so the widget translates them itself. The widget
+  follows the broker's language (the Tray sends it in every reply, the extension
+  sends Playnite's): all nine Tray languages are covered, reusing
   the Tray's own wording for the shared terms. The remapping (profile and gesture
   glyphs) comes first, then the coral sliders, the toggles and "remember for this
   game"; the layout adapts to the window size.

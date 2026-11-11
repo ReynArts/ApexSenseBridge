@@ -17,6 +17,7 @@ namespace ApexSenseBridgeTray.Services
         internal const int MaximumRequestBytes = 4096;
         internal const int ClientTimeoutMilliseconds = 2000;
         internal const int FamilyRefreshMilliseconds = 3000;
+        internal const int LeaseRetryMilliseconds = 1000;
         internal static readonly string[] KnownPackageFamilies =
         {
             "ReynArts.ApexSenseBridgeWidget_tcqvdfrmphh62"
@@ -25,20 +26,28 @@ namespace ApexSenseBridgeTray.Services
         private readonly WidgetControlService service;
         private readonly string pipeName;
         private readonly Func<IEnumerable<string>> packageFamilies;
+        private readonly Func<bool> shouldServe;
         private readonly ManualResetEvent stopEvent = new ManualResetEvent(false);
         private Thread thread;
         private bool disposed;
 
         internal WidgetControlServer(WidgetControlService service, string pipeName, IEnumerable<string> packageFamilies)
-            : this(service, pipeName, packageFamilies, null)
+            : this(service, pipeName, packageFamilies, null, null)
         {
         }
 
         internal WidgetControlServer(WidgetControlService service, string pipeName, IEnumerable<string> fixedFamilies,
                                      Func<IEnumerable<string>> discoveredFamilies)
+            : this(service, pipeName, fixedFamilies, discoveredFamilies, null)
+        {
+        }
+
+        internal WidgetControlServer(WidgetControlService service, string pipeName, IEnumerable<string> fixedFamilies,
+                                     Func<IEnumerable<string>> discoveredFamilies, Func<bool> shouldServe)
         {
             this.service = service;
             this.pipeName = pipeName;
+            this.shouldServe = shouldServe;
             var fixedList = new List<string>(fixedFamilies ?? new string[0]);
             packageFamilies = () =>
             {
@@ -93,36 +102,84 @@ namespace ApexSenseBridgeTray.Services
 
         private void Run()
         {
-            while (!stopEvent.WaitOne(0))
+            using (var lease = new Mutex(false, "Local\\" + pipeName + ".Broker"))
             {
+                var held = false;
                 try
                 {
-                    var families = new List<string>(packageFamilies());
-                    var security = BuildSecurity(families);
-                    using (var pipe = new NamedPipeServerStream(
-                        pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
-                        PipeOptions.Asynchronous, 4096, 4096, security))
+                    while (!stopEvent.WaitOne(0))
                     {
-                        var connecting = pipe.BeginWaitForConnection(null, null);
-                        while (true)
+                        if (!ShouldServe())
                         {
-                            var signalled = WaitHandle.WaitAny(new[] { connecting.AsyncWaitHandle, stopEvent }, FamilyRefreshMilliseconds);
-                            if (signalled == 1) return;
-                            if (signalled == 0)
+                            if (held)
                             {
-                                pipe.EndWaitForConnection(connecting);
-                                Serve(pipe);
-                                break;
+                                ReleaseLease(lease);
+                                held = false;
                             }
-                            if (!SameFamilies(families, packageFamilies())) break;
+                            if (stopEvent.WaitOne(LeaseRetryMilliseconds)) return;
+                            continue;
+                        }
+                        if (!held)
+                        {
+                            try
+                            {
+                                var acquired = WaitHandle.WaitAny(new WaitHandle[] { lease, stopEvent }, LeaseRetryMilliseconds);
+                                if (acquired == 1) return;
+                                held = acquired == 0;
+                            }
+                            catch (AbandonedMutexException)
+                            {
+                                held = true;
+                            }
+                            if (!held) continue;
+                        }
+                        try
+                        {
+                            var families = new List<string>(packageFamilies());
+                            var security = BuildSecurity(families);
+                            using (var pipe = new NamedPipeServerStream(
+                                pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
+                                PipeOptions.Asynchronous, 4096, 4096, security))
+                            {
+                                var connecting = pipe.BeginWaitForConnection(null, null);
+                                while (true)
+                                {
+                                    var signalled = WaitHandle.WaitAny(new[] { connecting.AsyncWaitHandle, stopEvent }, FamilyRefreshMilliseconds);
+                                    if (signalled == 1) return;
+                                    if (signalled == 0)
+                                    {
+                                        pipe.EndWaitForConnection(connecting);
+                                        Serve(pipe);
+                                        break;
+                                    }
+                                    if (!SameFamilies(families, packageFamilies()) || !ShouldServe()) break;
+                                }
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            if (stopEvent.WaitOne(500)) return;
                         }
                     }
                 }
-                catch (Exception)
+                finally
                 {
-                    if (stopEvent.WaitOne(500)) return;
+                    if (held) ReleaseLease(lease);
                 }
             }
+        }
+
+        private bool ShouldServe()
+        {
+            if (shouldServe == null) return true;
+            try { return shouldServe(); }
+            catch { return true; }
+        }
+
+        private static void ReleaseLease(Mutex lease)
+        {
+            try { lease.ReleaseMutex(); }
+            catch (ApplicationException) { }
         }
 
         private static bool SameFamilies(List<string> before, IEnumerable<string> after)
