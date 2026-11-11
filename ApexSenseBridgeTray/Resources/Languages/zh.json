@@ -1,4 +1,7 @@
 {
+  "Loc_RecoveryAutomaticTitle": "等待手动桥接重新连接",
+  "Loc_RecoveryAutomaticHint": "唤醒或重新连接手柄。持续启用时，桥接将自动恢复。关闭手动桥接开关即可停止。",
+  "Loc_RecoveryAutomaticPausedHint": "多次失败后已暂停自动恢复。请选择重试或重新连接手柄。",
   "Loc_SessionInterrupted": "会话中断",
   "Loc_RecoveryResume": "恢复桥接",
   "Loc_RecoveryDismiss": "隐藏",

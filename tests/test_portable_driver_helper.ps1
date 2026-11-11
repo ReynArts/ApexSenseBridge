@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+Import-Module Microsoft.PowerShell.Utility
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $helperPath = Join-Path $projectRoot "portable\Install-Drivers.ps1"

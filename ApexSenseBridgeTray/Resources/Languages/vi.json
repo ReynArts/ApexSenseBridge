@@ -1,4 +1,7 @@
 {
+  "Loc_RecoveryAutomaticTitle": "Đang chờ kết nối lại cầu nối thủ công",
+  "Loc_RecoveryAutomaticHint": "Bật hoặc kết nối lại tay cầm. Chế độ luôn bật sẽ tự động tiếp tục cầu nối. Tắt cầu nối thủ công để dừng.",
+  "Loc_RecoveryAutomaticPausedHint": "Đã tạm dừng khôi phục tự động sau nhiều lần lỗi. Chọn Thử lại hoặc kết nối lại tay cầm.",
   "Loc_SessionInterrupted": "Phiên kết nối bị gián đoạn",
   "Loc_RecoveryResume": "Khôi phục cầu nối",
   "Loc_RecoveryDismiss": "Bỏ qua",

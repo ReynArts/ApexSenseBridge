@@ -1,4 +1,7 @@
 {
+  "Loc_RecoveryAutomaticTitle": "Aguardando a reconexão da ponte manual",
+  "Loc_RecoveryAutomaticHint": "Ative ou reconecte o controle. A ativação contínua retomará a ponte automaticamente. Desative a ponte manual para pará-la.",
+  "Loc_RecoveryAutomaticPausedHint": "Recuperação automática pausada após falhas repetidas. Selecione Tentar novamente ou reconecte o controle.",
   "Loc_SessionInterrupted": "Sessão interrompida",
   "Loc_RecoveryResume": "Retomar ponte",
   "Loc_RecoveryDismiss": "Dispensar",

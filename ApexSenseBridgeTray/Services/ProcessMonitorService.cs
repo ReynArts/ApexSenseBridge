@@ -21,12 +21,15 @@ namespace ApexSenseBridgeTray.Services
         private readonly TraySettings settings;
         private readonly Timer pollTimer;
         private readonly bool monitoringEnabled;
+        internal ControllerDetectionService ControllerDetection { get; private set; }
+        internal string ControllerStatus { get { return controllerStatus; } }
         private readonly Dictionary<uint, DateTime> retryCooldowns = new Dictionary<uint, DateTime>();
         private readonly Dictionary<uint, long> evaluatedProcesses = new Dictionary<uint, long>();
         private readonly HashSet<uint> manualFixWarningProcesses = new HashSet<uint>();
         private readonly object sessionStateLock = new object();
         private readonly GameProcessSessionTracker processSession = new GameProcessSessionTracker();
         private readonly StartRetryPolicy startRetries = new StartRetryPolicy();
+        private readonly StartRetryPolicy manualRecoveryRetries = new StartRetryPolicy();
         private readonly Dictionary<uint, Timer> quickRetryTimers = new Dictionary<uint, Timer>();
         private readonly PreparedLaunchTracker preparedLaunch = new PreparedLaunchTracker();
         internal Func<uint[]> processIdSource = NativeMethods.GetProcessIds;
@@ -43,6 +46,7 @@ namespace ApexSenseBridgeTray.Services
         private bool isStoppingDetectedSession;
         private int isPolling;
         private bool recoveryWasBlocked;
+        private string controllerStatus;
         private DateTime nextProcessSweepUtc;
         private DateTime nextForegroundCheckUtc;
         private DateTime nextPreparedLaunchCheckUtc;
@@ -54,7 +58,12 @@ namespace ApexSenseBridgeTray.Services
 
         public bool HasPausedAutomaticStart
         {
-            get { lock (retryCooldowns) return startRetries.HasPausedGame; }
+            get { lock (retryCooldowns) return startRetries.HasPausedGame || manualRecoveryRetries.HasPausedGame; }
+        }
+
+        internal bool HasPausedManualRecovery
+        {
+            get { lock (retryCooldowns) return manualRecoveryRetries.HasPausedGame; }
         }
 
         public bool HasPreparedLaunch
@@ -83,6 +92,7 @@ namespace ApexSenseBridgeTray.Services
             lock (retryCooldowns)
             {
                 startRetries.Reset();
+                manualRecoveryRetries.Reset();
                 retryCooldowns.Clear();
             }
             ForceCheck();
@@ -90,6 +100,7 @@ namespace ApexSenseBridgeTray.Services
 
         public void ReportControllerStatus(string status)
         {
+            controllerStatus = status;
             bool sessionInProgress = SessionOwnedElsewhere();
             bool changed;
             lock (retryCooldowns) changed = startRetries.ObserveController(status, sessionInProgress);
@@ -120,6 +131,9 @@ namespace ApexSenseBridgeTray.Services
 
             if (monitoringEnabled)
             {
+                ControllerDetection = new ControllerDetectionService();
+                ControllerDetection.Select(settings != null ? settings.SelectedControllerKey : null);
+                ControllerDetection.StatusChanged += ReportControllerStatus;
                 InitializeWmiWatchers();
                 pollTimer = new Timer(OnPollTick, null, 100, 250);
             }
@@ -238,6 +252,38 @@ namespace ApexSenseBridgeTray.Services
             ThreadPool.QueueUserWorkItem(_ => OnPollTick(null));
         }
 
+        private void TryResumeManualBridge()
+        {
+            if (!IsManualBridgeMode())
+            {
+                lock (retryCooldowns) manualRecoveryRetries.Reset();
+                return;
+            }
+            var recovery = sessionManager.Recovery;
+            if (recovery.Recovered)
+            {
+                lock (retryCooldowns) manualRecoveryRetries.Reset();
+                return;
+            }
+            bool available = controllerStatus == "apex4" || controllerStatus == "apex5" || controllerStatus == "apex6";
+            if (!recovery.Pending || recovery.Resuming || recovery.Owner != "Tray" || !available || SessionOwnedElsewhere()) return;
+            DateTime retryAt;
+            lock (retryCooldowns)
+                if (manualRecoveryRetries.IsDeferred(recovery.Game, retryClock(), out retryAt)) return;
+            string error;
+            int exitCode;
+            if (sessionManager.ResumeSession(settings, out error, out exitCode))
+            {
+                lock (retryCooldowns) manualRecoveryRetries.Reset();
+                return;
+            }
+            if (!IsManualBridgeMode() || !sessionManager.Recovery.Pending) return;
+            TimeSpan? delay;
+            lock (retryCooldowns)
+                delay = manualRecoveryRetries.RecordFailure(recovery.Game, exitCode, error, retryClock());
+            if (!delay.HasValue) AutomaticStartPaused?.Invoke(recovery.Game, error);
+        }
+
         private void OnPollTick(object state)
         {
             if (isDisposed) return;
@@ -251,6 +297,8 @@ namespace ApexSenseBridgeTray.Services
             {
                 PruneExitedTrackedProcesses();
                 PruneStartRetries();
+
+                TryResumeManualBridge();
 
                 if (!IsManualBridgeMode()) CancelPreparedLaunch();
                 else if (DateTime.UtcNow >= nextPreparedLaunchCheckUtc)
@@ -1375,6 +1423,7 @@ namespace ApexSenseBridgeTray.Services
         {
             if (isDisposed) return;
             isDisposed = true;
+            ControllerDetection?.Dispose();
 
             try
             {

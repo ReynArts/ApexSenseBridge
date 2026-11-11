@@ -86,6 +86,13 @@ namespace ApexSenseBridgeTray.Services
 
         public bool ResumeSession(TraySettings settings, out string error)
         {
+            int exitCode;
+            return ResumeSession(settings, out error, out exitCode);
+        }
+
+        public bool ResumeSession(TraySettings settings, out string error, out int exitCode)
+        {
+            exitCode = 0;
             string game, profile;
             int slot;
             lock (syncLock)
@@ -96,7 +103,6 @@ namespace ApexSenseBridgeTray.Services
             }
             StateChanged?.Invoke();
             bool success = false;
-            int exitCode;
             try { success = StartSessionCore(game, profile, settings, slot, true, out error, out exitCode); return success; }
             finally { lock (syncLock) { if (recovery.Resuming) recovery.Complete(success); } StateChanged?.Invoke(); }
         }
@@ -205,6 +211,7 @@ namespace ApexSenseBridgeTray.Services
             unexpectedExit = true;
             unexpectedExitCode = status.ExitCode;
             if (!recovery.Offer(activeGameTitle, activeProfileName, activeApexSlot, status.Interruption, status.Stages)) recovery.Clear();
+            activeSession.StopAndWait(TimeSpan.Zero);
             activeSession.Dispose();
             activeSession = null;
             return true;

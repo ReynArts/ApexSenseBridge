@@ -1,4 +1,7 @@
 {
+  "Loc_RecoveryAutomaticTitle": "手動ブリッジの再接続を待機中",
+  "Loc_RecoveryAutomaticHint": "コントローラーを起動または再接続してください。常時有効ならブリッジは自動的に再開します。停止するには手動ブリッジを無効にしてください。",
+  "Loc_RecoveryAutomaticPausedHint": "繰り返し失敗したため自動復旧を一時停止しました。「再試行」を選択するか、コントローラーを再接続してください。",
   "Loc_SessionInterrupted": "セッションが中断されました",
   "Loc_RecoveryResume": "ブリッジを再開",
   "Loc_RecoveryDismiss": "閉じる",

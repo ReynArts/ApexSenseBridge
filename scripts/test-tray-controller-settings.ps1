@@ -40,9 +40,9 @@ try {
         foreach ($control in @("SliderApex4GyroStrength", "SliderApex4GyroYawStrength")) {
             if ((Get-Control $control).IsEnabled -ne ($status -eq "apex4")) { throw "Gyro tuning unlocked for $status" }
         }
-        if ((Get-Control "TileSettingSyncLightbar").IsEnabled -ne ($status -eq "apex5")) { throw "RGB unlocked for $status" }
-        if ((Get-Control "SliderLightbarBrightness").IsEnabled -ne ($status -eq "apex5")) { throw "Lightbar brightness unlocked for $status" }
-        if (((Get-Control "RowLightbarBrightness").Visibility -eq "Visible") -ne ($status -eq "apex5")) { throw "Lightbar brightness shown for $status" }
+        if ((Get-Control "TileSettingSyncLightbar").IsEnabled -ne ($status -in @("apex5", "apex6"))) { throw "RGB unlocked for $status" }
+        if ((Get-Control "SliderLightbarBrightness").IsEnabled -ne ($status -in @("apex5", "apex6"))) { throw "Lightbar brightness unlocked for $status" }
+        if (((Get-Control "RowLightbarBrightness").Visibility -eq "Visible") -ne ($status -in @("apex5", "apex6"))) { throw "Lightbar brightness shown for $status" }
         if ((Get-Control "TileSettingZoneEmulation").IsEnabled -ne ($status -eq "apex5")) { throw "Trigger emulation unlocked for $status" }
         if ((Get-Control "TileSettingApex6Rate2kHz").IsEnabled -ne ($status -eq "apex6")) { throw "2 kHz haptics unlocked for $status" }
         if ((Get-Control "SliderVibrationThreshold").IsEnabled -ne ($connected -and $status -ne "apex6")) {
@@ -90,7 +90,7 @@ try {
     if ($lockedText -eq "Loc_ApexProfileApex5Only" -or $lockedText -eq $hintText) { throw "APEX 5 only hint is not localized" }
     foreach ($status in @("apex4", "apex6", "unsupported", "apex5", "disconnected", "unavailable", "apex4", "apex5")) {
         $statusMethod.Invoke($window, @($status))
-        $locked = $status -in @("apex4", "apex6", "unsupported")
+        $locked = $status -in @("apex4", "unsupported")
         foreach ($button in @("BtnProfileLeft", "BtnProfileRight")) {
             if ((Get-Control $button).IsEnabled -eq $locked) { throw "Profile selector $button has the wrong state for $status" }
         }

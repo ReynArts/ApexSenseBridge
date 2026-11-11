@@ -31,6 +31,8 @@ namespace ApexSenseBridgeTray
         private readonly ProcessMonitorService monitorService;
         private readonly UpdateCheckerService updateChecker;
         private readonly ControllerDetectionService controllerDetection;
+        private readonly Action<string> controllerStatusChanged;
+        private readonly Action controllersChanged;
 
         private readonly List<GameItemViewModel> allGameViewModels = new List<GameItemViewModel>();
         private readonly ObservableCollection<GameItemViewModel> filteredGames = new ObservableCollection<GameItemViewModel>();
@@ -111,17 +113,16 @@ namespace ApexSenseBridgeTray
             UpdateDashboardStatus();
             UpdateSettingsView();
 
-            controllerDetection = new ControllerDetectionService();
+            controllerDetection = monitorService?.ControllerDetection ?? new ControllerDetectionService();
             controllerDetection.Select(settings != null ? settings.SelectedControllerKey : null);
-            controllerDetection.ControllersChanged += () => Dispatcher.BeginInvoke(new Action(OnControllersChanged));
-            bool initialControllerStatus = true;
-            controllerDetection.StatusChanged += status =>
+            controllersChanged = () => Dispatcher.BeginInvoke(new Action(OnControllersChanged));
+            controllerDetection.ControllersChanged += controllersChanged;
+            controllerStatusChanged = status =>
             {
-                if (!initialControllerStatus) monitorService?.ReportControllerStatus(status);
-                initialControllerStatus = false;
                 Dispatcher.BeginInvoke(new Action(() => UpdateControllerStatus(status)));
             };
-            UpdateControllerStatus("disconnected");
+            controllerDetection.StatusChanged += controllerStatusChanged;
+            UpdateControllerStatus(monitorService?.ControllerStatus ?? "disconnected");
             statusTimer.Tick += (s, e) => { UpdateDashboardStatus(); UpdateClock(); };
             UpdateClock();
             IsVisibleChanged += (s, e) => UpdateStatusTimer();
@@ -557,6 +558,7 @@ namespace ApexSenseBridgeTray
             learnedNavIndex = clamped;
             for (int i = 0; i < filteredLearned.Count; i++)
                 filteredLearned[i].IsGamepadFocused = (i == learnedNavIndex);
+            UpdateDetailPane();
 
             if (ScrollLearned != null)
             {
@@ -781,8 +783,7 @@ namespace ApexSenseBridgeTray
                     }
                     else if (learnedSection == 1)
                     {
-                        if (learnedNavIndex > 4) SetLearnedNav(learnedNavIndex - 5);
-                        else SetLearnedNav(0);
+                        CycleSelectedApexProfile(-1);
                     }
                 }
                 else if (currentTabIndex == 3)
@@ -820,8 +821,7 @@ namespace ApexSenseBridgeTray
                     }
                     else if (learnedSection == 1)
                     {
-                        if (learnedNavIndex + 5 < filteredLearned.Count) SetLearnedNav(learnedNavIndex + 5);
-                        else SetLearnedNav(filteredLearned.Count - 1);
+                        CycleSelectedApexProfile(1);
                     }
                 }
                 else if (currentTabIndex == 3)
@@ -1119,6 +1119,17 @@ namespace ApexSenseBridgeTray
             if (!viewInitialized) return;
             bool changed = currentTabIndex != index;
             currentTabIndex = index;
+            if (GameDetailPane != null)
+            {
+                var parent = GameDetailPane.Parent as Grid;
+                var target = index == 2 ? PanelLearnedExecutables : PanelCertifiedGames;
+                if (parent != target && target != null)
+                {
+                    parent?.Children.Remove(GameDetailPane);
+                    target.Children.Add(GameDetailPane);
+                    Grid.SetRowSpan(GameDetailPane, index == 2 ? 2 : 1);
+                }
+            }
             if (NavTabDashboard != null) NavTabDashboard.IsChecked = (index == 0);
             if (NavTabCertified != null) NavTabCertified.IsChecked = (index == 1);
             if (NavTabLearned != null) NavTabLearned.IsChecked = (index == 2);
@@ -1147,6 +1158,7 @@ namespace ApexSenseBridgeTray
                 }
             }
             if (isGamepadMode) InitTabNavigation();
+            UpdateDetailPane();
         }
 
         // Console-style page transition: short fade with a slight upward slide.
@@ -1523,16 +1535,18 @@ namespace ApexSenseBridgeTray
         private void UpdateRecoveryPanel(SessionRecoveryState recovery)
         {
             if (PnlSessionRecovery == null || PnlDashboardCounts == null) return;
-            bool visible = recovery != null && (recovery.Pending || recovery.Recovered);
+            bool visible = recovery != null && recovery.Pending;
             PnlSessionRecovery.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
             PnlDashboardCounts.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
             if (!visible) return;
-            TxtRecoveryTitle.Text = LocalizationManager.Get(recovery.Recovered ? "Loc_RecoveryReady" : recovery.Resuming ? "Loc_RecoveryStarting" : "Loc_RecoveryInterrupted");
+            bool continuousRecovery = settings?.ForcedProfile == "standard" && recovery.Owner == "Tray";
+            bool pausedRecovery = continuousRecovery && monitorService != null && monitorService.HasPausedManualRecovery;
+            TxtRecoveryTitle.Text = LocalizationManager.Get(recovery.Recovered ? "Loc_RecoveryReady" : recovery.Resuming ? "Loc_RecoveryStarting" : pausedRecovery ? "Loc_NotificationStartPausedTitle" : continuousRecovery ? "Loc_RecoveryAutomaticTitle" : "Loc_RecoveryInterrupted");
             var steps = new[] { "Loc_RecoveryController", "Loc_RecoveryVirtual", "Loc_RecoveryIsolation", "Loc_RecoveryRuntime" };
             TxtRecoverySteps.Text = string.Join("   ·   ", steps.Select((key, index) =>
                 ((recovery.Stages & (1u << index)) != 0 ? "✓ " : "○ ") + LocalizationManager.Get(key)));
             TxtRecoveryHint.Text = LocalizationManager.Get(recovery.Owner != "Tray" ? "Loc_RecoveryPlaynite" : recovery.Recovered ? "Loc_RecoveryGameHint" : recovery.Resuming ? "Loc_RecoveryChecking" :
-                recovery.ControllerAvailable ? "Loc_RecoveryControllerFound" : "Loc_RecoveryWaiting");
+                pausedRecovery ? "Loc_RecoveryAutomaticPausedHint" : continuousRecovery ? "Loc_RecoveryAutomaticHint" : recovery.ControllerAvailable ? "Loc_RecoveryControllerFound" : "Loc_RecoveryWaiting");
             BtnResumeSession.Visibility = recovery.Pending && recovery.Owner == "Tray" ? Visibility.Visible : Visibility.Collapsed;
             BtnResumeSession.IsEnabled = !recovery.Resuming;
             BtnDismissRecovery.IsEnabled = !recovery.Resuming;
@@ -1724,7 +1738,7 @@ namespace ApexSenseBridgeTray
             {
                 settings.ForcedProfile = "none";
                 settings.Save();
-                if (sessionManager != null && sessionManager.IsSessionActive)
+                if (sessionManager != null && (sessionManager.IsSessionActive || sessionManager.AutomaticActivationBlocked))
                     sessionManager.StopSession("Manual bridge disabled");
                 monitorService?.ForceCheck();
             }
@@ -1762,7 +1776,11 @@ namespace ApexSenseBridgeTray
         #region Certified Games (Master-Detail)
 
         public GameItemViewModel SelectedGame =>
-            (selectedGameIndex >= 0 && selectedGameIndex < filteredGames.Count) ? filteredGames[selectedGameIndex] : null;
+            currentTabIndex == 2
+                ? (learnedNavIndex >= 0 && learnedNavIndex < filteredLearned.Count
+                    ? allGameViewModels.FirstOrDefault(g => string.Equals(g.Normalized,
+                        filteredLearned[learnedNavIndex].Binding.GameNormalized, StringComparison.OrdinalIgnoreCase)) : null)
+                : (selectedGameIndex >= 0 && selectedGameIndex < filteredGames.Count ? filteredGames[selectedGameIndex] : null);
 
         private void LoadGames()
         {
@@ -2740,7 +2758,11 @@ namespace ApexSenseBridgeTray
 
             foreach (var b in bindings)
             {
-                allLearnedViewModels.Add(new LearnedItemViewModel(b));
+                allLearnedViewModels.Add(new LearnedItemViewModel(b)
+                {
+                    GameDetails = allGameViewModels.FirstOrDefault(g => string.Equals(
+                        g.Normalized, b.GameNormalized, StringComparison.OrdinalIgnoreCase))
+                });
             }
 
             ApplyLearnedFilter();
@@ -2774,6 +2796,8 @@ namespace ApexSenseBridgeTray
                 TxtLearnedStats.Text = string.Format("{0} / {1}", filteredLearned.Count, allLearnedViewModels.Count);
             }
             UpdateLearnedButtons();
+            if (filteredLearned.Count > 0) SetLearnedNav(Math.Max(0, Math.Min(learnedNavIndex, filteredLearned.Count - 1)));
+            else { learnedNavIndex = -1; UpdateDetailPane(); }
         }
 
         private void OnSearchLearnedTextChanged(object sender, TextChangedEventArgs e)
@@ -3066,7 +3090,6 @@ namespace ApexSenseBridgeTray
             {
                 int index = filteredLearned.IndexOf(item);
                 if (index >= 0) SetLearnedNav(index);
-                item.IsSelected = !item.IsSelected;
                 UpdateLearnedButtons();
             }
         }
@@ -3454,7 +3477,9 @@ namespace ApexSenseBridgeTray
         protected override void OnClosed(EventArgs e)
         {
             statusTimer.Stop();
-            controllerDetection?.Dispose();
+            if (controllerDetection != null) controllerDetection.StatusChanged -= controllerStatusChanged;
+            if (controllerDetection != null) controllerDetection.ControllersChanged -= controllersChanged;
+            if (monitorService?.ControllerDetection != controllerDetection) controllerDetection?.Dispose();
             gamepadNav?.Dispose();
             base.OnClosed(e);
         }
@@ -3465,6 +3490,7 @@ namespace ApexSenseBridgeTray
     public sealed class LearnedItemViewModel : INotifyPropertyChanged
     {
         public LearnedExecutableBinding Binding { get; private set; }
+        public GameItemViewModel GameDetails { get; set; }
         public string GameTitle => !string.IsNullOrWhiteSpace(Binding.GameTitle) ? Binding.GameTitle : Binding.GameNormalized;
         public string Executable => Binding.Executable;
         public string Path => Binding.Path;

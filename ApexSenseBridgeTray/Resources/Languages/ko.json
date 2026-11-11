@@ -1,4 +1,7 @@
 {
+  "Loc_RecoveryAutomaticTitle": "수동 브리지 재연결 대기 중",
+  "Loc_RecoveryAutomaticHint": "컨트롤러를 켜거나 다시 연결하세요. 상시 활성화 상태이면 브리지가 자동으로 재개됩니다. 중지하려면 수동 브리지를 끄세요.",
+  "Loc_RecoveryAutomaticPausedHint": "반복된 오류로 자동 복구가 일시 중지되었습니다. 다시 시도하거나 컨트롤러를 다시 연결하세요.",
   "Loc_SessionInterrupted": "세션 중단됨",
   "Loc_RecoveryResume": "브리지 재개",
   "Loc_RecoveryDismiss": "닫기",

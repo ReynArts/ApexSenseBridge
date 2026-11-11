@@ -1,4 +1,7 @@
 {
+  "Loc_RecoveryAutomaticTitle": "Esperando la reconexión del puente manual",
+  "Loc_RecoveryAutomaticHint": "Activa o reconecta el mando. La activación continua reanudará el puente automáticamente. Desactiva el puente manual para detenerlo.",
+  "Loc_RecoveryAutomaticPausedHint": "Recuperación automática pausada tras fallos repetidos. Selecciona Reintentar o reconecta el mando.",
   "Loc_SessionInterrupted": "Sesión interrumpida",
   "Loc_RecoveryResume": "Reanudar el bridge",
   "Loc_RecoveryDismiss": "Ocultar",
