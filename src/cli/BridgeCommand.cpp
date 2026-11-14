@@ -1119,8 +1119,11 @@ int commandBridgeTriggers(int argc, char** argv) {
         return true;
     };
 
-    unsigned int isolationRefreshFailures = 0;
-    constexpr unsigned int kMaximumIsolationRefreshFailures = 6;
+    // Windows creates the returning controller's device nodes one by one, so a
+    // refresh can fail for a while after power-on. Only a failure that lasts
+    // this long is fatal; the controller stays unforwarded until it succeeds.
+    std::optional<std::chrono::steady_clock::time_point> isolationRefreshFailingSince;
+    constexpr auto kIsolationRefreshTolerance = std::chrono::seconds(30);
     const auto bringUpReturnedController =
         [&](asb::dualsense::DualSenseInputState& fresh, std::string& bringUpError,
             bool& fatal) -> bool {
@@ -1128,10 +1131,12 @@ int commandBridgeTriggers(int argc, char** argv) {
         std::string isolationError;
         if (!physicalIsolation.refreshTargets(device->info(), isolationError)) {
             bringUpError = "controller isolation could not be refreshed: " + isolationError;
-            fatal = ++isolationRefreshFailures >= kMaximumIsolationRefreshFailures;
+            const auto failedAt = std::chrono::steady_clock::now();
+            if (!isolationRefreshFailingSince) isolationRefreshFailingSince = failedAt;
+            fatal = failedAt - *isolationRefreshFailingSince >= kIsolationRefreshTolerance;
             return false;
         }
-        isolationRefreshFailures = 0;
+        isolationRefreshFailingSince.reset();
         if (apex5) {
             std::optional<asb::flydigi::ProfileStatus> profile;
             std::optional<asb::flydigi::InputTransportStatus> transport;
