@@ -52,6 +52,7 @@ foreach ($name in @(
     "ApexSenseBridgeControl.exe",
     "ApexSenseBridgeTray.exe",
     "ApexSenseBridgeTray.exe.config",
+    "ApexSenseBridgeUpdater.exe",
     "libVIIPER.dll",
     "viiper.exe"
 )) {
@@ -60,14 +61,14 @@ foreach ($name in @(
 
 Copy-RequiredFile (Join-Path $projectRoot "data\supported_games.json") `
     (Join-Path $stagingFull "Data\supported_games.json")
-foreach ($document in @("APEX6_DUALSENSE_VALIDATION.md", "RELEASE_NOTES_1.0.0.md")) {
+foreach ($document in @("APEX6_DUALSENSE_VALIDATION.md", "RELEASE_NOTES_1.1.0.md")) {
     Copy-RequiredFile (Join-Path $projectRoot $document) (Join-Path $stagingFull "Docs\$document")
 }
 Copy-RequiredFile (Join-Path $projectRoot "assets\app.ico") `
     (Join-Path $stagingFull "Resources\app.ico")
 
 foreach ($name in @("VIIPER-LICENSE.txt", "VIIPER-SOURCE.txt",
-                    "VIIPER-v0.7.0-asb.patch")) {
+                    "VIIPER-v0.9.0-asb.patch")) {
     Copy-RequiredFile (Join-Path $releaseDir $name) (Join-Path $stagingFull "Licenses\$name")
 }
 Copy-RequiredFile (Join-Path $projectRoot "LICENSE") `

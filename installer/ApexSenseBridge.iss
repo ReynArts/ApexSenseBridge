@@ -1,7 +1,7 @@
 ﻿#define AppName "ApexSenseBridge"
-#define AppVersion "1.0.2"
+#define AppVersion "1.1.0"
 #define AppPublisher "ApexSenseBridge contributors"
-#define AppReleaseLabel "1.0.2"
+#define AppReleaseLabel "1.1.0"
 #define AppId "{{5F8B1901-93E1-41E2-96B4-F1B278A5A630}"
 #define ExtensionId "ApexSenseBridge_e41b1737-6753-4b59-bc65-4fdd6a7df7f4"
 ; Inno sections require "{{" to encode a literal opening brace, whereas
@@ -45,6 +45,10 @@ WizardStyle=modern
 SignTool=asbsign
 SignedUninstaller=yes
 #endif
+#ifdef SignPathBuild
+SignedUninstaller=yes
+SignedUninstallerDir=..\build-signpath\signed-uninstaller-cache
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -82,11 +86,12 @@ Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Sho
 
 [Files]
 Source: "..\APEX6_DUALSENSE_VALIDATION.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
-Source: "..\RELEASE_NOTES_1.0.0.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
+Source: "..\RELEASE_NOTES_1.1.0.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeControl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\ApexSenseBridgeTray.exe.config"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build-win\Release\ApexSenseBridgeUpdater.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\assets\app.ico"; DestDir: "{app}\Resources"; Flags: ignoreversion
 Source: "..\assets\logo.png"; DestDir: "{app}\Resources"; Flags: ignoreversion
 Source: "..\data\supported_games.json"; DestDir: "{app}\Data"; Flags: ignoreversion
@@ -94,7 +99,7 @@ Source: "..\build-win\Release\viiper.exe"; DestDir: "{app}"; Flags: ignoreversio
 Source: "..\build-win\Release\libVIIPER.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-LICENSE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "..\build-win\Release\VIIPER-SOURCE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
-Source: "..\build-win\Release\VIIPER-v0.7.0-asb.patch"; DestDir: "{app}\Licenses"; Flags: ignoreversion
+Source: "..\build-win\Release\VIIPER-v0.9.0-asb.patch"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}\Licenses"; DestName: "ApexSenseBridge-LICENSE.txt"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "driver-manifest.json"; DestDir: "{app}\Licenses"; Flags: ignoreversion
@@ -160,6 +165,10 @@ Filename: "{app}\ApexSenseBridge.exe"; Parameters: "restore-controller-visibilit
 Filename: "{sys}\msiexec.exe"; Parameters: "/x {#HidHideProductCode} /quiet /norestart"; Flags: runhidden waituntilterminated; Check: ShouldRemoveHidHide; AfterInstall: AuditHidHideRemoval; RunOnceId: "RemoveHidHide"
 
 [UninstallDelete]
+Type: filesandordirs; Name: "{app}\.update-backup"
+Type: files; Name: "{app}\*.old"
+Type: filesandordirs; Name: "{commonappdata}\ApexSenseBridge\updates"
+Type: files; Name: "{commonappdata}\ApexSenseBridge\update.log"
 Type: filesandordirs; Name: "{userappdata}\Playnite\Extensions\{#ExtensionId}"
 Type: filesandordirs; Name: "{userappdata}\Playnite\ExtensionsData\{#ExtensionId}"; Check: ShouldDeleteUserData
 Type: filesandordirs; Name: "{userappdata}\Playnite\ExtensionsData\e41b1737-6753-4b59-bc65-4fdd6a7df7f4"; Check: ShouldDeleteUserData

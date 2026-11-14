@@ -176,3 +176,8 @@ ISSUE_TRIAGE_*.md
 *GYRO_CAPTURE*
 *GYRO_VALIDATION*
 *TRIAGE*
+
+# UWP widget build outputs and signing material
+ApexSenseBridgeWidget/AppPackages/
+ApexSenseBridgeWidget/BundleArtifacts/
+*.pfx

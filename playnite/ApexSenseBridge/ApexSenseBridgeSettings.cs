@@ -182,6 +182,8 @@ namespace ApexSenseBridge
         private int initializationTimeoutSeconds = 20;
         private string xinputIndex = string.Empty;
         private bool autoCheckUpdates = true;
+        private bool sendVersionStats = true;
+        private string installId = string.Empty;
         private bool enableAutomaticProfiles = true;
         private DateTime? lastUpdateCheckUtc;
         private List<GameBridgeProfile> profiles = new List<GameBridgeProfile>();
@@ -200,6 +202,16 @@ namespace ApexSenseBridge
         public int InitializationTimeoutSeconds { get => initializationTimeoutSeconds; set => SetValue(ref initializationTimeoutSeconds, value); }
         public string XInputIndex { get => xinputIndex; set => SetValue(ref xinputIndex, value); }
         public bool AutoCheckUpdates { get => autoCheckUpdates; set => SetValue(ref autoCheckUpdates, value); }
+        public bool SendVersionStats
+        {
+            get => sendVersionStats;
+            set
+            {
+                SetValue(ref sendVersionStats, value);
+                if (!value) InstallId = string.Empty;
+            }
+        }
+        public string InstallId { get => installId; set => SetValue(ref installId, value); }
         public bool EnableAutomaticProfiles { get => enableAutomaticProfiles; set => SetValue(ref enableAutomaticProfiles, value); }
         public DateTime? LastUpdateCheckUtc { get => lastUpdateCheckUtc; set => SetValue(ref lastUpdateCheckUtc, value); }
         public List<GameBridgeProfile> Profiles
@@ -400,6 +412,7 @@ namespace ApexSenseBridge
         private bool isUpdateAvailable;
         private string availableUpdateVersion = string.Empty;
         private string availableUpdateSetupUrl = string.Empty;
+        private string availableUpdatePackageUrl = string.Empty;
         private bool isDownloadingUpdate;
         private double downloadProgress;
 
@@ -507,6 +520,18 @@ namespace ApexSenseBridge
             OnPropertyChanged(nameof(InstallationStatus));
         }
 
+        internal string StatsInstallId()
+        {
+            if (!Settings.SendVersionStats) return null;
+            Guid parsed;
+            if (string.IsNullOrEmpty(Settings.InstallId) || !Guid.TryParseExact(Settings.InstallId, "N", out parsed))
+            {
+                Settings.InstallId = Guid.NewGuid().ToString("N");
+                SaveNow();
+            }
+            return Settings.InstallId;
+        }
+
         public async Task CheckForUpdatesAsync()
         {
             if (IsCheckingForUpdate) return;
@@ -516,7 +541,7 @@ namespace ApexSenseBridge
 
             try
             {
-                var result = await UpdateManager.CheckForUpdateAsync();
+                var result = await UpdateManager.CheckForUpdateAsync(null, StatsInstallId());
                 Settings.LastUpdateCheckUtc = DateTime.UtcNow;
 
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
@@ -524,11 +549,17 @@ namespace ApexSenseBridge
                     UpdateCheckStatus = result.ErrorMessage;
                     IsUpdateAvailable = false;
                 }
+                else if (result.IsUpdateAvailable && UpdateManager.IsRestartPending)
+                {
+                    IsUpdateAvailable = false;
+                    UpdateCheckStatus = "Mise à jour déjà appliquée. Redémarrez Playnite pour finaliser.";
+                }
                 else if (result.IsUpdateAvailable)
                 {
                     IsUpdateAvailable = true;
                     AvailableUpdateVersion = result.TagName;
                     AvailableUpdateSetupUrl = result.SetupDownloadUrl;
+                    availableUpdatePackageUrl = result.UpdatePackageUrl;
                     UpdateCheckStatus = $"Mise à jour disponible : {result.TagName}";
                 }
                 else
@@ -554,7 +585,7 @@ namespace ApexSenseBridge
 
             IsDownloadingUpdate = true;
             DownloadProgress = 0;
-            UpdateCheckStatus = "Téléchargement de l'installateur...";
+            UpdateCheckStatus = "Préparation de la mise à jour...";
 
             try
             {
@@ -563,21 +594,33 @@ namespace ApexSenseBridge
                     DownloadProgress = p;
                     UpdateCheckStatus = $"Téléchargement en cours : {p:0}%";
                 });
+                var status = new Progress<string>(text => UpdateCheckStatus = text);
 
-                var installerPath = await UpdateManager.DownloadSetupAsync(AvailableUpdateSetupUrl, AvailableUpdateVersion, progress);
-                UpdateCheckStatus = "Lancement de l'installation silencieuse...";
+                var outcome = await UpdateManager.InstallUpdateAsync(
+                    AvailableUpdateVersion,
+                    AvailableUpdateSetupUrl,
+                    availableUpdatePackageUrl,
+                    plugin.ResolveBridgeExecutable(Settings),
+                    plugin.HasActiveBridgeSession,
+                    progress,
+                    status);
 
-                string error;
-                if (UpdateManager.ExecuteInstallerSilently(installerPath, out error))
+                switch (outcome.Outcome)
                 {
-                    UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
-                    plugin.PlayniteApi.Dialogs.ShowMessage(
-                        "La mise à jour d'ApexSenseBridge a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
-                        "ApexSenseBridge - Mise à jour");
-                }
-                else
-                {
-                    UpdateCheckStatus = error ?? "Échec du lancement de l'installation.";
+                    case UpdateInstallOutcome.Installed:
+                        UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
+                        plugin.PlayniteApi.Dialogs.ShowMessage(
+                            "La mise à jour d'ApexSenseBridge a été installée avec succès.\n\nVeuillez redémarrer Playnite pour recharger la nouvelle version de l'extension.",
+                            "ApexSenseBridge - Mise à jour");
+                        break;
+                    case UpdateInstallOutcome.InstalledRestartRequired:
+                        IsUpdateAvailable = false;
+                        UpdateCheckStatus = "Mise à jour installée avec succès. Redémarrez Playnite pour finaliser.";
+                        plugin.PlayniteApi.Dialogs.ShowMessage(outcome.Message, "ApexSenseBridge - Mise à jour");
+                        break;
+                    default:
+                        UpdateCheckStatus = outcome.Message ?? "Échec du lancement de l'installation.";
+                        break;
                 }
             }
             catch (Exception ex)

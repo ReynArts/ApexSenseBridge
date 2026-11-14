@@ -137,7 +137,7 @@ void fakeViiperServer(std::promise<std::uint16_t> ready,
     success = success && serveRequest(
         listener,
         "ping",
-        R"({"server":"VIIPER","version":"v0.6.1-steamless8"})",
+        R"({"server":"VIIPER","version":"0.9.0-asb1"})",
         seen);
     success = success && serveRequest(listener, "bus/create 0", R"({"busId":7})", seen);
     success = success && serveRequest(
@@ -251,7 +251,7 @@ int main() {
     } while (std::chrono::steady_clock::now() < deadline);
 
     assert(stats.connected);
-    assert(stats.backendVersion == "v0.6.1-steamless8");
+    assert(stats.backendVersion == "0.9.0-asb1");
     assert(stats.inputUpdates == 1);
     assert(stats.outputReports == 1);
     assert(stats.triggerReports == 1);
@@ -266,7 +266,7 @@ int main() {
     virtualDualSense->close();
     const auto closedStats = virtualDualSense->stats();
     assert(!closedStats.connected);
-    assert(closedStats.backendVersion == "v0.6.1-steamless8");
+    assert(closedStats.backendVersion == "0.9.0-asb1");
     assert(closedStats.inputUpdates == 1);
     assert(closedStats.outputReports == 1);
     assert(closedStats.triggerReports == 1);

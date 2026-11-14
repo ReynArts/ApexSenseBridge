@@ -2,6 +2,7 @@ param(
     [string]$PlayniteInstallDir = "",
     [string]$PlayniteSdkPath = "",
     [string]$ToolboxPath = "",
+    [switch]$SkipBuild,
     [switch]$Sign
 )
 
@@ -22,7 +23,7 @@ function Fail($message) {
     exit 1
 }
 
-if ([string]::IsNullOrWhiteSpace($PlayniteInstallDir)) {
+if (-not $SkipBuild -and [string]::IsNullOrWhiteSpace($PlayniteInstallDir)) {
     $installCandidates = @(
         $env:PLAYNITE_INSTALL_DIR,
         (Join-Path $env:ProgramFiles "Playnite"),
@@ -34,17 +35,18 @@ if ([string]::IsNullOrWhiteSpace($PlayniteInstallDir)) {
         Select-Object -First 1
 }
 
-if ([string]::IsNullOrWhiteSpace($PlayniteSdkPath) -and
+if (-not $SkipBuild -and [string]::IsNullOrWhiteSpace($PlayniteSdkPath) -and
     -not [string]::IsNullOrWhiteSpace($PlayniteInstallDir)) {
     $PlayniteSdkPath = Join-Path $PlayniteInstallDir "Playnite.SDK.dll"
 }
-if ([string]::IsNullOrWhiteSpace($ToolboxPath) -and
+if (-not $SkipBuild -and [string]::IsNullOrWhiteSpace($ToolboxPath) -and
     -not [string]::IsNullOrWhiteSpace($PlayniteInstallDir)) {
     $ToolboxPath = Join-Path $PlayniteInstallDir "Toolbox.exe"
 }
 
-if ([string]::IsNullOrWhiteSpace($PlayniteSdkPath) -or
-    -not (Test-Path -LiteralPath $PlayniteSdkPath)) {
+if (-not $SkipBuild -and
+    ([string]::IsNullOrWhiteSpace($PlayniteSdkPath) -or
+     -not (Test-Path -LiteralPath $PlayniteSdkPath))) {
     Write-Host "Playnite is not installed; resolving the pinned official PlayniteSDK 6.16.0 package..."
     New-Item -ItemType Directory -Force -Path $sdkCache | Out-Null
     $cachedHash = if (Test-Path -LiteralPath $sdkPackage) {
@@ -69,28 +71,32 @@ if ([string]::IsNullOrWhiteSpace($PlayniteSdkPath) -or
     $PlayniteSdkPath = Get-ChildItem -LiteralPath $expandedSdk -Recurse -Filter "Playnite.SDK.dll" |
         Select-Object -First 1 -ExpandProperty FullName
 }
-if (-not (Test-Path -LiteralPath $PlayniteSdkPath)) {
+if (-not $SkipBuild -and -not (Test-Path -LiteralPath $PlayniteSdkPath)) {
     Fail "Playnite.SDK.dll could not be resolved. Pass -PlayniteSdkPath explicitly."
 }
 
-$vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-if (-not (Test-Path -LiteralPath $vswhere)) {
-    Fail "vswhere.exe was not found. Install Visual Studio Build Tools."
-}
+if (-not $SkipBuild) {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path -LiteralPath $vswhere)) {
+        Fail "vswhere.exe was not found. Install Visual Studio Build Tools."
+    }
 
-$visualStudio = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-if ($LASTEXITCODE -ne 0 -or -not $visualStudio) {
-    Fail "No Visual Studio installation containing MSBuild was found."
-}
-$msbuild = Join-Path $visualStudio "MSBuild\Current\Bin\MSBuild.exe"
-if (-not (Test-Path -LiteralPath $msbuild)) {
-    Fail "MSBuild.exe was not found in $visualStudio"
-}
+    $visualStudio = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+    if ($LASTEXITCODE -ne 0 -or -not $visualStudio) {
+        Fail "No Visual Studio installation containing MSBuild was found."
+    }
+    $msbuild = Join-Path $visualStudio "MSBuild\Current\Bin\MSBuild.exe"
+    if (-not (Test-Path -LiteralPath $msbuild)) {
+        Fail "MSBuild.exe was not found in $visualStudio"
+    }
 
-Write-Host "Building the Playnite extension..."
-& $msbuild $project /t:Rebuild /p:Configuration=Release "/p:PlayniteSdkPath=$PlayniteSdkPath"
-if ($LASTEXITCODE -ne 0) {
-    Fail "Playnite extension compilation failed."
+    Write-Host "Building the Playnite extension..."
+    & $msbuild $project /t:Rebuild /p:Configuration=Release "/p:PlayniteSdkPath=$PlayniteSdkPath"
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Playnite extension compilation failed."
+    }
+} elseif (-not (Test-Path -LiteralPath (Join-Path $output "ApexSenseBridge.dll") -PathType Leaf)) {
+    Fail "-SkipBuild requires an existing Playnite release payload in $output"
 }
 
 if ($Sign) {

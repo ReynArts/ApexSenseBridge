@@ -159,6 +159,15 @@ bool UdpTriggerServer::start(std::string& error) {
                 std::to_string(impl_->port) + ".";
         return false;
     }
+    u_long nonblocking = 1;
+    if (ioctlsocket(impl_->socket, FIONBIO, &nonblocking) == SOCKET_ERROR) {
+        closesocket(impl_->socket);
+        impl_->socket = INVALID_SOCKET;
+        WSACleanup();
+        impl_->running.store(false);
+        error = "Could not configure nonblocking UDP trigger socket.";
+        return false;
+    }
     impl_->worker = std::thread([state = impl_.get()] {
         std::array<char, 4096> buffer{};
         while (state->running.load(std::memory_order_relaxed)) {
@@ -191,11 +200,12 @@ bool UdpTriggerServer::start(std::string& error) {
 void UdpTriggerServer::stop() noexcept {
 #ifdef _WIN32
     if (!impl_ || !impl_->running.exchange(false)) return;
+    // select() wakes every 100 ms. Keep the socket valid until the worker exits.
+    if (impl_->worker.joinable()) impl_->worker.join();
     if (impl_->socket != INVALID_SOCKET) {
         closesocket(impl_->socket);
         impl_->socket = INVALID_SOCKET;
     }
-    if (impl_->worker.joinable()) impl_->worker.join();
     WSACleanup();
 #endif
 }

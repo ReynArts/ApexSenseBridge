@@ -65,6 +65,13 @@ public:
     [[nodiscard]] TouchpadGestureProfile profile() const noexcept { return profile_; }
     [[nodiscard]] TouchpadGestureProfileStats stats() const noexcept { return stats_; }
 
+    void setProfile(TouchpadGestureProfile profile) noexcept {
+        if (profile == profile_) return;
+        const auto kept = stats_;
+        *this = TouchpadGestureMapper(profile);
+        stats_ = kept;
+    }
+
 private:
     enum class HoldPhase {
         Idle,

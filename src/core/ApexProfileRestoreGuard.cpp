@@ -52,7 +52,7 @@ bool ApexProfileRestoreGuard::restore(std::string& error) noexcept {
         error = lastError;
         return false;
     } catch (...) {
-        error = "Unexpected failure while restoring the original Apex 5 profile";
+        error = "Unexpected failure while restoring the original Apex profile";
         return false;
     }
 }

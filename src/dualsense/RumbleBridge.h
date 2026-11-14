@@ -47,6 +47,7 @@ public:
 
     void handle(const DualSenseFeedback& feedback);
     void poll();
+    void setStrengthPercent(unsigned percent);
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
     [[nodiscard]] RumbleBridgeStats stats() const noexcept;

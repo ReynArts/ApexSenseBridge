@@ -18,7 +18,8 @@ if ([Threading.Thread]::CurrentThread.ApartmentState -ne "STA") {
     throw "Run this WPF regression test with Windows PowerShell -STA."
 }
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-[void][Reflection.Assembly]::LoadFrom($TrayAssembly)
+$trayResourceAssembly = [Reflection.Assembly]::LoadFrom($TrayAssembly)
+[System.Windows.Application]::ResourceAssembly = $trayResourceAssembly
 $app = New-Object ApexSenseBridgeTray.App
 $app.InitializeComponent()
 $errors = New-Object System.Collections.ArrayList

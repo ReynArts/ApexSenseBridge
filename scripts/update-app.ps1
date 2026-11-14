@@ -50,7 +50,7 @@ if ($installedVersion -eq "0.0.0") {
 }
 
 if ($installedVersion -eq "0.0.0") {
-    $installedVersion = "1.0.2"
+    $installedVersion = "1.1.0"
 }
 
 Write-Host "Installed Version : v$installedVersion"
@@ -151,8 +151,13 @@ if (-not (Test-SameReleaseVersion $setupVersion $latestTag)) {
 $installedExecutable = Join-Path ${env:ProgramFiles} "ApexSenseBridge\ApexSenseBridge.exe"
 if (Test-Path -LiteralPath $installedExecutable) {
     $installedSignature = Get-AuthenticodeSignature -LiteralPath $installedExecutable
-    if ($installedSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
-        $installedSignature.SignerCertificate.Subject -ne $signature.SignerCertificate.Subject) {
+    $installedIsTrusted = $installedSignature.Status -eq [System.Management.Automation.SignatureStatus]::Valid
+    $publisherAccepted = if (-not $installedIsTrusted) {
+        -not [string]::IsNullOrEmpty($signature.SignerCertificate.Subject)
+    } else {
+        $installedSignature.SignerCertificate.Subject -eq $signature.SignerCertificate.Subject
+    }
+    if (-not $publisherAccepted) {
         Remove-Item -LiteralPath $tempInstaller -Force -ErrorAction SilentlyContinue
         throw "Downloaded setup publisher differs from the installed ApexSenseBridge publisher."
     }

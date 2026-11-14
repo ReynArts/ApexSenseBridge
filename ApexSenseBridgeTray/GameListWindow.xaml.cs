@@ -113,6 +113,8 @@ namespace ApexSenseBridgeTray
             UpdateSettingsView();
 
             controllerDetection = new ControllerDetectionService();
+            controllerDetection.Select(settings != null ? settings.SelectedControllerKey : null);
+            controllerDetection.ControllersChanged += () => Dispatcher.BeginInvoke(new Action(OnControllersChanged));
             bool initialControllerStatus = true;
             controllerDetection.StatusChanged += status =>
             {
@@ -236,6 +238,11 @@ namespace ApexSenseBridgeTray
             if (HudScroll != null) HudScroll.Visibility = scrollable;
             if (HudSupport != null) HudSupport.Visibility = common;
             if (HudFilter != null) HudFilter.Visibility = connected && currentTabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            if (HudController != null)
+            {
+                HudController.Visibility = connected && currentTabIndex != 1 && controllerDetection != null && controllerDetection.CandidateCount > 1
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
             if (HudAdjust != null)
             {
                 HudAdjust.Visibility = connected && currentTabIndex == 3 && GetFocusedSettingsSlider() != null
@@ -459,7 +466,7 @@ namespace ApexSenseBridgeTray
             var items = new FrameworkElement[]
             {
                 TileSettingAutoDetect, TileSettingAdaptive, TileSettingHaptic,
-                TileSettingNotifications, TileSettingUdp, TileSettingLanguage,
+                TileSettingNotifications, TileSettingUdp, TileSettingVersionStats, TileSettingLanguage,
                 BtnOpenControllerTest, BtnPreparedLaunch, BtnReportBug, BtnCheckUpdates
             }.Where(item => item != null);
             return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
@@ -470,7 +477,7 @@ namespace ApexSenseBridgeTray
             // Only the capabilities of the identified controller are shown (and therefore navigable).
             var items = new FrameworkElement[]
             {
-                TileSettingSyncLightbar, RowLightbarBrightness, TileSettingZoneEmulation, RowTriggerStrength, RowVibrationStrength,
+                TileSettingSyncLightbar, RowLightbarBrightness, TileSettingZoneEmulation, TileSettingApex6Rate2kHz, RowTriggerStrength, RowVibrationStrength,
                 RowGyroStrength, RowGyroYawStrength, RowVibrationThreshold, RowGripVibrations
             }.Where(item => item != null);
             return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
@@ -892,6 +899,7 @@ namespace ApexSenseBridgeTray
 
                     case GamepadButtonAction.View:
                         if (currentTabIndex == 1) CycleGameFilter();
+                        else OpenControllerPicker();
                         break;
                 }
         }
@@ -1039,8 +1047,10 @@ namespace ApexSenseBridgeTray
                 else if (item == TileSettingHaptic) OnSettingHapticToggled(null, null);
                 else if (item == TileSettingNotifications) OnSettingNotificationsToggled(null, null);
                 else if (item == TileSettingUdp) OnSettingUdpToggled(null, null);
+                else if (item == TileSettingVersionStats) OnSettingVersionStatsToggled(null, null);
                 else if (item == TileSettingSyncLightbar) OnSettingSyncLightbarToggled(null, null);
                 else if (item == TileSettingZoneEmulation) OnSettingZoneEmulationToggled(null, null);
+                else if (item == TileSettingApex6Rate2kHz) OnSettingApex6Rate2kHzToggled(null, null);
                 else if (item == TileSettingLanguage) OpenLanguagePicker();
                 else if (item == RowGripVibrations) ToggleGripVibrations();
                 else if (item is Button button) button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -1203,44 +1213,35 @@ namespace ApexSenseBridgeTray
             UpdateSettingsView();
             UpdateApexProfileSelector();
 
-            string fullLabel;
             string shortLabel;
 
             if (isApex4)
             {
-                fullLabel = LocalizationManager.Get("Loc_ControllerApex4");
                 shortLabel = "Apex 4";
             }
             else if (isApex5)
             {
-                fullLabel = LocalizationManager.Get("Loc_ControllerApex5");
                 shortLabel = "Apex 5";
             }
             else if (isApex6)
             {
-                fullLabel = "Flydigi Apex 6 Pro";
                 shortLabel = "Apex 6 Pro";
             }
             else if (string.Equals(status, "unsupported", StringComparison.OrdinalIgnoreCase))
             {
-                fullLabel = LocalizationManager.Get("Loc_ControllerUnsupported");
                 shortLabel = LocalizationManager.Get("Loc_StatusUnknown");
             }
             else if (string.Equals(status, "unavailable", StringComparison.OrdinalIgnoreCase))
             {
-                fullLabel = LocalizationManager.Get("Loc_ControllerUnavailable");
                 shortLabel = LocalizationManager.Get("Loc_StatusUnavailable");
-            }
-            else if (string.Equals(status, ControllerDetectionService.Multiple, StringComparison.Ordinal))
-            {
-                fullLabel = MultipleControllersText();
-                shortLabel = LocalizationManager.Format("Loc_ControllerMultipleShort", Math.Max(2, controllerDetection != null ? controllerDetection.CandidateCount : 2));
             }
             else
             {
-                fullLabel = LocalizationManager.Get("Loc_ControllerDisconnected");
                 shortLabel = "APEX";
             }
+
+            int connectedControllers = controllerDetection != null ? controllerDetection.CandidateCount : 0;
+            bool hasChoice = connectedControllers > 1;
 
             Brush activeStroke = (Brush)FindResource("PlayStationBlue");
             Brush mutedStroke = (Brush)FindResource("TextMuted");
@@ -1258,7 +1259,7 @@ namespace ApexSenseBridgeTray
                         : isApex5
                             ? "Resources/controller-apex5.png"
                             : "Resources/controller-apex6-pro.png";
-                    ImgDashboardController.Source = new BitmapImage(new Uri(asset, UriKind.Relative));
+                    ImgDashboardController.Source = LoadControllerHero(asset);
                 }
                 else
                 {
@@ -1269,14 +1270,21 @@ namespace ApexSenseBridgeTray
             // 2. Persistent Header Indicator (visible on all tabs, flat with no outline)
             if (TxtHeaderController != null)
             {
-                TxtHeaderController.Text = shortLabel;
+                TxtHeaderController.Text = hasChoice ? shortLabel + " + " + (connectedControllers - 1) : shortLabel;
                 TxtHeaderController.Foreground = isConnected ? activeText : mutedStroke;
-                int connectedControllers = controllerDetection != null ? controllerDetection.CandidateCount : 0;
-                TxtHeaderController.ToolTip = string.Equals(status, ControllerDetectionService.Multiple, StringComparison.Ordinal)
-                    ? fullLabel
-                    : isConnected && connectedControllers > 1
+            }
+            if (BtnHeaderController != null)
+            {
+                BtnHeaderController.Visibility = isConnected || hasChoice ? Visibility.Visible : Visibility.Collapsed;
+                BtnHeaderController.IsEnabled = hasChoice;
+                BtnHeaderController.ToolTip = !hasChoice ? null
+                    : BridgeInUse()
                         ? LocalizationManager.Format("Loc_ControllerBridgedOneOfMany", shortLabel, connectedControllers)
-                        : null;
+                        : LocalizationManager.Get("Loc_ControllerPickerHint");
+            }
+            if (IconHeaderChevron != null)
+            {
+                IconHeaderChevron.Visibility = hasChoice ? Visibility.Visible : Visibility.Collapsed;
             }
             if (IconHeaderController != null)
             {
@@ -1284,7 +1292,6 @@ namespace ApexSenseBridgeTray
             }
             if (BadgeHeaderController != null)
             {
-                BadgeHeaderController.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
                 BadgeHeaderController.BorderThickness = new Thickness(0);
                 BadgeHeaderController.BorderBrush = Brushes.Transparent;
                 if (isConnected)
@@ -1296,6 +1303,98 @@ namespace ApexSenseBridgeTray
                     BadgeHeaderController.Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
                 }
             }
+            UpdateContextualGamepadHints();
+        }
+
+        private static readonly Dictionary<string, ImageSource> controllerHeroCache = new Dictionary<string, ImageSource>();
+
+        private static ImageSource LoadControllerHero(string asset)
+        {
+            ImageSource cached;
+            if (controllerHeroCache.TryGetValue(asset, out cached)) return cached;
+            var image = new BitmapImage(new Uri("pack://application:,,,/" + asset, UriKind.Absolute));
+            ImageSource result = image;
+            try { result = TrimTransparentMargins(image); }
+            catch (Exception ex) { AppLog.WriteLine("tray_crash.log", "[WARN] Controller image trim failed for " + asset + ": " + ex); }
+            controllerHeroCache[asset] = result;
+            return result;
+        }
+
+        private static BitmapSource TrimTransparentMargins(BitmapSource source)
+        {
+            var converted = new FormatConvertedBitmap(source, PixelFormats.Pbgra32, null, 0);
+            int width = converted.PixelWidth, height = converted.PixelHeight, stride = width * 4;
+            var data = new byte[stride * height];
+            converted.CopyPixels(data, stride, 0);
+            int left = width, right = -1, top = height, bottom = -1;
+            for (int y = 0; y < height; y++)
+            {
+                int row = y * stride;
+                for (int x = 0; x < width; x++)
+                {
+                    if (data[row + x * 4 + 3] <= 24) continue;
+                    if (x < left) left = x;
+                    if (x > right) right = x;
+                    if (y < top) top = y;
+                    if (y > bottom) bottom = y;
+                }
+            }
+            if (right < left || bottom < top) return source;
+            const int margin = 4;
+            left = Math.Max(0, left - margin);
+            top = Math.Max(0, top - margin);
+            right = Math.Min(width - 1, right + margin);
+            bottom = Math.Min(height - 1, bottom + margin);
+            var cropped = new CroppedBitmap(source, new Int32Rect(left, top, right - left + 1, bottom - top + 1));
+            cropped.Freeze();
+            return cropped;
+        }
+
+        private bool BridgeInUse()
+        {
+            return sessionManager != null && (sessionManager.IsSessionActive || sessionManager.IsBusy || sessionManager.HasExternalSession) ||
+                   BridgeSession.ReadActiveSession() != null;
+        }
+
+        private void OnControllersChanged()
+        {
+            if (controllerDetection == null) return;
+            PersistDefaultControllerSelection();
+            UpdateControllerStatus(lastControllerStatus);
+        }
+
+        private void PersistDefaultControllerSelection()
+        {
+            if (settings == null) return;
+            var list = controllerDetection.Controllers;
+            if (list.Count < 2) return;
+            string saved = settings.SelectedControllerKey ?? string.Empty;
+            foreach (var controller in list)
+                if (string.Equals(controller.Key, saved, StringComparison.Ordinal)) return;
+            var selected = controllerDetection.SelectedController;
+            if (selected == null || !ControllerDetectionService.IsApexModel(selected.Model)) return;
+            settings.SelectedControllerKey = selected.Key;
+            settings.Save();
+        }
+
+        private void OnHeaderControllerClick(object sender, RoutedEventArgs e)
+        {
+            OpenControllerPicker();
+        }
+
+        private void OpenControllerPicker()
+        {
+            if (controllerDetection == null || settings == null) return;
+            var list = controllerDetection.Controllers;
+            if (list.Count < 2) return;
+            var current = controllerDetection.SelectedController;
+            string currentKey = current != null ? current.Key : null;
+            var picker = new ControllerPickerWindow(list, currentKey, !BridgeInUse()) { Owner = this };
+            if (picker.ShowDialog() != true || picker.SelectedKey == null) return;
+            if (string.Equals(picker.SelectedKey, currentKey, StringComparison.Ordinal)) return;
+            settings.SelectedControllerKey = picker.SelectedKey;
+            settings.Save();
+            controllerDetection.Select(picker.SelectedKey);
         }
 
         private void UpdateDashboardStatus()
@@ -2017,7 +2116,14 @@ namespace ApexSenseBridgeTray
             bool hasCustom = settings.GetGameTuning(game.Normalized) != null;
             settings.SetGameTuning(game.Normalized, game.Title, hasCustom ? null : GlobalGameTuning());
             settings.Save();
+            ApplyLiveTuningToSession();
             UpdateGameTuningPanel();
+        }
+
+        private void ApplyLiveTuningToSession()
+        {
+            if (sessionManager == null || settings == null) return;
+            sessionManager.ApplyLiveTuning(settings);
         }
 
         private void OnGameTuningChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -2031,6 +2137,7 @@ namespace ApexSenseBridgeTray
             if (lastControllerStatus != "apex6") tuning.HapticThresholdPercent = (int)SliderGameThreshold.Value;
             settings.SetGameTuning(game.Normalized, game.Title, tuning);
             settings.Save();
+            ApplyLiveTuningToSession();
             UpdateGameTuningLabels();
         }
 
@@ -2787,11 +2894,6 @@ namespace ApexSenseBridgeTray
 
         #region Settings View
 
-        private string MultipleControllersText()
-        {
-            return LocalizationManager.Format("Loc_ControllerMultiple",
-                Math.Max(2, controllerDetection != null ? controllerDetection.CandidateCount : 2));
-        }
 
         private void UpdateSettingsView()
         {
@@ -2819,22 +2921,22 @@ namespace ApexSenseBridgeTray
             BtnResetGyro.IsEnabled = SliderApex4GyroStrength.IsEnabled;
             BtnResetGyroYaw.IsEnabled = SliderApex4GyroYawStrength.IsEnabled;
             BtnResetThreshold.IsEnabled = SliderVibrationThreshold.IsEnabled;
-            TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5";
+            TileSettingSyncLightbar.IsEnabled = lastControllerStatus == "apex5" || lastControllerStatus == "apex6";
             // Show only what the identified model supports; keep the locked message otherwise.
             TileSettingSyncLightbar.Visibility = TileSettingSyncLightbar.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             SliderLightbarBrightness.IsEnabled = TileSettingSyncLightbar.IsEnabled;
             RowLightbarBrightness.Visibility = TileSettingSyncLightbar.Visibility;
             TileSettingZoneEmulation.IsEnabled = lastControllerStatus == "apex5";
             TileSettingZoneEmulation.Visibility = TileSettingZoneEmulation.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            TileSettingApex6Rate2kHz.IsEnabled = lastControllerStatus == "apex6";
+            TileSettingApex6Rate2kHz.Visibility = TileSettingApex6Rate2kHz.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             PnlControllerEffects.Visibility = canEdit ? Visibility.Visible : Visibility.Collapsed;
             PnlApex4GyroSettings.Visibility = lastControllerStatus == "apex4" ? Visibility.Visible : Visibility.Collapsed;
             PnlHapticThresholdSettings.Visibility = SliderVibrationThreshold.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             TxtControllerCalibrationStatus.Text = canEdit
                 ? string.Format(LocalizationManager.Get("Loc_ControllerCalibrationReady"),
                     lastControllerStatus == "apex4" ? "Apex 4" : lastControllerStatus == "apex5" ? "Apex 5" : "Apex 6 Pro")
-                : string.Equals(lastControllerStatus, ControllerDetectionService.Multiple, StringComparison.Ordinal)
-                    ? MultipleControllersText()
-                    : LocalizationManager.Get("Loc_ControllerCalibrationLocked");
+                : LocalizationManager.Get("Loc_ControllerCalibrationLocked");
             UpdateEffectLabels();
             updatingEffectSettings = false;
             UpdateGameTuningPanel();
@@ -2846,8 +2948,10 @@ namespace ApexSenseBridgeTray
             UpdateSettingToggle(BadgeSettingUdp, DotSettingUdp, settings.EnableUdpTriggers);
             TxtSettingUdpPort.Text = settings.UdpPort.ToString();
             TxtSettingUdpPort.IsEnabled = settings.EnableUdpTriggers;
+            UpdateSettingToggle(BadgeSettingVersionStats, DotSettingVersionStats, settings.SendVersionStats);
             UpdateSettingToggle(BadgeSettingSyncLightbar, DotSettingSyncLightbar, displayed.SyncLightbar);
             UpdateSettingToggle(BadgeSettingZoneEmulation, DotSettingZoneEmulation, settings.ZoneEmulation);
+            UpdateSettingToggle(BadgeSettingApex6Rate2kHz, DotSettingApex6Rate2kHz, settings.Apex6Rate2kHz);
 
             if (PnlSettingCriteria != null)
             {
@@ -2891,10 +2995,11 @@ namespace ApexSenseBridgeTray
                 else if (sender == SliderApex4GyroStrength && lastControllerStatus == "apex4") calibration.GyroStrengthPercent = (int)SliderApex4GyroStrength.Value;
                 else if (sender == SliderApex4GyroYawStrength && lastControllerStatus == "apex4") calibration.GyroYawStrengthPercent = (int)SliderApex4GyroYawStrength.Value;
                 else if (sender == SliderVibrationThreshold && lastControllerStatus != "apex6") calibration.HapticThresholdPercent = (int)SliderVibrationThreshold.Value;
-                else if (sender == SliderLightbarBrightness && lastControllerStatus == "apex5") calibration.LightbarBrightnessPercent = (int)SliderLightbarBrightness.Value;
+                else if (sender == SliderLightbarBrightness && (lastControllerStatus == "apex5" || lastControllerStatus == "apex6")) calibration.LightbarBrightnessPercent = (int)SliderLightbarBrightness.Value;
                 else return;
             }
             settings.Save();
+            if (sender == SliderTriggerStrength || sender == SliderVibrationStrength) ApplyLiveTuningToSession();
             UpdateEffectLabels();
         }
 
@@ -3042,6 +3147,14 @@ namespace ApexSenseBridgeTray
             UpdateSettingsView();
         }
 
+        private void OnSettingVersionStatsToggled(object sender, MouseButtonEventArgs e)
+        {
+            if (settings == null) return;
+            settings.SetSendVersionStats(!settings.SendVersionStats);
+            settings.Save();
+            UpdateSettingsView();
+        }
+
         // The UDP port was busy: the bridge continues without the listener, so turn the
         // option off. The dashboard shows the reason through EngineSessionManager.LastReason.
         private void OnUdpListenerUnavailable()
@@ -3078,7 +3191,7 @@ namespace ApexSenseBridgeTray
 
         private void OnSettingSyncLightbarToggled(object sender, MouseButtonEventArgs e)
         {
-            if (settings == null || lastControllerStatus != "apex5") return;
+            if (settings == null || (lastControllerStatus != "apex5" && lastControllerStatus != "apex6")) return;
             lock (settings)
             {
                 var calibration = settings.GetControllerCalibration(lastControllerStatus);
@@ -3094,6 +3207,17 @@ namespace ApexSenseBridgeTray
             lock (settings)
             {
                 settings.ZoneEmulation = !settings.ZoneEmulation;
+            }
+            settings.Save();
+            UpdateSettingsView();
+        }
+
+        private void OnSettingApex6Rate2kHzToggled(object sender, MouseButtonEventArgs e)
+        {
+            if (settings == null || lastControllerStatus != "apex6") return;
+            lock (settings)
+            {
+                settings.Apex6Rate2kHz = !settings.Apex6Rate2kHz;
             }
             settings.Save();
             UpdateSettingsView();
@@ -3290,9 +3414,22 @@ namespace ApexSenseBridgeTray
             if (BtnCheckUpdates != null) BtnCheckUpdates.IsEnabled = false;
             if (TxtUpdateStatus != null) TxtUpdateStatus.Text = LocalizationManager.Get("Loc_SoftwareUpdate") + "…";
 
+            Action<string> onUpdateStatus = text =>
+            {
+                Action apply = () =>
+                {
+                    if (TxtUpdateStatus != null) TxtUpdateStatus.Text = text;
+                };
+                if (Dispatcher.CheckAccess()) apply(); else Dispatcher.BeginInvoke(apply);
+            };
+            updateChecker.UpdateStatusChanged += onUpdateStatus;
+            bool restarting = false;
+
             try
             {
                 var info = await updateChecker.CheckForUpdatesAsync(false);
+                restarting = info != null && info.RestartRequested;
+                if (restarting) return;
                 if (info != null && info.HasUpdate)
                 {
                     if (TxtUpdateStatus != null)
@@ -3305,7 +3442,9 @@ namespace ApexSenseBridgeTray
                 {
                     if (TxtUpdateStatus != null)
                     {
-                        TxtUpdateStatus.Text = LocalizationManager.Get("Loc_UpdateUpToDate");
+                        TxtUpdateStatus.Text = info != null && !string.IsNullOrEmpty(info.LatestVersion)
+                            ? LocalizationManager.Format("Loc_UpdateUpToDate", info.CurrentVersion)
+                            : LocalizationManager.Get("Loc_UpdateCheckUnavailable");
                     }
                 }
             }
@@ -3318,7 +3457,8 @@ namespace ApexSenseBridgeTray
             }
             finally
             {
-                if (BtnCheckUpdates != null) BtnCheckUpdates.IsEnabled = true;
+                updateChecker.UpdateStatusChanged -= onUpdateStatus;
+                if (BtnCheckUpdates != null) BtnCheckUpdates.IsEnabled = !restarting;
             }
         }
 

@@ -120,8 +120,23 @@ void writeApex6TriggerTrace(std::ostream& output,
     };
     print("apex6_last_active_lt", stats.lastActiveLeft);
     print("apex6_last_active_rt", stats.lastActiveRight);
+    print("apex6_last_vibration_lt", stats.lastVibrationLeft);
+    print("apex6_last_vibration_rt", stats.lastVibrationRight);
     print("apex6_last_rejected_lt", stats.lastRejectedLeft);
     print("apex6_last_rejected_rt", stats.lastRejectedRight);
+    output << "apex6_report_signature_overflow=" << stats.reportSignatureOverflow << '\n';
+    for (std::size_t index = 0; index < stats.reportSignatureCount; ++index) {
+        const auto& entry = stats.reportSignatures[index];
+        output << "apex6_report_signature_" << index << "={\"flags\": ["
+               << static_cast<unsigned>(entry.enableBits1) << ", "
+               << static_cast<unsigned>(entry.enableBits2) << ", "
+               << static_cast<unsigned>(entry.enableBits3) << "], \"left_mode\": "
+               << static_cast<unsigned>(entry.leftMode) << ", \"right_mode\": "
+               << static_cast<unsigned>(entry.rightMode) << ", \"rumble\": "
+               << (entry.rumble ? "true" : "false") << ", \"count\": " << entry.count
+               << ", \"first_ms\": " << entry.firstMilliseconds
+               << ", \"last_ms\": " << entry.lastMilliseconds << "}\n";
+    }
     output << "apex6_trigger_trace_overwritten=" << stats.triggerTraceOverwritten << '\n';
     for (std::size_t index = 0; index < stats.triggerTraceCount; ++index) {
         output << "apex6_trigger_trace_" << index << '=';
@@ -192,6 +207,19 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << physicalStats.vendorStaleTriggerGaps << ",\n"
            << "  \"physical_trigger_source_switches\": "
            << physicalStats.triggerSourceSwitches << ",\n"
+           << "  \"physical_trigger_max_xinput\": ["
+           << static_cast<unsigned>(physicalStats.triggerSources.xinputMaxL2) << ", "
+           << static_cast<unsigned>(physicalStats.triggerSources.xinputMaxR2) << "],\n"
+           << "  \"physical_trigger_max_mapped_hid\": ["
+           << static_cast<unsigned>(physicalStats.triggerSources.mappedMaxL2) << ", "
+           << static_cast<unsigned>(physicalStats.triggerSources.mappedMaxR2) << "],\n"
+           << "  \"physical_trigger_max_vendor\": ["
+           << static_cast<unsigned>(physicalStats.triggerSources.vendorMaxL2) << ", "
+           << static_cast<unsigned>(physicalStats.triggerSources.vendorMaxR2) << "],\n"
+           << "  \"physical_trigger_fallback_used\": "
+           << (physicalStats.triggerSources.fallbackUsed ? "true" : "false") << ",\n"
+           << "  \"physical_trigger_fallback_reports\": "
+           << physicalStats.triggerSources.fallbackReports << ",\n"
            << "  \"physical_changes_sticks\": " << physicalStats.activity.stickChanges << ",\n"
            << "  \"physical_changes_l2\": " << physicalStats.activity.l2Changes << ",\n"
            << "  \"physical_changes_r2\": " << physicalStats.activity.r2Changes << ",\n"
@@ -222,6 +250,13 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
            << "  \"battery_percent\": "
            << static_cast<unsigned>(telemetry.batteryPercent) << ",\n"
            << "  \"charge_state\": " << static_cast<unsigned>(telemetry.chargeState) << ",\n"
+           << "  \"battery_known\": " << (telemetry.batteryKnown ? "true" : "false") << ",\n"
+           << "  \"battery_source\": \"" << telemetry.batterySource << "\",\n"
+           << "  \"battery_refreshes\": " << telemetry.batteryRefreshes << ",\n"
+           << "  \"battery_refresh_failures\": " << telemetry.batteryRefreshFailures << ",\n"
+           << "  \"battery_refresh_slow_calls\": " << telemetry.batteryRefreshSlowCalls << ",\n"
+           << "  \"battery_refresh_max_call_us\": " << telemetry.batteryRefreshMaxCallMicroseconds << ",\n"
+           << "  \"battery_refresh_disabled\": " << (telemetry.batteryRefreshDisabled ? "true" : "false") << ",\n"
            << "  \"cpu_percent_total\": " << telemetry.cpuPercent << ",\n"
            << "  \"working_set_mib\": "
            << static_cast<double>(telemetry.processUsage.workingSetBytes) /
@@ -261,10 +296,21 @@ void writeBridgeTelemetry(std::ostream& output, const BridgeTelemetry& telemetry
                << "    \"waveform_threshold_policy\": \"native-pcm-preserved\",\n"
                << "    \"pcm_gain_percent\": " << stats.pcmGainPercent << ",\n"
                << "    \"pcm_gain_policy\": \"bounded-companding-opt-in\",\n"
+               << "    \"grip_duck_percent\": " << stats.gripDuckPercent << ",\n"
+               << "    \"grip_ducked_blocks\": " << stats.gripDuckedBlocks << ",\n"
+               << "    \"trigger_ceiling_percent\": " << stats.triggerCeilingPercent << ",\n"
+               << "    \"trigger_limited_samples\": " << stats.triggerLimitedSamples << ",\n"
                << "    \"haptic_threshold_percent\": 0,\n"
                << "    \"pcm_output_left_peak\": " << stats.pcmOutputLeftPeak << ",\n"
                << "    \"pcm_output_right_peak\": " << stats.pcmOutputRightPeak << ",\n"
                << "    \"rumble_updates\": " << stats.rumbleUpdates << ",\n"
+               << "    \"rumble_active_updates\": " << stats.rumbleActiveUpdates << ",\n"
+               << "    \"rumble_ignored_reports\": " << stats.rumbleIgnoredReports << ",\n"
+               << "    \"rumble_ignored_last_flags\": "
+               << static_cast<unsigned>(stats.lastIgnoredRumbleEnableBits) << ",\n"
+               << "    \"grip_rumble_frames\": " << stats.gripRumbleFrames << ",\n"
+               << "    \"grip_rumble_masked_frames\": " << stats.gripRumbleMaskedFrames << ",\n"
+               << "    \"grip_envelope_frames\": " << stats.gripEnvelopeFrames << ",\n"
                << "    \"audio_envelope_reports\": " << stats.audioEnvelopeReports << ",\n"
                << "    \"waveform_blocks\": " << stats.waveformBlocks << ",\n"
                << "    \"waveform_left_active\": " << stats.waveformLeftActiveBlocks << ",\n"

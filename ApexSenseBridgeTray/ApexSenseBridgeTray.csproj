@@ -122,6 +122,7 @@
     <Compile Include="Models\TraySettings.cs" />
     <Compile Include="Services\CloudGameListService.cs" />
     <Compile Include="Services\ControllerDetectionService.cs" />
+    <Compile Include="Services\ControllerSelection.cs" />
     <Compile Include="Services\ControllerTestService.cs" />
     <Compile Include="Services\RearButtonService.cs" />
     <Compile Include="Services\DiagnosticReportService.cs" />
@@ -134,10 +135,17 @@
     <Compile Include="Services\ReportRelayClient.cs" />
     <Compile Include="Services\ProcessMonitorService.cs" />
     <Compile Include="Services\EngineSessionManager.cs" />
+    <Compile Include="Services\WidgetControlServer.cs" />
+    <Compile Include="Services\WidgetControlService.cs" />
+    <Compile Include="Services\TrayWidgetTuningStore.cs" />
+    <Compile Include="Services\WidgetPackageLocator.cs" />
     <Compile Include="Services\SessionRecoveryState.cs" />
     <Compile Include="Services\StartRetryPolicy.cs" />
     <Compile Include="Services\SteamProcessChecker.cs" />
     <Compile Include="Services\UpdateCheckerService.cs" />
+    <Compile Include="..\shared\UpdatePackage.cs">
+      <Link>Common\UpdatePackage.cs</Link>
+    </Compile>
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Common\ReleaseSecurity.cs</Link>
     </Compile>
@@ -153,8 +161,13 @@
     <Compile Include="..\shared\ProcessLiveness.cs">
       <Link>Common\ProcessLiveness.cs</Link>
     </Compile>
+    <Compile Include="..\shared\SessionTuning.cs">
+      <Link>Common\SessionTuning.cs</Link>
+    </Compile>
     <Compile Include="Common\NativeMethods.cs" />
     <Compile Include="Common\AppLog.cs" />
+    <Compile Include="Common\StartupDiagnostics.cs" />
+    <Compile Include="Common\TrayStartupOptions.cs" />
     <Compile Include="Common\ThemeManager.cs" />
     <Compile Include="Common\GamepadNavigationService.cs" />
     <Compile Include="Common\WindowCorners.cs" />
@@ -165,6 +178,10 @@
     <Compile Include="Common\VirtualKeyboardService.cs" />
     <Compile Include="Common\CoverCacheService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="ControllerPickerWindow.xaml.cs">
+      <DependentUpon>ControllerPickerWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="LanguagePickerWindow.xaml.cs">
@@ -182,6 +199,10 @@
       <DependentUpon>RearButtonMappingWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Page Include="ControllerPickerWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="LanguagePickerWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

@@ -63,6 +63,7 @@ public:
     void stepPeriodic(std::chrono::steady_clock::time_point now);
     void quiesce();
     void setZoneUnits(ZoneUnits units);
+    void setStrengthPercent(unsigned percent);
     [[nodiscard]] bool failed() const noexcept;
     [[nodiscard]] std::string error() const;
     [[nodiscard]] AdaptiveTriggerBridgeStats stats() const;
@@ -73,6 +74,7 @@ private:
     void recordBlock(TriggerSide side, std::uint8_t enableBits,
                      const std::array<std::uint8_t, 11>& effect);
     bool send(const ForceTriggerCommand& command, std::uint8_t dualSenseType);
+    bool sendScaled(const ForceTriggerCommand& raw, std::uint8_t dualSenseType);
 
     struct ArmedBow {
         std::array<std::uint8_t, 11> effect{};
@@ -122,7 +124,8 @@ private:
     std::atomic_uint64_t zoneTransitions_{0};
 
     flydigi::Apex5Device& device_;
-    unsigned strengthPercent_ = 100;
+    std::atomic<unsigned> strengthPercent_{100};
+    std::array<std::optional<ForceTriggerCommand>, 2> lastRaw_;
     bool zoneEmulation_ = false;
     ZoneUnits zoneUnits_{};
     std::optional<ForceTriggerCommand> lastLeft_;

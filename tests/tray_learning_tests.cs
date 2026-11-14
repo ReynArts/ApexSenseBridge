@@ -34,6 +34,9 @@ internal static class TrayLearningTests
         try
         {
             TestReleaseAssetPolicy();
+            TestUpdateLaunchPolicy();
+            TestUpdateAttemptMarker();
+            TestUpdateFlowContractAndLocalization();
             TestLatencyStatisticsAndTelemetry();
             TestGyroStreamParsing();
             TestControllerTestRefusedDuringBridgeSession();
@@ -57,12 +60,23 @@ internal static class TrayLearningTests
             TestPerGameApexProfileSettings();
             TestOnboardProfileSelectorLock();
             TestManualBridgeModeIsNotPersisted();
+            TestTrayStartupOptions();
             TestSharedBridgeArguments();
             TestControllerCalibrations();
+            TestLiveTuningResolution();
+            TestSessionTuningClientProtocol();
+            TestWidgetControlService();
+            TestWidgetControlServer();
+            TestWidgetPackageLocator();
+            TestWidgetBrokerLease();
+            TestWidgetBrokerYield();
             TestReportRelayClient();
             TestControllerCalibrationDetection();
             TestMultipleControllerDetection();
+            TestControllerSelection();
             TestGameExecutableSettings();
+            TestApex6Rate2kHzSetting();
+            TestApex6Rate2kHzLocalization();
             TestSessionStatusDiscovery();
             TestRecoveryPolicy();
             TestHidHideBusyDetection();
@@ -80,6 +94,7 @@ internal static class TrayLearningTests
             TestPidChurningFailureLoopPauses();
             TestUnexpectedEngineExitBacksOff();
             TestLauncherHandoffGraceAndInstallFolder();
+            TestForegroundSwitchesNeverRestartSession();
             TestPreparedLaunchLifecycle();
             TestProcessLivenessClassification();
             TestProtectedGameProcessStaysAttached(testRoot);
@@ -90,6 +105,8 @@ internal static class TrayLearningTests
             TestMissPerformance(testRoot);
             TestSteamAlreadyRunningDetection();
             TestInstallerIdentityIgnoresVersionResourcePadding(testRoot);
+            TestStartupDiagnosticsReport();
+            assertions += UpdatePackageTests.Run(testRoot);
             Console.WriteLine("Tray executable learning tests passed ({0} assertions).", assertions);
             return 0;
         }
@@ -126,6 +143,151 @@ internal static class TrayLearningTests
             "ApexSenseBridge-Setup.exe",
             "https://github.com.evil.example/ReynArts/ApexSenseBridge/releases/download/v0.6.3/ApexSenseBridge-Setup.exe"),
             "a lookalike GitHub host must be rejected");
+    }
+
+    private static void TestUpdateLaunchPolicy()
+    {
+        Assert(UpdateLaunchPolicy.NormalizeVersion("v1.2.3") == "1.2.3" &&
+               UpdateLaunchPolicy.NormalizeVersion("1.2.3.4") == "1.2.3" &&
+               UpdateLaunchPolicy.NormalizeVersion("1.2") == "1.2.0" &&
+               UpdateLaunchPolicy.NormalizeVersion(" V2.0.1 ") == "2.0.1",
+            "release versions must normalize to Major.Minor.Build");
+        Assert(UpdateLaunchPolicy.NormalizeVersion(null) == null &&
+               UpdateLaunchPolicy.NormalizeVersion("") == null &&
+               UpdateLaunchPolicy.NormalizeVersion("latest") == null &&
+               UpdateLaunchPolicy.NormalizeVersion("1.2.3-beta") == null,
+            "unparsable versions must not normalize");
+        Assert(UpdateLaunchPolicy.IsSameOrNewer("1.2.0.0", "1.2.0") &&
+               UpdateLaunchPolicy.IsSameOrNewer("1.3.0", "1.2.9") &&
+               !UpdateLaunchPolicy.IsSameOrNewer("1.1.9", "1.2.0") &&
+               !UpdateLaunchPolicy.IsSameOrNewer("garbage", "1.2.0"),
+            "version ordering for the update marker is wrong");
+
+        const string url = "https://github.com/ReynArts/ApexSenseBridge/releases/download/v1.2.0/ApexSenseBridge-Update.zip";
+        Assert(UpdateLaunchPolicy.ShouldTryPackage(url, "1.2.0", null, true, true),
+            "a usable package with the updater and engine present must be tried");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(null, "1.2.0", null, true, true) &&
+               !UpdateLaunchPolicy.ShouldTryPackage("", "1.2.0", null, true, true),
+            "a release without a package asset must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "1.2.0", null, false, true),
+            "a portable copy without the updater must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "1.2.0", null, true, false),
+            "an install without a co-located engine must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "not-a-version", null, true, true),
+            "an unparsable release version must use the full setup");
+        Assert(!UpdateLaunchPolicy.ShouldTryPackage(url, "v1.2.0", "1.2.0", true, true),
+            "a version whose package updater failed must use the full setup");
+        Assert(UpdateLaunchPolicy.ShouldTryPackage(url, "1.3.0", "1.2.0", true, true),
+            "a failure on one version must not block the next release");
+
+        Assert(UpdateLaunchPolicy.BuildUpdaterArguments(
+                   @"C:\Temp\ApexSenseBridge-Update-abc.zip", @"C:\Program Files\ApexSenseBridge", "v1.2.0", 4321) ==
+               "--package \"C:\\Temp\\ApexSenseBridge-Update-abc.zip\" --install-dir \"C:\\Program Files\\ApexSenseBridge\" " +
+               "--expected-version 1.2.0 --wait-pid 4321 --relaunch-tray",
+            "the updater command line does not match the shared contract");
+        var trailing = UpdateLaunchPolicy.BuildUpdaterArguments(
+            @"C:\Temp\u.zip", @"C:\Program Files\ApexSenseBridge\", "1.2.0", 7);
+        Assert(trailing != null && trailing.Contains("--install-dir \"C:\\Program Files\\ApexSenseBridge\" "),
+            "a trailing backslash would escape the closing quote of the install directory");
+        Assert(!UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\Program Files\ApexSenseBridge", "1.2.0", 7)
+                   .Contains("--force") &&
+               !UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\Program Files\ApexSenseBridge", "1.2.0", 7)
+                   .Contains("--silent"),
+            "the Tray must never force the updater past an active session");
+        Assert(UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u"".zip", @"C:\App", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\App""x", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"u.zip", @"C:\App", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\", "1.2.0", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\App", "bogus", 7) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments(@"C:\Temp\u.zip", @"C:\App", "1.2.0", 0) == null &&
+               UpdateLaunchPolicy.BuildUpdaterArguments("C:\\Temp\\u\r\n.zip", @"C:\App", "1.2.0", 7) == null,
+            "unsafe or incomplete updater arguments must be refused");
+    }
+
+    private static void TestUpdateAttemptMarker()
+    {
+        var settings = new TraySettings();
+        Assert(string.IsNullOrEmpty(settings.UpdateAttemptVersion) &&
+               string.IsNullOrEmpty(settings.UpdatePackageFailedVersion) &&
+               !settings.IsUpdatePackageBlocked("1.2.0") &&
+               settings.ResolveUpdateAttempt("1.1.0") == null,
+            "a fresh profile must have no update marker");
+
+        settings.BeginUpdateAttempt("v1.2.0");
+        Assert(settings.UpdateAttemptVersion == "1.2.0", "the attempted version was not recorded normalized");
+        Assert(settings.ResolveUpdateAttempt("1.2.0.0") == null &&
+               string.IsNullOrEmpty(settings.UpdateAttemptVersion) &&
+               !settings.IsUpdatePackageBlocked("1.2.0"),
+            "a start on the attempted version is a success and must clear the marker");
+
+        settings.BeginUpdateAttempt("1.2.0");
+        Assert(settings.ResolveUpdateAttempt("1.1.0") == "1.2.0",
+            "a start on the old version after an attempt is a failed update");
+        Assert(string.IsNullOrEmpty(settings.UpdateAttemptVersion) &&
+               settings.IsUpdatePackageBlocked("1.2.0") && settings.IsUpdatePackageBlocked("v1.2.0.0") &&
+               !settings.IsUpdatePackageBlocked("1.3.0"),
+            "a failed attempt must block the package for that version only");
+        Assert(settings.ResolveUpdateAttempt("1.1.0") == null && settings.IsUpdatePackageBlocked("1.2.0"),
+            "the failure marker must survive later starts without a new attempt");
+
+        settings.BeginUpdateAttempt("1.2.0");
+        settings.AbandonUpdateAttempt();
+        Assert(string.IsNullOrEmpty(settings.UpdateAttemptVersion) && settings.ResolveUpdateAttempt("1.1.0") == null,
+            "an abandoned attempt (UAC cancelled, launch failure) must not count as a failure");
+
+        settings.BeginUpdateAttempt("1.2.0");
+        Assert(settings.ResolveUpdateAttempt("1.2.0") == null && !settings.IsUpdatePackageBlocked("1.2.0"),
+            "a later successful update to the blocked version must lift the block");
+
+        settings.BeginUpdateAttempt("1.4.0");
+        Assert(settings.ResolveUpdateAttempt("1.3.0") == "1.4.0" && settings.IsUpdatePackageBlocked("1.4.0"),
+            "a failed attempt on a newer version must be recorded");
+
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(restored.UpdatePackageFailedVersion == "1.4.0" && restored.IsUpdatePackageBlocked("1.4.0"),
+            "the failure marker must survive a settings round trip");
+    }
+
+    private static void TestUpdateFlowContractAndLocalization()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", ".."));
+        var service = File.ReadAllText(Path.Combine(root, "ApexSenseBridgeTray", "Services", "UpdateCheckerService.cs"), Encoding.UTF8);
+        Assert(service.Contains("UpdatePackage.IsExpectedUpdateAsset(") &&
+               service.Contains("psi.Verb = \"runas\";") &&
+               service.Contains("UacCancelledErrorCode = 1223") &&
+               service.Contains("UpdatePackage.ReadManifest(") &&
+               service.Contains("UpdatePackage.DriversMatchInstalled(") &&
+               service.Contains("ReleaseSecurity.VerifyInstaller("),
+            "the Tray update flow lost one of its required steps");
+        Assert(!service.Contains("--force") && !service.Contains("Process.GetProcessesByName"),
+            "the Tray must not force the updater or kill processes itself");
+
+        var directory = Path.Combine(root, "ApexSenseBridgeTray", "Resources", "Languages");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        var english = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(directory, "en.json"), Encoding.UTF8));
+        var keys = new[]
+        {
+            "Loc_UpdateDownloadingPackage", "Loc_UpdateDownloadingSetup", "Loc_UpdateRestarting",
+            "Loc_UpdateCancelled", "Loc_UpdateSessionActive", "Loc_UpdateAttemptFailedTitle", "Loc_UpdateAttemptFailedBody"
+        };
+        foreach (var language in new[] { "en", "es", "fr", "ja", "ko", "pt", "ru", "vi", "zh" })
+        {
+            var entries = serializer.Deserialize<Dictionary<string, object>>(
+                File.ReadAllText(Path.Combine(directory, language + ".json"), Encoding.UTF8));
+            foreach (var key in keys)
+            {
+                object value;
+                Assert(entries.TryGetValue(key, out value) && !string.IsNullOrWhiteSpace(value as string),
+                    language + " has no " + key + ".");
+                Assert(language == "en" || (string)value != (string)english[key],
+                    language + " reuses the English " + key + ".");
+            }
+            foreach (var key in new[] { "Loc_UpdateDownloadingPackage", "Loc_UpdateDownloadingSetup", "Loc_UpdateRestarting", "Loc_UpdateAttemptFailedBody" })
+                Assert(((string)entries[key]).Contains("{0}"), language + " dropped the version placeholder of " + key + ".");
+            Assert(((string)entries["Loc_UpdateRestarting"]).Contains("ApexSenseBridge"),
+                language + " translated the product name in the restart text.");
+        }
     }
 
     private static int TestGyroHardwareLifecycle()
@@ -816,10 +978,10 @@ internal static class TrayLearningTests
 
     private static void TestOnboardProfileSelectorLock()
     {
-        foreach (var model in new[] { "apex4", "APEX6", "unsupported" })
+        foreach (var model in new[] { "apex4", "unsupported" })
             Assert(ControllerDetectionService.LocksOnboardProfile(model),
                 "The onboard profile selector stayed editable for " + model + ".");
-        foreach (var status in new[] { "apex5", "Apex5", "disconnected", "unavailable", ControllerDetectionService.Ambiguous, "", null })
+        foreach (var status in new[] { "apex5", "Apex5", "apex6", "APEX6", "disconnected", "unavailable", ControllerDetectionService.Ambiguous, "", null })
             Assert(!ControllerDetectionService.LocksOnboardProfile(status),
                 "The onboard profile selector was locked for " + (status ?? "null") + ".");
         Assert(ControllerDetectionService.LocksOnboardProfile(
@@ -843,6 +1005,43 @@ internal static class TrayLearningTests
         migrated.ResetTransientState();
         Assert(migrated != null && migrated.ForcedProfile == "none",
             "A legacy persisted manual bridge mode still disables detection after restart.");
+    }
+
+    private static void TestTrayStartupOptions()
+    {
+        var empty = TrayStartupOptions.Parse(new string[0]);
+        Assert(!empty.ShowDashboard && !empty.ForceAlwaysOn && !TrayStartupOptions.Parse(null).ForceAlwaysOn,
+            "Launching the Tray without arguments requested a startup option.");
+
+        var forced = TrayStartupOptions.Parse(new[] { "--FORCE-ALWAYS-ON", "--unknown" });
+        Assert(forced.ForceAlwaysOn && !forced.ShowDashboard,
+            "--force-always-on was not recognized, or it also requested the dashboard.");
+        var both = TrayStartupOptions.Parse(new[] { "--show", "--force-always-on" });
+        Assert(both.ForceAlwaysOn && both.ShowDashboard,
+            "--show and --force-always-on did not combine.");
+        Assert(TrayStartupOptions.Parse(new[] { "--show" }).ShowDashboard &&
+               !TrayStartupOptions.Parse(new[] { "--show" }).ForceAlwaysOn,
+            "--show alone requested continuous activation.");
+        foreach (var near in new[] { "force-always-on", "--force-always-on=1", "--force-always-on-now", "-force-always-on", "" })
+            Assert(!TrayStartupOptions.Parse(new[] { near }).ForceAlwaysOn,
+                "A near-miss argument enabled continuous activation: '" + near + "'.");
+
+        var settings = new TraySettings();
+        Assert(settings.ForcedProfile == "none", "A new settings object started in manual bridge mode.");
+        empty.ApplyTo(settings);
+        Assert(settings.ForcedProfile == "none", "Starting without the option changed the manual bridge mode.");
+        forced.ApplyTo(null);
+        forced.ApplyTo(settings);
+        Assert(settings.ForcedProfile == "standard", "--force-always-on did not enable the manual bridge mode.");
+
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var json = serializer.Serialize(settings);
+        Assert(!json.Contains("ForcedProfile") && !json.Contains("standard"),
+            "--force-always-on was written to the settings file.");
+        var restarted = serializer.Deserialize<TraySettings>(json);
+        restarted.ResetTransientState();
+        Assert(restarted.ForcedProfile == "none",
+            "--force-always-on survived a restart without the argument.");
     }
 
     private static void TestSharedBridgeArguments()
@@ -939,6 +1138,109 @@ internal static class TrayLearningTests
         settings.ZoneEmulation = false;
         var disabledEmulation = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
         Assert(!disabledEmulation.ZoneEmulation, "Disabled trigger emulation did not survive serialization.");
+    }
+
+    private static void TestApex6Rate2kHzSetting()
+    {
+        var mapping = new Dictionary<string, string> { { "M1", "Cross" }, { "M2", "None" } };
+        var combined = BridgeArguments.Build("none", false, 12, true, 0,
+            lightbarBrightnessPercent: 40, apex6Rate2k: false,
+            enableUdpTriggers: true, udpPort: 10027, rearButtonBindings: mapping);
+        Assert(combined.Contains("--apex6-rate 1000") &&
+               combined.Contains("--sync-lightbar --lightbar-brightness 40") &&
+               combined.Contains("--udp-bind 127.0.0.1 --udp-port 10027") &&
+               combined.Contains("--rear-map M1=Cross") && !combined.Contains("M2="),
+            "UDP and rear mapping did not coexist with existing launch options.");
+        Assert(!BridgeArguments.Build("none", false, 12, false, 0).Contains("--udp-"),
+            "UDP was enabled without opting in.");
+        const string prefix = "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100 " +
+                              "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100";
+        Assert(BridgeArguments.Build("none", true, 12, false, 0) == prefix + " --rumble --haptic-threshold 12",
+            "The existing rumble arguments changed.");
+        Assert(BridgeArguments.Build("none", true, 12, false, 0, apex6Rate2k: true) ==
+               BridgeArguments.Build("none", true, 12, false, 0),
+            "The 2 kHz rate is not the default of the launch arguments.");
+        Assert(BridgeArguments.Build("none", true, 12, false, 0, apex6Rate2k: false) ==
+               prefix + " --rumble --haptic-threshold 12 --apex6-rate 1000",
+            "The 1 kHz rate did not follow the rumble arguments.");
+        Assert(BridgeArguments.Build("none", false, 12, false, 0, apex6Rate2k: false) ==
+               prefix + " --apex6-rate 1000",
+            "The 1 kHz rate depended on the rumble switch.");
+        Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3, 100, 100, 100, 100, false, 40, false) ==
+               "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 " +
+               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100 --rumble --haptic-threshold 12 " +
+               "--apex6-rate 1000 --sync-lightbar --lightbar-brightness 40 --no-zone-emulation --apex-profile 3",
+            "The 1 kHz rate moved relative to the other optional arguments.");
+        Assert(BridgeArguments.Build("Spider-Man-2", true, 12, true, 3, 100, 100, 100, 100, false, 40, true) ==
+               "bridge-triggers --touchpad-profile spider-man-2 --trigger-strength 100 --vibration-strength 100 " +
+               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100 --rumble --haptic-threshold 12 " +
+               "--sync-lightbar --lightbar-brightness 40 --no-zone-emulation --apex-profile 3",
+            "Existing optional arguments changed when the 2 kHz rate is on.");
+
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+        var settings = new TraySettings();
+        Assert(settings.Apex6Rate2kHz, "The 2 kHz rate is not enabled by default.");
+        Assert(serializer.Deserialize<TraySettings>("{\"AutoDetectGames\":true}").Apex6Rate2kHz &&
+               serializer.Deserialize<TraySettings>("{\"ZoneEmulation\":false}").Apex6Rate2kHz &&
+               serializer.Deserialize<TraySettings>("{}").Apex6Rate2kHz,
+            "A legacy settings file disabled the 2 kHz rate.");
+        Assert(serializer.Serialize(settings).Contains("\"Apex6Rate2kHz\":true"),
+            "The 2 kHz rate is not part of the persisted settings.");
+        settings.Apex6Rate2kHz = false;
+        var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
+        Assert(!restored.Apex6Rate2kHz, "The disabled 2 kHz rate did not survive serialization.");
+        Assert(restored.ZoneEmulation && restored.EnableRumble && restored.AutoDetectGames,
+            "Disabling the 2 kHz rate disturbed other settings.");
+        Assert(new TraySettings().Apex6Rate2kHz, "Default settings disabled the 2 kHz rate.");
+        Assert(!serializer.Deserialize<TraySettings>("{\"Apex6Rate2kHz\":false}").Apex6Rate2kHz,
+            "A persisted disabled 2 kHz rate was ignored.");
+
+        var builder = typeof(EngineSessionManager).GetMethod("BuildArguments", BindingFlags.Static | BindingFlags.NonPublic);
+        var disabled = (string)builder.Invoke(null, new object[] { "standard", settings, 2, "Alpha" });
+        Assert(disabled.Contains(" --rumble") == false && disabled.Contains(" --apex6-rate 1000 --apex-profile 2") &&
+               disabled.IndexOf("--apex6-rate 1000", StringComparison.Ordinal) <
+               disabled.IndexOf("--controller-calibration", StringComparison.Ordinal),
+            "The session launch did not pass the disabled 2 kHz rate.");
+        settings.Apex6Rate2kHz = true;
+        var enabled = (string)builder.Invoke(null, new object[] { "standard", settings, 2, "Alpha" });
+        Assert(!enabled.Contains("--apex6-rate"), "The session launch passed an explicit rate for the default 2 kHz.");
+        var withoutSettings = (string)builder.Invoke(null, new object[] { "standard", null, 2, "Alpha" });
+        Assert(!withoutSettings.Contains("--apex6-rate"), "A session without settings passed a rate.");
+        Assert(disabled.Replace(" --apex6-rate 1000", string.Empty) == enabled,
+            "Only the rate may differ between enabled and disabled session launches.");
+    }
+
+    private static void TestApex6Rate2kHzLocalization()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", ".."));
+        var directory = Path.Combine(root, "ApexSenseBridgeTray", "Resources", "Languages");
+        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        var english = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(directory, "en.json"), Encoding.UTF8));
+        Assert((string)english["Loc_Apex6Rate2kHz"] == "2 kHz grip haptics (experimental)",
+            "The English 2 kHz title changed.");
+        Assert(((string)english["Loc_Apex6Rate2kHzHint"]).StartsWith("Sends APEX 6 Pro grip haptics at 2000 samples per second instead of 1000.", StringComparison.Ordinal),
+            "The English 2 kHz description changed.");
+        foreach (var language in new[] { "en", "es", "fr", "ja", "ko", "pt", "ru", "vi", "zh" })
+        {
+            var entries = serializer.Deserialize<Dictionary<string, object>>(
+                File.ReadAllText(Path.Combine(directory, language + ".json"), Encoding.UTF8));
+            object titleValue, hintValue;
+            Assert(entries.TryGetValue("Loc_Apex6Rate2kHz", out titleValue) && !string.IsNullOrWhiteSpace(titleValue as string),
+                language + " has no 2 kHz title.");
+            Assert(entries.TryGetValue("Loc_Apex6Rate2kHzHint", out hintValue) && !string.IsNullOrWhiteSpace(hintValue as string),
+                language + " has no 2 kHz description.");
+            var title = (string)titleValue;
+            var hint = (string)hintValue;
+            Assert(title.Contains("2 kHz"), language + " translated the 2 kHz unit in the title.");
+            Assert(hint.Contains("APEX 6 Pro") && hint.Contains("libVIIPER"),
+                language + " translated a product name in the 2 kHz description.");
+            Assert(language == "en" || (title != (string)english["Loc_Apex6Rate2kHz"] && hint != (string)english["Loc_Apex6Rate2kHzHint"]),
+                language + " reuses the English 2 kHz text.");
+            Assert(!hint.Contains("\n") && !hint.Contains("\r"), language + " has a multi-line 2 kHz description.");
+        }
+        var window = File.ReadAllText(Path.Combine(root, "ApexSenseBridgeTray", "GameListWindow.xaml"), Encoding.UTF8);
+        Assert(window.Contains("{DynamicResource Loc_Apex6Rate2kHz}") && window.Contains("{DynamicResource Loc_Apex6Rate2kHzHint}"),
+            "The settings window does not use the 2 kHz texts.");
     }
 
     private static void TestReportRelayClient()
@@ -1049,6 +1351,16 @@ internal static class TrayLearningTests
             arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100:40") &&
             arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100:100"),
             "Controller profiles were not bounded/serialized to the native protocol.");
+        a6.SyncLightbar = true;
+        a6.LightbarBrightnessPercent = 40;
+        a4.SyncLightbar = true;
+        var rgbArguments = settings.BuildControllerCalibrationArguments();
+        Assert(rgbArguments.Contains("--controller-calibration apex6:80:90:0:1:1:100:100:40") &&
+            rgbArguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225:100"),
+            "RGB sync was not enabled for the APEX 6 Pro only, or it leaked to the APEX 4.");
+        a6.SyncLightbar = false;
+        a6.LightbarBrightnessPercent = 100;
+        a4.SyncLightbar = false;
         Assert(a4.LightbarBrightnessPercent == 100 && a5.LightbarBrightnessPercent == 40 && a6.LightbarBrightnessPercent == 100,
             "The lightbar brightness limit crossed the APEX 5 boundary.");
         a5.LightbarBrightnessPercent = -5;
@@ -1168,11 +1480,11 @@ internal static class TrayLearningTests
             "A single APEX 5 was not accepted.");
         var fabricated = new[]
         {
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleB, Count = 2, Name = "two APEX 5 on two dongles" },
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + wired, Count = 2, Name = "APEX 5 on dongle plus APEX 5 wired" },
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + apex4 + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "APEX 4 plus APEX 5" },
-            new { Output = "Found 3 candidate(s):\r\n\r\n" + dongleA + dongleB + third, Count = 3, Name = "three APEX 5" },
-            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "duplicate device path" }
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleB, Count = 2, Name = "two APEX 5 on two dongles", Models = new[] { "apex5", "apex5" } },
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + wired, Count = 2, Name = "APEX 5 on dongle plus APEX 5 wired", Models = new[] { "apex5", "apex5" } },
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + apex4 + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "APEX 4 plus APEX 5", Models = new[] { "apex4", "apex5" } },
+            new { Output = "Found 3 candidate(s):\r\n\r\n" + dongleA + dongleB + third, Count = 3, Name = "three APEX 5", Models = new[] { "apex5", "apex5", "apex5" } },
+            new { Output = "Found 2 candidate(s):\r\n\r\n" + dongleA + dongleA.Replace("[0]", "[1]"), Count = 2, Name = "duplicate device path", Models = new[] { "apex5", "apex5" } }
         };
         foreach (var sample in fabricated)
         {
@@ -1181,29 +1493,39 @@ internal static class TrayLearningTests
                 "Multiple controllers were not reported as ambiguous: " + sample.Name + ".");
 
             string fingerprints = candidate, published = null;
-            int identityReads = 0;
+            int identityReads = 0, changes = 0;
             BridgeSession.SessionInfo active = null;
             var detector = new ControllerDetectionService(
                 delegate(out string fingerprint) { fingerprint = fingerprints; return ControllerDetectionService.Ambiguous; },
-                () => { identityReads++; return "apex5"; },
+                (int? index) => { identityReads++; return sample.Models[index.Value]; },
                 () => active, () => false, () => 0, false);
             detector.StatusChanged += status => published = status;
+            detector.ControllersChanged += () => changes++;
             try
             {
+                var keys = ControllerDetectionService.SplitCandidates(candidate).Select(ControllerDetectionService.KeyOf).ToArray();
                 detector.Scan(null);
-                Assert(published == ControllerDetectionService.Multiple && detector.CandidateCount == sample.Count && identityReads == 0,
-                    "Several controllers did not publish the multiple-controller state without HID identity reads: " + sample.Name + ".");
-                Assert(ControllerDetectionService.LocksOnboardProfile(published) == false &&
-                    new StartRetryPolicy().ObserveController(published, false) == false,
-                    "The multiple-controller state was treated as a verified model: " + sample.Name + ".");
+                Assert(published == sample.Models[0] && detector.CandidateCount == sample.Count && identityReads == keys.Distinct().Count(),
+                    "Several controllers were not identified one by one: " + sample.Name + ".");
+                Assert(detector.Controllers.Count == sample.Count && detector.SelectedController.Key == keys[0] && changes > 0,
+                    "The detected controllers were not exposed with the first one selected: " + sample.Name + ".");
+                int reads = identityReads;
+                detector.Scan(null);
+                Assert(identityReads == reads, "A verified set of controllers was identified again on every scan: " + sample.Name + ".");
+
+                int pick = Array.IndexOf(keys, keys[sample.Count - 1]);
+                detector.Select(keys[sample.Count - 1]);
+                Assert(published == sample.Models[pick] && detector.SelectedController.Key == keys[pick] && identityReads == reads,
+                    "Choosing a controller did not publish its model without new identity reads: " + sample.Name + ".");
+
                 active = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Controller = "Apex 5 (k5, DeviceType 5)" };
                 detector.Scan(null);
-                Assert(published == "apex5" && identityReads == 0,
+                Assert(published == "apex5" && identityReads == reads,
                     "An active bridge with several controllers did not report the controller the engine verified: " + sample.Name + ".");
                 active = null;
                 detector.Scan(null);
-                Assert(published == ControllerDetectionService.Multiple && identityReads == 0,
-                    "Stopping the bridge did not restore the multiple-controller state: " + sample.Name + ".");
+                Assert(published == sample.Models[pick] && identityReads == reads,
+                    "Stopping the bridge did not restore the chosen controller: " + sample.Name + ".");
             }
             finally { detector.Dispose(); }
         }
@@ -1218,6 +1540,135 @@ internal static class TrayLearningTests
         Assert(!ControllerDetectionService.TryParseSeveralControllers("No APEX 4/5/6 vendor HID interface found.", out count) &&
             !ControllerDetectionService.TryParseSeveralControllers(null, out count),
             "An unrelated engine failure was reported as several controllers.");
+    }
+
+    private static void TestControllerSelection()
+    {
+        string pathA = @"\\?\hid#vid_37d7&pid_2403&mi_02&col03#8&aaaa&0&0002#{4d1e55b2}";
+        string pathB = @"\\?\hid#vid_37d7&pid_2401&mi_02&col03#8&bbbb&0&0002#{4d1e55b2}";
+        string a0 = FabricatedCandidate(0, "Flydigi APEX 6 Pro", "0x37D7:0x2403", 64, pathA);
+        string b1 = FabricatedCandidate(1, "Flydigi APEX 5", "0x37D7:0x2401", 33, pathB);
+        string b0 = FabricatedCandidate(0, "Flydigi APEX 5", "0x37D7:0x2401", 33, pathB);
+        string a1 = FabricatedCandidate(1, "Flydigi APEX 6 Pro", "0x37D7:0x2403", 64, pathA);
+        string single, both, swapped;
+        string singleState = ControllerDetectionService.ParseCandidate("Found 1 candidate(s):\r\n\r\n" + a0, out single);
+        string bothState = ControllerDetectionService.ParseCandidate("Found 2 candidate(s):\r\n\r\n" + a0 + b1, out both);
+        string swappedState = ControllerDetectionService.ParseCandidate("Found 2 candidate(s):\r\n\r\n" + b0 + a1, out swapped);
+        Assert(singleState == null && bothState == ControllerDetectionService.Ambiguous && swappedState == ControllerDetectionService.Ambiguous,
+            "The fabricated controller lists were not parsed.");
+        var keys = ControllerDetectionService.SplitCandidates(both).Select(ControllerDetectionService.KeyOf).ToArray();
+        Assert(keys.Length == 2 && keys[0] == pathA && keys[1] == pathB,
+            "The controller identity was not the HID path.");
+
+        Func<string, string, ControllerDetectionService.CandidateReader> reader = (listing, status) =>
+            delegate(out string fingerprint) { fingerprint = listing; return status; };
+        var ambiguous = ControllerDetectionService.Ambiguous;
+        Assert(ControllerSelection.DeviceIndexArgument(keys[0], reader(both, ambiguous)) == " 0" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader(both, ambiguous)) == " 1" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader(swapped, ambiguous)) == " 0",
+            "The chosen controller did not map to its current list position.");
+        Assert(ControllerSelection.DeviceIndexArgument(null, reader(both, ambiguous)) == "" &&
+               ControllerSelection.DeviceIndexArgument("", reader(both, ambiguous)) == "" &&
+               ControllerSelection.DeviceIndexArgument("missing", reader(both, ambiguous)) == "" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader(single, null)) == "" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader("", "disconnected")) == "" &&
+               ControllerSelection.DeviceIndexArgument(keys[1], reader("", "unavailable")) == "",
+            "A missing, empty or single-controller selection produced a device index.");
+
+        string listingNow = single, state = null, published = null;
+        int reads = 0, changes = 0;
+        long now = 0;
+        bool swapOnce = false;
+        var answers = new Dictionary<string, string> { { pathA, "apex6" }, { pathB, "apex5" } };
+        var detector = new ControllerDetectionService(
+            delegate(out string fingerprint) { fingerprint = listingNow; return state; },
+            (int? index) =>
+            {
+                reads++;
+                string key = ControllerDetectionService.KeyOf(
+                    ControllerDetectionService.SplitCandidates(listingNow)[index.HasValue ? index.Value : 0]);
+                string model = answers[key];
+                if (swapOnce) { swapOnce = false; listingNow = swapped; }
+                return model;
+            },
+            () => null, () => false, () => now, false);
+        detector.StatusChanged += status => published = status;
+        detector.ControllersChanged += () => changes++;
+        Action<int> scan = n => { for (int i = 0; i < n; i++) detector.Scan(null); };
+        try
+        {
+            scan(1);
+            Assert(published == "apex6" && reads == 1 && detector.Controllers.Count == 1 && detector.Controllers[0].Model == "apex6",
+                "A single controller was not identified and listed.");
+
+            listingNow = both; state = ambiguous;
+            changes = 0;
+            scan(1);
+            Assert(published == "apex6" && reads == 2 && detector.CandidateCount == 2 && changes > 0 &&
+                   detector.Controllers.Count == 2 && detector.Controllers[0].Model == "apex6" && detector.Controllers[1].Model == "apex5" &&
+                   detector.SelectedController.Key == pathA,
+                "A second controller re-identified the first or hid the already selected one.");
+
+            changes = 0;
+            detector.Select(pathB);
+            Assert(published == "apex5" && reads == 2 && changes > 0 && detector.SelectedController.Key == pathB,
+                "Choosing the second controller did not publish its model.");
+            scan(2);
+            Assert(published == "apex5" && reads == 2 && detector.SelectedController.Key == pathB,
+                "The chosen controller was not kept across scans.");
+
+            now += ControllerDetectionService.ReverifyMilliseconds;
+            scan(1);
+            Assert(published == "apex5" && reads == 4, "Both controllers were not verified again after the cache expired.");
+
+            now += ControllerDetectionService.ReverifyMilliseconds;
+            answers[pathB] = "unavailable";
+            scan(ControllerDetectionService.FailureScans - 1);
+            Assert(published == "apex5" && detector.Controllers[1].Model == "apex5",
+                "A chosen controller was downgraded before the failure threshold.");
+            scan(1);
+            Assert(published == "unavailable" && detector.Controllers[1].Model == "unavailable" &&
+                   detector.Controllers[0].Model == "apex6" && detector.SelectedController.Key == pathB,
+                "An unresponsive chosen controller did not lock its settings while the other stayed verified.");
+            answers[pathB] = "apex5";
+            scan(1);
+            Assert(published == "apex5" && detector.Controllers[1].Model == "apex5", "A woken controller was not verified again.");
+
+            detector.Select("missing");
+            Assert(published == "apex6" && detector.SelectedController.Key == pathA,
+                "A missing choice did not fall back to the first verified controller.");
+            detector.Select(pathB);
+            Assert(published == "apex5", "The choice could not be restored.");
+
+            now += ControllerDetectionService.ReverifyMilliseconds;
+            swapOnce = true;
+            int before = reads;
+            scan(1);
+            Assert(published == "apex5" && reads == before + 2 && detector.SelectedController.Key == pathB,
+                "A list that changed during identification altered the published state.");
+            listingNow = swapped;
+            scan(1);
+            Assert(reads == before + 4 && published == "apex5" && detector.SelectedController.Key == pathB &&
+                   detector.Controllers[0].Key == pathB && detector.Controllers[1].Key == pathA,
+                "Results gathered against a changed list were cached.");
+
+            listingNow = single; state = null;
+            scan(1);
+            Assert(published == "apex6" && detector.Controllers.Count == 1,
+                "A single remaining controller did not become the active one.");
+            Assert(detector.CandidateCount == 1, "The candidate count did not follow the list.");
+
+            listingNow = both; state = ambiguous;
+            detector.Select(pathB);
+            scan(1);
+            Assert(published == "apex5", "The remembered choice was lost after a controller left and returned.");
+            state = "disconnected"; listingNow = string.Empty;
+            scan(ControllerDetectionService.DisconnectScans - 1);
+            Assert(published == "apex5", "A transient list failure flapped the chosen controller.");
+            scan(1);
+            Assert(published == "disconnected" && detector.Controllers.Count == 0, "Unplugging every controller was not reported.");
+        }
+        finally { detector.Dispose(); }
     }
 
     private static void TestControllerCalibrationDetection()
@@ -1289,13 +1740,13 @@ internal static class TrayLearningTests
             scan(ControllerDetectionService.FailureScans - 1);
             Assert(published.Count == 0, "A transient second interface locked the verified controller.");
             detector.Scan(null);
-            Assert(lastPublished == ControllerDetectionService.Multiple, "Persistent ambiguous enumeration kept calibration unlocked.");
+            Assert(lastPublished == "apex6" && detector.CandidateCount == 2, "A second listed controller changed the verified controller's model.");
             candidateState = null; candidate = "path-b";
             detector.Scan(null);
             Assert(lastPublished == "apex6", "The remaining controller was not verified again.");
             candidateState = ControllerDetectionService.Ambiguous; candidate = "path-x\n\npath-y";
             detector.Scan(null);
-            Assert(lastPublished == ControllerDetectionService.Multiple, "Ambiguous enumeration without the verified controller kept it unlocked.");
+            Assert(lastPublished == "apex6" && detector.Controllers.Count == 2, "Several controllers without the verified one were not identified.");
             candidateState = null; candidate = "path-b";
             detector.Scan(null);
             active = new BridgeSession.SessionInfo { Phase = SessionPhase.Ready, Controller = "Apex 6 Pro (k6)" };
@@ -1423,16 +1874,396 @@ internal static class TrayLearningTests
         using (var shown = new EventWaitHandle(false, EventResetMode.ManualReset, eventName))
         {
             var start = new ProcessStartInfo { FileName = Path.Combine(fixture, "ApexSenseBridge.exe"), UseShellExecute = false, CreateNoWindow = true };
-            Environment.SetEnvironmentVariable("ASB_TEST_SHOW_EVENT", eventName);
+            start.EnvironmentVariables["ASB_TEST_SHOW_EVENT"] = eventName;
             using (var process = Process.Start(start))
             {
-                Assert(shown.WaitOne(3000), "Opening the engine without arguments did not forward to the main Tray.");
+                // A newly copied native executable and managed fixture can need extra
+                // startup time on Windows (including the first antivirus scan).
+                Assert(shown.WaitOne(10000), "Opening the engine without arguments did not forward to the main Tray.");
                 Assert(process.WaitForExit(3000) && process.ExitCode == 0, "Main-entry forwarding did not exit successfully.");
             }
-            Environment.SetEnvironmentVariable("ASB_TEST_SHOW_EVENT", null);
         }
     }
 
+    private static void TestLiveTuningResolution()
+    {
+        var settings = new TraySettings();
+        var a5 = settings.GetControllerCalibration("apex5");
+        var a6 = settings.GetControllerCalibration("apex6");
+        a6.TriggerStrengthPercent = 70;
+        a6.VibrationStrengthPercent = 55;
+        a5.TriggerStrengthPercent = 80;
+        a5.VibrationStrengthPercent = 150;
+        var change = settings.BuildLiveTuning("Alpha", "apex6");
+        Assert(change != null && change.TriggerStrengthPercent == 70u && change.VibrationStrengthPercent == 55u,
+            "Live tuning ignored the APEX 6 calibration.");
+        Assert(change.GripMute == null && change.TriggerEffectsOff == null && change.TouchpadProfile == null &&
+            change.ApexProfileSlot == null, "Live tuning changed fields the settings do not own.");
+        change = settings.BuildLiveTuning("Alpha", "apex5");
+        Assert(change.TriggerStrengthPercent == 80u && change.VibrationStrengthPercent == 150u,
+            "Live tuning ignored the APEX 5 calibration.");
+        Assert(settings.BuildLiveTuning("Alpha", "apex9") == null && settings.BuildLiveTuning("Alpha", null) == null &&
+            settings.BuildLiveTuning("Alpha", "unavailable") == null, "An unverified model received live tuning.");
+        settings.SetGameTuning("alpha", "Alpha", new GameTuning
+        {
+            TriggerStrengthPercent = 20, VibrationStrengthPercent = 180, HapticThresholdPercent = 5
+        });
+        change = settings.BuildLiveTuning("Alpha", "apex6");
+        Assert(change.TriggerStrengthPercent == 20u && change.VibrationStrengthPercent == 100u,
+            "A per-game override did not apply, or exceeded the APEX 6 vibration limit.");
+        change = settings.BuildLiveTuning("Alpha", "apex4");
+        Assert(change.TriggerStrengthPercent == 20u && change.VibrationStrengthPercent == 180u,
+            "A per-game override was clamped below the APEX 4/5 vibration limit.");
+        change = settings.BuildLiveTuning("Beta", "apex6");
+        Assert(change.TriggerStrengthPercent == 70u && change.VibrationStrengthPercent == 55u,
+            "A per-game override leaked to another game.");
+        var manager = new EngineSessionManager();
+        try
+        {
+            Assert(!manager.ApplyLiveTuning(settings) && !manager.ApplyLiveTuning(null),
+                "Live tuning claimed success without an active Tray session.");
+        }
+        finally { manager.Dispose(); }
+    }
+
+    private static void TestSessionTuningClientProtocol()
+    {
+        var token = Guid.NewGuid().ToString("N");
+        Assert(SessionTuningClient.Open(token) == null && SessionTuningClient.Open("short") == null &&
+            SessionTuningClient.Open(null) == null, "A missing tuning mapping was opened.");
+        using (var mapping = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateNew(
+            SessionTuningClient.MappingName(token), 128))
+        using (var view = mapping.CreateViewAccessor(0, 128))
+        {
+            Assert(SessionTuningClient.Open(token) == null, "A mapping without the engine magic was accepted.");
+            view.Write(0, 0x54425341u);
+            view.Write(4, 1u);
+            using (var client = SessionTuningClient.Open(token))
+            {
+                Assert(client != null, "A valid tuning mapping was refused.");
+                Assert(client.ReadApplied() == null, "Applied state appeared before the engine published it.");
+                Assert(client.Submit(new SessionTuningChange { VibrationStrengthPercent = 42, GripMute = true }),
+                    "The first tuning request was not written.");
+                Assert(view.ReadUInt32(8) == 2u && view.ReadUInt32(12) == 0xFFFFFFFFu &&
+                    view.ReadUInt32(16) == 42u && view.ReadUInt32(20) == 1u && view.ReadUInt32(24) == 0xFFFFFFFFu &&
+                    view.ReadUInt32(28) == 0xFFFFFFFFu && view.ReadUInt32(32) == 0xFFFFFFFFu,
+                    "The first request did not match the engine layout.");
+                Assert(client.Submit(new SessionTuningChange
+                {
+                    TriggerStrengthPercent = 10, TriggerEffectsOff = false, TouchpadProfile = 3, ApexProfileSlot = 2
+                }), "The second tuning request was not written.");
+                Assert(view.ReadUInt32(8) == 4u && view.ReadUInt32(12) == 10u && view.ReadUInt32(16) == 0xFFFFFFFFu &&
+                    view.ReadUInt32(20) == 0xFFFFFFFFu && view.ReadUInt32(24) == 0u &&
+                    view.ReadUInt32(28) == 3u && view.ReadUInt32(32) == 2u,
+                    "Unspecified fields were not left unchanged, or the sequence did not advance by two.");
+                view.Write(40, 1u);
+                Assert(client.ReadApplied() == null, "A half-written applied state was returned.");
+                view.Write(44, 4u);
+                view.Write(48, 10u);
+                view.Write(52, 42u);
+                view.Write(56, 1u);
+                view.Write(60, 0u);
+                view.Write(64, 3u);
+                view.Write(68, 2u);
+                view.Write(72, 2000u);
+                view.Write(76, 6u);
+                view.Write(40, 2u);
+                var applied = client.ReadApplied();
+                Assert(applied != null && applied.RequestSequence == 4u && applied.TriggerStrengthPercent == 10u &&
+                    applied.VibrationStrengthPercent == 42u && applied.GripMute && !applied.TriggerEffectsOff &&
+                    applied.TouchpadProfile == 3u && applied.ApexProfileSlot == 2u && applied.SampleRateHz == 2000u &&
+                    applied.ControllerModel == 6u, "The applied state was not read back correctly.");
+                view.Write(68, 0xFFu);
+                Assert(client.ReadApplied().ApexProfileSlot == null, "An unset APEX slot was reported as a slot.");
+            }
+        }
+    }
+
+    private sealed class FakeWidgetBackend : IWidgetBackend
+    {
+        public BridgeSession.SessionInfo Session;
+        public SessionTuningState Applied;
+        public bool Acknowledge = true;
+        public readonly List<SessionTuningChange> Submitted = new List<SessionTuningChange>();
+
+        public BridgeSession.SessionInfo ReadSession() { return Session; }
+
+        public SessionTuningState ReadApplied(string token)
+        {
+            if (Applied == null) return null;
+            return new SessionTuningState
+            {
+                RequestSequence = Applied.RequestSequence, TriggerStrengthPercent = Applied.TriggerStrengthPercent,
+                VibrationStrengthPercent = Applied.VibrationStrengthPercent, GripMute = Applied.GripMute,
+                TriggerEffectsOff = Applied.TriggerEffectsOff, TouchpadProfile = Applied.TouchpadProfile,
+                ApexProfileSlot = Applied.ApexProfileSlot, SampleRateHz = Applied.SampleRateHz,
+                ControllerModel = Applied.ControllerModel
+            };
+        }
+
+        public bool Submit(string token, SessionTuningChange change)
+        {
+            Submitted.Add(change);
+            if (Acknowledge)
+            {
+                if (change.TriggerStrengthPercent.HasValue) Applied.TriggerStrengthPercent = change.TriggerStrengthPercent.Value;
+                if (change.VibrationStrengthPercent.HasValue) Applied.VibrationStrengthPercent = change.VibrationStrengthPercent.Value;
+                if (change.GripMute.HasValue) Applied.GripMute = change.GripMute.Value;
+                if (change.TriggerEffectsOff.HasValue) Applied.TriggerEffectsOff = change.TriggerEffectsOff.Value;
+                if (change.TouchpadProfile.HasValue) Applied.TouchpadProfile = change.TouchpadProfile.Value;
+                Applied.RequestSequence += 2;
+            }
+            return true;
+        }
+    }
+
+    private static Dictionary<string, object> WidgetReply(WidgetControlService service, string request)
+    {
+        return (Dictionary<string, object>)new System.Web.Script.Serialization.JavaScriptSerializer()
+            .DeserializeObject(service.Handle(request));
+    }
+
+    private static FakeWidgetBackend NewWidgetBackend(string owner, uint model)
+    {
+        return new FakeWidgetBackend
+        {
+            Session = new BridgeSession.SessionInfo
+            {
+                Token = new string('a', 32), Owner = owner, Game = "Alpha", Profile = "standard / APEX 2",
+                Controller = "Apex 6 Pro", Phase = SessionPhase.Ready
+            },
+            Applied = new SessionTuningState
+            {
+                RequestSequence = 2, TriggerStrengthPercent = 100, VibrationStrengthPercent = 100,
+                ApexProfileSlot = null, SampleRateHz = 2000, ControllerModel = model
+            }
+        };
+    }
+
+    private static int widgetPersistCalls;
+
+    private static void TestWidgetControlService()
+    {
+        widgetPersistCalls = 0;
+        var settings = new TraySettings();
+        var backend = new FakeWidgetBackend();
+        var service = new WidgetControlService(backend, new TrayWidgetTuningStore(settings, title => "norm:" + title, () => widgetPersistCalls++),
+            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => "fr");
+
+        var reply = WidgetReply(service, "{\"cmd\":\"status\"}");
+        Assert((bool)reply["ok"] && !(bool)reply["active"] && (string)reply["phase"] == "Stopped",
+            "A status without a session was not reported as stopped.");
+        Assert(!(bool)WidgetReply(service, "not json")["ok"] && (string)WidgetReply(service, "not json")["error"] == "bad_request",
+            "Garbage was accepted as a request.");
+        Assert((string)WidgetReply(service, "{\"cmd\":\"explode\"}")["error"] == "unknown_command", "An unknown command was accepted.");
+        Assert((string)WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":10}")["error"] == "no_session",
+            "A change without a session was accepted.");
+
+        backend = NewWidgetBackend("Tray", 6);
+        backend.Applied.TouchpadProfile = 2;
+        service = new WidgetControlService(backend, new TrayWidgetTuningStore(settings, title => "norm:" + title, () => widgetPersistCalls++),
+            profile => profile == "spider-man-2" ? new object[] { new Dictionary<string, object> { { "buttons", new[] { "View" } }, { "hold", true }, { "output", "SwipeLeft" } } } : new object[0], null, () => "fr");
+        reply = WidgetReply(service, "{\"cmd\":\"status\"}");
+        var tuning = (Dictionary<string, object>)reply["tuning"];
+        Assert((string)reply["language"] == "fr", "The Tray language was not sent to the widget.");
+        Assert((bool)reply["active"] && (string)reply["phase"] == "Ready" && (string)reply["owner"] == "Tray" &&
+            (string)reply["game"] == "Alpha" && (bool)reply["canSave"], "The active session status was incomplete.");
+        Assert((int)tuning["trigger"] == 100 && (int)tuning["maxVibration"] == 100 && (int)tuning["model"] == 6 &&
+            (string)tuning["touchpadProfileName"] == "spider-man-2" && tuning["slot"] == null, "The tuning state was wrong.");
+        var remap = (Dictionary<string, object>)((object[])reply["remaps"])[0];
+        Assert(((object[])reply["remaps"]).Length == 1 && (bool)remap["hold"] && (string)remap["output"] == "SwipeLeft" && ((object[])remap["buttons"])[0].ToString() == "View" && ((object[])reply["profiles"]).Length == 8,
+            "The profile and remap lists were wrong.");
+
+        reply = WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":60,\"vibration\":50,\"gripMute\":true,\"touchpadProfile\":3}");
+        Assert((bool)reply["ok"] && (bool)reply["acknowledged"] && !(bool)reply["saved"], "A valid change failed.");
+        var change = backend.Submitted[backend.Submitted.Count - 1];
+        Assert(change.TriggerStrengthPercent == 60u && change.VibrationStrengthPercent == 50u && change.GripMute == true &&
+            change.TouchpadProfile == 3u && change.TriggerEffectsOff == null, "The submitted change did not match the request.");
+        tuning = (Dictionary<string, object>)reply["tuning"];
+        Assert((int)tuning["trigger"] == 60 && (bool)tuning["gripMute"] && (int)tuning["touchpadProfile"] == 3,
+            "The reply did not carry the applied state.");
+
+        var submittedBefore = backend.Submitted.Count;
+        Assert((string)WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":150,\"vibration\":101,\"touchpadProfile\":99,\"gripMute\":\"yes\"}")["error"] == "nothing_to_set" &&
+            backend.Submitted.Count == submittedBefore, "Out-of-range or mistyped values were submitted.");
+        Assert(WidgetReply(service, "{\"cmd\":\"set\",\"vibration\":150,\"triggerEffectsOff\":true}").ContainsKey("acknowledged") &&
+            backend.Submitted[backend.Submitted.Count - 1].VibrationStrengthPercent == null &&
+            backend.Submitted[backend.Submitted.Count - 1].TriggerEffectsOff == true, "An APEX 6 vibration above 100 was accepted.");
+
+        var calibration = settings.GetControllerCalibration("apex6");
+        calibration.HapticThresholdPercent = 0;
+        reply = WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":40,\"vibration\":70,\"save\":true}");
+        var saved = settings.GetGameTuning("norm:Alpha");
+        Assert((bool)reply["saved"] && saved != null && saved.TriggerStrengthPercent == 40 && saved.VibrationStrengthPercent == 70 &&
+            saved.HapticThresholdPercent == 0 && settings.GetGameTuning("Alpha") != null,
+            "A saved change did not become the per-game tuning.");
+        Assert(widgetPersistCalls == 1, "A saved change did not persist exactly once through the injected hook.");
+
+        backend.Acknowledge = false;
+        reply = WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":30}");
+        Assert((bool)reply["ok"] && !(bool)reply["acknowledged"], "A missing acknowledgement was reported as applied.");
+
+        var other = NewWidgetBackend("Playnite", 5);
+        var otherSettings = new TraySettings();
+        var otherService = new WidgetControlService(other, new TrayWidgetTuningStore(otherSettings, title => title, () => widgetPersistCalls++), null, null, () => "fr");
+        reply = WidgetReply(otherService, "{\"cmd\":\"status\"}");
+        Assert(!(bool)reply["canSave"] && ((object[])reply["remaps"]).Length == 0, "A Playnite session was offered persistence.");
+        reply = WidgetReply(otherService, "{\"cmd\":\"set\",\"vibration\":180,\"save\":true}");
+        Assert((bool)reply["ok"] && !(bool)reply["saved"] && otherSettings.GetGameTuning("Alpha") == null &&
+            other.Submitted[0].VibrationStrengthPercent == 180u && widgetPersistCalls == 1,
+            "A Playnite session wrote Tray settings, or the APEX 5 limit was wrong.");
+    }
+
+    private static void TestWidgetControlServer()
+    {
+        var sid = WidgetControlServer.DeriveAppContainerSid("ReynArts.ApexSenseBridgeWidget_tcqvdfrmphh62");
+        Assert(sid != null && sid.Value.StartsWith("S-1-15-2-"), "The widget package SID could not be derived.");
+        Assert(WidgetControlServer.DeriveAppContainerSid(string.Empty) == null, "An empty package name produced a SID.");
+
+        var backend = NewWidgetBackend("Tray", 6);
+        var service = new WidgetControlService(backend, null, null, null, null);
+        var pipeName = "ASB.Test." + Guid.NewGuid().ToString("N");
+        using (var server = new WidgetControlServer(service, pipeName, WidgetControlServer.KnownPackageFamilies))
+        {
+            var rules = server.BuildSecurity().GetAccessRules(true, false, typeof(System.Security.Principal.SecurityIdentifier));
+            Assert(rules.Count == 3, "The pipe access list should hold the user, the widget package and a network deny.");
+            server.Start();
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                using (var client = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut))
+                {
+                    client.Connect(3000);
+                    var bytes = Encoding.UTF8.GetBytes("{\"cmd\":\"status\"}\n");
+                    client.Write(bytes, 0, bytes.Length);
+                    client.Flush();
+                    var line = new System.IO.StreamReader(client, Encoding.UTF8).ReadLine();
+                    var reply = (Dictionary<string, object>)new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(line);
+                    Assert((bool)reply["ok"] && (bool)reply["active"] && (string)reply["game"] == "Alpha",
+                        "The pipe server did not answer a status request.");
+                }
+            }
+        }
+    }
+
+    private static void TestWidgetPackageLocator()
+    {
+        const string family = "ReynArts.ApexSenseBridgeWidget_tcqvdfrmphh62";
+        Assert(WidgetPackageLocator.FamilyFromFullName("ReynArts.ApexSenseBridgeWidget_1.0.3.0_x64__tcqvdfrmphh62") == family,
+            "A widget package full name did not give its family name.");
+        Assert(WidgetPackageLocator.FamilyFromFullName("reynarts.apexsensebridgewidget_2.0.0.0_x64__abcdefghjkmnp") == "reynarts.apexsensebridgewidget_abcdefghjkmnp",
+            "A package from another publisher was not recognized by its name.");
+        foreach (var rejected in new[]
+        {
+            null, string.Empty, "garbage",
+            "ReynArts.ApexSenseBridgeWidgetEvil_1.0.0.0_x64__tcqvdfrmphh62",
+            "Other.App_1.0.0.0_x64__tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64_tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__TCQVDFRMPHH62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__short",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__tcqvdfrmphh62x"
+        })
+        {
+            Assert(WidgetPackageLocator.FamilyFromFullName(rejected) == null, "A package full name was wrongly accepted: " + rejected);
+        }
+        var families = WidgetPackageLocator.FamiliesFromFullNames(new[]
+        {
+            "ReynArts.ApexSenseBridgeWidget_1.0.3.0_x64__tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.4.0_x64__tcqvdfrmphh62",
+            "ReynArts.ApexSenseBridgeWidget_1.0.0.0_x64__abcdefghjkmnp",
+            "Microsoft.Something_1.0.0.0_x64__8wekyb3d8bbwe"
+        });
+        Assert(families.Length == 2 && families[0] == family && families[1] == "ReynArts.ApexSenseBridgeWidget_abcdefghjkmnp",
+            "Duplicate versions were not folded into one family each.");
+        Assert(WidgetPackageLocator.FindFamilies() != null, "Reading the installed packages failed outright.");
+
+        var service = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, null);
+        using (var withKnownOnly = new WidgetControlServer(service, "ASB.Test." + Guid.NewGuid().ToString("N"), WidgetControlServer.KnownPackageFamilies))
+        using (var withDiscovered = new WidgetControlServer(service, "ASB.Test." + Guid.NewGuid().ToString("N"),
+            WidgetControlServer.KnownPackageFamilies, () => new[] { family, "ReynArts.ApexSenseBridgeWidget_abcdefghjkmnp" }))
+        {
+            var sidType = typeof(System.Security.Principal.SecurityIdentifier);
+            Assert(withKnownOnly.BuildSecurity().GetAccessRules(true, false, sidType).Count == 3, "The fixed access list changed.");
+            Assert(withDiscovered.BuildSecurity().GetAccessRules(true, false, sidType).Count == 4,
+                "A discovered package family was not added once to the access list.");
+        }
+    }
+    private static Dictionary<string, object> AskWidgetPipe(string pipeName, string request)
+    {
+        using (var client = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut))
+        {
+            client.Connect(3000);
+            var bytes = Encoding.UTF8.GetBytes(request + "\n");
+            client.Write(bytes, 0, bytes.Length);
+            client.Flush();
+            var line = new System.IO.StreamReader(client, Encoding.UTF8).ReadLine();
+            return (Dictionary<string, object>)new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(line);
+        }
+    }
+
+    private static void TestWidgetBrokerLease()
+    {
+        var pipeName = "ASB.Test.Lease." + Guid.NewGuid().ToString("N");
+        var first = new WidgetControlService(NewWidgetBackend("Playnite", 6), null, null, null, () => "first");
+        var second = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, () => "second");
+        using (var firstServer = new WidgetControlServer(first, pipeName, new string[0]))
+        using (var secondServer = new WidgetControlServer(second, pipeName, new string[0]))
+        {
+            firstServer.Start();
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "first", "The first broker did not serve.");
+            secondServer.Start();
+            Thread.Sleep(1300);
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "first",
+                    "A second broker served while the first still held the lease.");
+            }
+            firstServer.Dispose();
+            var tookOver = false;
+            var deadline = DateTime.UtcNow.AddSeconds(6);
+            while (DateTime.UtcNow < deadline && !tookOver)
+            {
+                try { tookOver = (string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "second"; }
+                catch (Exception) { Thread.Sleep(200); }
+            }
+            Assert(tookOver, "The waiting broker did not take over after the first one stopped.");
+        }
+
+        var noStore = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, null);
+        var reply = WidgetReply(noStore, "{\"cmd\":\"status\"}");
+        Assert(!(bool)reply["canSave"], "A broker without a settings store offered persistence.");
+        reply = WidgetReply(noStore, "{\"cmd\":\"set\",\"trigger\":20,\"save\":true}");
+        Assert((bool)reply["ok"] && !(bool)reply["saved"], "A broker without a settings store reported a save.");
+    }
+    private static void TestWidgetBrokerYield()
+    {
+        var pipeName = "ASB.Test.Yield." + Guid.NewGuid().ToString("N");
+        var guest = new WidgetControlService(NewWidgetBackend("Playnite", 6), null, null, null, () => "guest");
+        var owner = new WidgetControlService(NewWidgetBackend("Tray", 6), null, null, null, () => "owner");
+        using (var guestMayServe = new ManualResetEventSlim(true))
+        using (var guestServer = new WidgetControlServer(guest, pipeName, new string[0], null, () => guestMayServe.IsSet))
+        using (var ownerServer = new WidgetControlServer(owner, pipeName, new string[0]))
+        {
+            guestServer.Start();
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "guest", "The guest broker did not serve.");
+            ownerServer.Start();
+            Thread.Sleep(1300);
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "guest",
+                "The owner served while the guest was still allowed to.");
+            guestMayServe.Reset();
+            var tookOver = false;
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (DateTime.UtcNow < deadline && !tookOver)
+            {
+                try { tookOver = (string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "owner"; }
+                catch (Exception) { Thread.Sleep(200); }
+            }
+            Assert(tookOver, "The guest broker did not hand the pipe over when it was told to stop serving.");
+            guestMayServe.Set();
+            Thread.Sleep(1500);
+            Assert((string)AskWidgetPipe(pipeName, "{\"cmd\":\"status\"}")["language"] == "owner",
+                "The guest broker took the pipe back from a running owner.");
+        }
+    }
     private static void TestSessionStatusDiscovery()
     {
         // Real IPC with a child test process, never a controller/driver session.
@@ -2190,6 +3021,69 @@ internal static class TrayLearningTests
         finally { manager.Dispose(); }
     }
 
+    private static void TestForegroundSwitchesNeverRestartSession()
+    {
+        var executable = Assembly.GetExecutingAssembly().Location;
+        var catalog = CreateGameList("{\"games\":[" +
+            "{\"title\":\"Alpha Game\",\"normalized\":\"alphagame\",\"profile\":\"standard\",\"adaptiveTriggers\":true}," +
+            "{\"title\":\"Beta Game\",\"normalized\":\"betagame\",\"profile\":\"standard\",\"adaptiveTriggers\":true}]}");
+        var settings = new TraySettings();
+        const string alphaPath = @"C:\Fake\Alpha Game\Alpha.exe";
+        settings.SetGameExecutable("alphagame", alphaPath);
+        settings.SetGameExecutable("betagame", @"C:\Fake\Beta Game\Beta.exe");
+        int launchAttempts = 0;
+        var manager = new EngineSessionManager(() => { launchAttempts++; return executable; },
+            "Local\\ASB.AltTabTest." + Guid.NewGuid().ToString("N"), () => false);
+        try
+        {
+            using (var monitor = new ProcessMonitorService(catalog, manager, null, settings, false))
+            {
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var check = typeof(ProcessMonitorService).GetMethod("CheckCandidateProcess", flags);
+                var prune = typeof(ProcessMonitorService).GetMethod("PruneExitedTrackedProcesses", flags);
+                var release = typeof(ProcessMonitorService).GetMethod("ReleaseEndedSession", flags);
+                var expire = typeof(ProcessMonitorService).GetMethod("TryStopExpiredSession", flags);
+                var session = (GameProcessSessionTracker)typeof(ProcessMonitorService).GetField("processSession", flags).GetValue(monitor);
+                int detections = 0;
+                monitor.GameDetected += (game, path) => detections++;
+                var creation = new Dictionary<uint, long> { { 8501, 1000 }, { 8502, 2000 } };
+                monitor.livenessSource = (uint id, long expected, out long ticks) =>
+                {
+                    ticks = 0;
+                    if (!creation.TryGetValue(id, out ticks)) return ProcessLivenessState.Exited;
+                    return expected > 0 && expected != ticks ? ProcessLivenessState.Replaced : ProcessLivenessState.Alive;
+                };
+
+                check.Invoke(monitor, new object[] { 8501u, "Alpha.exe", alphaPath, 0L, null, "poll", false });
+                Assert(manager.IsSessionActive && session.Contains(8501) && launchAttempts == 1 && detections == 1,
+                    "The game did not start one session.");
+
+                for (int altTab = 0; altTab < 25; altTab++)
+                {
+                    check.Invoke(monitor, new object[] { 8601u, "Browser.exe", @"C:\Fake\Browser\Browser.exe", 0L, null, "foreground", false });
+                    check.Invoke(monitor, new object[] { 8602u, "Beta.exe", @"C:\Fake\Beta Game\Beta.exe", 0L, null, "foreground", false });
+                    prune.Invoke(monitor, null);
+                    release.Invoke(monitor, null);
+                    Assert(!(bool)expire.Invoke(monitor, null), "A foreground switch expired the session.");
+                }
+                Assert(manager.IsSessionActive && session.Contains(8501) && !session.Contains(8601) && !session.Contains(8602) &&
+                       !session.IsAwaitingReplacement && launchAttempts == 1 && detections == 1 &&
+                       manager.ActiveGameTitle == "Alpha Game",
+                    "Alt+Tab to another application or game restarted, detached or replaced the session.");
+
+                check.Invoke(monitor, new object[] { 8502u, "Alpha.exe", alphaPath, 0L, null, "foreground", false });
+                check.Invoke(monitor, new object[] { 8502u, "Alpha.exe", alphaPath, 0L, null, "foreground", false });
+                prune.Invoke(monitor, null);
+                Assert(session.Contains(8501) && session.Contains(8502) && launchAttempts == 1 && detections == 1,
+                    "The game window regaining focus as a second process restarted the session instead of attaching.");
+
+                monitor.livenessSource = ProcessLiveness.Check;
+                manager.StopSession("Test stop");
+            }
+        }
+        finally { manager.Dispose(); }
+    }
+
     private const uint MissingProcessId = 0x7FFFFFF0;
 
     private static Process FindProtectedProcess()
@@ -2916,6 +3810,15 @@ internal static class TrayLearningTests
                !ReleaseSecurity.IsSamePublisher(string.Empty, string.Empty),
             "missing signer subjects must be rejected");
 
+        const string otherSubject = "CN=Someone Else, O=Someone Else";
+        Assert(ReleaseSecurity.IsAcceptedPublisher(subject, string.Empty) &&
+               ReleaseSecurity.IsAcceptedPublisher(subject, null) &&
+               !ReleaseSecurity.IsAcceptedPublisher(string.Empty, string.Empty) &&
+               !ReleaseSecurity.IsAcceptedPublisher(null, null) &&
+               ReleaseSecurity.IsAcceptedPublisher(subject, subject) &&
+               !ReleaseSecurity.IsAcceptedPublisher(otherSubject, subject),
+            "an install without a trusted signature accepts any signer; a signed install accepts only its own publisher");
+
         string innoFixture = FindRepositoryFile(Path.Combine(
             "third_party", "prerequisites", "USBip-0.9.8.0-x64.exe"));
         Assert(innoFixture != null, "the tracked Inno Setup prerequisite used as a padding fixture is missing");
@@ -3005,6 +3908,51 @@ internal static class TrayLearningTests
         }
 
         return null;
+    }
+
+    private static void TestStartupDiagnosticsReport()
+    {
+        var previousCulture = Thread.CurrentThread.CurrentCulture;
+        var previousUiCulture = Thread.CurrentThread.CurrentUICulture;
+        try
+        {
+            var chinese = new CultureInfo("zh-CN");
+            Thread.CurrentThread.CurrentCulture = chinese;
+            Thread.CurrentThread.CurrentUICulture = chinese;
+            StartupDiagnostics.ResetForTests();
+
+            StartupDiagnostics.Mark("settings");
+            var ballast = new byte[8 * 1024 * 1024];
+            ballast[ballast.Length - 1] = 1;
+            StartupDiagnostics.Mark("tray-icon");
+            for (int i = 0; i < StartupDiagnostics.MaxPhases * 3; i++) StartupDiagnostics.Mark("flood");
+            StartupDiagnostics.Complete();
+            StartupDiagnostics.Mark("late");
+
+            var report = StartupDiagnostics.Describe();
+            GC.KeepAlive(ballast);
+            var phaseLines = report.Split('\n').Count(line => line.TrimStart().StartsWith("phase ", StringComparison.Ordinal));
+
+            Assert(report.Contains("culture zh-CN/zh-CN"), "startup diagnostics must name the active culture: " + report);
+            Assert(report.Contains("phase settings at ") && report.Contains("phase tray-icon at "),
+                "startup diagnostics must list recorded phases in order: " + report);
+            Assert(phaseLines == StartupDiagnostics.MaxPhases, "startup phase history must stay bounded, got " + phaseLines);
+            Assert(!report.Contains("phase late"), "phases after startup completion must not be recorded");
+            Assert(report.Contains("during flood") && report.Contains("managed ") && report.Contains("private "),
+                "the failure line must report the current phase and both memory figures: " + report);
+            Assert(report.Contains("address space: ") && report.Contains("largest free block "),
+                "the failure report must describe the address space: " + report);
+            Assert(report.All(c => c < 128), "startup diagnostics must be culture invariant ASCII: " + report);
+            Assert(report.Length < 8192, "startup diagnostics must stay small, got " + report.Length);
+            Assert(StartupDiagnostics.PrivateBytes() >= ballast.Length, "private bytes must include the managed heap");
+            Assert(StartupDiagnostics.LargestFreeBlock() > 0, "the address-space walk must find a free block");
+        }
+        finally
+        {
+            Thread.CurrentThread.CurrentCulture = previousCulture;
+            Thread.CurrentThread.CurrentUICulture = previousUiCulture;
+            StartupDiagnostics.ResetForTests();
+        }
     }
 
     private static void Assert(bool condition, string message)

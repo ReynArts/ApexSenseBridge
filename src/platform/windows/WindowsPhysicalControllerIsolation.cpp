@@ -1384,9 +1384,9 @@ RestoreOutcome restoreApexProfile(const detail::ApexSettingsRestore& settings,
         std::string openError;
         auto device = flydigi::Apex5Device::open(selected, openError);
         if (!device || !device->verifyIdentity(openError) ||
-            !device->identity() || !device->identity()->isApex5()) {
+            !device->identity() || !device->identity()->supportsProfileSlots()) {
             lastError = openError.empty()
-                ? "The saved recovery interface is not a verified Apex 5"
+                ? "The saved recovery interface is not a verified Apex 5 or Apex 6 Pro"
                 : openError;
             if (attempt < attempts) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -2000,9 +2000,9 @@ bool TemporaryPhysicalControllerIsolation::applyDeferredApexRestore(
             !detail::deferredApexRestoreBlocksSession(*deferred, device.info())) {
             return true;
         }
-        if (!device.identity() || !device.identity()->isApex5()) {
-            error = "The controller matching the deferred Apex 5 settings is not a "
-                    "verified Apex 5.";
+        if (!device.identity() || !device.identity()->supportsProfileSlots()) {
+            error = "The controller matching the deferred Apex settings is not a "
+                    "verified Apex 5 or Apex 6 Pro.";
             return false;
         }
         std::string restoreError;

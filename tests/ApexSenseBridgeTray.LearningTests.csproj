@@ -26,15 +26,25 @@
     <Reference Include="System.Management" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="tray_learning_tests.cs" />
+    <Compile Include="update_package_tests.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\SessionRecoveryState.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\StartRetryPolicy.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\EngineSessionManager.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\WidgetControlServer.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\WidgetControlService.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\TrayWidgetTuningStore.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\WidgetPackageLocator.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\SteamProcessChecker.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ControllerDetectionService.cs" />
+    <Compile Include="..\ApexSenseBridgeTray\Services\ControllerSelection.cs" />
     <Compile Include="..\ApexSenseBridgeTray\Services\ProcessMonitorService.cs" />
+    <Compile Include="..\shared\UpdatePackage.cs">
+      <Link>Production\UpdatePackage.cs</Link>
+    </Compile>
     <Compile Include="..\shared\ReleaseSecurity.cs">
       <Link>Production\ReleaseSecurity.cs</Link>
     </Compile>
@@ -52,6 +62,12 @@
     </Compile>
     <Compile Include="..\ApexSenseBridgeTray\Common\NativeMethods.cs">
       <Link>Production\NativeMethods.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\StartupDiagnostics.cs">
+      <Link>Production\StartupDiagnostics.cs</Link>
+    </Compile>
+    <Compile Include="..\ApexSenseBridgeTray\Common\TrayStartupOptions.cs">
+      <Link>Production\TrayStartupOptions.cs</Link>
     </Compile>
     <Compile Include="..\shared\InstallLocator.cs">
       <Link>Production\InstallLocator.cs</Link>
@@ -91,6 +107,9 @@
     </Compile>
     <Compile Include="..\shared\ProcessLiveness.cs">
       <Link>Production\ProcessLiveness.cs</Link>
+    </Compile>
+    <Compile Include="..\shared\SessionTuning.cs">
+      <Link>Production\SessionTuning.cs</Link>
     </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

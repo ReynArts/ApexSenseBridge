@@ -259,6 +259,38 @@ namespace ApexSenseBridgeTray.Services
             }
         }
 
+        public bool ApplyLiveTuning(TraySettings settings)
+        {
+            if (settings == null) return false;
+            int processId;
+            string gameTitle;
+            lock (syncLock)
+            {
+                if (activeSession == null || isStopping) return false;
+                processId = activeSession.ProcessId;
+                gameTitle = activeGameTitle;
+            }
+            if (processId == 0) return false;
+            try
+            {
+                var discovered = BridgeSession.ReadActiveSession();
+                if (discovered == null || discovered.EngineProcessId != processId) return false;
+                using (var client = SessionTuningClient.Open(discovered.Token))
+                {
+                    if (client == null) return false;
+                    var applied = client.ReadApplied();
+                    if (applied == null) return false;
+                    var model = applied.ControllerModel == 6 ? "apex6" : applied.ControllerModel == 4 ? "apex4" : "apex5";
+                    var change = settings.BuildLiveTuning(gameTitle, model);
+                    return change != null && client.Submit(change);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public bool IsSessionHealthy
         {
             get
@@ -367,7 +399,8 @@ namespace ApexSenseBridgeTray.Services
                     return false;
                 }
 
-                var args = BuildArguments(profileName, settings, apexProfileSlot, gameTitle);
+                var args = BuildArguments(profileName, settings, apexProfileSlot, gameTitle) +
+                    ControllerSelection.DeviceIndexArgument(settings != null ? settings.SelectedControllerKey : null);
                 RaiseLogMessage(string.Format("Starting bridge: {0} {1}", enginePath, args));
 
                 int timeoutSec = Math.Max(MinimumInitializationSeconds,
@@ -565,6 +598,7 @@ namespace ApexSenseBridgeTray.Services
             var arguments = BridgeArguments.Build(
                 profileName, false, 12, false, apexProfileSlot,
                 zoneEmulation: settings == null || settings.ZoneEmulation,
+                apex6Rate2k: settings == null || settings.Apex6Rate2kHz,
                 enableUdpTriggers: settings != null && settings.EnableUdpTriggers,
                 udpPort: settings != null ? settings.UdpPort : 10026,
                 rearButtonBindings: settings != null ? settings.RearButtonBindings : null);

@@ -58,7 +58,8 @@ struct DualSenseInputState {
 
 std::array<std::uint8_t, 33> buildViiperInput(
     const DualSenseInputState& state,
-    bool captureAudioHapticsWaveform = false);
+    bool captureAudioHapticsWaveform = false,
+    bool captureAudioHapticsWaveform2k = false);
 std::array<std::uint8_t, 33> buildNeutralViiperInput();
 
 [[nodiscard]] std::uint8_t toBatteryPercent(std::uint8_t rawLevel) noexcept;
