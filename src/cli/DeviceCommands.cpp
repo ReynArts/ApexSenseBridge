@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -52,6 +53,14 @@
 
 namespace asb::cli {
 namespace {
+
+bool parseTestStrength(std::string_view text, unsigned& strength) {
+    const auto end = text.data() + text.size();
+    const auto [parsedEnd, error] = std::from_chars(text.data(), end, strength);
+    if (error == std::errc{} && parsedEnd == end && strength <= 200) return true;
+    std::cerr << "--apex6-strength requires an integer percentage from 0 to 200.\n";
+    return false;
+}
 
 std::string dpadDescription(std::uint8_t dpad) {
     dpad &= 0x0F;
@@ -537,7 +546,8 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
                         std::optional<std::uint8_t> customStart,
                         std::optional<std::uint8_t> customForce,
                         unsigned long seconds,
-                        bool forceSweep) {
+                        bool forceSweep,
+                        unsigned strength) {
     constexpr std::uint8_t kLeftTriggerEnable = 0x08;
     constexpr std::uint8_t kRightTriggerEnable = 0x04;
     constexpr auto kLiveStartupTimeout = std::chrono::milliseconds(1000);
@@ -551,7 +561,7 @@ int runApex6TestTrigger(asb::flydigi::Apex5Device& device,
         std::cout << "Apex 6 trigger test: Normal requested, no effect to play.\n";
         return 0;
     }
-    asb::dualsense::Apex6HapticBridge bridge(device, {}, g_apex6TestRouteGrips, 100, 100, 100, g_apex6TestGripDuck, 100,
+    asb::dualsense::Apex6HapticBridge bridge(device, {}, g_apex6TestRouteGrips, strength, 100, 100, g_apex6TestGripDuck, 100,
                                              g_apex6TestSampleRate);
     bridge.updateTriggerPositions(0, 0);
     const bool dual = mode == "dual";
@@ -815,7 +825,8 @@ int runTestTrigger(asb::flydigi::Apex5Device& device,
                    std::optional<std::uint8_t> customStart,
                    std::optional<std::uint8_t> customForce,
                    unsigned long seconds,
-                   bool forceSweep) {
+                   bool forceSweep,
+                   unsigned apex6Strength) {
     std::string error;
     std::cout << "Using: " << narrowAscii(device.info().product) << " ("
               << hex16(device.info().vendorId) << ':' << hex16(device.info().productId) << ")\n";
@@ -869,7 +880,7 @@ int runTestTrigger(asb::flydigi::Apex5Device& device,
             return 4;
         }
         return runApex6TestTrigger(device, targets, mode, level, customStart,
-                                   customForce, seconds, forceSweep);
+                                   customForce, seconds, forceSweep, apex6Strength);
     }
 
     asb::TriggerResetGuard resetOnExit(device);
@@ -933,11 +944,14 @@ int commandTestTrigger(int argc, char** argv) {
     std::optional<std::uint8_t> customStart;
     std::optional<std::uint8_t> customForce;
     bool forceSweep = false;
+    unsigned apex6Strength = 100;
 
     for (int i = 2; i < argc; ++i) {
         std::string_view opt = argv[i];
         if (opt == "--side" && i + 1 < argc) {
             side = argv[++i];
+        } else if (opt == "--apex6-strength") {
+            if (!parseTestStrength(++i < argc ? argv[i] : "", apex6Strength)) return 1;
         } else if (opt == "--rate" && i + 1 < argc) {
             g_apex6TestSampleRate = std::string_view(argv[++i]) == "2000" ? 2000U : 1000U;
         } else if (opt == "--emulate-rumble-left" && i + 1 < argc) {
@@ -1012,13 +1026,14 @@ int commandTestTrigger(int argc, char** argv) {
         std::cerr << "Error: " << error << "\n";
         return 3;
     }
-    return runTestTrigger(*device, side, mode, level, customStart, customForce, seconds, forceSweep);
+    return runTestTrigger(*device, side, mode, level, customStart, customForce, seconds, forceSweep, apex6Strength);
 }
 
 int runTestRumble(asb::flydigi::Apex5Device& device,
                   std::uint8_t lowFrequency = 48,
                   std::uint8_t highFrequency = 32,
-                  unsigned long seconds = 1) {
+                  unsigned long seconds = 1,
+                  unsigned apex6Strength = 100) {
     std::string error;
     std::cout << "Using: " << narrowAscii(device.info().product) << " ("
               << hex16(device.info().vendorId) << ':' << hex16(device.info().productId) << ")\n";
@@ -1028,7 +1043,7 @@ int runTestRumble(asb::flydigi::Apex5Device& device,
             std::cerr << "Apex 6 realtime haptics require a bounded --seconds duration.\n";
             return 12;
         }
-        asb::dualsense::Apex6HapticBridge bridge(device, {}, true);
+        asb::dualsense::Apex6HapticBridge bridge(device, {}, true, 100, apex6Strength);
         bridge.setDiagnosticGrips(lowFrequency, highFrequency);
         if (!bridge.start(error)) {
             std::cerr << "Could not start the Apex 6 haptic stream: " << error << '\n';
@@ -1100,10 +1115,13 @@ int commandTestRumble(int argc, char** argv) {
     std::uint8_t leftMotor = 48;
     std::uint8_t rightMotor = 32;
     unsigned long seconds = 1;
+    unsigned apex6Strength = 100;
 
     for (int i = 2; i < argc; ++i) {
         std::string_view opt = argv[i];
-        if (opt == "--left" && i + 1 < argc) {
+        if (opt == "--apex6-strength") {
+            if (!parseTestStrength(++i < argc ? argv[i] : "", apex6Strength)) return 1;
+        } else if (opt == "--left" && i + 1 < argc) {
             try {
                 leftMotor = static_cast<std::uint8_t>(std::clamp(std::stoul(argv[++i]), 0UL, 255UL));
             } catch (...) {}
@@ -1128,7 +1146,7 @@ int commandTestRumble(int argc, char** argv) {
         std::cerr << "Error: " << error << "\n";
         return 3;
     }
-    return runTestRumble(*device, leftMotor, rightMotor, seconds);
+    return runTestRumble(*device, leftMotor, rightMotor, seconds, apex6Strength);
 }
 
 int commandTestProfileSwitch(int argc, char** argv) {

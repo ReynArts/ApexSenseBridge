@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0}：此型号的独立设置。扳机强度和振动强度也会立即应用于正在运行的 Tray 会话，其他设置将在下一次会话生效。",
   "Loc_TriggerStrength": "扳机力度",
   "Loc_VibrationStrength": "振动力度",
-  "Loc_VibrationStrengthHint": "APEX 4/5：0 至 200%，默认 100%。超过 100% 会在电机指令范围内增强现有握把振动，但无法恢复被阈值过滤的音频。APEX 6 保持 0 至 100%。扳机阻力独立控制，Space Station 的强度设置仍会影响效果。下次会话生效；建议从小幅增加开始。",
+  "Loc_VibrationStrengthHint": "握把振动范围为 0 至 200%，默认 100%。增强效果保持在手柄现有的输出限制内。",
   "Loc_Apex4GyroStrength": "Apex 4 陀螺仪灵敏度",
   "Loc_Apex4GyroYawStrength": "Apex 4 偏航修正",
   "Loc_VibrationThreshold": "触觉激活阈值",

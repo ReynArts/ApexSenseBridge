@@ -900,6 +900,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (apex6Pro && options.routeRumble) {
         std::cout << "apex6_pcm_gain_percent=" << options.apex6HapticGainPercent << std::endl;
+        std::cout << "apex6_vibration_strength_percent=" << options.vibrationStrengthPercent << std::endl;
         std::cout << "apex6_sample_rate_hz=" << options.apex6SampleRateHz << std::endl;
         if (options.apex6SampleRateHz == 2000) {
             std::cerr << "Apex 6 2 kHz haptic stream enabled (default, --apex6-rate 1000 turns it off; "
@@ -924,6 +925,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         }
     }
     if (apex6Pro) {
+        std::cout << "apex6_trigger_strength_percent=" << options.triggerStrengthPercent << std::endl;
         if (kApex6ShapingOptionsEnabled) {
             std::cout << "apex6_trigger_ceiling_percent=" << options.apex6TriggerCeilingPercent << std::endl;
         }
@@ -1417,7 +1419,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     };
     const auto applyTuning = [&](const asb::platform::SessionTuningRequest& request) {
         asb::platform::SessionTuningLimits limits;
-        limits.maxVibrationPercent = apex6Pro ? 100U : 200U;
+        limits.maxTriggerPercent = apex6Pro ? 200U : 100U;
+        limits.maxVibrationPercent = 200U;
         limits.maxTouchpadProfile = static_cast<std::uint32_t>(
             asb::dualsense::TouchpadGestureProfile::AlanWake2);
         const auto change = asb::platform::interpretSessionTuningRequest(request, limits);

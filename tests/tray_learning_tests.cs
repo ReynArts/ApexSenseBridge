@@ -1318,13 +1318,14 @@ internal static class TrayLearningTests
             "RGB leaked to an unsupported controller.");
         Assert(a4.GyroStrengthPercent == 175 && a4.GyroYawStrengthPercent == 225 &&
             a5.GyroStrengthPercent == 100 && a6.GyroYawStrengthPercent == 100, "Gyro tuning crossed model boundary.");
-        a6.TriggerStrengthPercent = 80;
-        a6.VibrationStrengthPercent = 90;
+        a6.TriggerStrengthPercent = 180;
+        a6.VibrationStrengthPercent = 190;
         a6.EnableRumble = true;
         Assert(a4.TriggerStrengthPercent == 35 && a5.VibrationStrengthPercent == 60 &&
             settings.TriggerStrengthPercent == 35, "Editing APEX 6 changed another profile or migration source.");
         var restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
-        Assert(restored.GetControllerCalibration("apex6").TriggerStrengthPercent == 80 &&
+        Assert(restored.GetControllerCalibration("apex6").TriggerStrengthPercent == 180 &&
+            restored.GetControllerCalibration("apex6").VibrationStrengthPercent == 190 &&
             restored.GetControllerCalibration("apex5").TriggerStrengthPercent == 35, "Per-model tuning did not survive serialization.");
         a4.TriggerStrengthPercent = -10;
         a4.GyroStrengthPercent = 900;
@@ -1338,13 +1339,13 @@ internal static class TrayLearningTests
         var arguments = settings.BuildControllerCalibrationArguments();
         Assert(arguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225:100") &&
             arguments.Contains("--controller-calibration apex5:35:200:24:0:1:100:100:40") &&
-            arguments.Contains("--controller-calibration apex6:80:90:0:1:0:100:100:100"),
+            arguments.Contains("--controller-calibration apex6:180:190:0:1:0:100:100:100"),
             "Controller profiles were not bounded/serialized to the native protocol.");
         a6.SyncLightbar = true;
         a6.LightbarBrightnessPercent = 40;
         a4.SyncLightbar = true;
         var rgbArguments = settings.BuildControllerCalibrationArguments();
-        Assert(rgbArguments.Contains("--controller-calibration apex6:80:90:0:1:1:100:100:40") &&
+        Assert(rgbArguments.Contains("--controller-calibration apex6:180:190:0:1:1:100:100:40") &&
             rgbArguments.Contains("--controller-calibration apex4:0:60:24:0:0:400:225:100"),
             "RGB sync was not enabled for the APEX 6 Pro only, or it leaked to the APEX 4.");
         a6.SyncLightbar = false;
@@ -1365,10 +1366,12 @@ internal static class TrayLearningTests
             "A settings file without the brightness limit did not keep the full brightness.");
         a4.VibrationStrengthPercent = 150;
         a5.VibrationStrengthPercent = 175;
-        a6.VibrationStrengthPercent = 200;
+        a6.TriggerStrengthPercent = 999;
+        a6.VibrationStrengthPercent = 999;
         settings.BuildControllerCalibrationArguments();
         Assert(a4.VibrationStrengthPercent == 150 && a5.VibrationStrengthPercent == 175 &&
-            a6.VibrationStrengthPercent == 100, "Conventional-motor amplification crossed the APEX 6 boundary.");
+            a6.TriggerStrengthPercent == 200 && a6.VibrationStrengthPercent == 200,
+            "The model gain limits were not applied.");
         restored = serializer.Deserialize<TraySettings>(serializer.Serialize(settings));
         Assert(restored.GetControllerCalibration("apex4").VibrationStrengthPercent == 150 &&
             restored.GetControllerCalibration("apex5").VibrationStrengthPercent == 175,
@@ -1382,16 +1385,16 @@ internal static class TrayLearningTests
         Assert(settings.GetGameTuning("alpha") == null, "A game had tuning it was never given.");
         settings.SetGameTuning("alpha", "Alpha", new GameTuning
         {
-            TriggerStrengthPercent = 55, VibrationStrengthPercent = 160, HapticThresholdPercent = 40
+            TriggerStrengthPercent = 155, VibrationStrengthPercent = 160, HapticThresholdPercent = 40
         });
         var stored = settings.GetGameTuning("ALPHA");
-        Assert(stored != null && stored.TriggerStrengthPercent == 55 && stored.VibrationStrengthPercent == 160 &&
+        Assert(stored != null && stored.TriggerStrengthPercent == 155 && stored.VibrationStrengthPercent == 160 &&
             stored.HapticThresholdPercent == 40 && settings.GetGameTuning("Alpha") != null,
             "The per-game tuning was not stored under both the normalized name and the title.");
         sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Alpha" });
-        Assert(sessionArguments.Contains("--controller-calibration apex4:55:160:40:0:0:400:225") &&
-            sessionArguments.Contains("--controller-calibration apex5:55:160:40:0:1:100:100") &&
-            sessionArguments.Contains("--controller-calibration apex6:55:100:0:1:0:100:100"),
+        Assert(sessionArguments.Contains("--controller-calibration apex4:100:160:40:0:0:400:225") &&
+            sessionArguments.Contains("--controller-calibration apex5:100:160:40:0:1:100:100") &&
+            sessionArguments.Contains("--controller-calibration apex6:155:160:0:1:0:100:100"),
             "The per-game tuning did not replace the three settings within each model's limits.");
         sessionArguments = (string)builder.Invoke(null, new object[] { "standard", settings, 3, "Beta" });
         Assert(sessionArguments.EndsWith(arguments, StringComparison.Ordinal),
@@ -1404,7 +1407,7 @@ internal static class TrayLearningTests
             TriggerStrengthPercent = 500, VibrationStrengthPercent = 500, HapticThresholdPercent = 500
         });
         stored = settings.GetGameTuning("alpha");
-        Assert(stored.TriggerStrengthPercent == 100 && stored.VibrationStrengthPercent == 200 && stored.HapticThresholdPercent == 95,
+        Assert(stored.TriggerStrengthPercent == 200 && stored.VibrationStrengthPercent == 200 && stored.HapticThresholdPercent == 95,
             "The per-game tuning was not bounded.");
         settings.SetGameTuning("alpha", "Alpha", null);
         Assert(settings.GetGameTuning("alpha") == null && settings.GetGameTuning("Alpha") == null &&
@@ -1894,14 +1897,14 @@ internal static class TrayLearningTests
             settings.BuildLiveTuning("Alpha", "unavailable") == null, "An unverified model received live tuning.");
         settings.SetGameTuning("alpha", "Alpha", new GameTuning
         {
-            TriggerStrengthPercent = 20, VibrationStrengthPercent = 180, HapticThresholdPercent = 5
+            TriggerStrengthPercent = 150, VibrationStrengthPercent = 180, HapticThresholdPercent = 5
         });
         change = settings.BuildLiveTuning("Alpha", "apex6");
-        Assert(change.TriggerStrengthPercent == 20u && change.VibrationStrengthPercent == 100u,
-            "A per-game override did not apply, or exceeded the APEX 6 vibration limit.");
+        Assert(change.TriggerStrengthPercent == 150u && change.VibrationStrengthPercent == 180u,
+            "A boosted APEX 6 per-game override did not apply.");
         change = settings.BuildLiveTuning("Alpha", "apex4");
-        Assert(change.TriggerStrengthPercent == 20u && change.VibrationStrengthPercent == 180u,
-            "A per-game override was clamped below the APEX 4/5 vibration limit.");
+        Assert(change.TriggerStrengthPercent == 100u && change.VibrationStrengthPercent == 180u,
+            "A per-game override exceeded the APEX 4/5 trigger limit or lost vibration gain.");
         change = settings.BuildLiveTuning("Beta", "apex6");
         Assert(change.TriggerStrengthPercent == 70u && change.VibrationStrengthPercent == 55u,
             "A per-game override leaked to another game.");
@@ -2056,7 +2059,8 @@ internal static class TrayLearningTests
         Assert((string)reply["language"] == "fr", "The Tray language was not sent to the widget.");
         Assert((bool)reply["active"] && (string)reply["phase"] == "Ready" && (string)reply["owner"] == "Tray" &&
             (string)reply["game"] == "Alpha" && (bool)reply["canSave"], "The active session status was incomplete.");
-        Assert((int)tuning["trigger"] == 100 && (int)tuning["maxVibration"] == 100 && (int)tuning["model"] == 6 &&
+        Assert((int)tuning["trigger"] == 100 && (int)tuning["maxTrigger"] == 200 &&
+            (int)tuning["maxVibration"] == 200 && (int)tuning["model"] == 6 &&
             (string)tuning["touchpadProfileName"] == "spider-man-2" && tuning["slot"] == null, "The tuning state was wrong.");
         var remap = (Dictionary<string, object>)((object[])reply["remaps"])[0];
         Assert(((object[])reply["remaps"]).Length == 1 && (bool)remap["hold"] && (string)remap["output"] == "SwipeLeft" && ((object[])remap["buttons"])[0].ToString() == "View" && ((object[])reply["profiles"]).Length == 8,
@@ -2072,11 +2076,13 @@ internal static class TrayLearningTests
             "The reply did not carry the applied state.");
 
         var submittedBefore = backend.Submitted.Count;
-        Assert((string)WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":150,\"vibration\":101,\"touchpadProfile\":99,\"gripMute\":\"yes\"}")["error"] == "nothing_to_set" &&
+        Assert((string)WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":201,\"vibration\":201,\"touchpadProfile\":99,\"gripMute\":\"yes\"}")["error"] == "nothing_to_set" &&
             backend.Submitted.Count == submittedBefore, "Out-of-range or mistyped values were submitted.");
-        Assert(WidgetReply(service, "{\"cmd\":\"set\",\"vibration\":150,\"triggerEffectsOff\":true}").ContainsKey("acknowledged") &&
-            backend.Submitted[backend.Submitted.Count - 1].VibrationStrengthPercent == null &&
-            backend.Submitted[backend.Submitted.Count - 1].TriggerEffectsOff == true, "An APEX 6 vibration above 100 was accepted.");
+        reply = WidgetReply(service, "{\"cmd\":\"set\",\"trigger\":150,\"vibration\":200,\"triggerEffectsOff\":true}");
+        change = backend.Submitted[backend.Submitted.Count - 1];
+        Assert((bool)reply["acknowledged"] && change.TriggerStrengthPercent == 150u &&
+            change.VibrationStrengthPercent == 200u && change.TriggerEffectsOff == true,
+            "The widget lost the APEX 6 gain or the explicit mute request.");
 
         var calibration = settings.GetControllerCalibration("apex6");
         calibration.HapticThresholdPercent = 0;
@@ -2096,9 +2102,9 @@ internal static class TrayLearningTests
         var otherService = new WidgetControlService(other, new TrayWidgetTuningStore(otherSettings, title => title, () => widgetPersistCalls++), null, null, () => "fr");
         reply = WidgetReply(otherService, "{\"cmd\":\"status\"}");
         Assert(!(bool)reply["canSave"] && ((object[])reply["remaps"]).Length == 0, "A Playnite session was offered persistence.");
-        reply = WidgetReply(otherService, "{\"cmd\":\"set\",\"vibration\":180,\"save\":true}");
+        reply = WidgetReply(otherService, "{\"cmd\":\"set\",\"trigger\":150,\"vibration\":180,\"save\":true}");
         Assert((bool)reply["ok"] && !(bool)reply["saved"] && otherSettings.GetGameTuning("Alpha") == null &&
-            other.Submitted[0].VibrationStrengthPercent == 180u && widgetPersistCalls == 1,
+            other.Submitted[0].TriggerStrengthPercent == null && other.Submitted[0].VibrationStrengthPercent == 180u && widgetPersistCalls == 1,
             "A Playnite session wrote Tray settings, or the APEX 5 limit was wrong.");
     }
 

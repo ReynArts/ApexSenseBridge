@@ -426,7 +426,8 @@ namespace ApexSenseBridgeTray
 
             try
             {
-                bool ok = await testService.TestTriggerAsync(side, mode, level, 5);
+                int strength = settings.GetControllerCalibration("apex6").TriggerStrengthPercent;
+                bool ok = await testService.TestTriggerAsync(side, mode, level, 5, strength);
                 TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_TriggerTestSuccess") : FailureText("Loc_TriggerTestFailed");
             }
             catch (Exception ex)
@@ -485,7 +486,8 @@ namespace ApexSenseBridgeTray
 
             try
             {
-                bool ok = await testService.TestRumbleAsync(left, right, 1);
+                int strength = settings.GetControllerCalibration("apex6").VibrationStrengthPercent;
+                bool ok = await testService.TestRumbleAsync(left, right, 1, strength);
                 TxtTestFeedback.Text = ok ? LocalizationManager.Get("Loc_RumbleTestSuccess") : FailureText("Loc_RumbleTestFailed");
             }
             catch (Exception ex)

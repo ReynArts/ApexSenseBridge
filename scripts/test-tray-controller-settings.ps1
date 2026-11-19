@@ -32,17 +32,20 @@ try {
     foreach ($status in @("disconnected", "unavailable", "unsupported", "apex4", "apex5", "apex6", "disconnected")) {
         $statusMethod.Invoke($window, @($status))
         $connected = $status -in @("apex4", "apex5", "apex6")
-        $expectedMaximum = if ($status -in @("apex4", "apex5")) { 200 } else { 100 }
-        if ((Get-Control "SliderVibrationStrength").Maximum -ne $expectedMaximum) { throw "Wrong vibration gain range for $status" }
+        $expectedTriggerMaximum = if ($status -eq "apex6") { 200 } else { 100 }
+        $expectedVibrationMaximum = if ($connected) { 200 } else { 100 }
+        if ((Get-Control "SliderTriggerStrength").Maximum -ne $expectedTriggerMaximum) { throw "Wrong trigger gain range for $status" }
+        if ((Get-Control "SliderVibrationStrength").Maximum -ne $expectedVibrationMaximum) { throw "Wrong vibration gain range for $status" }
         foreach ($control in @("SliderTriggerStrength", "SliderVibrationStrength", "ChkGripVibrations")) {
             if ((Get-Control $control).IsEnabled -ne $connected) { throw "$status enabled incorrect control: $control" }
         }
         foreach ($control in @("SliderApex4GyroStrength", "SliderApex4GyroYawStrength")) {
             if ((Get-Control $control).IsEnabled -ne ($status -eq "apex4")) { throw "Gyro tuning unlocked for $status" }
         }
-        if ((Get-Control "TileSettingSyncLightbar").IsEnabled -ne ($status -eq "apex5")) { throw "RGB unlocked for $status" }
-        if ((Get-Control "SliderLightbarBrightness").IsEnabled -ne ($status -eq "apex5")) { throw "Lightbar brightness unlocked for $status" }
-        if (((Get-Control "RowLightbarBrightness").Visibility -eq "Visible") -ne ($status -eq "apex5")) { throw "Lightbar brightness shown for $status" }
+        $supportsLightbar = $status -in @("apex5", "apex6")
+        if ((Get-Control "TileSettingSyncLightbar").IsEnabled -ne $supportsLightbar) { throw "Wrong RGB availability for $status" }
+        if ((Get-Control "SliderLightbarBrightness").IsEnabled -ne $supportsLightbar) { throw "Wrong lightbar brightness availability for $status" }
+        if (((Get-Control "RowLightbarBrightness").Visibility -eq "Visible") -ne $supportsLightbar) { throw "Wrong lightbar brightness visibility for $status" }
         if ((Get-Control "TileSettingZoneEmulation").IsEnabled -ne ($status -eq "apex5")) { throw "Trigger emulation unlocked for $status" }
         if ((Get-Control "TileSettingApex6Rate2kHz").IsEnabled -ne ($status -eq "apex6")) { throw "2 kHz haptics unlocked for $status" }
         if ((Get-Control "SliderVibrationThreshold").IsEnabled -ne ($connected -and $status -ne "apex6")) {
@@ -60,15 +63,15 @@ try {
         $count++
     }
     $settings.GetControllerCalibration("apex5").TriggerStrengthPercent = 35
-    $settings.GetControllerCalibration("apex6").TriggerStrengthPercent = 80
+    $settings.GetControllerCalibration("apex6").TriggerStrengthPercent = 180
     $settings.GetControllerCalibration("apex5").VibrationStrengthPercent = 175
     $settings.GetControllerCalibration("apex6").VibrationStrengthPercent = 200
     $settings.GetControllerCalibration("apex5").LightbarBrightnessPercent = 40
     foreach ($model in @("apex5", "apex6", "apex5")) {
         $statusMethod.Invoke($window, @($model))
-        $expected = if ($model -eq "apex5") { 35 } else { 80 }
+        $expected = if ($model -eq "apex5") { 35 } else { 180 }
         if ((Get-Control "SliderTriggerStrength").Value -ne $expected) { throw "UI did not restore $model calibration" }
-        $expectedVibration = if ($model -eq "apex5") { 175 } else { 100 }
+        $expectedVibration = if ($model -eq "apex5") { 175 } else { 200 }
         if ((Get-Control "SliderVibrationStrength").Value -ne $expectedVibration) { throw "UI lost the independent gain for $model" }
         $expectedBrightness = if ($model -eq "apex5") { 40 } else { 100 }
         if ((Get-Control "SliderLightbarBrightness").Value -ne $expectedBrightness) { throw "UI lost the lightbar brightness limit for $model" }
@@ -81,6 +84,10 @@ try {
     $windowType.GetMethod("SelectGame", $flags).Invoke($window, @([int]0))
     $game = $windowType.GetProperty("SelectedGame").GetValue($window)
     if (-not $game) { throw "No certified game is selectable" }
+    $tuning = New-Object ApexSenseBridgeTray.Models.GameTuning
+    $tuning.TriggerStrengthPercent = 180
+    $tuning.VibrationStrengthPercent = 190
+    $settings.SetGameTuning($game.Normalized, $game.Title, $tuning)
     $settings.SetApexProfileSlot($game.Normalized, 2)
     $game.SelectedApexProfileSlot = 2
     $windowType.GetMethod("UpdateDetailPane", $flags).Invoke($window, @())
@@ -90,7 +97,14 @@ try {
     if ($lockedText -eq "Loc_ApexProfileApex5Only" -or $lockedText -eq $hintText) { throw "APEX 5 only hint is not localized" }
     foreach ($status in @("apex4", "apex6", "unsupported", "apex5", "disconnected", "unavailable", "apex4", "apex5")) {
         $statusMethod.Invoke($window, @($status))
-        $locked = $status -in @("apex4", "apex6", "unsupported")
+        $locked = $status -in @("apex4", "unsupported")
+        $trigger = Get-Control "SliderGameTrigger"
+        $expectedMaximum = if ($status -eq "apex6") { 200 } else { 100 }
+        $expectedValue = [Math]::Min($expectedMaximum, 180)
+        if ($trigger.Maximum -ne $expectedMaximum -or $trigger.Value -ne $expectedValue) {
+            throw "Wrong per-game trigger gain for $status"
+        }
+        if ((Get-Control "SliderGameVibration").Value -ne 190) { throw "Wrong per-game vibration gain for $status" }
         foreach ($button in @("BtnProfileLeft", "BtnProfileRight")) {
             if ((Get-Control $button).IsEnabled -eq $locked) { throw "Profile selector $button has the wrong state for $status" }
         }

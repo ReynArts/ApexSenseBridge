@@ -35,6 +35,7 @@ constexpr double kZoneStrengthMaximum = 8.0;
 constexpr double kMachineLevelMaximum = 7.0 * kApex6TriggerMachineDrivePerLevel;
 constexpr double kLegacyForceFull = kApex6TriggerBurstFullForce;
 constexpr double kPi = 3.14159265358979323846;
+constexpr int kGripCarrierPeak = 112;
 
 haptics::HapticConfig apex6HapticConfig(haptics::HapticConfig config) noexcept {
     // The shared user threshold protects APEX 4/5 eccentric grip motors.
@@ -83,12 +84,12 @@ private:
 
 std::int8_t sineSample(double& phase, double frequency,
                        std::uint8_t amplitude) noexcept {
-    const auto strength = static_cast<double>(amplitude) / 255.0 * 112.0;
+    const auto strength = static_cast<double>(amplitude) / 255.0 * kGripCarrierPeak;
     const auto value = static_cast<std::int32_t>(
         std::lround(std::sin(phase * 2.0 * kPi) * strength));
     phase += frequency / 1000.0;
     phase -= std::floor(phase);
-    return static_cast<std::int8_t>(std::clamp<std::int32_t>(value, -112, 112));
+    return static_cast<std::int8_t>(std::clamp<std::int32_t>(value, -kGripCarrierPeak, kGripCarrierPeak));
 }
 
 template <typename Sample, std::size_t Count>
@@ -745,11 +746,11 @@ Apex6DualPolicy Apex6HapticBridge::dualPolicy() const noexcept {
 }
 
 void Apex6HapticBridge::setTriggerStrengthPercent(unsigned percent) noexcept {
-    triggerStrengthPercent_.store((std::min)(percent, 100U), std::memory_order_relaxed);
+    triggerStrengthPercent_.store((std::min)(percent, 200U), std::memory_order_relaxed);
 }
 
 void Apex6HapticBridge::setVibrationStrengthPercent(unsigned percent) noexcept {
-    vibrationStrengthPercent_.store((std::min)(percent, 100U), std::memory_order_relaxed);
+    vibrationStrengthPercent_.store((std::min)(percent, 200U), std::memory_order_relaxed);
 }
 
 void Apex6HapticBridge::setGripMute(bool mute) noexcept {
@@ -946,9 +947,11 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
     if (routeGrips_ && ((rumbleLow != 0 && !leftRumble) || (rumbleHigh != 0 && !rightRumble))) {
         gripRumbleMaskedFrames_.fetch_add(1, std::memory_order_relaxed);
     }
+    const unsigned vibrationStrength = gripMute_.load(std::memory_order_relaxed)
+        ? 0U : vibrationStrengthPercent_.load(std::memory_order_relaxed);
     for (std::size_t index = 0; routeGrips_ && index < count; ++index) {
         if (leftPcmActive) {
-            output[index].leftGrip = scaleApex6Pcm(leftPcm[index], pcmGainPercent_);
+            output[index].leftGrip = scaleApex6GripPcm(leftPcm[index], vibrationStrength, pcmGainPercent_);
         } else if (leftEnvelope) {
             output[index].leftGrip = sineSample(
                 leftGripPhase_, 85.0 / rateScale, envelope.lowFrequency);
@@ -958,7 +961,7 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
                 rumbleLow);
         }
         if (rightPcmActive) {
-            output[index].rightGrip = scaleApex6Pcm(rightPcm[index], pcmGainPercent_);
+            output[index].rightGrip = scaleApex6GripPcm(rightPcm[index], vibrationStrength, pcmGainPercent_);
         } else if (rightEnvelope) {
             output[index].rightGrip = sineSample(
                 rightGripPhase_, 85.0 / rateScale, envelope.highFrequency);
@@ -969,8 +972,6 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
         }
     }
 
-    const unsigned vibrationStrength = gripMute_.load(std::memory_order_relaxed)
-        ? 0U : vibrationStrengthPercent_.load(std::memory_order_relaxed);
     const unsigned triggerStrength = triggerEffectsOff_.load(std::memory_order_relaxed)
         ? 0U : triggerStrengthPercent_.load(std::memory_order_relaxed);
     unsigned leftPcmOutputPeak = 0;
@@ -980,8 +981,14 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
     bool gripDucked = false;
     std::uint64_t triggerLimited = 0;
     for (std::size_t index = 0; index < count; ++index) {
-        output[index].leftGrip = scaleEffectStrength(output[index].leftGrip, vibrationStrength);
-        output[index].rightGrip = scaleEffectStrength(output[index].rightGrip, vibrationStrength);
+        if (!leftPcmActive) {
+            output[index].leftGrip = scaleApex6ActuatorStrength(
+                output[index].leftGrip, vibrationStrength, kGripCarrierPeak);
+        }
+        if (!rightPcmActive) {
+            output[index].rightGrip = scaleApex6ActuatorStrength(
+                output[index].rightGrip, vibrationStrength, kGripCarrierPeak);
+        }
         if (gripDuckGain != kApex6GripNoDuckPermille) {
             const auto duckedLeft = applyApex6GripDuck(output[index].leftGrip, gripDuckGain);
             const auto duckedRight = applyApex6GripDuck(output[index].rightGrip, gripDuckGain);
@@ -998,8 +1005,10 @@ Apex6HapticBridge::WideBlock Apex6HapticBridge::renderBlock(
             rightPcmOutputPeak = (std::max)(rightPcmOutputPeak,
                 static_cast<unsigned>(std::abs(int(output[index].rightGrip))));
         }
-        const auto scaledLeftTrigger = scaleEffectStrength(leftTrigger[index], triggerStrength);
-        const auto scaledRightTrigger = scaleEffectStrength(rightTrigger[index], triggerStrength);
+        const auto scaledLeftTrigger = scaleApex6ActuatorStrength(
+            leftTrigger[index], triggerStrength, kApex6TriggerNativeMaximumDrive);
+        const auto scaledRightTrigger = scaleApex6ActuatorStrength(
+            rightTrigger[index], triggerStrength, kApex6TriggerNativeMaximumDrive);
         leftTrigger[index] = limitApex6TriggerSample(scaledLeftTrigger, triggerCeilingPercent_);
         rightTrigger[index] = limitApex6TriggerSample(scaledRightTrigger, triggerCeilingPercent_);
         if (leftTrigger[index] != scaledLeftTrigger) ++triggerLimited;

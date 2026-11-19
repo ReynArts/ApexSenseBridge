@@ -26,7 +26,7 @@ SessionTuningChange interpretSessionTuningRequest(
     const SessionTuningRequest& request,
     const SessionTuningLimits& limits) noexcept {
     SessionTuningChange change;
-    change.triggerStrengthPercent = boundedValue(request.triggerStrengthPercent, 100U);
+    change.triggerStrengthPercent = boundedValue(request.triggerStrengthPercent, limits.maxTriggerPercent);
     change.vibrationStrengthPercent =
         boundedValue(request.vibrationStrengthPercent, limits.maxVibrationPercent);
     change.gripMute = flagValue(request.gripMute);

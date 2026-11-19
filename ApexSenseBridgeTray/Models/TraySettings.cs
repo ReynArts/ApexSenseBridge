@@ -21,8 +21,8 @@ namespace ApexSenseBridgeTray.Models
 
         internal void Normalize(string model)
         {
-            TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent));
-            VibrationStrengthPercent = Math.Max(0, Math.Min(model == "apex6" ? 100 : 200, VibrationStrengthPercent));
+            TriggerStrengthPercent = Math.Max(0, Math.Min(TraySettings.MaximumTriggerStrength(model), TriggerStrengthPercent));
+            VibrationStrengthPercent = Math.Max(0, Math.Min(200, VibrationStrengthPercent));
             HapticThresholdPercent = model == "apex6" ? 0 : Math.Max(0, Math.Min(95, HapticThresholdPercent));
             SyncLightbar = (model == "apex5" || model == "apex6") && SyncLightbar;
             LightbarBrightnessPercent = model == "apex5" || model == "apex6" ? Math.Max(0, Math.Min(100, LightbarBrightnessPercent)) : 100;
@@ -48,7 +48,7 @@ namespace ApexSenseBridgeTray.Models
         {
             return new GameTuning
             {
-                TriggerStrengthPercent = Math.Max(0, Math.Min(100, TriggerStrengthPercent)),
+                TriggerStrengthPercent = Math.Max(0, Math.Min(TraySettings.Apex6MaximumTriggerStrength, TriggerStrengthPercent)),
                 VibrationStrengthPercent = Math.Max(0, Math.Min(200, VibrationStrengthPercent)),
                 HapticThresholdPercent = Math.Max(0, Math.Min(95, HapticThresholdPercent))
             };
@@ -57,6 +57,8 @@ namespace ApexSenseBridgeTray.Models
 
     public class TraySettings
     {
+        internal const int Apex6MaximumTriggerStrength = 200;
+
         public bool AutoDetectGames { get; set; }
         public bool TriggerOnAdaptiveTriggers { get; set; }
         public bool TriggerOnHapticFeedback { get; set; }
@@ -96,6 +98,11 @@ namespace ApexSenseBridgeTray.Models
         public static bool IsCalibrationModel(string model)
         {
             return model == "apex4" || model == "apex5" || model == "apex6";
+        }
+
+        internal static int MaximumTriggerStrength(string model)
+        {
+            return model == "apex6" ? Apex6MaximumTriggerStrength : 100;
         }
 
         public ControllerCalibration GetControllerCalibration(string model)
@@ -141,8 +148,8 @@ namespace ApexSenseBridgeTray.Models
                     int threshold = c.HapticThresholdPercent;
                     if (tuning != null)
                     {
-                        trigger = tuning.TriggerStrengthPercent;
-                        vibration = Math.Min(model == "apex6" ? 100 : 200, tuning.VibrationStrengthPercent);
+                        trigger = Math.Min(MaximumTriggerStrength(model), tuning.TriggerStrengthPercent);
+                        vibration = tuning.VibrationStrengthPercent;
                         if (model != "apex6") threshold = tuning.HapticThresholdPercent;
                     }
                     result.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
@@ -162,11 +169,10 @@ namespace ApexSenseBridgeTray.Models
             var tuning = GetGameTuning(gameTitle);
             int trigger = tuning != null ? tuning.TriggerStrengthPercent : calibration.TriggerStrengthPercent;
             int vibration = tuning != null ? tuning.VibrationStrengthPercent : calibration.VibrationStrengthPercent;
-            vibration = Math.Min(model == "apex6" ? 100 : 200, vibration);
             return new SessionTuningChange
             {
-                TriggerStrengthPercent = (uint)Math.Max(0, Math.Min(100, trigger)),
-                VibrationStrengthPercent = (uint)Math.Max(0, vibration)
+                TriggerStrengthPercent = (uint)Math.Max(0, Math.Min(MaximumTriggerStrength(model), trigger)),
+                VibrationStrengthPercent = (uint)Math.Max(0, Math.Min(200, vibration))
             };
         }
 
