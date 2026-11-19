@@ -3,7 +3,7 @@
 
 [← Project overview](README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Catalogue data](data/supported_games.json)
 
-**Catalogue refreshed:** 2026-11-18 12:42 UTC. Updated automatically by the daily GitHub refresh.
+**Catalogue refreshed:** 2026-11-19 12:33 UTC. Updated automatically by the daily GitHub refresh.
 
 | Games in catalogue | Adaptive triggers | Haptic feedback | Manual fix needed |
 | :---: | :---: | :---: | :---: |
