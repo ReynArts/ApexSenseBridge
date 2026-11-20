@@ -82,6 +82,19 @@ namespace ApexSenseBridgeTray.Services
         public SessionRecoveryState Recovery { get { lock (syncLock) return recovery.Snapshot(); } }
         public bool AutomaticActivationBlocked { get { lock (syncLock) return recovery.BlocksAutomaticActivation; } }
         public void UpdateRecoveryController(bool available) { lock (syncLock) recovery.ControllerDetected(available); }
+        // The interrupted game is gone: drop the stale "interrupted" banner and
+        // lift the automatic-detection block instead of leaving it forever.
+        public void ClearRecovery()
+        {
+            lock (syncLock)
+            {
+                if (activeSession != null || isStarting || isStopping) return;
+                recovery.Clear();
+                failed = false;
+                unexpectedExit = false;
+            }
+            StateChanged?.Invoke();
+        }
         public void DismissRecovery() { lock (syncLock) recovery.Dismiss(); StateChanged?.Invoke(); }
 
         public bool ResumeSession(TraySettings settings, out string error)

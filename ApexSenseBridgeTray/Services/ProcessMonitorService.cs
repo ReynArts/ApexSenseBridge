@@ -252,6 +252,63 @@ namespace ApexSenseBridgeTray.Services
             ThreadPool.QueueUserWorkItem(_ => OnPollTick(null));
         }
 
+        private static readonly TimeSpan RecoveryGameGrace = TimeSpan.FromSeconds(30);
+        private DateTime recoveryGameLastSeenUtc = DateTime.MinValue;
+        private DateTime nextRecoveryGameCheckUtc = DateTime.MinValue;
+
+        // An interrupted session blocks automatic detection until its game
+        // closes. If that game is no longer running, drop the state ourselves.
+        private void ExpireOrphanedRecovery()
+        {
+            var recovery = sessionManager.Recovery;
+            if (!recovery.Pending && !recovery.BlocksAutomaticActivation)
+            {
+                recoveryGameLastSeenUtc = DateTime.MinValue;
+                return;
+            }
+            if (recovery.Resuming || sessionManager.IsSessionActive) return;
+            var now = DateTime.UtcNow;
+            if (recoveryGameLastSeenUtc == DateTime.MinValue) recoveryGameLastSeenUtc = now;
+            if (now < nextRecoveryGameCheckUtc) return;
+            nextRecoveryGameCheckUtc = now.AddSeconds(5);
+            if (string.IsNullOrEmpty(recovery.Game) || IsGameProcessRunning(recovery.Game))
+            {
+                recoveryGameLastSeenUtc = now;
+                return;
+            }
+            if (now - recoveryGameLastSeenUtc < RecoveryGameGrace) return;
+            LogEvent("Interrupted session for '" + recovery.Game + "' cleared: the game is no longer running.");
+            recoveryGameLastSeenUtc = DateTime.MinValue;
+            sessionManager.ClearRecovery();
+        }
+
+        private bool IsGameProcessRunning(string title)
+        {
+            try
+            {
+                foreach (var pid in NativeMethods.GetProcessIds())
+                {
+                    if (pid == 0) continue;
+                    var exePath = NativeMethods.GetProcessPath(pid);
+                    if (string.IsNullOrWhiteSpace(exePath)) continue;
+                    var fileName = Path.GetFileName(exePath);
+                    if (IsSystemOrIgnoredProcess(fileName)) continue;
+                    SupportedGame game;
+                    string by;
+                    if (TryResolveGame(exePath, Path.GetFileNameWithoutExtension(exePath),
+                            GetParentFolderName(exePath), fileName, out game, out by) &&
+                        game != null && string.Equals(game.Title, title, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[IsGameProcessRunning] " + ex.Message);
+                return true; // unknown: never clear on an error
+            }
+            return false;
+        }
+
         private void TryResumeManualBridge()
         {
             if (!IsManualBridgeMode())
@@ -299,6 +356,7 @@ namespace ApexSenseBridgeTray.Services
                 PruneStartRetries();
 
                 TryResumeManualBridge();
+                ExpireOrphanedRecovery();
 
                 if (!IsManualBridgeMode()) CancelPreparedLaunch();
                 else if (DateTime.UtcNow >= nextPreparedLaunchCheckUtc)
