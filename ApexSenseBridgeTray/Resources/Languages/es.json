@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0}: ajustes separados para este modelo. La fuerza de los gatillos y de la vibración también se aplica al instante a una sesión Tray en curso; los demás ajustes se aplican en la próxima sesión.",
   "Loc_TriggerStrength": "Fuerza de los gatillos",
   "Loc_VibrationStrength": "Fuerza de las vibraciones",
-  "Loc_VibrationStrengthHint": "APEX 4/5: 0 a 200 %, 100 % por defecto. Más del 100 % amplifica las vibraciones de las empuñaduras hasta el límite del motor; no recupera el audio eliminado por el umbral. APEX 6 permanece en 0 a 100 %. La resistencia de los gatillos es independiente. La intensidad de Space Station sigue influyendo. Se aplica en la próxima sesión; empieza con un aumento moderado.",
+  "Loc_VibrationStrengthHint": "La vibración de las empuñaduras va del 0 al 200 %, con un valor predeterminado del 100 %. El aumento respeta los límites de salida del mando.",
   "Loc_Apex4GyroStrength": "Sensibilidad del giroscopio Apex 4",
   "Loc_Apex4GyroYawStrength": "Corrección de guiñada Apex 4",
   "Loc_VibrationThreshold": "Umbral de activación háptica",

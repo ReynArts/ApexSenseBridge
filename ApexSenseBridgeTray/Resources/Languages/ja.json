@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0}: このモデル専用に設定が保存されます。トリガー強度と振動強度は実行中のTrayセッションにもすぐに反映され、それ以外の設定は次回のセッションから適用されます。",
   "Loc_TriggerStrength": "トリガーの強度",
   "Loc_VibrationStrength": "振動の強度",
-  "Loc_VibrationStrengthHint": "APEX 4/5: 0〜200%、デフォルト100%。100%超はモーターのコマンド上限まで既存のグリップ振動を増幅します。しきい値で除外された音声は復元しません。APEX 6は0〜100%を維持します。トリガー抵抗は別設定です。Space Stationの強度も結果に影響します。次回のセッションから適用されます。控えめな引き上げから始めてください。",
+  "Loc_VibrationStrengthHint": "グリップ振動は0〜200%で、初期値は100%です。増幅はコントローラーの出力上限内に収まります。",
   "Loc_Apex4GyroStrength": "Apex 4 ジャイロ感度",
   "Loc_Apex4GyroYawStrength": "Apex 4 ヨー補正",
   "Loc_VibrationThreshold": "ハプティック有効化しきい値",

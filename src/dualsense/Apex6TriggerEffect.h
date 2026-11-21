@@ -142,6 +142,7 @@ struct Apex6RhythmShape {
     std::uint8_t activeFrom = 0;
     std::uint8_t activeTo = 255;
     bool modulated = false;
+    bool zoned = false;
 
     bool operator==(const Apex6RhythmShape&) const = default;
 };

@@ -71,8 +71,13 @@ void testInterpretation() {
 
     limits.maxVibrationPercent = 200;
     SessionTuningRequest wide;
+    wide.triggerStrengthPercent = 200;
     wide.vibrationStrengthPercent = 200;
-    assert(interpretSessionTuningRequest(wide, limits).vibrationStrengthPercent == 200U);
+    const auto conventional = interpretSessionTuningRequest(wide, limits);
+    assert(!conventional.triggerStrengthPercent && conventional.vibrationStrengthPercent == 200U);
+    limits.maxTriggerPercent = 200;
+    const auto apex6 = interpretSessionTuningRequest(wide, limits);
+    assert(apex6.triggerStrengthPercent == 200U && apex6.vibrationStrengthPercent == 200U);
 }
 
 void testNaming() {

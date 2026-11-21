@@ -35,7 +35,11 @@ $box.Text = "150"
 $box.GetBindingExpression([Windows.Controls.TextBox]::TextProperty).UpdateSource()
 if ($settings.VibrationStrengthPercent -ne 150) { throw "Playnite did not update the gain setting." }
 $builder = $plugin.GetType("ApexSenseBridge.Common.BridgeArguments").GetMethod("Build")
-$arguments = $builder.Invoke($null, @("none", $true, [int]12, $false, [int]0, [int]100, [int]$settings.VibrationStrengthPercent, [int]100, [int]100, $true))
+$arguments = $builder.Invoke($null, @(
+    "none", $true, [int]12, $false, [int]0, [int]100,
+    [int]$settings.VibrationStrengthPercent, [int]100, [int]100, $true,
+    [Type]::Missing, [Type]::Missing
+))
 if (-not $arguments.Contains("--vibration-strength 150")) { throw "Playnite arguments lost the gain." }
 if ($arguments.Contains("--no-zone-emulation")) { throw "Playnite arguments disabled the trigger emulation by default." }
 if ($settings.ZoneEmulation -ne $true -or $legacy.ZoneEmulation -ne $true) { throw "Trigger emulation is not enabled by default." }

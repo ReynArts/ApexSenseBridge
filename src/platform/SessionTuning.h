@@ -52,6 +52,7 @@ static_assert(sizeof(SessionTuningBlock) == 128);
 inline constexpr std::size_t kSessionTuningBlockSize = sizeof(SessionTuningBlock);
 
 struct SessionTuningLimits {
+    std::uint32_t maxTriggerPercent = 100;
     std::uint32_t maxVibrationPercent = 100;
     std::uint32_t maxTouchpadProfile = 0;
     std::uint32_t maxApexSlot = 3;

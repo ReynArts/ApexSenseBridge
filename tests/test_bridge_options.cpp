@@ -139,7 +139,8 @@ int main() {
     assert(parse({"--vibration-strength", "50"}).options.vibrationStrengthPercent == 50);
     assert(parse({"--vibration-strength", "200"}).options.vibrationStrengthPercent == 200);
     assert(!parse({"--vibration-strength", "201"}).succeeded);
-    assert(!parse({"--trigger-strength", "101"}).succeeded);
+    assert(parse({"--trigger-strength", "200"}).options.triggerStrengthPercent == 200);
+    assert(!parse({"--trigger-strength", "201"}).succeeded);
     assert(!parse({"--vibration-strength", "-1"}).succeeded);
     assert(!parse({"--vibration-strength", "50junk"}).succeeded);
     assert(!parse({"--trigger-strength"}).succeeded);
@@ -232,12 +233,13 @@ int main() {
     assert(usage.find("--vibration-strength 0..200") != std::string_view::npos);
     assert(usage.find("[--no-zone-emulation]") != std::string_view::npos);
     assert(usage.find("[--zone-emulation]") == std::string_view::npos);
-    auto boosted = parse({"--rumble", "--vibration-strength", "150"}).options;
     std::string boostError;
-    assert(asb::cli::applyControllerCalibration(boosted, "apex5", boostError));
-    assert(boosted.vibrationStrengthPercent == 150);
-    assert(asb::cli::applyControllerCalibration(boosted, "apex6", boostError));
-    assert(boosted.vibrationStrengthPercent == 100);
+    for (const auto model : {"apex4", "apex5", "apex6"}) {
+        auto boosted = parse({"--rumble", "--vibration-strength", "150", "--trigger-strength", "200"}).options;
+        assert(asb::cli::applyControllerCalibration(boosted, model, boostError));
+        assert(boosted.vibrationStrengthPercent == 150);
+        assert(boosted.triggerStrengthPercent == (std::string_view(model) == "apex6" ? 200U : 100U));
+    }
     for (const auto model : {"apex4", "apex5"}) {
         auto options = parse({"--controller-calibration", std::string(model) + ":100:200:12:1:0:100:100"});
         assert(options.succeeded);
@@ -264,13 +266,14 @@ int main() {
     assert(noRumble.succeeded);
     assert(asb::cli::applyControllerCalibration(noRumble.options, "apex6", boostError));
     assert(noRumble.options.apex6SampleRateHz == 1000 && !noRumble.options.apex6SampleRateExplicit);
-    assert(!parse({"--controller-calibration", "apex6:100:101:0:1:0:100:100"}).succeeded);
+    assert(!parse({"--controller-calibration", "apex6:100:201:0:1:0:100:100"}).succeeded);
+    assert(!parse({"--controller-calibration", "apex6:201:100:0:1:0:100:100"}).succeeded);
     assert(!parse({"--controller-calibration", "apex5:100:201:12:1:0:100:100"}).succeeded);
 
     const auto calibrated = parse({
         "--controller-calibration", "apex4:35:60:24:0:0:175:225",
         "--controller-calibration", "apex5:45:70:12:1:1:100:100",
-        "--controller-calibration", "apex6:80:90:0:1:0:100:100",
+        "--controller-calibration", "apex6:200:200:0:1:0:100:100",
         "--apex-profile", "3"});
     assert(calibrated.succeeded);
     for (const auto model : {"apex4", "apex5", "apex6"}) {
@@ -288,7 +291,7 @@ int main() {
             // Seven fields keep the default brightness limit.
             assert(options.lightbarBrightnessPercent == 100);
         } else {
-            assert(options.triggerStrengthPercent == 80 && options.vibrationStrengthPercent == 90);
+            assert(options.triggerStrengthPercent == 200 && options.vibrationStrengthPercent == 200);
             assert(options.routeRumble && !options.syncLightbar && options.hapticThresholdPercent == 0);
             assert(options.apexProfileSlot == 2 && options.apex4GyroStrengthPercent == 100);
         }

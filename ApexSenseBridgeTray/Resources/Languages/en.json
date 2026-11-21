@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0}: settings saved separately for this model. Trigger and vibration strength also apply right away to a running Tray session; the other settings apply to the next session.",
   "Loc_TriggerStrength": "Trigger strength",
   "Loc_VibrationStrength": "Vibration strength",
-  "Loc_VibrationStrengthHint": "APEX 4/5: 0 to 200%, default 100%. Above 100% boosts existing grip vibrations up to the motor command limit; it does not restore audio removed by the threshold. APEX 6 stays at 0 to 100%. Trigger resistance is separate. Space Station intensity still affects the result. Applies to the next session; start with a modest increase.",
+  "Loc_VibrationStrengthHint": "Grip vibration ranges from 0 to 200%, with a default of 100%. Boosts stay within the controller’s existing output limits.",
   "Loc_Apex4GyroStrength": "Apex 4 gyro sensitivity",
   "Loc_Apex4GyroYawStrength": "Apex 4 yaw correction",
   "Loc_VibrationThreshold": "Haptic activation threshold",

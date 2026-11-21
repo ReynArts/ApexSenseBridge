@@ -1059,11 +1059,11 @@ void testLowFrequencyVibrationIsAPulseTrain() {
     append(positions, hold(0, 5));
     append(positions, hold(200, 60));
     const auto samples = flatten(player.play(positions));
-    int peak = 0;
+    int pulsePeak = 0;
     unsigned pulses = 0;
     unsigned zeros = 100;
     for (const auto sample : samples) {
-        peak = (std::max)(peak, std::abs(int(sample)));
+        pulsePeak = (std::max)(pulsePeak, std::abs(int(sample)));
         if (sample == 0) {
             ++zeros;
         } else {
@@ -1071,11 +1071,23 @@ void testLowFrequencyVibrationIsAPulseTrain() {
             zeros = 0;
         }
     }
-    assert(peak >= 70 && peak <= 89);
+    assert(pulsePeak >= 70 && pulsePeak <= 89);
     assert(pulses >= 5 && pulses <= 6);
 
     const auto slow = decodeNative({0x26, 0xF0, 0x03, 0x00, 0xB0, 0x6D, 0x1B, 0, 0, 31, 0});
     assert(slow.type == Apex6TriggerType::Vibration && slow.frequency == 31);
+
+    const auto gapped = decodeNative(zoneBytes(0x26, (1U << 2) | (1U << 7),
+        {0, 0, 2, 0, 0, 0, 0, 4, 0, 0}, 12));
+    assert(gapped.rhythm.zoned && gapped.rhythm.activeTo == 204);
+    assert(settledPeak(gapped, 64) > 0);
+    assert(settledPeak(gapped, 192) > settledPeak(gapped, 64));
+    Player playGapped{gapped};
+    (void)playGapped.play(hold(64, 4));
+    assert(peak(playGapped.next(120)) == 0);
+    const auto nextZone = playGapped.next(192);
+    assert(nextZone[0] == 0 && peak(nextZone) > 0);
+    assert(peak(playGapped.next(225)) == 0);
 }
 
 void testVibrationStartPlaysADetent() {
@@ -1325,10 +1337,15 @@ void testTriggerDiagnostics() {
 
 void testPcmGainCurve() {
     using asb::dualsense::scaleApex6Pcm;
+    using asb::dualsense::scaleApex6GripPcm;
     for (int sample = -32768; sample <= 32767; ++sample) {
         const auto pcm = static_cast<std::int16_t>(sample);
         const auto baseline = sample * 127 / (sample >= 0 ? 32767 : 32768);
         assert(scaleApex6Pcm(pcm) == baseline);
+        assert(scaleApex6GripPcm(pcm, 100, 100) == baseline);
+        const int medium = std::abs(int(scaleApex6GripPcm(pcm, 150, 100)));
+        const int high = std::abs(int(scaleApex6GripPcm(pcm, 200, 100)));
+        assert(std::abs(baseline) <= medium && medium <= high && high <= 127);
         for (const auto gain : {100U, 125U, 150U, 200U}) {
             const auto value = int(scaleApex6Pcm(pcm, gain));
             assert(value >= -127 && value <= 127);
@@ -1346,6 +1363,12 @@ void testPcmGainCurve() {
     assert(scaleApex6Pcm(10028, 200) == 59); // ZZZ capture peak, not a linear 2x/clipping boost.
     assert(scaleApex6Pcm(1000, 999) == scaleApex6Pcm(1000, 200));
     assert(scaleApex6Pcm(1000, 0) == scaleApex6Pcm(1000));
+    // ZZZ capture peak from APEX6_DUALSENSE_VALIDATION.md.
+    assert(scaleApex6GripPcm(10028, 150, 100) == 58);
+    assert(scaleApex6GripPcm(10028, 200, 100) == 77);
+    assert(scaleApex6GripPcm(10028, 200, 150) == 77);
+    assert(scaleApex6GripPcm(-32768, 200, 100) == -127);
+    assert(scaleApex6GripPcm(32767, 200, 100) == 127);
 }
 
 void testApex6EnvelopeThresholdPolicy() {
@@ -1405,8 +1428,7 @@ void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000,
             maximumTrigger = (std::max)(maximumTrigger, std::abs(int(report[6 + sample * 3]) - 128));
         }
     }
-    if (strength == 0) assert(maximumGrip == 0);
-    else assert(maximumGrip == int(scaleApex6Pcm(static_cast<std::int16_t>(pcmAmplitude), gain)) * int(strength) / 100);
+    assert(maximumGrip == int(scaleApex6GripPcm(static_cast<std::int16_t>(pcmAmplitude), strength, gain)));
     if (strength == 0) assert(maximumTrigger == 0);
     else assert(maximumTrigger > 0 && maximumTrigger <= int(strength));
     const auto stats = bridge.stats();
@@ -1416,7 +1438,7 @@ void testStrength(unsigned strength, double threshold, int pcmAmplitude = 30000,
     assert(stats.pcmGainPercent == gain);
     assert(stats.pcmOutputLeftPeak == static_cast<unsigned>(maximumGrip));
     const auto expectedRight = leftOnly ? 0 :
-        std::abs(int(scaleApex6Pcm(static_cast<std::int16_t>(-pcmAmplitude), gain))) * int(strength) / 100;
+        std::abs(int(scaleApex6GripPcm(static_cast<std::int16_t>(-pcmAmplitude), strength, gain)));
     assert(stats.pcmOutputRightPeak == static_cast<unsigned>(expectedRight));
 }
 
@@ -1450,21 +1472,20 @@ void testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm() {
     assert(stats.pcmOutputLeftPeak == 0 && stats.pcmOutputRightPeak == 0);
 }
 
-void testCompanionReportsAndSilentAudioKeepGameRumble() {
+int testCompanionReportsAndSilentAudioKeepGameRumble(unsigned gripStrength) {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
     auto* transport = new FakeApex6Transport();
     Apex5Device device{TransportPtr(transport)};
     std::string error;
     assert(device.verifyIdentity(error));
-    Apex6HapticBridge bridge(device, {}, true);
+    Apex6HapticBridge bridge(device, {}, true, 100, gripStrength);
     assert(bridge.start(error));
     DualSenseFeedback game{};
     game.enableBits1 = 0x03;
     game.rumbleLeft = 180;
     game.rumbleRight = 90;
     bridge.handle(game);
-    const auto writesBefore = transport->writes.size();
     DualSenseFeedback companion{};
     companion.leftTriggerEffect = {0x05};
     companion.rightTriggerEffect = {0x05};
@@ -1480,8 +1501,7 @@ void testCompanionReportsAndSilentAudioKeepGameRumble() {
     assert(bridge.stop(error));
     int leftGrip = 0;
     int rightGrip = 0;
-    for (std::size_t index = writesBefore; index < transport->writes.size(); ++index) {
-        const auto& report = transport->writes[index];
+    for (const auto& report : transport->writes) {
         if (report[3] != apex6::kCmdRealtimeMotor) continue;
         for (std::size_t sample = 0; sample < 8; ++sample) {
             leftGrip = (std::max)(leftGrip, std::abs(int(report[7 + sample * 3]) - 128));
@@ -1495,6 +1515,7 @@ void testCompanionReportsAndSilentAudioKeepGameRumble() {
     assert(stats.waveformSilentBlocks == 25);
     assert(stats.gripRumbleFrames >= 5);
     assert(stats.gripRumbleMaskedFrames == 0);
+    return (std::max)(leftGrip, rightGrip);
 }
 
 void testIgnoredMotorBytesAreCounted() {
@@ -1569,13 +1590,20 @@ void testIdleSkipsFramesAndWakesImmediately() {
 
     DualSenseFeedback silent{};
     silent.kind = FeedbackKind::AudioHapticWaveform;
-    silent.audioSequence = 1;
-    bridge.handle(silent);
+    // A keepalive briefly clears the idle flag. Allow the renderer to enter
+    // idle again before retrying instead of relying on the wake-up phase.
+    for (unsigned attempt = 0; attempt < 5; ++attempt) {
+        ++silent.audioSequence;
+        bridge.handle(silent);
+        if (bridge.stats().silentWaveformSkipped != 0) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(70 + 11 * attempt));
+        if (bridge.stats().silentWaveformSkipped != 0) break;
+    }
     assert(bridge.stats().silentWaveformSkipped == 1);
 
     const auto framesBefore = bridge.stats().framesWritten;
     DualSenseFeedback active = silent;
-    active.audioSequence = 2;
+    active.audioSequence = silent.audioSequence + 1;
     active.leftHapticSamples.fill(12000);
     bridge.handle(active);
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
@@ -1853,8 +1881,17 @@ void testBridgeBurstTakesTheRouteFromASustainedTrigger() {
 
 void testShapingHelpers() {
     using namespace asb::dualsense;
+    assert(scaleApex6ActuatorStrength(54, 150, kApex6TriggerNativeMaximumDrive) == 80);
+    assert(scaleApex6ActuatorStrength(54, 200, kApex6TriggerNativeMaximumDrive) == 94);
     for (int raw = -128; raw <= 127; ++raw) {
         const auto sample = static_cast<std::int8_t>(raw);
+        constexpr int ceiling = kApex6TriggerNativeMaximumDrive;
+        assert(scaleApex6ActuatorStrength(sample, 0, ceiling) == 0);
+        assert(scaleApex6ActuatorStrength(sample, 50, ceiling) == raw / 2);
+        assert(scaleApex6ActuatorStrength(sample, 100, ceiling) == sample);
+        const auto boosted = scaleApex6ActuatorStrength(sample, 200, ceiling);
+        if (std::abs(raw) >= ceiling) assert(boosted == sample);
+        else assert(std::abs(int(boosted)) >= std::abs(raw) && std::abs(int(boosted)) <= ceiling);
         assert(limitApex6TriggerSample(sample, 100) == sample);
         assert(applyApex6GripDuck(sample, 1000) == sample);
         assert(applyApex6GripDuck(sample, 0) == 0);
@@ -1901,19 +1938,20 @@ struct ShapingRun {
     asb::dualsense::Apex6HapticBridgeStats stats;
 };
 
-ShapingRun runShaping(unsigned duck, unsigned ceiling, std::uint8_t position) {
+ShapingRun runShaping(unsigned duck, unsigned ceiling, std::uint8_t position,
+                      unsigned triggerStrength = 100, std::uint8_t triggerDrive = 100) {
     using namespace asb::dualsense;
     using namespace asb::flydigi;
     auto* transport = new FakeApex6Transport();
     Apex5Device device{TransportPtr(transport)};
     std::string error;
     assert(device.verifyIdentity(error));
-    Apex6HapticBridge bridge(device, {}, true, 100, 100, 100, duck, ceiling);
+    Apex6HapticBridge bridge(device, {}, true, triggerStrength, 100, 100, duck, ceiling);
     bridge.updateTriggerPositions(position, position);
     assert(bridge.start(error));
     DualSenseFeedback trigger{};
     trigger.enableBits1 = 0x0C;
-    trigger.leftTriggerEffect = {1, 0, 100};
+    trigger.leftTriggerEffect = {1, 0, triggerDrive};
     trigger.rightTriggerEffect = trigger.leftTriggerEffect;
     bridge.handle(trigger);
     DualSenseFeedback waveform{};
@@ -1966,6 +2004,14 @@ void testShapingBridge() {
 
     const auto clamped = runShaping(500, 5, 0);
     assert(clamped.stats.gripDuckPercent == 100 && clamped.stats.triggerCeilingPercent == 20);
+
+    const auto weakTrigger = runShaping(0, 100, 200, 100, 35);
+    const auto mediumTrigger = runShaping(0, 100, 200, 150, 35);
+    const auto boostedTrigger = runShaping(0, 100, 200, 200, 35);
+    assert(weakTrigger.maximumTrigger > 0 && mediumTrigger.maximumTrigger > weakTrigger.maximumTrigger);
+    assert(boostedTrigger.maximumTrigger > mediumTrigger.maximumTrigger);
+    assert(boostedTrigger.maximumTrigger <= asb::dualsense::kApex6TriggerNativeMaximumDrive);
+    assert(boostedTrigger.maximumGrip == weakTrigger.maximumGrip);
 }
 
 std::vector<std::vector<std::uint8_t>> realtimeReports(const FakeApex6Transport& transport) {
@@ -2323,7 +2369,11 @@ int main() {
     testBridgeBurstTakesTheRouteFromASustainedTrigger();
     testTriggerDiagnostics();
     testSubQuantizationPcmDoesNotCountRumbleAsRenderedPcm();
-    testCompanionReportsAndSilentAudioKeepGameRumble();
+    const int fallbackGrip = testCompanionReportsAndSilentAudioKeepGameRumble(100);
+    const int mediumFallbackGrip = testCompanionReportsAndSilentAudioKeepGameRumble(150);
+    const int boostedFallbackGrip = testCompanionReportsAndSilentAudioKeepGameRumble(200);
+    assert(mediumFallbackGrip > fallbackGrip && boostedFallbackGrip > mediumFallbackGrip);
+    assert(boostedFallbackGrip <= 112);
     testIgnoredMotorBytesAreCounted();
     testPcmOnSameSideCountsMaskedRumble();
     testStrength(100, 0.0);
@@ -2336,6 +2386,9 @@ int main() {
     testStrength(50, 0.12, 1000, 150, true);
     testStrength(0, 0.12, 10028, 200);
     testStrength(100, 0.12, 32767, 200);
+    testStrength(150, 0.12, 10028);
+    testStrength(200, 0.12, 10028);
+    testStrength(200, 0.12, 10028, 150);
 
     auto* transport = new FakeApex6Transport();
     Apex5Device device{TransportPtr(transport)};

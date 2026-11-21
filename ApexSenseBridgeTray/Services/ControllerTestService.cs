@@ -227,16 +227,18 @@ namespace ApexSenseBridgeTray.Services
             return result;
         }
 
-        public Task<bool> TestTriggerAsync(string side, string mode, int level, int seconds)
+        public Task<bool> TestTriggerAsync(string side, string mode, int level, int seconds, int apex6Strength = 100)
         {
-            string args = "test-trigger " + DeviceSlot + string.Format("--side {0} --mode {1} --level {2} --seconds {3}",
-                side.ToLowerInvariant(), mode.ToLowerInvariant(), level, seconds);
+            string args = "test-trigger " + DeviceSlot + string.Format(CultureInfo.InvariantCulture,
+                "--side {0} --mode {1} --level {2} --seconds {3} --apex6-strength {4}",
+                side.ToLowerInvariant(), mode.ToLowerInvariant(), level, seconds, apex6Strength);
             return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 
-        public Task<bool> TestRumbleAsync(int left, int right, int seconds)
+        public Task<bool> TestRumbleAsync(int left, int right, int seconds, int apex6Strength = 100)
         {
-            string args = "test-rumble " + DeviceSlot + string.Format("--left {0} --right {1} --seconds {2}", left, right, seconds);
+            string args = "test-rumble " + DeviceSlot + string.Format(CultureInfo.InvariantCulture,
+                "--left {0} --right {1} --seconds {2} --apex6-strength {3}", left, right, seconds, apex6Strength);
             return RunCliCommandAsync(args, Math.Max(10000, seconds * 1000 + 7000));
         }
 

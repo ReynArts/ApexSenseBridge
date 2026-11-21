@@ -235,6 +235,7 @@ namespace ApexSenseBridgeWidget
             try
             {
                 var tuning = status.Tuning;
+                TriggerSlider.Maximum = tuning.MaxTrigger;
                 VibrationSlider.Maximum = tuning.MaxVibration;
                 TriggerSlider.Value = tuning.Trigger;
                 VibrationSlider.Value = tuning.Vibration;

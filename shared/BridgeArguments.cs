@@ -28,7 +28,7 @@ namespace ApexSenseBridge.Common
             };
 
             arguments.Add("--trigger-strength");
-            arguments.Add(Math.Max(0, Math.Min(100, triggerStrengthPercent)).ToString(CultureInfo.InvariantCulture));
+            arguments.Add(Math.Max(0, Math.Min(200, triggerStrengthPercent)).ToString(CultureInfo.InvariantCulture));
             arguments.Add("--vibration-strength");
             arguments.Add(Math.Max(0, Math.Min(200, vibrationStrengthPercent)).ToString(CultureInfo.InvariantCulture));
             arguments.Add("--apex4-gyro-strength");

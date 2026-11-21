@@ -131,8 +131,8 @@ namespace ApexSenseBridgeTray.Services
             var change = new SessionTuningChange();
             var any = false;
             int number;
-            if (TryNumber(request, "trigger", 0, 100, out number)) { change.TriggerStrengthPercent = (uint)number; any = true; }
-            if (TryNumber(request, "vibration", 0, MaximumVibration(before), out number)) { change.VibrationStrengthPercent = (uint)number; any = true; }
+            if (TryNumber(request, "trigger", 0, MaximumTrigger(before), out number)) { change.TriggerStrengthPercent = (uint)number; any = true; }
+            if (TryNumber(request, "vibration", 0, 200, out number)) { change.VibrationStrengthPercent = (uint)number; any = true; }
             if (TryNumber(request, "touchpadProfile", 0, ProfileNames.Length - 1, out number)) { change.TouchpadProfile = (uint)number; any = true; }
             bool flag;
             if (TryFlag(request, "gripMute", out flag)) { change.GripMute = flag; any = true; }
@@ -180,9 +180,9 @@ namespace ApexSenseBridgeTray.Services
                    !string.IsNullOrWhiteSpace(info.Game);
         }
 
-        private static int MaximumVibration(SessionTuningState applied)
+        private static int MaximumTrigger(SessionTuningState applied)
         {
-            return applied.ControllerModel == 6 ? 100 : 200;
+            return applied.ControllerModel == 6 ? 200 : 100;
         }
 
         private static string ProfileName(uint index)
@@ -203,7 +203,8 @@ namespace ApexSenseBridgeTray.Services
                 { "slot", applied.ApexProfileSlot.HasValue ? (object)(int)applied.ApexProfileSlot.Value : null },
                 { "rate", (int)applied.SampleRateHz },
                 { "model", (int)applied.ControllerModel },
-                { "maxVibration", MaximumVibration(applied) }
+                { "maxTrigger", MaximumTrigger(applied) },
+                { "maxVibration", 200 }
             };
         }
 
