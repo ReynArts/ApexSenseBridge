@@ -1874,14 +1874,13 @@ internal static class TrayLearningTests
         using (var shown = new EventWaitHandle(false, EventResetMode.ManualReset, eventName))
         {
             var start = new ProcessStartInfo { FileName = Path.Combine(fixture, "ApexSenseBridge.exe"), UseShellExecute = false, CreateNoWindow = true };
-            start.EnvironmentVariables["ASB_TEST_SHOW_EVENT"] = eventName;
+            Environment.SetEnvironmentVariable("ASB_TEST_SHOW_EVENT", eventName);
             using (var process = Process.Start(start))
             {
-                // A newly copied native executable and managed fixture can need extra
-                // startup time on Windows (including the first antivirus scan).
-                Assert(shown.WaitOne(10000), "Opening the engine without arguments did not forward to the main Tray.");
+                Assert(shown.WaitOne(3000), "Opening the engine without arguments did not forward to the main Tray.");
                 Assert(process.WaitForExit(3000) && process.ExitCode == 0, "Main-entry forwarding did not exit successfully.");
             }
+            Environment.SetEnvironmentVariable("ASB_TEST_SHOW_EVENT", null);
         }
     }
 

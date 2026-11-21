@@ -1054,7 +1054,7 @@
                                                       Stretch="Uniform" Margin="12,0,4,0"/>
                                                 <Path DockPanel.Dock="Left" Data="M 3,5 H 21 V 19 H 3 Z M 7,9 H 9 M 11,9 H 13 M 15,9 H 17 M 7,13 H 9 M 11,13 H 13 M 15,13 H 17 M 8,16 H 16"
                                                       Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
-                                                <TextBlock Text="{DynamicResource Loc_TestTabMapping}" Style="{StaticResource RowLabel}"/>
+                                                <TextBlock Text="{DynamicResource Loc_SettingRearButtonMapping}" Style="{StaticResource RowLabel}"/>
                                             </DockPanel>
                                         </Border>
 
