@@ -3,11 +3,11 @@
 
 [← Project overview](README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Catalogue data](data/supported_games.json)
 
-**Catalogue refreshed:** 2026-11-13 11:55 UTC. Updated automatically by the daily GitHub refresh.
+**Catalogue refreshed:** 2026-11-21 12:12 UTC. Updated automatically by the daily GitHub refresh.
 
 | Games in catalogue | Adaptive triggers | Haptic feedback | Manual fix needed |
 | :---: | :---: | :---: | :---: |
-| **225** | **183** | **153** | **29** |
+| **227** | **183** | **155** | **29** |
 
 Feature totals include both native support and manual fixes. This catalogue tracks DualSense support from PCGamingWiki; it does not certify every effect on every APEX model.
 
@@ -21,14 +21,14 @@ Dates show when a game entered the catalogue, not its release date.
 
 <table>
 <tr>
+<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Godbreakers"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2687400/56c27c5a5d207e79742f605711b5d0d2d1f50b7c/library_capsule_2x.jpg?t=1770803947" width="100" height="150" alt="Godbreakers cover"><br><strong>Godbreakers</strong></a><br><sub>Added 2026-11-20</sub></td>
+<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Mistfall_Hunter"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3282300/7553f09e7d3c58c51a69fde80a2040b93bf2bf7b/library_capsule_2x.jpg?t=1795002765" width="100" height="150" alt="Mistfall Hunter cover"><br><strong>Mistfall Hunter</strong></a><br><sub>Added 2026-11-20</sub></td>
 <td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Metro_2033_Redux"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/286690/7c276efe09b88ba437ab80331c5ca3095e6f936d/library_capsule_2x.jpg?t=1792681167" width="100" height="150" alt="Metro 2033 Redux cover"><br><strong>Metro 2033 Redux</strong></a><br><sub>Added 2026-11-07</sub></td>
-<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/A_Quiet_Place%3A_The_Road_Ahead"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2233120/library_600x900.jpg?t=1790864553" width="100" height="150" alt="A Quiet Place: The Road Ahead cover"><br><strong>A Quiet Place: The Road Ahead</strong></a><br><sub>Added 2026-11-04</sub></td>
-<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Phantom_Blade_Zero"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4115450/471e77854910665c03eb9a53ad06f2ac12903acd/library_capsule_2x.jpg?t=1793261976" width="100" height="150" alt="Phantom Blade Zero cover"><br><strong>Phantom Blade Zero</strong></a><br><sub>Added 2026-10-30</sub></td>
 </tr>
 <tr>
+<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/A_Quiet_Place%3A_The_Road_Ahead"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2233120/library_600x900.jpg?t=1790864553" width="100" height="150" alt="A Quiet Place: The Road Ahead cover"><br><strong>A Quiet Place: The Road Ahead</strong></a><br><sub>Added 2026-11-04</sub></td>
+<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Phantom_Blade_Zero"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4115450/471e77854910665c03eb9a53ad06f2ac12903acd/library_capsule_2x.jpg?t=1793261976" width="100" height="150" alt="Phantom Blade Zero cover"><br><strong>Phantom Blade Zero</strong></a><br><sub>Added 2026-10-30</sub></td>
 <td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Delta_Force_%282024%29">🎮<br><strong>Delta Force (2024)</strong></a><br><sub>Added 2026-10-22</sub></td>
-<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Active_Matter"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2887580/f856133f6f7d33f8a38d892a140171fe4c5698d4/library_capsule_2x.jpg?t=1792058040" width="100" height="150" alt="Active Matter cover"><br><strong>Active Matter</strong></a><br><sub>Added 2026-10-16</sub></td>
-<td align="center" width="230"><a href="https://www.pcgamingwiki.com/wiki/Deadzone%3A_Rogue_2"><img src="https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4465790/5966d4466961f6ea7652886a31b2b7af7fc3012b/library_capsule_2x.jpg?t=1791485085" width="100" height="150" alt="Deadzone: Rogue 2 cover"><br><strong>Deadzone: Rogue 2</strong></a><br><sub>Added 2026-10-11</sub></td>
 </tr>
 </table>
 
@@ -169,6 +169,7 @@ Use **Ctrl+F** (or **Cmd+F**) to find a game. Click its title to open PCGamingWi
 | [Ghostwire: Tokyo](https://www.pcgamingwiki.com/wiki/Ghostwire%3A_Tokyo) · [Steam](https://store.steampowered.com/app/1475810/) | ✅ Native | ✅ Native | — |
 | [God of War](https://www.pcgamingwiki.com/wiki/God_of_War) · [Steam](https://store.steampowered.com/app/1593500/) | 🛠️ Manual fix | — | [PCGamingWiki](https://www.pcgamingwiki.com/wiki/God_of_War) · [Custom config](https://www.nexusmods.com/godofwar/mods/145) · [DSX](https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX) |
 | [God of War Ragnarök](https://www.pcgamingwiki.com/wiki/God_of_War_Ragnar%C3%B6k) · [Steam](https://store.steampowered.com/app/2322010/) | ✅ Native | ✅ Native | — |
+| [Godbreakers](https://www.pcgamingwiki.com/wiki/Godbreakers) · [Steam](https://store.steampowered.com/app/2687400/) | — | ✅ Native | — |
 | [Granblue Fantasy: Relink](https://www.pcgamingwiki.com/wiki/Granblue_Fantasy%3A_Relink) · [Steam](https://store.steampowered.com/app/881020/) | ✅ Native | — | — |
 | [Grand Theft Auto V](https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto_V) · [Steam](https://store.steampowered.com/app/271590/) | 🛠️ Manual fix | ✅ Native | [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto_V) · [Custom config](https://github.com/zelmer69/dualsense4GTA5/) · [DSX](https://www.pcgamingwiki.com/wiki/Controller:DualSense#DSX) |
 | [Grand Theft Auto V Enhanced](https://www.pcgamingwiki.com/wiki/Grand_Theft_Auto_V_Enhanced) · [Steam](https://store.steampowered.com/app/3240220/) | ✅ Native | — | — |
@@ -240,6 +241,7 @@ Use **Ctrl+F** (or **Cmd+F**) to find a game. Click its title to open PCGamingWi
 | [Metro Exodus Enhanced Edition](https://www.pcgamingwiki.com/wiki/Metro_Exodus_Enhanced_Edition) | ✅ Native | ✅ Native | — |
 | [Microsoft Flight Simulator 2024](https://www.pcgamingwiki.com/wiki/Microsoft_Flight_Simulator_2024) · [Steam](https://store.steampowered.com/app/2537590/) | ✅ Native | ✅ Native | — |
 | [MindsEye](https://www.pcgamingwiki.com/wiki/MindsEye) · [Steam](https://store.steampowered.com/app/3265250/) | ✅ Native | ✅ Native | — |
+| [Mistfall Hunter](https://www.pcgamingwiki.com/wiki/Mistfall_Hunter) · [Steam](https://store.steampowered.com/app/3282300/) | — | ✅ Native | — |
 | [Mixtape](https://www.pcgamingwiki.com/wiki/Mixtape) · [Steam](https://store.steampowered.com/app/2582320/) | — | ✅ Native | — |
 | [Monster Hunter Wilds](https://www.pcgamingwiki.com/wiki/Monster_Hunter_Wilds) · [Steam](https://store.steampowered.com/app/2246340/) | ✅ Native | ✅ Native | — |
 | [Mortal Shell II](https://www.pcgamingwiki.com/wiki/Mortal_Shell_II) · [Steam](https://store.steampowered.com/app/2584270/) | ✅ Native | ✅ Native | — |
