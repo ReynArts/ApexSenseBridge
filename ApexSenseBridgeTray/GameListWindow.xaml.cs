@@ -466,7 +466,8 @@ namespace ApexSenseBridgeTray
             var items = new FrameworkElement[]
             {
                 TileSettingAutoDetect, TileSettingAdaptive, TileSettingHaptic,
-                TileSettingNotifications, TileSettingUdp, TileSettingVersionStats, TileSettingLanguage,
+                TileSettingNotifications, TileSettingUdp, TileSettingVersionStats,
+                TileSettingRearButtons, TileSettingLanguage,
                 BtnOpenControllerTest, BtnPreparedLaunch, BtnReportBug, BtnCheckUpdates
             }.Where(item => item != null);
             return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
@@ -1051,6 +1052,7 @@ namespace ApexSenseBridgeTray
                 else if (item == TileSettingSyncLightbar) OnSettingSyncLightbarToggled(null, null);
                 else if (item == TileSettingZoneEmulation) OnSettingZoneEmulationToggled(null, null);
                 else if (item == TileSettingApex6Rate2kHz) OnSettingApex6Rate2kHzToggled(null, null);
+                else if (item == TileSettingRearButtons) OpenRearButtonMapping();
                 else if (item == TileSettingLanguage) OpenLanguagePicker();
                 else if (item == RowGripVibrations) ToggleGripVibrations();
                 else if (item is Button button) button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -3253,6 +3255,26 @@ namespace ApexSenseBridgeTray
             LocalizationManager.SetLanguage(lang);
             UpdateLanguageDisplay();
             UpdateControllerStatus(lastControllerStatus);
+        }
+
+        private RearButtonMappingWindow rearButtonWindow;
+
+        private void OnOpenRearButtonMappingClick(object sender, MouseButtonEventArgs e)
+        {
+            OpenRearButtonMapping();
+        }
+
+        private void OpenRearButtonMapping()
+        {
+            if (rearButtonWindow != null)
+            {
+                rearButtonWindow.Activate();
+                return;
+            }
+
+            rearButtonWindow = new RearButtonMappingWindow(settings) { Owner = this };
+            rearButtonWindow.Closed += (sender, args) => rearButtonWindow = null;
+            rearButtonWindow.Show();
         }
 
         private void OnOpenControllerTestClick(object sender, RoutedEventArgs e)

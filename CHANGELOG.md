@@ -11,9 +11,24 @@
 
 ### UDP trigger for REFramework
 
-- Adds a UDP listener on `127.0.0.1` (`--udp-bind`, `--udp-port`, default `10026` in the Tray) that accepts JSON trigger commands.
-To custom JSON trigger you can check the MHWilds Haptic Pack mod: [Nexus Mods - MHWilds Haptic Pack (Mod #5079)](https://www.nexusmods.com/monsterhunterwilds/mods/5079?tab=description)
-- If the port is busy or cannot be bound, the session continues without UDP. The Tray shows a warning under "Bridge ready" and turns the UDP option off automatically.
+- Adds a localhost UDP listener (`127.0.0.1`, default port `10026` in the Tray; CLI: `--udp-bind`, `--udp-port`) for REFramework trigger effects on APEX 4/5.
+- Format: one JSON object per UDP packet, one trigger per packet:
+
+  ```json
+  {"side":"left","enable":8,"effect":[1,40,64,0,0,0,0,0,0,0,0]}
+  ```
+
+- `side`: `"left"` = LT/L2; `"right"` = RT/R2. Send two packets to update both.
+- `enable`: optional bitmask; `8` (`0x08`) for left, `4` (`0x04`) for right. Omit to select automatically. `0` rejects the packet; it does not release the trigger.
+- `effect`: exactly 11 integer bytes (`0`-`255`). Byte `0` selects the mode; bytes `1`-`10` hold its parameters. Use decimal JSON numbers and zero-fill unused bytes.
+- Simple modes: `1` = resistance (`start`, `force`); `2` = break (`start`, `end`, `force`); `5` = release; `6` = recoil/vibration (`frequency`, `amplitude`, `start`). Parameters follow the mode byte in that order.
+- Limited modes: `17` / `18` use the resistance/break layouts, with force `0`-`10` scaled to `0`-`64`; force `0` releases. Positions are raw travel values, not percentages; the APEX protocol normally uses approximately `0`-`192`.
+- Native modes: `33` = Feedback, `34` = Bow, `35` = Galloping, `37` = Weapon, `38` = Vibration, `39` = Machine. Bytes `1`-`2` encode zones `0`-`9`; remaining bytes contain mode-specific packed strengths, frequency or period. See the reference for layouts.
+- `start`/`end`: where resistance begins/ends; `force`: resistance against the finger; `amplitude`: pulse strength; `frequency`: pulse repetition rate; `period`: Machine amplitude-cycle time, in tenths of a second. Actual APEX output is translated and follows the bridge's trigger-strength setting.
+- Release example: `{"side":"left","effect":[5,0,0,0,0,0,0,0,0,0,0]}`. Mode `0` keeps the previous effect. There is no UDP duration/timeout; the sender must send release explicitly.
+- If the port cannot be bound, the bridge continues without UDP; the Tray shows an inline warning and turns the UDP option off.
+- REF: [Nielk1 - DualSense trigger-effect generators](https://gist.github.com/Nielk1/6d54cc2c00d2201ccb8c2720ad7538db).
+
 ### Added
 
 - **Live tuning channel in the engine** ([#86](https://github.com/ReynArts/ApexSenseBridge/issues/86),

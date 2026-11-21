@@ -131,7 +131,7 @@
                                  Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
                     <RadioButton x:Name="TabLatency" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabLatency}"
                                  Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
-                    <RadioButton x:Name="TabMapping" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_TestTabMapping}"
+                    <RadioButton x:Name="TabMapping" GroupName="DiagnosticTabs" Content="{DynamicResource Loc_ApexProfile}"
                                  Style="{StaticResource TestTabButton}" Checked="OnTestSubTabChanged"/>
                     <Border x:Name="HintTabsRight" Style="{StaticResource GamepadBadgePill}" Margin="-6,0,0,4">
                         <TextBlock Text="RB" Style="{StaticResource GamepadBadgeText}"/>
@@ -516,8 +516,6 @@
                                     <StackPanel Orientation="Horizontal">
                                         <Button x:Name="BtnVerifyPersistence" Content="{DynamicResource Loc_BtnCheckPersistence}" Style="{StaticResource BtnPrimary}"
                                                 Click="OnVerifyPersistenceClick"/>
-                                        <Button x:Name="BtnOpenRearButtons" Content="Rear buttons" Style="{StaticResource BtnSecondary}"
-                                                Margin="10,0,0,0" Click="OnOpenRearButtonMappingClick"/>
                                     </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>

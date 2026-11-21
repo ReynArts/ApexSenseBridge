@@ -128,7 +128,7 @@
 
             <TextBlock x:Name="TxtInstructions" Grid.Row="1" TextWrapping="Wrap" FontSize="13"
                        Foreground="#AEB9D3" Margin="0,0,0,18"
-                       Text="Press each rear button once. Its row lights up when the controller reports it. Then choose what it should do."/>
+                       Text="{DynamicResource Loc_RearButtonsInstructions}"/>
 
             <ScrollViewer x:Name="ScrollRearButtons" Grid.Row="2" VerticalScrollBarVisibility="Auto" Focusable="False" Margin="-8,-8,-8,0">
                 <StackPanel x:Name="PnlRearButtons" Margin="8"/>

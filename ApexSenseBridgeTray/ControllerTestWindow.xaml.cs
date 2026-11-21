@@ -580,21 +580,6 @@ namespace ApexSenseBridgeTray
 
         #region Mapping & Persistence Verification
 
-        private RearButtonMappingWindow rearButtonWindow;
-
-        private void OnOpenRearButtonMappingClick(object sender, RoutedEventArgs e)
-        {
-            if (rearButtonWindow != null && rearButtonWindow.IsLoaded)
-            {
-                rearButtonWindow.Activate();
-                return;
-            }
-            rearButtonWindow = new RearButtonMappingWindow(settings) { Owner = this };
-            rearButtonWindow.Closed += (s, args) => rearButtonWindow = null;
-            rearButtonWindow.Show();
-        }
-
-
         private void UpdatePersistenceView()
         {
             string profile = !string.IsNullOrWhiteSpace(settings.ForcedProfile) && settings.ForcedProfile != "none"

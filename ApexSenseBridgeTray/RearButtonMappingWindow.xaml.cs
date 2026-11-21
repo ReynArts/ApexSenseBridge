@@ -20,6 +20,15 @@ namespace ApexSenseBridgeTray
             "Create", "Options", "PS", "Touchpad", "Mute"
         };
 
+        private static readonly Dictionary<string, string> EngineErrorPrefixes = new Dictionary<string, string>
+        {
+            { "APEX identity verification failed:", "Loc_RearButtonsIdentityFailed" },
+            { "Could not read APEX input transport:", "Loc_RearButtonsReadRoutingFailed" },
+            { "Could not enable raw APEX input routing:", "Loc_RearButtonsEnableRoutingFailed" },
+            { "APEX input stream error:", "Loc_RearButtonsInputFailed" },
+            { "Could not restore APEX input routing:", "Loc_RearButtonsRestoreRoutingFailed" },
+        };
+
         private sealed class RearRowView
         {
             public RearButton Button;
@@ -57,7 +66,7 @@ namespace ApexSenseBridgeTray
                 };
                 var status = new TextBlock
                 {
-                    Text = "Press the button to detect",
+                    Text = LocalizationManager.Get("Loc_RearButtonsPressToDetect"),
                     Style = (Style)FindResource("RearButtonStatus")
                 };
                 var labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -113,7 +122,7 @@ namespace ApexSenseBridgeTray
         private void OnWindowLoaded(object sender, RoutedEventArgs e)
         {
             GamepadNavigationService.IsNavigationSuspended = true;
-            TxtRearStatus.Text = "Listening for rear buttons…";
+            TxtRearStatus.Text = LocalizationManager.Get("Loc_RearButtonsListening");
             service.Start(OnRearButtonEvent, OnRearButtonError);
         }
 
@@ -148,11 +157,28 @@ namespace ApexSenseBridgeTray
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (IsVisible)
-                    TxtRearStatus.Text = string.IsNullOrWhiteSpace(error)
-                        ? "Rear-button stream unavailable."
-                        : error;
+                if (IsVisible) TxtRearStatus.Text = FormatRearButtonError(error);
             }));
+        }
+
+        private static string FormatRearButtonError(string error)
+        {
+            if (string.IsNullOrWhiteSpace(error))
+                return LocalizationManager.Get("Loc_RearButtonsUnavailable");
+
+            error = error.Trim();
+            if (error == "ApexSenseBridge.exe was not found.")
+                return LocalizationManager.Get("Loc_RearButtonsEngineMissing");
+            if (error == "Rear-button stream stopped; routing restored")
+                return LocalizationManager.Get("Loc_RearButtonsStreamStopped");
+
+            foreach (var entry in EngineErrorPrefixes)
+            {
+                if (error.StartsWith(entry.Key, StringComparison.Ordinal))
+                    return LocalizationManager.Format(entry.Value, error.Substring(entry.Key.Length).TrimStart());
+            }
+
+            return LocalizationManager.Format("Loc_RearButtonsUnavailableDetail", error);
         }
 
         private void OnWindowDrag(object sender, MouseButtonEventArgs e)
@@ -177,11 +203,11 @@ namespace ApexSenseBridgeTray
                     settings.RearButtonBindings[row.Button.ToString()] = row.Action.SelectedItem as string ?? "None";
 
                 settings.Save();
-                TxtRearStatus.Text = "Rear-button mappings saved.";
+                TxtRearStatus.Text = LocalizationManager.Get("Loc_RearButtonsSaved");
             }
             catch (Exception ex)
             {
-                TxtRearStatus.Text = "Could not save mappings: " + ex.Message;
+                TxtRearStatus.Text = LocalizationManager.Format("Loc_RearButtonsSaveFailed", ex.Message);
             }
         }
     }
