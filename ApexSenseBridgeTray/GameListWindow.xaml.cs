@@ -2091,7 +2091,7 @@ namespace ApexSenseBridgeTray
             updatingGameTuning = true;
             try
             {
-                SliderGameVibration.Maximum = lastControllerStatus == "apex6" ? 100 : 200;
+                SliderGameTrigger.Maximum = TraySettings.MaximumTriggerStrength(lastControllerStatus);
                 PnlGameThresholdRow.Visibility = lastControllerStatus == "apex6" ? Visibility.Collapsed : Visibility.Visible;
                 PnlGameTuningSliders.Visibility = tuning != null ? Visibility.Visible : Visibility.Collapsed;
                 if (tuning != null)
@@ -2130,7 +2130,7 @@ namespace ApexSenseBridgeTray
             var game = SelectedGame;
             if (game == null) return;
             var tuning = settings.GetGameTuning(game.Normalized) ?? GlobalGameTuning();
-            tuning.TriggerStrengthPercent = (int)SliderGameTrigger.Value;
+            if (sender == SliderGameTrigger) tuning.TriggerStrengthPercent = (int)SliderGameTrigger.Value;
             tuning.VibrationStrengthPercent = (int)SliderGameVibration.Value;
             if (lastControllerStatus != "apex6") tuning.HapticThresholdPercent = (int)SliderGameThreshold.Value;
             settings.SetGameTuning(game.Normalized, game.Title, tuning);
@@ -2900,8 +2900,9 @@ namespace ApexSenseBridgeTray
             bool canEdit = calibration != null;
             var displayed = calibration ?? new ControllerCalibration();
             updatingEffectSettings = true;
+            SliderTriggerStrength.Maximum = TraySettings.MaximumTriggerStrength(lastControllerStatus);
             SliderTriggerStrength.Value = displayed.TriggerStrengthPercent;
-            SliderVibrationStrength.Maximum = lastControllerStatus == "apex4" || lastControllerStatus == "apex5" ? 200 : 100;
+            SliderVibrationStrength.Maximum = canEdit ? 200 : 100;
             SliderVibrationStrength.Value = displayed.VibrationStrengthPercent;
             SliderApex4GyroStrength.Value = displayed.GyroStrengthPercent;
             SliderApex4GyroYawStrength.Value = displayed.GyroYawStrengthPercent;

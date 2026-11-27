@@ -1,5 +1,7 @@
 #pragma once
 
+#include "dualsense/Apex6HapticShaping.h"
+
 #include <algorithm>
 #include <cstdint>
 
@@ -19,6 +21,23 @@ namespace asb::dualsense {
     const auto magnitude = sample >= 0 ? std::int64_t{sample} : -std::int64_t{sample};
     const auto denominator = fullScale * 100 + (gain - 100) * magnitude;
     return static_cast<std::int8_t>(std::int64_t{sample} * 127 * gain / denominator);
+}
+
+[[nodiscard]] inline std::int8_t scaleApex6GripPcm(
+    std::int16_t sample, unsigned vibrationStrengthPercent, unsigned pcmGainPercent) noexcept {
+    if (vibrationStrengthPercent <= 100) {
+        return scaleEffectStrength(scaleApex6Pcm(sample, pcmGainPercent), vibrationStrengthPercent);
+    }
+
+    const int fullScale = sample < 0 ? 32768 : 32767;
+    const int magnitude = sample < 0 ? -static_cast<int>(sample) : sample;
+    const int boosted = boostApex6Magnitude(magnitude, vibrationStrengthPercent, fullScale) * 127 / fullScale;
+    const int signedBoosted = sample < 0 ? -boosted : boosted;
+    const int pcmGain = scaleApex6Pcm(sample, pcmGainPercent);
+    // An explicit PCM gain and the vibration control can both be supplied.
+    // Use the stronger result so the two gain stages do not compound.
+    return static_cast<std::int8_t>(sample < 0 ? (std::min)(signedBoosted, pcmGain)
+                                               : (std::max)(signedBoosted, pcmGain));
 }
 
 } // namespace asb::dualsense

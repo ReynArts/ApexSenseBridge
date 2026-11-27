@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0} : réglages propres à ce modèle. La force des gâchettes et des vibrations s'applique aussi tout de suite à une session Tray en cours ; les autres réglages s'appliquent à la prochaine session.",
   "Loc_TriggerStrength": "Force des gâchettes",
   "Loc_VibrationStrength": "Force des vibrations",
-  "Loc_VibrationStrengthHint": "APEX 4/5 : 0 à 200 %, 100 % par défaut. Au-delà de 100 %, amplifie les vibrations des poignées dans la limite des commandes moteur, sans restaurer l'audio supprimé par le seuil. APEX 6 reste à 0 à 100 %. La résistance des gâchettes est indépendante. L'intensité Space Station reste influente. Prochaine session uniquement ; commencer par une hausse modérée.",
+  "Loc_VibrationStrengthHint": "La vibration des poignées va de 0 à 200 %, avec une valeur par défaut de 100 %. L’amplification respecte les limites de sortie de la manette.",
   "Loc_Apex4GyroStrength": "Sensibilité du gyroscope Apex 4",
   "Loc_Apex4GyroYawStrength": "Correction du lacet Apex 4",
   "Loc_VibrationThreshold": "Seuil d’activation haptique",

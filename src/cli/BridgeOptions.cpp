@@ -61,8 +61,9 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 try {
                     const auto parsed = std::stoul(token);
                     const unsigned minimum = field == 5 || field == 6 ? 25 : 0;
+                    const bool supportsBoost = field == 1 || (field == 0 && index == 2);
                     const unsigned maximum = field == 7 ? 100 : field >= 5 ? 400 : field >= 3 ? 1 :
-                        field == 2 ? 95 : field == 1 && index != 2 ? 200 : 100;
+                        field == 2 ? 95 : supportsBoost ? 200 : 100;
                     if (parsed < minimum || parsed > maximum) return false;
                     fields[field] = static_cast<unsigned>(parsed);
                 } catch (...) { return false; }
@@ -179,21 +180,10 @@ bool parseBridgeOptions(int argc, char** argv, BridgeCommandOptions& options,
                 return false;
             }
         } else if (value == "--trigger-strength" || value == "--vibration-strength") {
-            const unsigned maximum = value == "--vibration-strength" ? 200 : 100;
-            const auto rangeError = std::string(value) + " requires an integer percentage from 0 to " +
-                                    std::to_string(maximum) + ".";
-            if (++i >= argc) {
-                error = rangeError;
-                return false;
-            }
-            try {
-                std::size_t consumed = 0;
-                const auto parsed = std::stoul(argv[i], &consumed);
-                if (consumed != std::string_view(argv[i]).size() || parsed > maximum || argv[i][0] == '-')
-                    throw std::out_of_range("strength");
-                (value == "--trigger-strength" ? options.triggerStrengthPercent : options.vibrationStrengthPercent) = static_cast<unsigned>(parsed);
-            } catch (...) {
-                error = rangeError;
+            auto& strength = value == "--trigger-strength" ? options.triggerStrengthPercent
+                                                           : options.vibrationStrengthPercent;
+            if (++i >= argc || !parseBoundedPercent(argv[i], 0, 200, strength)) {
+                error = std::string(value) + " requires an integer percentage from 0 to 200.";
                 return false;
             }
         } else if (value == "--apex6-haptic-gain") {
@@ -395,7 +385,7 @@ std::string_view bridgeCommandUsage() noexcept {
            "[--telemetry-json PATH] [--xinput-index 0..3] [--rumble] "
            "[--no-zone-emulation] [--sync-lightbar] [--lightbar-brightness 0..100] "
            "[--haptic-threshold 0..95] "
-           "[--trigger-strength 0..100] [--vibration-strength 0..200] "
+           "[--trigger-strength 0..200] [--vibration-strength 0..200] "
            "[--apex6-haptic-gain 100..200] [--apex6-rate 1000|2000] "
            "[--controller-calibration MODEL:TRIGGER:VIBRATION:THRESHOLD:RUMBLE:RGB:GYRO:YAW[:RGBBRIGHTNESS]] "
            "[--apex4-gyro-strength 25..400] "
@@ -410,9 +400,9 @@ bool applyControllerCalibration(BridgeCommandOptions& options,
     const bool supplied = options.controllerCalibrations[0] || options.controllerCalibrations[1] ||
                           options.controllerCalibrations[2];
     if (!supplied) {
-        // The conventional APEX 4/5 boost must not change the APEX 6 PCM path.
-        if (verifiedModel == "apex6") options.vibrationStrengthPercent =
-            (std::min)(options.vibrationStrengthPercent, 100U);
+        if (verifiedModel != "apex6") {
+            options.triggerStrengthPercent = (std::min)(options.triggerStrengthPercent, 100U);
+        }
         return true;
     }
     const int index = verifiedModel == "apex4" ? 0 : verifiedModel == "apex5" ? 1 :

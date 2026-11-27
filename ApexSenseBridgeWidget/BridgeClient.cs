@@ -18,6 +18,7 @@ namespace ApexSenseBridgeWidget
         public string TouchpadProfileName = "none";
         public int SampleRate;
         public int Model;
+        public int MaxTrigger = 100;
         public int MaxVibration = 100;
     }
 
@@ -147,6 +148,7 @@ namespace ApexSenseBridgeWidget
                     TouchpadProfileName = tuning.GetNamedString("touchpadProfileName", "none"),
                     SampleRate = (int)tuning.GetNamedNumber("rate", 0),
                     Model = (int)tuning.GetNamedNumber("model", 0),
+                    MaxTrigger = (int)tuning.GetNamedNumber("maxTrigger", 100),
                     MaxVibration = (int)tuning.GetNamedNumber("maxVibration", 100)
                 };
             }

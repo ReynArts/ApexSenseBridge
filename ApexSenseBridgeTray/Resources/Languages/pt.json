@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0}: configurações salvas separadamente para este modelo. A força dos gatilhos e da vibração também é aplicada na hora a uma sessão da bandeja em andamento; as demais configurações valem a partir da próxima sessão.",
   "Loc_TriggerStrength": "Força dos gatilhos",
   "Loc_VibrationStrength": "Intensidade da vibração",
-  "Loc_VibrationStrengthHint": "APEX 4/5: 0 a 200%, padrão 100%. Acima de 100% amplifica as vibrações das alças até o limite de comando do motor; não recupera o áudio removido pelo limiar. O APEX 6 permanece entre 0 e 100%. A resistência do gatilho é separada. A intensidade no Space Station ainda afeta o resultado. Aplica-se à próxima sessão; comece com um aumento moderado.",
+  "Loc_VibrationStrengthHint": "A vibração das empunhaduras varia de 0 a 200%, com padrão de 100%. O aumento respeita os limites de saída do controle.",
   "Loc_Apex4GyroStrength": "Sensibilidade do giroscópio do Apex 4",
   "Loc_Apex4GyroYawStrength": "Correção de guinada do Apex 4",
   "Loc_VibrationThreshold": "Limiar de ativação tátil",

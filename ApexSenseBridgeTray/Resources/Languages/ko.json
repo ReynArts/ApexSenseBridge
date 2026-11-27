@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0}: 이 모델 전용 설정으로 저장됩니다. 트리거 강도와 진동 강도는 실행 중인 Tray 세션에도 즉시 적용되며, 나머지 설정은 다음 세션부터 적용됩니다.",
   "Loc_TriggerStrength": "트리거 강도",
   "Loc_VibrationStrength": "진동 강도",
-  "Loc_VibrationStrengthHint": "APEX 4/5: 0~200%, 기본값 100%. 100%를 초과하면 기존 그립 진동을 모터 한계치까지 증폭합니다. APEX 6은 0~100%를 유지합니다. 트리거 저항은 별도로 설정됩니다. Space Station 설정값도 반영됩니다.",
+  "Loc_VibrationStrengthHint": "그립 진동은 0~200%이며 기본값은 100%입니다. 증폭은 컨트롤러의 출력 한도를 넘지 않습니다.",
   "Loc_Apex4GyroStrength": "Apex 4 자이로 감도",
   "Loc_Apex4GyroYawStrength": "Apex 4 요(Yaw) 보정",
   "Loc_VibrationThreshold": "햅틱 활성화 임계값",

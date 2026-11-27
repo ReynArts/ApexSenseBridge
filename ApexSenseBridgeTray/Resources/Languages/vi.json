@@ -38,7 +38,7 @@
   "Loc_ControllerCalibrationReady": "{0}: cài đặt được lưu riêng cho mẫu này. Lực cò và lực rung cũng được áp dụng ngay cho phiên Khay đang chạy; các cài đặt khác áp dụng cho phiên tiếp theo.",
   "Loc_TriggerStrength": "Lực phản hồi của cò",
   "Loc_VibrationStrength": "Cường độ rung",
-  "Loc_VibrationStrengthHint": "APEX 4/5: 0 đến 200%, mặc định 100%. Trên 100% tăng cường rung tay cầm lên đến giới hạn động cơ; không khôi phục âm thanh bị cắt bởi ngưỡng. APEX 6 giữ ở 0 đến 100%. Lực cản của cò là riêng biệt. Cường độ Space Station vẫn ảnh hưởng kết quả. Áp dụng cho phiên tiếp theo; nên bắt đầu với mức tăng vừa phải.",
+  "Loc_VibrationStrengthHint": "Độ rung tay cầm từ 0 đến 200%, mặc định là 100%. Mức tăng nằm trong giới hạn đầu ra của tay cầm.",
   "Loc_Apex4GyroStrength": "Độ nhạy con quay hồi chuyển Apex 4",
   "Loc_Apex4GyroYawStrength": "Hiệu chỉnh góc xoay Apex 4",
   "Loc_VibrationThreshold": "Ngưỡng kích hoạt xúc giác",

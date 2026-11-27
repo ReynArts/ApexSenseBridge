@@ -352,16 +352,20 @@ Its manual session can be stopped from the home toggle or tray.
 
 The home page shows session phase, owner (Tray or Playnite), game, controller,
 profile and refusal/stop reason. Per-model controller-feel settings live in Tray
-preferences: trigger strength (0–100%), grip vibration strength (0–200% on
-APEX 4/5, 0–100% on APEX 6) and audio-haptic threshold (0–95%). They apply on
-the next Tray session, except trigger and vibration strength, which also apply at once to a running Tray session; 100% preserves original strength and 0% mutes the effect.
+preferences: trigger strength (0–200% on APEX 6 Pro, 0–100% on APEX 4/5),
+grip vibration strength (0–200%) and audio-haptic threshold (0–95%). Trigger and
+grip strength can also be adjusted during a running Tray session. A setting of
+100% preserves original strength and 0% mutes the effect.
+On APEX 6 Pro, values above 100% boost trigger and grip vibrations in proportion
+to the setting, with a gradual transition near the existing output limits. The
+controller tests use the saved global APEX 6 Pro strengths. The perceived
+strength varies with the game effect.
 Standard rumble is not gated by the audio threshold.
 On APEX 4/5, values above 100% amplify existing rumble and audio-derived grip
 vibrations, saturating at the existing 255 motor-command limit. Gain does not
 restore audio removed by the threshold or alter trigger resistance, timing or
 frequency. Start with a modest increase; Space Station's saved motor intensity
-still influences the result. Playnite exposes the same grip-strength setting;
-the engine caps its common strength at 100% after verifying an APEX 6 identity.
+still influences the result. Playnite exposes the same grip-strength setting.
 Connect a single supported controller and wait for its verified identity before
 editing hardware settings. Controls lock on disconnect, failed identification
 or ambiguous detection. APEX 4, APEX 5 and APEX 6 profiles are saved separately
@@ -496,6 +500,7 @@ The full checklist is in [Troubleshooting](TROUBLESHOOTING.md#9-what-to-attach-t
 - Visual Studio 2022 or 2026 Build Tools (Desktop C++ & Windows SDK)
 - MSBuild and .NET Framework 4.6.2 targeting tools for Tray and Playnite
 - CMake 3.25+
+- Go 1.27.2 on `PATH` for the VIIPER sidecar
 - Inno Setup 6 (for packaging)
 
 ```powershell
@@ -503,7 +508,8 @@ The full checklist is in [Troubleshooting](TROUBLESHOOTING.md#9-what-to-attach-t
 .\scripts\build-windows.ps1
 ctest --test-dir .\build-win -C Release --output-on-failure
 
-# 2. Build VIIPER backend and installer
+# 2. Build both VIIPER backends and package the release
+.\scripts\build-viiper-windows.ps1
 .\scripts\build-libviiper-windows.ps1
 .\scripts\build-installer.ps1
 .\scripts\verify-version-consistency.ps1 -CheckArtifacts

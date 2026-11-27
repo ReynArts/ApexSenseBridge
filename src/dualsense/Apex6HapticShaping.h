@@ -1,5 +1,7 @@
 #pragma once
 
+#include "dualsense/EffectStrength.h"
+
 #include <algorithm>
 #include <cstdint>
 
@@ -26,6 +28,29 @@ inline constexpr unsigned kApex6GripNoDuckPermille = 1000;
     if (gainPermille >= kApex6GripNoDuckPermille) return sample;
     return static_cast<std::int8_t>(
         static_cast<std::int32_t>(sample) * static_cast<std::int32_t>(gainPermille) / 1000);
+}
+
+[[nodiscard]] constexpr int boostApex6Magnitude(
+    int magnitude, unsigned percent, int ceiling) noexcept {
+    if (magnitude >= ceiling || percent <= 100) return magnitude;
+
+    // Apply the requested gain up to 75% of full scale. A quadratic knee
+    // then tapers it into the ceiling, with matching slopes at both ends.
+    const int amplified = magnitude * static_cast<int>((std::min)(percent, 200U));
+    if (amplified <= ceiling * 75) return amplified / 100;
+    const std::int64_t remaining = ceiling * 125 - amplified;
+    if (remaining <= 0) return ceiling;
+    const std::int64_t divisor = ceiling * 10000;
+    const int limited = ceiling - static_cast<int>((remaining * remaining + divisor - 1) / divisor);
+    return (std::max)(magnitude, limited);
+}
+
+[[nodiscard]] inline std::int8_t scaleApex6ActuatorStrength(
+    std::int8_t sample, unsigned percent, int ceiling) noexcept {
+    if (percent <= 100) return scaleEffectStrength(sample, percent);
+    const int magnitude = sample < 0 ? -static_cast<int>(sample) : sample;
+    const int boosted = boostApex6Magnitude(magnitude, percent, ceiling);
+    return static_cast<std::int8_t>(sample < 0 ? -boosted : boosted);
 }
 
 [[nodiscard]] constexpr std::int8_t limitApex6TriggerSample(

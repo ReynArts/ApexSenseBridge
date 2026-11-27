@@ -179,7 +179,14 @@ std::int8_t burstSample(Apex6TriggerRenderState& state) noexcept {
     return driveSample(value);
 }
 
-std::int8_t rhythmSample(const Apex6RhythmShape& shape, std::uint32_t elapsed) noexcept {
+double pulseTrainDrive(double level) noexcept {
+    if (level <= 1.0) return kApex6TriggerPulseTrainBaseDrive * level;
+    return (std::min)(static_cast<double>(kMaximumDrive), kApex6TriggerPulseTrainBaseDrive +
+                      kApex6TriggerPulseTrainDriveStep * (level - 1.0));
+}
+
+std::int8_t rhythmSample(const Apex6RhythmShape& shape, std::uint32_t elapsed,
+                         double pulseDrive) noexcept {
     if (shape.periodSamples == 0) return 0;
     const unsigned cycle = elapsed % shape.periodSamples;
     double value = 0.0;
@@ -192,11 +199,11 @@ std::int8_t rhythmSample(const Apex6RhythmShape& shape, std::uint32_t elapsed) n
     } else {
         const unsigned total = apex6ImpactTotalSamples(shape.pulse);
         if (cycle >= shape.firstPulseOffset && cycle - shape.firstPulseOffset < total) {
-            value = shapeValue(shape.pulse, cycle - shape.firstPulseOffset) * shape.drive;
+            value = shapeValue(shape.pulse, cycle - shape.firstPulseOffset) * pulseDrive;
         }
         if (shape.secondPulseOffset != 0xFFFF && cycle >= shape.secondPulseOffset &&
             cycle - shape.secondPulseOffset < total) {
-            value = shapeValue(shape.pulse, cycle - shape.secondPulseOffset) * shape.drive;
+            value = shapeValue(shape.pulse, cycle - shape.secondPulseOffset) * pulseDrive;
         }
     }
     return driveSample(value);
@@ -291,8 +298,8 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
             for (const auto strength : result.zoneStrengths) {
                 strongest = (std::max)(strongest, static_cast<unsigned>(strength));
             }
-            Apex6TriggerEffect train{};
-            train.type = Apex6TriggerType::Rhythm;
+            result.type = Apex6TriggerType::Rhythm;
+            auto& rhythm = result.rhythm;
             const unsigned period = (std::max)(
                 1U, static_cast<unsigned>(std::lround(1000.0 / bytes[9])));
             Apex6ImpactShape pulse{};
@@ -301,16 +308,15 @@ std::optional<Apex6TriggerEffect> decodeApex6TriggerEffect(
                 const unsigned tail = pulse.attackSamples + pulse.releaseSamples;
                 pulse.holdSamples = static_cast<std::uint16_t>(fit > tail + 4U ? fit - tail : 4U);
             }
-            train.rhythm.pulse = pulse;
-            train.rhythm.periodSamples = static_cast<std::uint16_t>(
+            rhythm.pulse = pulse;
+            rhythm.periodSamples = static_cast<std::uint16_t>(
                 (std::max)(period, apex6ImpactTotalSamples(pulse)));
-            train.rhythm.drive = static_cast<std::uint8_t>((std::min)(
-                static_cast<long>(kMaximumDrive),
-                std::lround(kApex6TriggerPulseTrainBaseDrive +
-                            kApex6TriggerPulseTrainDriveStep * (static_cast<double>(strongest) - 1.0))));
-            train.rhythm.activeFrom = positionFor(static_cast<std::uint8_t>(first));
-            train.rhythm.activeTo = 255;
-            return train;
+            rhythm.drive = static_cast<std::uint8_t>(std::lround(pulseTrainDrive(strongest)));
+            rhythm.activeFrom = positionFor(result.startZone);
+            rhythm.activeTo = last + 1U == kZoneCount ? kAxisRange
+                : positionFor(static_cast<std::uint8_t>(last + 1U)) - 1U;
+            rhythm.zoned = true;
+            return result;
         }
         result.type = bytes[0] == 0x21
             ? Apex6TriggerType::Feedback : Apex6TriggerType::Vibration;
@@ -341,6 +347,7 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
     std::optional<std::uint64_t> sampleOffset) noexcept {
     std::array<std::int8_t, 8> output{};
     Envelope envelope;
+    double rhythmDrive = effect.rhythm.drive;
     state.burstInFrame = false;
     const double current = position;
 
@@ -412,9 +419,13 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
     case Apex6TriggerType::Rhythm: {
         const double from = effect.rhythm.activeFrom;
         const double to = effect.rhythm.activeTo;
-        const bool inside = current >= from && current <= to;
-        const bool staying = current + kApex6TriggerRhythmReleaseMargin >= from &&
-                             current <= to + kApex6TriggerRhythmReleaseMargin;
+        bool inside = current >= from && current <= to;
+        bool staying = current + kApex6TriggerRhythmReleaseMargin >= from &&
+                       current <= to + kApex6TriggerRhythmReleaseMargin;
+        if (effect.rhythm.zoned) {
+            rhythmDrive = pulseTrainDrive(zoneLevel(effect.zoneStrengths, current));
+            inside = staying = rhythmDrive > 0.0 && current >= kApex6TriggerContinuousReleasePosition;
+        }
         if (!state.trainActive && inside) {
             state.trainActive = true;
             state.trainElapsed = 0;
@@ -481,7 +492,7 @@ std::array<std::int8_t, 8> renderApex6TriggerEffect(
             continue;
         }
         if (effect.type == Apex6TriggerType::Rhythm && state.trainActive) {
-            output[index] = rhythmSample(effect.rhythm, state.trainElapsed++);
+            output[index] = rhythmSample(effect.rhythm, state.trainElapsed++, rhythmDrive);
             rampStart = 0.0;
             continue;
         }
