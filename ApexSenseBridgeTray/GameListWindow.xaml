@@ -1002,6 +1002,34 @@
                                             </DockPanel>
                                         </Border>
 
+                                        <Border x:Name="TileSettingUdp" Style="{StaticResource SettingRow}" ToolTip="{DynamicResource Loc_UdpTriggersHint}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                                                            Cursor="Hand" MouseLeftButtonDown="OnSettingUdpToggled">
+                                                    <Path Data="M 4,7 L 20,7 M 4,12 L 20,12 M 4,17 L 20,17 M 9,5 L 9,9 M 15,10 L 15,14 M 7,15 L 7,19"
+                                                          Style="{StaticResource IconPath}" Width="17" Height="17" Margin="0,0,12,0"/>
+                                                    <TextBlock Text="{DynamicResource Loc_UdpTriggers}" Style="{StaticResource RowLabel}"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBox x:Name="TxtSettingUdpPort" Width="68" Height="28" Margin="0,0,12,0"
+                                                             Style="{StaticResource PortInputBox}"
+                                                             TextChanged="OnSettingUdpPortChanged"/>
+                                                    <Border x:Name="BadgeSettingUdp" CornerRadius="12" Width="44" Height="24"
+                                                            Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource ControlBorder}"
+                                                            BorderThickness="1.5" VerticalAlignment="Center"
+                                                            Cursor="Hand" MouseLeftButtonDown="OnSettingUdpToggled">
+                                                        <Ellipse x:Name="DotSettingUdp" Width="16" Height="16"
+                                                                 HorizontalAlignment="Left" Margin="3,0,0,0"
+                                                                 Fill="{DynamicResource TextMuted}"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
                                         <Border x:Name="TileSettingVersionStats" Style="{StaticResource SettingRow}" Cursor="Hand"
                                                 MouseLeftButtonDown="OnSettingVersionStatsToggled" ToolTip="{DynamicResource Loc_VersionStatsHint}">
                                             <DockPanel>
@@ -1014,6 +1042,19 @@
                                                 <Path DockPanel.Dock="Left" Data="M 5,19 L 5,12 M 12,19 L 12,5 M 19,19 L 19,9"
                                                       Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
                                                 <TextBlock Text="{DynamicResource Loc_VersionStats}" Style="{StaticResource RowLabel}"/>
+                                            </DockPanel>
+                                        </Border>
+
+                                        <Border x:Name="TileSettingRearButtons" Style="{StaticResource SettingRow}" Cursor="Hand"
+                                                MouseLeftButtonDown="OnOpenRearButtonMappingClick">
+                                            <DockPanel>
+                                                <Path DockPanel.Dock="Right" Data="M 2,2 L 7,7 L 2,12"
+                                                      Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.8"
+                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="7" Height="12"
+                                                      Stretch="Uniform" Margin="12,0,4,0"/>
+                                                <Path DockPanel.Dock="Left" Data="M 3,5 H 21 V 19 H 3 Z M 7,9 H 9 M 11,9 H 13 M 15,9 H 17 M 7,13 H 9 M 11,13 H 13 M 15,13 H 17 M 8,16 H 16"
+                                                      Style="{StaticResource IconPath}" Width="16" Height="16" Margin="0,0,12,0"/>
+                                                <TextBlock Text="{DynamicResource Loc_SettingRearButtonMapping}" Style="{StaticResource RowLabel}"/>
                                             </DockPanel>
                                         </Border>
 

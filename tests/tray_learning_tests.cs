@@ -1142,6 +1142,17 @@ internal static class TrayLearningTests
 
     private static void TestApex6Rate2kHzSetting()
     {
+        var mapping = new Dictionary<string, string> { { "M1", "Cross" }, { "M2", "None" } };
+        var combined = BridgeArguments.Build("none", false, 12, true, 0,
+            lightbarBrightnessPercent: 40, apex6Rate2k: false,
+            enableUdpTriggers: true, udpPort: 10027, rearButtonBindings: mapping);
+        Assert(combined.Contains("--apex6-rate 1000") &&
+               combined.Contains("--sync-lightbar --lightbar-brightness 40") &&
+               combined.Contains("--udp-bind 127.0.0.1 --udp-port 10027") &&
+               combined.Contains("--rear-map M1=Cross") && !combined.Contains("M2="),
+            "UDP and rear mapping did not coexist with existing launch options.");
+        Assert(!BridgeArguments.Build("none", false, 12, false, 0).Contains("--udp-"),
+            "UDP was enabled without opting in.");
         const string prefix = "bridge-triggers --touchpad-profile none --trigger-strength 100 --vibration-strength 100 " +
                               "--apex4-gyro-strength 100 --apex4-gyro-yaw-strength 100";
         Assert(BridgeArguments.Build("none", true, 12, false, 0) == prefix + " --rumble --haptic-threshold 12",

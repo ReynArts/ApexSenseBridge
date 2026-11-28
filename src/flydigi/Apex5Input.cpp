@@ -1,6 +1,7 @@
 #include "flydigi/Apex5Input.h"
 
 #include "flydigi/Apex5Protocol.h"
+#include "flydigi/Apex5RearButtons.h"
 #include "platform/XInputMapping.h"
 
 #include <algorithm>
@@ -55,6 +56,9 @@ decodeApex5InputReport(std::span<const std::uint8_t> report,
 
     const auto primary = report[12];
     const auto secondary = report[13];
+    // Byte 14 carries the M1-M4 / LM / RM bits; it is decoded separately and
+    // deliberately kept out of the XInput button mask.
+    snapshot.rearButtons = apex5::rearButtonBits(report);
     if (primary & 0x01) snapshot.buttons |= platform::xinputButton::kDpadUp;
     if (primary & 0x02) snapshot.buttons |= platform::xinputButton::kDpadRight;
     if (primary & 0x04) snapshot.buttons |= platform::xinputButton::kDpadDown;

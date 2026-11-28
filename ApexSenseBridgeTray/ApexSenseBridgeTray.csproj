@@ -124,6 +124,7 @@
     <Compile Include="Services\ControllerDetectionService.cs" />
     <Compile Include="Services\ControllerSelection.cs" />
     <Compile Include="Services\ControllerTestService.cs" />
+    <Compile Include="Services\RearButtonService.cs" />
     <Compile Include="Services\DiagnosticReportService.cs" />
     <Compile Include="Services\ExecutableLearningService.cs" />
     <Compile Include="Services\GameProcessSessionTracker.cs" />
@@ -190,6 +191,14 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <Page Include="RearButtonMappingWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="RearButtonMappingWindow.xaml.cs">
+      <DependentUpon>RearButtonMappingWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Page Include="ControllerPickerWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

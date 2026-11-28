@@ -2,6 +2,7 @@
 #include "cli/BridgeOptions.h"
 #include "cli/BridgeRuntimeSupport.h"
 #include "cli/BridgeTelemetry.h"
+#include "cli/UdpTriggerServer.h"
 #include "cli/CommandSupport.h"
 #include "core/ApexMotionDiagnosticGuard.h"
 #include "core/ApexProfileRestoreGuard.h"
@@ -376,6 +377,7 @@ int commandBridgeTriggers(int argc, char** argv) {
     }
     if (!error.empty()) std::cerr << "Warning: " << error << '\n';
     std::string inputBackend(inputSource->backendName());
+    inputSource->setRearButtonBindings(options.rearButtonBindings);
     if (device->identity()) {
         inputSource->setBatteryState(
             device->identity()->batteryPercent(),
@@ -437,6 +439,28 @@ int commandBridgeTriggers(int argc, char** argv) {
     auto adaptiveBridge = !apex6Pro
         ? makeAdaptiveBridge()
         : std::unique_ptr<asb::dualsense::AdaptiveTriggerBridge>{};
+    std::unique_ptr<asb::cli::UdpTriggerServer> udpTriggerServer;
+    bool udpTriggersEnabled = options.udpPort != 0;
+    const auto startUdpTriggers = [&]() {
+        if (!adaptiveBridge || !udpTriggersEnabled) return;
+        udpTriggerServer = std::make_unique<asb::cli::UdpTriggerServer>(
+            options.udpBindAddress,
+            options.udpPort,
+            [adaptive = adaptiveBridge.get()](const auto& feedback) {
+                adaptive->handle(feedback);
+            });
+        std::string udpError;
+        if (!udpTriggerServer->start(udpError)) {
+            std::cerr << "Warning: UDP trigger listener disabled for this session: " << udpError
+                      << " The bridge continues without UDP triggers. Choose another --udp-port"
+                      << " or close the application using it.\n";
+            udpTriggerServer.reset();
+            udpTriggersEnabled = false;
+        } else {
+            std::cout << "UDP trigger listener: " << options.udpBindAddress << ':'
+                      << options.udpPort << " (localhost only).\n";
+        }
+    };
     auto apex6Bridge = apex6Pro
         ? std::make_unique<asb::dualsense::Apex6HapticBridge>(
               *device, hapticConfig, options.routeRumble, options.triggerStrengthPercent,
@@ -769,6 +793,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                        reopenError);
         }
         inputBackend = std::string(inputSource->backendName());
+        inputSource->setRearButtonBindings(options.rearButtonBindings);
         if (device->identity()) {
             inputSource->setBatteryState(
                 device->identity()->batteryPercent(),
@@ -825,6 +850,7 @@ int commandBridgeTriggers(int argc, char** argv) {
             if (!inputSource) return false;
             if (device->identity()) inputSource->setBatteryState(
                 device->identity()->batteryPercent(), device->identity()->chargeState());
+            inputSource->setRearButtonBindings(options.rearButtonBindings);
             // Never disable controllerData or switch onboard profiles here.
             if (!device->setInputTransport(true, false, restartError) ||
                 !device->setInputTransport(true, true, restartError)) return false;
@@ -968,6 +994,8 @@ int commandBridgeTriggers(int argc, char** argv) {
     startup.markReady();
     startupWatchdog.stop();
 
+    startUdpTriggers();
+
     const auto initializedAt = std::chrono::steady_clock::now();
     const auto initializationMilliseconds =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1033,6 +1061,9 @@ int commandBridgeTriggers(int argc, char** argv) {
                       : "")
               << (physicalIsolation.active()
                       ? "The original APEX game interface is hidden for this bridge session only.\n"
+                      : "")
+              << (udpTriggerServer
+                      ? "REFramework UDP trigger input is enabled.\n"
                       : "")
               << (sessionControl ? "Bridge session IPC is ready.\n" : "")
               << (rumbleBridge
@@ -1200,6 +1231,7 @@ int commandBridgeTriggers(int argc, char** argv) {
         } while (!reopened && std::chrono::steady_clock::now() < reopenDeadline &&
                  !stopRequested());
         if (!reopened) return false;
+        reopened->setRearButtonBindings(options.rearButtonBindings);
         if (device->identity()) {
             reopened->setBatteryState(device->identity()->batteryPercent(),
                                       device->identity()->chargeState());
@@ -1269,6 +1301,8 @@ int commandBridgeTriggers(int argc, char** argv) {
 
         const asb::HidDeviceInfo lostInterface = device->info();
         feedbackRouter.detach();
+        // Join the UDP callback before destroying the bridge it references.
+        if (udpTriggerServer) udpTriggerServer->stop();
         if (lightbarBridge) lightbarBridge->suspend();
         adaptiveBridge.reset();
         rumbleBridge.reset();
@@ -1333,6 +1367,7 @@ int commandBridgeTriggers(int argc, char** argv) {
                     if (options.routeRumble) rumbleBridge = makeRumbleBridge();
                     if (lightbarBridge) (void)lightbarBridge->resume();
                     feedbackRouter.attach(makeFeedbackSink());
+                    startUdpTriggers();
                     if (!virtualDualSense->updateInput(fresh, neutralError)) {
                         if (sessionControl) sessionControl->markInterrupted(
                             asb::platform::SessionInterruption::VirtualDisconnected);
@@ -1765,6 +1800,13 @@ int commandBridgeTriggers(int argc, char** argv) {
     } else {
         std::cerr << "Warning: virtual input neutralization during cleanup failed: "
                   << neutralizationError << '\n';
+    }
+    if (udpTriggerServer) {
+        const auto udpStats = udpTriggerServer->stats();
+        std::cout << "UDP trigger packets: " << udpStats.packets
+                  << ", accepted: " << udpStats.accepted
+                  << ", rejected: " << udpStats.rejected << '\n';
+        udpTriggerServer->stop();
     }
     virtualDualSense->close(); // joins the feedback callback before touching the HID device
     if (adaptiveBridge) adaptiveBridge->quiesce();

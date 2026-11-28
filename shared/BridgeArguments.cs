@@ -18,7 +18,10 @@ namespace ApexSenseBridge.Common
             int apex4GyroYawStrengthPercent = 100,
             bool zoneEmulation = true,
             int lightbarBrightnessPercent = 100,
-            bool apex6Rate2k = true)
+            bool apex6Rate2k = true,
+            bool enableUdpTriggers = false,
+            int udpPort = 10026,
+            IDictionary<string, string> rearButtonBindings = null)
         {
             var arguments = new List<string>
             {
@@ -70,6 +73,34 @@ namespace ApexSenseBridge.Common
             {
                 arguments.Add("--apex-profile");
                 arguments.Add(apexProfileSlot.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (enableUdpTriggers)
+            {
+                arguments.Add("--udp-bind");
+                arguments.Add("127.0.0.1");
+                arguments.Add("--udp-port");
+                arguments.Add(Math.Max(1, Math.Min(65535, udpPort))
+                    .ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (rearButtonBindings != null)
+            {
+                var rearEntries = new List<string>();
+                foreach (var name in new[] { "M1", "M2", "M3", "M4", "LM", "RM" })
+                {
+                    string action;
+                    if (rearButtonBindings.TryGetValue(name, out action) &&
+                        !string.IsNullOrEmpty(action) && action != "None")
+                    {
+                        rearEntries.Add(name + "=" + action);
+                    }
+                }
+                if (rearEntries.Count > 0)
+                {
+                    arguments.Add("--rear-map");
+                    arguments.Add(string.Join(",", rearEntries.ToArray()));
+                }
             }
 
             return string.Join(" ", arguments.ToArray());

@@ -99,6 +99,7 @@ namespace ApexSenseBridgeTray
                 sessionManager.SessionStarted += (game, profile) => Dispatcher.BeginInvoke(new Action(UpdateDashboardStatus));
                 sessionManager.SessionStopped += reason => Dispatcher.BeginInvoke(new Action(UpdateDashboardStatus));
                 sessionManager.SessionError += err => Dispatcher.BeginInvoke(new Action(UpdateDashboardStatus));
+                sessionManager.SessionWarning += warning => Dispatcher.BeginInvoke(new Action(OnUdpListenerUnavailable));
             }
 
             if (gameListService != null)
@@ -465,7 +466,8 @@ namespace ApexSenseBridgeTray
             var items = new FrameworkElement[]
             {
                 TileSettingAutoDetect, TileSettingAdaptive, TileSettingHaptic,
-                TileSettingNotifications, TileSettingVersionStats, TileSettingLanguage,
+                TileSettingNotifications, TileSettingUdp, TileSettingVersionStats,
+                TileSettingRearButtons, TileSettingLanguage,
                 BtnOpenControllerTest, BtnPreparedLaunch, BtnReportBug, BtnCheckUpdates
             }.Where(item => item != null);
             return (navigableOnly ? items.Where(IsNavigable) : items).ToArray();
@@ -1045,10 +1047,12 @@ namespace ApexSenseBridgeTray
                 else if (item == TileSettingAdaptive) OnSettingAdaptiveToggled(null, null);
                 else if (item == TileSettingHaptic) OnSettingHapticToggled(null, null);
                 else if (item == TileSettingNotifications) OnSettingNotificationsToggled(null, null);
+                else if (item == TileSettingUdp) OnSettingUdpToggled(null, null);
                 else if (item == TileSettingVersionStats) OnSettingVersionStatsToggled(null, null);
                 else if (item == TileSettingSyncLightbar) OnSettingSyncLightbarToggled(null, null);
                 else if (item == TileSettingZoneEmulation) OnSettingZoneEmulationToggled(null, null);
                 else if (item == TileSettingApex6Rate2kHz) OnSettingApex6Rate2kHzToggled(null, null);
+                else if (item == TileSettingRearButtons) OpenRearButtonMapping();
                 else if (item == TileSettingLanguage) OpenLanguagePicker();
                 else if (item == RowGripVibrations) ToggleGripVibrations();
                 else if (item is Button button) button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -2943,6 +2947,9 @@ namespace ApexSenseBridgeTray
             UpdateSettingToggle(BadgeSettingAdaptive, DotSettingAdaptive, settings.TriggerOnAdaptiveTriggers);
             UpdateSettingToggle(BadgeSettingHaptic, DotSettingHaptic, settings.TriggerOnHapticFeedback);
             UpdateSettingToggle(BadgeSettingNotifications, DotSettingNotifications, settings.EnableNotifications);
+            UpdateSettingToggle(BadgeSettingUdp, DotSettingUdp, settings.EnableUdpTriggers);
+            TxtSettingUdpPort.Text = settings.UdpPort.ToString();
+            TxtSettingUdpPort.IsEnabled = settings.EnableUdpTriggers;
             UpdateSettingToggle(BadgeSettingVersionStats, DotSettingVersionStats, settings.SendVersionStats);
             UpdateSettingToggle(BadgeSettingSyncLightbar, DotSettingSyncLightbar, displayed.SyncLightbar);
             UpdateSettingToggle(BadgeSettingZoneEmulation, DotSettingZoneEmulation, settings.ZoneEmulation);
@@ -3133,12 +3140,55 @@ namespace ApexSenseBridgeTray
             UpdateSettingsView();
         }
 
+        private void OnSettingUdpToggled(object sender, MouseButtonEventArgs e)
+        {
+            if (settings == null) return;
+            settings.EnableUdpTriggers = !settings.EnableUdpTriggers;
+            settings.UdpPort = NormalizeUdpPort(settings.UdpPort);
+            settings.Save();
+            UpdateSettingsView();
+        }
+
         private void OnSettingVersionStatsToggled(object sender, MouseButtonEventArgs e)
         {
             if (settings == null) return;
             settings.SetSendVersionStats(!settings.SendVersionStats);
             settings.Save();
             UpdateSettingsView();
+        }
+
+        // The UDP port was busy: the bridge continues without the listener, so turn the
+        // option off. The dashboard shows the reason through EngineSessionManager.LastReason.
+        private void OnUdpListenerUnavailable()
+        {
+            if (settings == null) return;
+            if (settings.EnableUdpTriggers)
+            {
+                settings.EnableUdpTriggers = false;
+                settings.Save();
+            }
+            UpdateSettingsView();
+            UpdateDashboardStatus();
+        }
+
+        private void OnSettingUdpPortChanged(object sender, TextChangedEventArgs e)
+        {
+            if (settings == null || TxtSettingUdpPort == null || !IsLoaded) return;
+            int port;
+            if (!int.TryParse(TxtSettingUdpPort.Text, out port) || port < 1 || port > 65535)
+            {
+                TxtSettingUdpPort.BorderBrush = Brushes.OrangeRed;
+                return;
+            }
+
+            TxtSettingUdpPort.ClearValue(BorderBrushProperty);
+            settings.UdpPort = port;
+            settings.Save();
+        }
+
+        private static int NormalizeUdpPort(int port)
+        {
+            return port >= 1 && port <= 65535 ? port : 10026;
         }
 
         private void OnSettingSyncLightbarToggled(object sender, MouseButtonEventArgs e)
@@ -3205,6 +3255,26 @@ namespace ApexSenseBridgeTray
             LocalizationManager.SetLanguage(lang);
             UpdateLanguageDisplay();
             UpdateControllerStatus(lastControllerStatus);
+        }
+
+        private RearButtonMappingWindow rearButtonWindow;
+
+        private void OnOpenRearButtonMappingClick(object sender, MouseButtonEventArgs e)
+        {
+            OpenRearButtonMapping();
+        }
+
+        private void OpenRearButtonMapping()
+        {
+            if (rearButtonWindow != null)
+            {
+                rearButtonWindow.Activate();
+                return;
+            }
+
+            rearButtonWindow = new RearButtonMappingWindow(settings) { Owner = this };
+            rearButtonWindow.Closed += (sender, args) => rearButtonWindow = null;
+            rearButtonWindow.Show();
         }
 
         private void OnOpenControllerTestClick(object sender, RoutedEventArgs e)
